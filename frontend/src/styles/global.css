@@ -1,0 +1,241 @@
+/* ============================================================
+   nagare 全局样式 — M0 骨架
+   点缀色（--hud-*）由 HomePage 里的 tokens.ts 调用注入；
+   本文件只放底色、文字与结构性样式。
+   ============================================================ */
+
+:root {
+  /* 底色与 src/tokens.ts 的层级表对齐：
+     --color-surface = oklchToken('trench', HUE.s07) = oklch(14% 0.04 195) */
+  --color-surface: oklch(14% 0.04 195);
+  --color-surface-raised: oklch(17.5% 0.042 195 / 0.85);
+  --color-text: rgba(235, 235, 245, 0.86);
+  --color-text-dim: rgba(235, 235, 245, 0.45);
+
+  /* 语义色：错误红 / 警示琥珀不在 tokens 的章节 HUE 表里，
+     沿用同一套 L/C 档位（readout 档 72% / 0.14）换 hue 生成，保持明度秩序一致 */
+  --color-err: oklch(72% 0.14 25);
+  --color-warn: oklch(72% 0.14 55);
+
+  --font-ui:
+    -apple-system, 'SF Pro Display', 'PingFang SC', 'Hiragino Sans GB',
+    'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+
+  --space-shell-y: clamp(4rem, 12vh, 8rem);
+  --duration-fast: 150ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---------- 基础 reset ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100dvh;
+  background-color: var(--color-surface);
+  /* 顶部一层极淡的青色辉光，给纯色底加一点大气层 */
+  background-image: radial-gradient(
+    120% 60% at 50% -10%,
+    oklch(46% 0.06 195 / 0.14),
+    transparent 60%
+  );
+  background-repeat: no-repeat;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+/* ---------- 页面骨架 ---------- */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+  max-width: 42rem;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: var(--space-shell-y) clamp(1.25rem, 6vw, 2.5rem) 2.5rem;
+}
+
+/* ---------- 抬头 ---------- */
+
+.masthead-eyebrow {
+  color: var(--hud-accent);
+  opacity: 0.85;
+}
+
+.masthead-title {
+  margin-top: 1.1rem;
+  font-size: clamp(3.25rem, 11vw, 5rem);
+  font-weight: 200;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.masthead-kana {
+  margin-left: 0.45em;
+  font-size: 0.32em;
+  font-weight: 300;
+  letter-spacing: 0.35em;
+  color: var(--color-text-dim);
+  vertical-align: 0.55em;
+}
+
+.masthead-title::after {
+  content: '';
+  display: block;
+  width: 3.25rem;
+  height: 2px;
+  margin-top: 1.4rem;
+  background: linear-gradient(90deg, var(--hud-accent), transparent);
+}
+
+.masthead-tagline {
+  margin-top: 1.25rem;
+  max-width: 34rem;
+  color: var(--color-text-dim);
+}
+
+/* ---------- 健康检查面板 ---------- */
+
+.panel {
+  position: relative;
+  padding: 1.75rem clamp(1.25rem, 4vw, 2rem) 2rem;
+  border: 1px solid var(--hud-border-dim);
+  border-top-color: var(--hud-border);
+  background: var(--color-surface-raised);
+}
+
+/* 左上角一小截加亮描边，HUD 取景框的意思 */
+.panel::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-top: 2px solid var(--hud-accent);
+  border-left: 2px solid var(--hud-accent);
+  pointer-events: none;
+}
+
+.panel-heading {
+  color: var(--hud-accent);
+}
+
+.panel-copy {
+  margin-top: 0.9rem;
+  max-width: 32rem;
+  color: var(--color-text);
+}
+
+.panel-copy code {
+  padding: 0.1em 0.4em;
+  border: 1px solid var(--hud-border-dim);
+  background: oklch(14% 0.04 195 / 0.6);
+  color: var(--hud-accent);
+  font-size: 0.85em;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem 1.25rem;
+  margin-top: 1.5rem;
+}
+
+/* ---------- 按钮 ---------- */
+
+.check-button {
+  padding: 0.7rem 1.6rem;
+  border: 1px solid var(--hud-accent);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--hud-accent);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out-expo),
+    border-color var(--duration-fast) var(--ease-out-expo),
+    color var(--duration-fast) var(--ease-out-expo),
+    transform var(--duration-fast) var(--ease-out-expo);
+}
+
+.check-button:hover:not(:disabled) {
+  background-color: var(--hud-flash);
+  border-color: var(--hud-accent-hot);
+  color: var(--hud-accent-hot);
+}
+
+.check-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.check-button:focus-visible {
+  outline: 2px solid var(--hud-accent-hot);
+  outline-offset: 3px;
+}
+
+.check-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---------- 结果行 ---------- */
+
+.result {
+  min-height: 1.6em; /* 常驻占位：结果出现/消失时不推挤布局 */
+  font-size: 0.8rem;
+}
+
+.result--dim {
+  color: var(--color-text-dim);
+}
+
+.result--ok {
+  color: var(--hud-accent-hot);
+}
+
+.result--warn {
+  color: var(--color-warn);
+}
+
+.result--err {
+  color: var(--color-err);
+}
+
+/* ---------- 页脚 ---------- */
+
+.colophon {
+  margin-top: auto;
+  padding-top: 2rem;
+  border-top: 1px solid var(--hud-border-dim);
+}
+
+/* ---------- 偏好适配 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .check-button {
+    transition: none;
+  }
+
+  .check-button:active:not(:disabled) {
+    transform: none;
+  }
+}
