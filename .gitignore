@@ -1,0 +1,41 @@
+# 内部指引 —— 含 animego 的业务数据与内部判断，不进公开仓库
+CLAUDE.md
+
+# 前端构建产物（go:embed 的落点，构建时生成）
+# .gitkeep 必须进库：go:embed all:web 要求 web/ 目录存在且非空
+/web/*
+!/web/.gitkeep
+
+# Node
+node_modules/
+frontend/dist/
+.vite/
+*.tsbuildinfo
+
+# Go
+/nagare
+/nagare.exe
+*.test
+*.out
+/dist/
+/bin/
+
+# 本地配置与运行时状态（含 token，绝不能进版本库）
+/.nagare/
+config.toml
+config.local.*
+
+# 下载目录 / 缓存
+/downloads/
+/cache/
+
+# 编辑器与系统
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# 环境变量
+.env
+.env.*
+!.env.example
