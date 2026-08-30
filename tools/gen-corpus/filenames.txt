@@ -1,0 +1,70 @@
+# 单文件名解析语料：一行一个，# 开头是注释。
+# 覆盖简中/繁中/日文/英文 scene 各流派 + episodeParser.js 注释里点名的回归案例。
+
+# ── 简中字幕组主流形态 ──
+【喵萌奶茶屋】★04月新番★[葬送的芙莉莲/Sousou no Frieren][28][1080p][简日双语][招募翻译].mkv
+[桜都字幕组] 孤独摇滚！ / Bocchi the Rock! [01][1080p][简繁内封].mkv
+[桜都字幕组] 关于我转生变成史莱姆这档事 第3期 / Tensei shitara Slime Datta Ken 3rd Season [48.5][1080p][简繁内封].mkv
+[LoliHouse] 无职转生Ⅱ ～到了异世界就拿出真本事～ / Mushoku Tensei S2 - 12 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕].mkv
+【幻樱字幕组】【4月新番】【间谍过家家 SPY×FAMILY】【25】【GB_MP4】【1920X1080】.mp4
+[ANi] 我推的孩子 - 11 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4
+[Nekomoe kissaten&LoliHouse] Yuru Camp S3 - 05 [WebRip 1080p HEVC-10bit AAC ASSx2].mkv
+[SweetSub][鹿乃子乃子虚乌有][05][WebRip][1080P][AVC 8bit][简日双语].mp4
+[Lilith-Raws] 药屋少女的呢喃 / Kusuriya no Hitorigoto - 03v2 [Baha][WEB-DL][1080p][AVC AAC][CHT].mp4
+[星空字幕組][進擊的巨人 第四季][The Final Season][87][1080P][繁日雙語].mp4
+[悠哈璃羽字幕社][排球少年 第四季][總第74話][1080p][繁体内嵌].mkv
+[動漫國字幕組]★[葬送的芙莉蓮][总第 28][1080P][繁體][MP4].mp4
+
+# ── BD 整理组（DBD-Raws / VCB-Studio）与 BD 特典 ──
+[DBD-Raws][摇曳露营△][01][1080P][BDRip][HEVC-10bit][FLAC].mkv
+[DBD-Raws][摇曳露营△][BD Menu][1080P][BDRip][HEVC-10bit][FLAC].mkv
+[DBD-Raws][摇曳露营△][NCOP1][1080P][BDRip][HEVC-10bit][FLAC].mkv
+[DBD-Raws][摇曳露营△][NCED1][1080P][BDRip][HEVC-10bit][FLAC].mkv
+[DBD-Raws][朝花夕誓][特典映像][1080P][BDRip].mkv
+[VCB-Studio] Violet Evergarden [13][Ma10p_1080p][x265_flac].mkv
+[NCOP1][1080P][HEVC-10bit][FLAC].mkv
+[Moozzi2] Bocchi the Rock! SP01 (BD 1920x1080 x265-10Bit FLAC).mkv
+[ReinForce] Yuru Yuri OVA (BDRip 1920x1080 x264 FLAC).mkv
+[Foo] Bar OVA 02 [BDRip 1080p].mkv
+
+# ── 英文 scene / 国际组 ──
+[SubsPlease] Sousou no Frieren - 28 (1080p) [ABCD1234].mkv
+[Erai-raws] Kusuriya no Hitorigoto 2nd Season - 24 [1080p][Multiple Subtitle][ENG].mkv
+Frieren.S01E28.1080p.WEB-DL.H264.mkv
+[Skymoon-Raws] One Piece - 1071 [ViuTV][WEB-DL][1080p][AVC AAC][CHT][SRTx2].mkv
+[Judas] Steins;Gate - S01E12 [BD 1080p][HEVC x265 10bit][Dual-Audio].mkv
+[Sakurato] Tensei Shitara Slime Datta Ken III [01][AVC-8bit 1080p AAC][CHS].mp4
+
+# ── kind 特征 ──
+[xyz] Frieren - 01 [Audio Commentary].mkv
+[xyz] Frieren - Cast Talk [1080p].mkv
+[DBD-Raws][莉可丽丝][PV01][1080P].mkv
+[foo] Show CM 01 [1080p].mkv
+【极影字幕社】剧场版 紫罗兰永恒花园 Violet Evergarden the Movie [BDRip][1080P].mkv
+movie.mkv
+[foo] Trailer - Something [720p].mkv
+[foo] Bar - Interview with Staff [1080p].mkv
+[foo] Baz WP1 [Web Preview].mkv
+
+# ── 回归案例（episodeParser.js 注释点名）──
+[Foo] Ore wa Subete wo Parry suru - Class de 2-banme ni Tsuyoi Otoko - 07.mkv
+[Foo] Bar - 03 [1080P_AVC_AAC].mkv
+[foo] Hi10P test - 04 [Hi10P].mkv
+
+# ── 季号各流派 ──
+Frieren 第28話 (1080p).mkv
+夏目友人帳 陸 EP03.mkv
+[foo] Grand Blue Season 2 - 05 [1080p].mkv
+[foo] Mushoku Tensei 4th Season - 02.mkv
+[foo] 转生史莱姆 第四季 08.mkv
+[foo] Overlord IV - 06 [1080p].mkv
+[foo] Fate Zero 2nd - 10.mkv
+
+# ── 边角 ──
+01.mkv
+第12集.mp4
+EP 07.mkv
+[29-38].mp4
+[Sub] One Piece - 01 [1080p].mkv
+[Nekomoe kissaten] Unknown Show - 01.mkv
+S2.mkv
