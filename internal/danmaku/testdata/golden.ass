@@ -1,0 +1,28 @@
+[Script Info]
+; 由 nagare 从 dandanplay 弹幕生成，请勿手工编辑
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Danmaku,PingFang SC,48,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,7,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:12.00,Danmaku,,0,0,0,,{\move(1920,0,-336,0)\alpha&H40&}前方高能预警！
+Dialogue: 0,0:00:00.00,0:00:12.00,Danmaku,,0,0,0,,{\move(1920,58,-288,58)\c&H0000FF&\alpha&H40&}红色弹幕来了
+Dialogue: 0,0:00:01.20,0:00:06.20,Danmaku,,0,0,0,,{\an8\pos(960,0)\alpha&H40&}顶部白字
+Dialogue: 0,0:00:01.20,0:00:06.20,Danmaku,,0,0,0,,{\an8\pos(960,58)\c&H00FFFF&\alpha&H40&}顶部黄字
+Dialogue: 0,0:00:02.00,0:00:07.00,Danmaku,,0,0,0,,{\an2\pos(960,777)\c&H00FF00&\alpha&H40&}底部绿字
+Dialogue: 0,0:00:02.50,0:00:07.50,Danmaku,,0,0,0,,{\an2\pos(960,719)\c&HFFFF00&\alpha&H40&}底部青字 cyan
+Dialogue: 0,0:00:03.00,0:00:15.00,Danmaku,,0,0,0,,{\move(1920,116,-744,116)\c&HFF0000&\alpha&H40&}Blue scrolling comment in ASCII
+Dialogue: 0,0:00:03.00,0:00:15.00,Danmaku,,0,0,0,,{\move(1920,0,-456,0)\alpha&H40&}mode=2 也按滚动处理
+Dialogue: 0,0:00:04.75,0:00:16.75,Danmaku,,0,0,0,,{\move(1920,58,-1104,58)\alpha&H40&}很长很长很长很长很长很长很长的一条弹幕追上前车
+Dialogue: 0,0:00:06.00,0:00:11.00,Danmaku,,0,0,0,,{\an8\pos(960,116)\alpha&H40&}第二批顶部弹幕
+Dialogue: 0,0:00:07.00,0:00:12.00,Danmaku,,0,0,0,,{\an2\pos(960,777)\alpha&H40&}第二批底部弹幕
+Dialogue: 0,0:00:59.99,0:01:11.99,Danmaku,,0,0,0,,{\move(1920,0,-408,0)\c&H969696&\alpha&H40&}灰色弹幕 0x969696
+Dialogue: 0,1:00:00.00,1:00:12.00,Danmaku,,0,0,0,,{\move(1920,0,-432,0)\alpha&H40&}一小时后的滚动弹幕
+Dialogue: 0,1:00:00.00,1:00:05.00,Danmaku,,0,0,0,,{\an2\pos(960,777)\alpha&H40&}Bottom at exactly one hour
