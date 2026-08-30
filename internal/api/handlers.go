@@ -1,0 +1,281 @@
+// Package api 实现 /api/* 业务端点，经 httpserver.Options.RegisterAPI 挂进
+// 鉴权链之内 —— 这里的每个路由天然带 Host 白名单 + token + CSRF 三层防护。
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log"
+	"net/http"
+
+	"github.com/nagare-player/nagare/internal/animego"
+	errs "github.com/nagare-player/nagare/internal/errors"
+	"github.com/nagare-player/nagare/internal/httpserver"
+	"github.com/nagare-player/nagare/internal/library"
+	"github.com/nagare-player/nagare/internal/mpv"
+	"github.com/nagare-player/nagare/internal/player"
+	"github.com/nagare-player/nagare/internal/store"
+)
+
+// maxBodyBytes 是请求体上限（本地 API，1MB 足够）。
+const maxBodyBytes = 1 << 20
+
+// PlayerAPI 是处理器需要的播放能力子集。
+type PlayerAPI interface {
+	Play(ctx context.Context, item library.Item, subPath string) (player.PlayResult, error)
+	Stop()
+	SetPause(v bool) error
+	Seek(seconds float64) error
+	Status() player.Status
+}
+
+// AnimegoAuth 是处理器需要的 animego 会话能力子集。
+type AnimegoAuth interface {
+	Login(ctx context.Context, email, password string) (animego.User, error)
+	RestoreSession(s animego.Session)
+	Session() animego.Session
+	LoggedIn() bool
+}
+
+// Deps 是全部依赖注入点。
+type Deps struct {
+	Store          *store.Store
+	Lib            *LibraryService
+	Player         PlayerAPI
+	Auth           AnimegoAuth
+	AnimegoBaseURL string
+	MPV            mpv.Info
+	MPVErr         error // mpv 探测失败时的用户提示来源
+	Version        string
+}
+
+// Handler 汇集全部业务端点。
+type Handler struct{ deps Deps }
+
+// New 构造 Handler。
+func New(deps Deps) *Handler { return &Handler{deps: deps} }
+
+// Register 把业务路由注册进 /api/* 的鉴权链（httpserver.Options.RegisterAPI 的挂载点）。
+func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/library", h.getLibrary)
+	mux.HandleFunc("POST /api/library/folders", h.addFolder)
+	mux.HandleFunc("DELETE /api/library/folders/{id}", h.removeFolder)
+	mux.HandleFunc("POST /api/library/rescan", h.rescan)
+	mux.HandleFunc("POST /api/play", h.play)
+	mux.HandleFunc("GET /api/player/status", h.playerStatus)
+	mux.HandleFunc("POST /api/player/stop", h.playerStop)
+	mux.HandleFunc("POST /api/player/pause", h.playerPause)
+	mux.HandleFunc("POST /api/player/seek", h.playerSeek)
+	mux.HandleFunc("GET /api/settings", h.settings)
+	mux.HandleFunc("POST /api/animego/login", h.login)
+	mux.HandleFunc("POST /api/animego/logout", h.logout)
+}
+
+// decodeBody 解析 JSON 请求体（限长）。失败返回 false 且已写响应。
+func decodeBody(w http.ResponseWriter, r *http.Request, out any) bool {
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
+	if err != nil {
+		httpserver.WriteError(w, http.StatusBadRequest, "读取请求体失败")
+		return false
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		httpserver.WriteError(w, http.StatusBadRequest, "请求体不是合法的 JSON")
+		return false
+	}
+	return true
+}
+
+// writeErr 把分类错误映射成 HTTP 状态码 + 用户可读中文。
+func writeErr(w http.ResponseWriter, err error) {
+	var ce *errs.E
+	if errors.As(err, &ce) {
+		status := http.StatusInternalServerError
+		switch ce.Category {
+		case errs.CategoryInput:
+			status = http.StatusBadRequest
+		case errs.CategoryFS:
+			status = http.StatusNotFound
+		case errs.CategoryAuth:
+			status = http.StatusUnauthorized
+		case errs.CategoryNetwork, errs.CategoryUpstream:
+			status = http.StatusBadGateway
+		case errs.CategoryPlayback, errs.CategoryInternal:
+			status = http.StatusInternalServerError
+		}
+		httpserver.WriteError(w, status, ce.UserFacing())
+		return
+	}
+	var ae *animego.Error
+	if errors.As(err, &ae) {
+		status := http.StatusBadGateway
+		switch ae.Kind {
+		case animego.ErrAuthExpired:
+			status = http.StatusUnauthorized
+		case animego.ErrRateLimited:
+			status = http.StatusTooManyRequests
+		case animego.ErrBadRequest:
+			status = http.StatusBadRequest
+		}
+		httpserver.WriteError(w, status, ae.Error())
+		return
+	}
+	log.Printf("api: 未分类错误：%v", err)
+	httpserver.WriteError(w, http.StatusInternalServerError, "内部错误，请查看终端日志")
+}
+
+// ── 库 ──
+
+func (h *Handler) getLibrary(w http.ResponseWriter, _ *http.Request) {
+	httpserver.WriteJSON(w, http.StatusOK, h.deps.Lib.View())
+}
+
+func (h *Handler) addFolder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	folder, stats, err := h.deps.Lib.AddFolder(req.Path)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{"folder": folder, "stats": stats})
+}
+
+func (h *Handler) removeFolder(w http.ResponseWriter, r *http.Request) {
+	ok, err := h.deps.Lib.RemoveFolder(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if !ok {
+		httpserver.WriteError(w, http.StatusNotFound, "找不到该库目录")
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}
+
+func (h *Handler) rescan(w http.ResponseWriter, _ *http.Request) {
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{"stats": h.deps.Lib.Rescan()})
+}
+
+// ── 播放 ──
+
+func (h *Handler) play(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		FileID string `json:"fileId"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	item, ok := h.deps.Lib.Item(req.FileID)
+	if !ok {
+		httpserver.WriteError(w, http.StatusNotFound, "文件不在当前库里，试试重新扫描")
+		return
+	}
+	res, err := h.deps.Player.Play(r.Context(), item, h.deps.Lib.SubtitlePath(req.FileID))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *Handler) playerStatus(w http.ResponseWriter, _ *http.Request) {
+	httpserver.WriteJSON(w, http.StatusOK, h.deps.Player.Status())
+}
+
+func (h *Handler) playerStop(w http.ResponseWriter, _ *http.Request) {
+	h.deps.Player.Stop()
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}
+
+func (h *Handler) playerPause(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Paused bool `json:"paused"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if err := h.deps.Player.SetPause(req.Paused); err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}
+
+func (h *Handler) playerSeek(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Position float64 `json:"position"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if req.Position < 0 {
+		httpserver.WriteError(w, http.StatusBadRequest, "position 不能为负")
+		return
+	}
+	if err := h.deps.Player.Seek(req.Position); err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}
+
+// ── 设置与账号 ──
+
+func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
+	mpvView := map[string]any{"found": h.deps.MPVErr == nil && h.deps.MPV.Path != ""}
+	if h.deps.MPV.Path != "" {
+		mpvView["path"] = h.deps.MPV.Path
+		mpvView["version"] = h.deps.MPV.Version
+	}
+	if h.deps.MPVErr != nil {
+		mpvView["hint"] = h.deps.MPVErr.Error()
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{
+		"version": h.deps.Version,
+		"mpv":     mpvView,
+		"animego": map[string]any{
+			"loggedIn": h.deps.Auth.LoggedIn(),
+			"email":    h.deps.Store.AnimegoSession().Email,
+			"baseUrl":  h.deps.AnimegoBaseURL,
+		},
+	})
+}
+
+func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	user, err := h.deps.Auth.Login(r.Context(), req.Email, req.Password)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	sess := h.deps.Auth.Session()
+	if err := h.deps.Store.SetAnimegoSession(store.AnimegoSession{
+		Email:         user.Email,
+		AccessToken:   sess.AccessToken,
+		RefreshCookie: sess.RefreshCookie,
+	}); err != nil {
+		log.Printf("api: 持久化 animego 会话失败：%v", err)
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{"user": map[string]string{"email": user.Email}})
+}
+
+func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
+	h.deps.Auth.RestoreSession(animego.Session{})
+	if err := h.deps.Store.SetAnimegoSession(store.AnimegoSession{}); err != nil {
+		log.Printf("api: 清除 animego 会话失败：%v", err)
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}

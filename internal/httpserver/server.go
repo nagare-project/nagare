@@ -38,6 +38,9 @@ type Options struct {
 	WebFS fs.FS
 	// Version 通过 /api/health 暴露给前端。
 	Version string
+	// RegisterAPI 在 /api/* 的鉴权链【之内】注册业务端点（internal/api 挂载点）。
+	// 注册的所有路由自动获得 Host 白名单 + token + CSRF 三层防护。
+	RegisterAPI func(mux *http.ServeMux)
 }
 
 // Server 承载路由、鉴权中间件与流端点能力注册表。
@@ -56,6 +59,9 @@ func New(opts Options) *Server {
 
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/health", s.handleHealth)
+	if opts.RegisterAPI != nil {
+		opts.RegisterAPI(api)
+	}
 
 	root := http.NewServeMux()
 	// /api/* 在 Host 白名单之内再叠 token 校验与 CSRF 守卫。
@@ -110,6 +116,12 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeEnvelope(w, status, envelope{Success: false, Error: msg})
 }
+
+// WriteJSON 供业务端点（internal/api）复用统一信封的成功响应。
+func WriteJSON(w http.ResponseWriter, status int, data any) { writeJSON(w, status, data) }
+
+// WriteError 供业务端点复用统一信封的错误响应（msg 中文、面向用户）。
+func WriteError(w http.ResponseWriter, status int, msg string) { writeError(w, status, msg) }
 
 func writeEnvelope(w http.ResponseWriter, status int, env envelope) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
