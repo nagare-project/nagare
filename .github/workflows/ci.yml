@@ -18,6 +18,13 @@ jobs:
       - name: 安装依赖
         run: bun install --frozen-lockfile
         working-directory: frontend
+      - name: 依赖漏洞扫描
+        run: bun audit
+        working-directory: frontend
+        continue-on-error: true # 上游告警不阻断构建，但要在日志里可见
+      - name: 类型检查
+        run: bun run typecheck
+        working-directory: frontend
       - name: 单元测试（vitest）
         run: bun run test
         working-directory: frontend

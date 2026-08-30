@@ -39,3 +39,4 @@ config.local.*
 .env
 .env.*
 !.env.example
+.gstack/
