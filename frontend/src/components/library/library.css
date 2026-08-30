@@ -1,0 +1,393 @@
+/* ============================================================
+   媒体库 feature 样式：顶栏 · 空态 · 簇卡片 · 剧集行 · 添加表单。
+   正在播放条见 now-playing.css；原子件（.panel / .badge / .hud-button
+   等）见 styles/global.css。
+   ============================================================ */
+
+/* ---------- 页面骨架 ---------- */
+
+.lib-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 64rem;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 4vh, 2.75rem) clamp(1rem, 4vw, 2.5rem) 3rem;
+}
+
+/* 播放条出现时给底部让位，避免最后几行被固定条盖住 */
+.lib-shell--with-bar {
+  padding-bottom: 7.5rem;
+}
+
+/* ---------- 顶栏 ---------- */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.9rem 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--hud-border-dim);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55em;
+  font-size: 1.55rem;
+  font-weight: 200;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.topbar-kana {
+  font-size: 0.55rem;
+  font-weight: 300;
+  letter-spacing: 0.35em;
+  color: var(--color-text-dim);
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.topbar-link {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+/* mpv 状态芯片：点 + 微标签 */
+.mpv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+.mpv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+}
+
+.mpv-dot--ok {
+  background: var(--hud-accent-hot);
+  box-shadow: 0 0 6px var(--hud-accent-hot);
+}
+
+.mpv-dot--missing {
+  background: var(--color-err);
+  box-shadow: 0 0 6px var(--color-err);
+}
+
+/* mpv 缺失提示条 */
+.mpv-alert {
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--color-warn-border);
+  border-left: 3px solid var(--color-warn);
+  background: var(--color-warn-wash);
+  color: var(--color-warn);
+  font-size: 0.82rem;
+}
+
+/* 顶栏下的状态行（扫描结果 / 播放错误 / 上次扫描时间） */
+.lib-status {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-height: 1.3em;
+  font-size: 0.72rem;
+}
+
+/* ---------- 空态引导 ---------- */
+
+.lib-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: auto;
+  padding: 3rem 0 4rem;
+  max-width: 30rem;
+  width: 100%;
+  text-align: center;
+}
+
+.lib-empty-kana {
+  font-size: 2.6rem;
+  font-weight: 200;
+  letter-spacing: 0.3em;
+  margin-left: 0.3em; /* 视觉补偿字符间距造成的右移 */
+  color: var(--hud-accent);
+  opacity: 0.85;
+}
+
+.lib-empty-title {
+  margin-top: 0.7rem;
+  font-size: 1.15rem;
+  font-weight: 400;
+}
+
+.lib-empty-copy {
+  color: var(--color-text-dim);
+  font-size: 0.85rem;
+  max-width: 26rem;
+}
+
+.lib-empty-form {
+  width: 100%;
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+/* ---------- 簇卡片 ---------- */
+
+.cluster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.cluster {
+  padding: 1rem 1.15rem 1.1rem;
+}
+
+.cluster-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.6rem;
+  margin-bottom: 0.55rem;
+}
+
+.cluster-title {
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+
+.cluster-count {
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.cluster-group + .cluster-group {
+  margin-top: 0.7rem;
+}
+
+.group-label {
+  margin: 0.15rem 0 0.2rem;
+  padding-left: 0.5rem;
+  font-weight: 400;
+}
+
+/* ---------- 剧集行 ---------- */
+
+.ep-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ep-row {
+  display: grid;
+  grid-template-columns: 2.9rem minmax(0, 1fr) auto auto auto auto;
+  align-items: center;
+  column-gap: 0.65rem;
+  min-height: 1.95rem;
+  padding: 0.18rem 0.5rem 0.18rem 0.4rem;
+  border-left: 2px solid transparent;
+  font-size: 0.8rem;
+  transition: background-color var(--duration-fast) var(--ease-out-expo);
+}
+
+.ep-row:hover {
+  background: var(--hud-flash);
+  border-left-color: var(--hud-border);
+}
+
+.ep-row--active {
+  background: var(--hud-flash);
+  border-left-color: var(--hud-accent-hot);
+}
+
+.ep-num {
+  font-size: 0.78rem;
+  color: var(--hud-accent);
+}
+
+.ep-num--none {
+  color: var(--color-text-faint);
+}
+
+/* 主列 = 文件名或引导线 + kind 徽标，放在同一格里保证右侧元数据列对齐 */
+.ep-main {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  min-width: 0;
+}
+
+.ep-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  color: var(--color-text);
+}
+
+/* 有集号时主列用虚线引导线补位（目录页的意思），把编号和右侧元数据连起来 */
+.ep-leader {
+  flex: 1;
+  height: 0;
+  border-bottom: 1px dashed var(--hud-border-dim);
+  opacity: 0.7;
+}
+
+.ep-res,
+.ep-size {
+  font-size: 0.66rem;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.ep-res {
+  min-width: 3.2em;
+  text-align: right;
+}
+
+.ep-size {
+  min-width: 4.6em;
+  text-align: right;
+}
+
+/* 进度列定宽，保证各行 ▶ 对齐 */
+.ep-progress {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45em;
+  width: 6.6rem;
+}
+
+.ep-pbar {
+  width: 4rem;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--progress-track);
+  overflow: hidden;
+}
+
+.ep-pbar-fill {
+  height: 100%;
+  background: var(--progress-fill);
+}
+
+.ep-pct {
+  min-width: 2.4em;
+  text-align: right;
+  font-size: 0.62rem;
+  color: var(--color-text-dim);
+}
+
+.ep-done {
+  font-size: 0.78rem;
+  color: var(--hud-accent-hot);
+}
+
+.ep-play {
+  width: 2rem;
+  height: 1.55rem;
+  border: 1px solid var(--hud-border-dim);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--hud-accent);
+  font-size: 0.66rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out-expo),
+    border-color var(--duration-fast) var(--ease-out-expo),
+    color var(--duration-fast) var(--ease-out-expo);
+}
+
+.ep-play:hover:not(:disabled) {
+  background: var(--hud-flash);
+  border-color: var(--hud-accent-hot);
+  color: var(--hud-accent-hot);
+}
+
+.ep-play:focus-visible {
+  outline: 2px solid var(--hud-accent-hot);
+  outline-offset: 2px;
+}
+
+.ep-play:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- 添加文件夹表单 ---------- */
+
+.add-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.add-folder-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.add-folder-row .hud-input {
+  flex: 1;
+}
+
+/* ---------- 窄屏适配 ---------- */
+
+@media (max-width: 640px) {
+  .ep-row {
+    grid-template-columns: 2.9rem minmax(0, 1fr) auto auto;
+  }
+
+  /* 窄屏收起分辨率与体积列，保留集号/名称/进度/播放 */
+  .ep-res,
+  .ep-size {
+    display: none;
+  }
+
+  /* 进度退化为纯数字（百分比 / ✓），把宽度还给文件名列 */
+  .ep-pbar {
+    display: none;
+  }
+
+  .ep-progress {
+    width: 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ep-row,
+  .ep-play {
+    transition: none;
+  }
+}

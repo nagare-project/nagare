@@ -1,0 +1,109 @@
+/* ============================================================
+   正在播放条（NowPlayingBar）样式。
+   底部固定 HUD 条：脉冲点 + 标题/弹幕 + 时钟 + 操作，顶缘 2px 进度线。
+   ============================================================ */
+
+.np-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem 1.1rem;
+  padding: 0.7rem clamp(1rem, 4vw, 2rem) 0.8rem;
+  border-top: 1px solid var(--hud-border);
+  background: oklch(14% 0.04 195 / 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* 顶缘 2px 播放进度线（宽度随轮询更新，1s linear 与 2s 轮询节奏衔接） */
+.np-track {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  pointer-events: none;
+}
+
+.np-track-fill {
+  height: 100%;
+  background: var(--progress-fill);
+  transition: width 1s linear;
+}
+
+/* 播放中的呼吸点；暂停时转灰并停止动画 */
+.np-pulse {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hud-accent-hot);
+  box-shadow: 0 0 8px var(--hud-accent-hot);
+  animation: np-pulse 2s ease-in-out infinite;
+}
+
+.np-pulse--paused {
+  background: var(--color-text-dim);
+  box-shadow: none;
+  animation: none;
+}
+
+@keyframes np-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.np-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.np-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+}
+
+.np-time {
+  flex: none;
+  font-size: 0.74rem;
+  color: var(--hud-accent);
+}
+
+.np-actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .np-bar {
+    flex-wrap: wrap;
+  }
+
+  .np-main {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np-pulse {
+    animation: none;
+  }
+
+  .np-track-fill {
+    transition: none;
+  }
+}
