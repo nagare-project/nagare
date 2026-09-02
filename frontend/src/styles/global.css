@@ -2,9 +2,9 @@
    nagare 全局样式 — 共享底座（M1）
    点缀色（--hud-* / --progress-*）由 lib/palette.ts 经 tokens.ts
    生成，注入各页面根元素；本文件只放底色、reset 与跨页复用的
-   原子件（按钮 / 输入框 / 徽标 / 面板 / 结果行）。
-   页面与 feature 专属样式见 components/library/library.css 与
-   pages/settings.css。
+   原子件（按钮 / 输入框 / 徽标 / 面板 / 结果行）与跨页共用的顶栏。
+   页面与 feature 专属样式见 components/library/library.css、
+   components/search/*.css 与 pages/settings.css。
    ============================================================ */
 
 :root {
@@ -273,6 +273,66 @@ body {
 
 .page-notice-actions {
   margin-top: 1.4rem;
+}
+
+/* ---------- 顶栏（媒体库页 / 搜索页共用） ---------- */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.9rem 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--hud-border-dim);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55em;
+  font-size: 1.55rem;
+  font-weight: 200;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.topbar-kana {
+  font-size: 0.55rem;
+  font-weight: 300;
+  letter-spacing: 0.35em;
+  color: var(--color-text-dim);
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.topbar-link {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+/* ---------- 无障碍工具 ---------- */
+
+/* 视觉隐藏但读屏可达（表格 caption、复制反馈的 live region） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ---------- 页脚 ---------- */

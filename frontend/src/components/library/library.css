@@ -1,7 +1,7 @@
 /* ============================================================
-   媒体库 feature 样式：顶栏 · 空态 · 簇卡片 · 剧集行 · 添加表单。
-   正在播放条见 now-playing.css；原子件（.panel / .badge / .hud-button
-   等）见 styles/global.css。
+   媒体库 feature 样式：mpv 状态 · 空态 · 簇卡片 · 剧集行 · 添加表单。
+   正在播放条见 now-playing.css；顶栏（.topbar*，与搜索页共用）与原子件
+   （.panel / .badge / .hud-button 等）见 styles/global.css。
    ============================================================ */
 
 /* ---------- 页面骨架 ---------- */
@@ -21,49 +21,7 @@
   padding-bottom: 7.5rem;
 }
 
-/* ---------- 顶栏 ---------- */
-
-.topbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.9rem 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--hud-border-dim);
-}
-
-.topbar-brand {
-  display: flex;
-  align-items: baseline;
-  gap: 0.55em;
-  font-size: 1.55rem;
-  font-weight: 200;
-  letter-spacing: -0.01em;
-  line-height: 1.1;
-}
-
-.topbar-kana {
-  font-size: 0.55rem;
-  font-weight: 300;
-  letter-spacing: 0.35em;
-  color: var(--color-text-dim);
-}
-
-.topbar-spacer {
-  flex: 1;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-}
-
-.topbar-link {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-}
+/* ---------- 顶栏内的 mpv 状态 ---------- */
 
 /* mpv 状态芯片：点 + 微标签 */
 .mpv-chip {

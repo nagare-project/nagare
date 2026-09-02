@@ -2,9 +2,11 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AddFolderForm } from '../components/library/AddFolderForm'
+import { SourcesCard } from '../components/search/SourcesCard'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { useSettings } from '../hooks/useSettings'
+import { useSources } from '../hooks/useSources'
 import { animegoLogin, animegoLogout } from '../lib/endpoints'
 import type { AnimegoInfo, MpvInfo } from '../lib/endpoints'
 import type { LibraryState } from '../hooks/useLibrary'
@@ -14,14 +16,19 @@ import { label, mono } from '../tokens'
 import './settings.css'
 
 /**
- * `/settings`：animego 账号卡 + mpv 信息卡 + 库文件夹管理。
- * 设置与媒体库两份数据独立加载，任一返回 401 都切到 token 提示页。
+ * `/settings`：animego 账号卡 + mpv 信息卡 + 磁力源 + 库文件夹管理。
+ * 三份数据独立加载，任一返回 401 都切到 token 提示页。
  */
 export function SettingsPage() {
   const settings = useSettings()
   const library = useLibrary()
+  const sources = useSources()
 
-  if (settings.state.phase === 'unauthorized' || library.state.phase === 'unauthorized') {
+  if (
+    settings.state.phase === 'unauthorized' ||
+    library.state.phase === 'unauthorized' ||
+    sources.state.phase === 'unauthorized'
+  ) {
     return <UnauthorizedNotice />
   }
 
@@ -32,6 +39,9 @@ export function SettingsPage() {
           ← 返回媒体库
         </Link>
         <h1 className="settings-title">设置</h1>
+        <Link to="/search" className="hud-link settings-back settings-search-link">
+          搜索 →
+        </Link>
       </header>
 
       {settings.state.phase === 'loading' && (
@@ -62,6 +72,8 @@ export function SettingsPage() {
         </>
       )}
 
+      <SourcesCard sources={sources} />
+
       <FoldersCard
         state={library.state}
         onAdd={library.addFolder}
@@ -71,8 +83,8 @@ export function SettingsPage() {
 
       <footer className="colophon" style={label}>
         {settings.state.phase === 'ready'
-          ? `nagare v${settings.state.data.version} · M1 · local library`
-          : 'nagare · M1 · local library'}
+          ? `nagare v${settings.state.data.version} · M2 · library + search`
+          : 'nagare · M2 · library + search'}
       </footer>
     </main>
   )

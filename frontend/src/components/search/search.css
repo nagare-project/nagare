@@ -1,0 +1,371 @@
+/* ============================================================
+   磁力搜索 feature 样式（M2）：页面骨架 · 搜索框 · 源状态 chip · 结果表 · 规则错误块 · 空态。
+   顶栏（.topbar*）与原子件（.panel / .badge / .hud-button 等）见 styles/global.css；
+   设置页的磁力源区块见 sources.css。
+   ============================================================ */
+
+/* ---------- 页面骨架 ---------- */
+
+.search-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-width: 72rem;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 4vh, 2.75rem) clamp(1rem, 4vw, 2.5rem) 3rem;
+}
+
+.topbar-section {
+  align-self: center;
+}
+
+/* ---------- 搜索框 ---------- */
+
+.search-form {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.search-form .hud-input {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+/* type=search 的浏览器默认外观会盖掉暗色底 */
+.search-input {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.search-input::-webkit-search-decoration,
+.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+/* 搜索框下的状态行（进度 / 结果摘要 / 规则摘要） */
+.search-status {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 1.3em;
+  font-size: 0.72rem;
+}
+
+/* ---------- 源状态条与 chip ---------- */
+
+.src-bar {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+}
+
+.src-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.22rem 0.6rem 0.22rem 0.5rem;
+  border: 1px solid var(--src-border, var(--hud-border-dim));
+  border-radius: 2px;
+  background: var(--src-wash, transparent);
+  color: var(--src-color, var(--color-text-dim));
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  cursor: default;
+}
+
+button.src-chip {
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out-expo),
+    border-color var(--duration-fast) var(--ease-out-expo);
+}
+
+button.src-chip:hover:not(:disabled) {
+  background: var(--hud-flash);
+}
+
+button.src-chip:focus-visible {
+  outline: 2px solid var(--hud-accent-hot);
+  outline-offset: 2px;
+}
+
+button.src-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 原生 title 只在鼠标悬停时出现；键盘聚焦时用同一段文案画一个提示，
+   放在 data-tooltip 上（hover 仍走 title，避免两个提示叠在一起） */
+.src-chip[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 5;
+  max-width: 24rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--hud-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  white-space: pre-line;
+  text-align: left;
+  pointer-events: none;
+}
+
+.src-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.src-chip-name {
+  color: var(--color-text);
+}
+
+.src-chip-sep {
+  opacity: 0.5;
+}
+
+.src-chip-state {
+  font-size: 0.62rem;
+}
+
+/* 五态分级：ok 青 · zero 灰 · dead 红 · failed 橙 · disabled 暗 */
+.src-chip--ok {
+  --src-color: var(--hud-accent);
+  --src-border: var(--hud-border);
+}
+
+.src-chip--ok .src-chip-dot {
+  box-shadow: 0 0 5px var(--hud-accent);
+}
+
+.src-chip--zero {
+  --src-color: var(--color-text-dim);
+  --src-border: var(--hud-border-dim);
+}
+
+.src-chip--dead {
+  --src-color: var(--color-err);
+  --src-border: var(--color-err-border);
+  --src-wash: oklch(72% 0.14 25 / 0.08);
+}
+
+.src-chip--failed {
+  --src-color: var(--color-warn);
+  --src-border: var(--color-warn-border);
+  --src-wash: var(--color-warn-wash);
+}
+
+.src-chip--disabled {
+  --src-color: var(--color-text-faint);
+  --src-border: var(--hud-border-dim);
+  border-style: dashed;
+}
+
+.src-chip--disabled .src-chip-name {
+  color: var(--color-text-faint);
+}
+
+/* ---------- 结果区 ---------- */
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* 重搜在途：旧结果压暗但不撤掉 */
+.search-results--stale {
+  opacity: 0.55;
+  transition: opacity var(--duration-fast) var(--ease-out-expo);
+}
+
+.res-wrap {
+  overflow-x: auto;
+}
+
+.res-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.res-table th {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--hud-border);
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.res-table td {
+  padding: 0.32rem 0.5rem;
+  border-bottom: 1px solid var(--hud-border-dim);
+  vertical-align: top;
+}
+
+.res-row {
+  transition: background-color var(--duration-fast) var(--ease-out-expo);
+}
+
+.res-row:hover {
+  background: var(--hud-flash);
+}
+
+/* 标题可换行；其余列不换行、靠 mono 数字对齐 */
+.res-title {
+  min-width: 18rem;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.res-provider {
+  margin-left: 0.5em;
+  vertical-align: 0.1em;
+}
+
+td.res-size,
+td.res-seeders {
+  text-align: right;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+}
+
+th.res-size,
+th.res-seeders {
+  text-align: right;
+}
+
+td.res-fansub {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  color: var(--color-text-dim);
+}
+
+td.res-date {
+  white-space: nowrap;
+  font-size: 0.68rem;
+  color: var(--color-text-dim);
+}
+
+td.res-source {
+  white-space: nowrap;
+}
+
+td.res-actions {
+  white-space: nowrap;
+}
+
+td.res-actions .hud-button + .res-play-wrap {
+  margin-left: 0.4rem;
+}
+
+.res-copy {
+  min-width: 5.6em;
+}
+
+.res-copy--failed {
+  border-color: var(--color-err-border);
+  color: var(--color-err);
+}
+
+.res-play-wrap {
+  display: inline-block;
+}
+
+.res-truncated {
+  margin-top: 0.6rem;
+  text-align: center;
+}
+
+/* 规则加载错误块：规则文件坏了要让人看见 */
+.rules-errors {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-err-border);
+  border-left: 3px solid var(--color-err);
+  background: oklch(72% 0.14 25 / 0.06);
+  font-size: 0.78rem;
+}
+
+.rules-errors ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.rules-errors li {
+  overflow-wrap: anywhere;
+  font-size: 0.7rem;
+  color: var(--color-text-dim);
+}
+
+/* ---------- 空态 ---------- */
+
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: auto;
+  padding: 2.5rem 1rem 3rem;
+  max-width: 34rem;
+  width: 100%;
+  text-align: center;
+}
+
+/* 空结果态紧跟在源状态条后面，不需要撑满剩余高度 */
+.search-empty--results {
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2rem;
+}
+
+.search-empty-link {
+  display: inline-block;
+  text-decoration: none;
+}
+
+.search-empty .rules-errors {
+  width: 100%;
+  margin-top: 0.8rem;
+  text-align: left;
+}
+
+/* ---------- 窄屏适配 ---------- */
+
+@media (max-width: 720px) {
+  .res-fansub,
+  .res-date,
+  .res-seeders {
+    display: none;
+  }
+
+  .res-title {
+    min-width: 12rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.src-chip,
+  .res-row,
+  .search-results--stale {
+    transition: none;
+  }
+}

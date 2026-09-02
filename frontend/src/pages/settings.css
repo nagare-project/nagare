@@ -33,6 +33,10 @@
   letter-spacing: 0.08em;
 }
 
+.settings-search-link {
+  margin-left: auto;
+}
+
 .settings-card {
   display: flex;
   flex-direction: column;

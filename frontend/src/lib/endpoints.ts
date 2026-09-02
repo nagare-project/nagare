@@ -1,7 +1,9 @@
 import { apiFetch } from './api'
 
 /**
- * M1 后端契约层：/api/library · /api/play · /api/player/* · /api/settings · /api/animego/*
+ * 后端契约层。
+ * M1：/api/library · /api/play · /api/player/* · /api/settings · /api/animego/*
+ * M2：/api/search · /api/sources/*（声明式规则引擎）
  * 类型与 Go 侧信封 data 载荷一一对应；传输细节（token 头、信封解析、错误分类）
  * 全部由 lib/api.ts 的 apiFetch 承担，这里只做「路径 + 形状」。
  */
@@ -190,4 +192,145 @@ export function animegoLogin(email: string, password: string): Promise<{ user: {
 
 export function animegoLogout(): Promise<void> {
   return requestJson<Record<string, never>>('/api/animego/logout', 'POST').then(() => undefined)
+}
+
+// ---------- 磁力搜索 · 源管理（M2） ----------
+
+/**
+ * 一个源在一次搜索 / 自检里的结局（决议 CQ3：零结果 ≠ 规则失效）。
+ * - ok：上游正常，解出 count 条
+ * - zero：上游正常，确实没有结果
+ * - dead：上游有条目但规则一条都解不出 —— 界面必须显示「源异常」而不是「无结果」
+ * - failed：网络 / HTTP / 解码失败
+ * - disabled：用户已禁用，本次没有请求
+ */
+export type SourceState = 'ok' | 'zero' | 'dead' | 'failed' | 'disabled'
+
+export interface SourceOutcome {
+  /** 规则 id */
+  source: string
+  state: SourceState
+  /** 解出的条数 */
+  count: number
+  /** 上游原始条数（解析前） */
+  rawCount: number
+  /** 被丢弃的条数（缺关键字段等） */
+  dropped: number
+  /** 全空的可选字段名（规则可能漏了这些字段的选择器） */
+  fieldGaps?: string[]
+  /** 中文原因（给用户看） */
+  reason?: string
+  /** 技术细节（挂 tooltip） */
+  detail?: string
+  latencyMs: number
+}
+
+/** 一条磁力搜索结果 */
+export interface SearchItem {
+  title: string
+  magnet: string
+  /** 人类可读的体积串，后端原样透传；可为空串 */
+  size: string
+  fansub: string | null
+  /** 原样字符串，界面不猜格式 */
+  date: string | null
+  /** 来源规则 id */
+  source: string
+  provider?: string
+  seeders?: number
+  infohash?: string
+}
+
+/** GET /api/search?q= 的 data 载荷 */
+export interface SearchResult {
+  query: string
+  items: SearchItem[]
+  sources: SourceOutcome[]
+}
+
+/** 已加载的一条规则（源） */
+export interface SourceInfo {
+  id: string
+  name: string
+  homepage: string
+  enabled: boolean
+  capabilities: { seeders: boolean; priority: number }
+  /** 规则是否自带探活关键词；false 时「自检」不可用 */
+  hasSelfTest: boolean
+}
+
+/** 规则来源配置与加载状态 */
+export interface RulesInfo {
+  /** 规则仓库的 HTTPS 地址；空串表示未配置 */
+  remoteUrl: string
+  /** 本机规则目录（开发用）；空串表示未配置 */
+  localDir: string
+  /** 实际生效的规则目录 */
+  dir: string
+  loaded: number
+  /** 加载失败的规则文件及原因，非空必须让人看见 */
+  errors: string[]
+  lastLoadedAt: number | null
+  lastSyncAt: number | null
+}
+
+/** GET /api/sources 的 data 载荷 */
+export interface SourcesData {
+  sources: SourceInfo[]
+  rules: RulesInfo
+}
+
+/** POST /api/sources/reload 的 data 载荷 */
+export interface ReloadResult {
+  loaded: number
+  errors: string[]
+}
+
+/** POST /api/sources/sync 的 data 载荷 */
+export interface SyncResult {
+  added: number
+  updated: number
+  removed: number
+  errors: string[]
+}
+
+/** POST /api/sources/config 的 body：只带要改的字段 */
+export interface RulesConfigPatch {
+  remoteUrl?: string
+  localDir?: string
+}
+
+/** 关键词搜索；q 走 encodeURIComponent（中文 / `&` / `#` 都不能裸露在 query 里） */
+export function searchMagnets(query: string): Promise<SearchResult> {
+  return apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(query)}`)
+}
+
+export function fetchSources(): Promise<SourcesData> {
+  return apiFetch<SourcesData>('/api/sources')
+}
+
+export function setSourceEnabled(id: string, enabled: boolean): Promise<void> {
+  return requestJson<Record<string, never>>(
+    `/api/sources/${encodeURIComponent(id)}/enabled`,
+    'POST',
+    { enabled },
+  ).then(() => undefined)
+}
+
+/** 用规则自带的关键词探活，返回与搜索同构的 SourceOutcome */
+export function selfCheckSource(id: string): Promise<SourceOutcome> {
+  return requestJson<SourceOutcome>(`/api/sources/${encodeURIComponent(id)}/selfcheck`, 'POST')
+}
+
+export function reloadSources(): Promise<ReloadResult> {
+  return requestJson<ReloadResult>('/api/sources/reload', 'POST')
+}
+
+export function updateRulesConfig(patch: RulesConfigPatch): Promise<RulesInfo> {
+  return requestJson<RulesInfo>('/api/sources/config', 'POST', patch)
+}
+
+/** 从 remoteUrl 拉取规则；remoteUrl 为空时后端 400（中文报错原样透出） */
+export function syncSources(): Promise<SyncResult> {
+  return requestJson<SyncResult>('/api/sources/sync', 'POST')
 }

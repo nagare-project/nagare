@@ -132,6 +132,9 @@ export function LibraryPage() {
           >
             {rescanBusy ? '扫描中 …' : '重新扫描'}
           </button>
+          <Link to="/search" className="hud-link topbar-link">
+            搜索
+          </Link>
           <Link to="/settings" className="hud-link topbar-link">
             设置
           </Link>
