@@ -18,13 +18,30 @@ mkdir -p "$3"
 out=$(cd "$3" && pwd)
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
-for tool in codesign hdiutil plutil lipo; do
+for tool in codesign hdiutil plutil lipo otool; do
   command -v "$tool" >/dev/null || { echo "缺少 $tool（本脚本只能在 macOS 上运行）" >&2; exit 1; }
 done
 [ -f "$bin" ] || { echo "二进制不存在：$bin" >&2; exit 1; }
 [ -f "$root/packaging/icon/nagare.icns" ] || { echo "缺少 packaging/icon/nagare.icns，先跑 scripts/icon/build-icons.sh" >&2; exit 1; }
 
 echo "==> 二进制架构：$(lipo -archs "$bin")"
+
+# 部署目标守卫：cgo 外部链接时 clang 会把构建机 SDK 的版本写进 LC_BUILD_VERSION.minos。
+# 构建机（CI 的 macos-latest）总是比用户的系统新，不钉死就会产出「只能在最新 macOS 上
+# 启动」的 app，而且失败发生在用户双击的那一刻（kLSIncompatibleSystemVersionErr），
+# CI 全绿也发现不了。这里把它变成构建期错误。
+min_required=$(plutil -extract LSMinimumSystemVersion raw "$root/scripts/macos/Info.plist.tmpl")
+for arch in $(lipo -archs "$bin"); do
+  minos=$(otool -arch "$arch" -l "$bin" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2; exit}')
+  [ -n "$minos" ] || { echo "读不到 ${arch} 的 LC_BUILD_VERSION" >&2; exit 1; }
+  # 版本号按 sort -V 比大小：minos 高于 Info.plist 声明的下限即判失败。
+  if [ "$(printf '%s\n%s\n' "$minos" "$min_required" | sort -V | tail -1)" != "$min_required" ]; then
+    echo "二进制 ${arch} 的最低系统版本是 ${minos}，高于声明的 ${min_required} —— 老系统上会打不开。" >&2
+    echo "构建时请设置 MACOSX_DEPLOYMENT_TARGET / CGO_CFLAGS / CGO_LDFLAGS 为 ${min_required}（见 .goreleaser.yaml）。" >&2
+    exit 1
+  fi
+  echo "==> ${arch} 最低系统版本 ${minos}（≤ ${min_required} ✓）"
+done
 
 app="$out/Nagare.app"
 rm -rf "$app"

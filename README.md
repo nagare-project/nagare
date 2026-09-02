@@ -55,7 +55,8 @@ nagare 没有购买代码签名证书（原因见下方「为什么会有警告�
 
 ### macOS
 
-1. 下载 `nagare-<版本>_MacOS_universal.dmg`（Intel 与 Apple Silicon 通用），打开后把 `Nagare` 拖进「应用程序」。
+0. 系统要求：**macOS 13 或更新**（Intel 与 Apple Silicon 通用）。
+1. 下载 `nagare-<版本>_MacOS_universal.dmg`，打开后把 `Nagare` 拖进「应用程序」。
 2. 双击 `Nagare`。首次会提示「无法验证开发者」/「Apple 无法检查其是否包含恶意软件」——点「完成」，
    然后打开 **系统设置 › 隐私与安全性**，滚到「安全性」一栏，点 **「仍要打开」**，再确认一次。
    macOS 15 起右键「打开」已不能绕过这一步；如果没看到「仍要打开」，在终端执行

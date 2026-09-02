@@ -30,6 +30,13 @@ builds:
     goarch: [amd64, arm64]
     env:
       - CGO_ENABLED={{ if index .Env "CGO_ENABLED" }}{{ .Env.CGO_ENABLED }}{{ else }}1{{ end }}
+      # 必须钉死部署目标：cgo 走外部链接，clang 默认把 runner 的 SDK 版本写进
+      # LC_BUILD_VERSION 的 minos。CI 的 macos-latest 是 SDK 26.x，不钉的话产物
+      # 只能在 macOS 26+ 启动，更老的系统直接报 kLSIncompatibleSystemVersionErr
+      # （实测过一次）。数值要与 Info.plist 的 LSMinimumSystemVersion 一致。
+      - MACOSX_DEPLOYMENT_TARGET=13.0
+      - CGO_CFLAGS=-mmacosx-version-min=13.0
+      - CGO_LDFLAGS=-mmacosx-version-min=13.0
     flags:
       - -trimpath
     ldflags:
