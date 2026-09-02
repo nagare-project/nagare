@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -56,14 +55,11 @@ func (s *SourcesService) Load() (int, []string) {
 			errStrs = append(errStrs, e.Error())
 		}
 	}
-	s.reg.Replace(loaded)
 	disabled := map[string]bool{}
 	for _, id := range cfg.Disabled {
 		disabled[id] = true
 	}
-	for _, r := range loaded {
-		s.reg.SetEnabled(r.ID, !disabled[r.ID])
-	}
+	s.reg.ReplaceWithDisabled(loaded, disabled)
 	s.mu.Lock()
 	s.loaded, s.loadErrors, s.lastLoadedAt = len(loaded), errStrs, time.Now().UnixMilli()
 	s.mu.Unlock()
@@ -142,47 +138,56 @@ func (s *SourcesService) SetEnabled(id string, on bool) error {
 		return errs.New(errs.CategoryInput, "sources.enable", "未知的源："+id, "")
 	}
 	s.reg.SetEnabled(id, on)
-	cfg := s.st.RulesConfig()
-	var disabled []string
-	for _, d := range cfg.Disabled {
-		if d != id {
-			disabled = append(disabled, d)
+	return s.st.UpdateRulesConfig(func(cfg *store.RulesConfig) {
+		var disabled []string
+		for _, d := range cfg.Disabled {
+			if d != id {
+				disabled = append(disabled, d)
+			}
 		}
-	}
-	if !on {
-		disabled = append(disabled, id)
-	}
-	cfg.Disabled = disabled
-	return s.st.SetRulesConfig(cfg)
+		if !on {
+			disabled = append(disabled, id)
+		}
+		cfg.Disabled = disabled
+	})
 }
 
 // SetConfig 更新规则来源（nil 表示不改），校验后落盘并重新加载。
 func (s *SourcesService) SetConfig(remoteURL, localDir *string) (RulesView, error) {
-	cfg := s.st.RulesConfig()
+	// 先校验、后在锁内一次写入，避免与并发的启停/同步互相覆盖。
+	var nextRemote, nextLocal *string
 	if remoteURL != nil {
-		if *remoteURL == "" {
-			cfg.RemoteURL = ""
-		} else {
+		v := ""
+		if *remoteURL != "" {
 			u, err := rulesync.ValidateRemoteURL(*remoteURL)
 			if err != nil {
 				return RulesView{}, errs.Wrap(errs.CategoryInput, "sources.config", err.Error(), "", err)
 			}
-			cfg.RemoteURL = u
+			v = u
 		}
+		nextRemote = &v
 	}
 	if localDir != nil {
-		if *localDir == "" {
-			cfg.LocalDir = ""
-		} else {
+		v := ""
+		if *localDir != "" {
 			p := filepath.Clean(*localDir)
 			info, err := os.Stat(p)
 			if !filepath.IsAbs(p) || err != nil || !info.IsDir() {
 				return RulesView{}, errs.New(errs.CategoryInput, "sources.config", "本地规则目录必须是存在的绝对路径", "")
 			}
-			cfg.LocalDir = p
+			v = p
 		}
+		nextLocal = &v
 	}
-	if err := s.st.SetRulesConfig(cfg); err != nil {
+	err := s.st.UpdateRulesConfig(func(cfg *store.RulesConfig) {
+		if nextRemote != nil {
+			cfg.RemoteURL = *nextRemote
+		}
+		if nextLocal != nil {
+			cfg.LocalDir = *nextLocal
+		}
+	})
+	if err != nil {
 		return RulesView{}, err
 	}
 	s.Load()
@@ -202,9 +207,9 @@ func (s *SourcesService) Sync(ctx context.Context) (rulesync.Report, error) {
 	if err != nil {
 		return rulesync.Report{}, errs.Wrap(errs.CategoryNetwork, "sources.sync", "同步规则失败："+err.Error(), "检查地址与网络后重试", err)
 	}
-	cfg = s.st.RulesConfig()
-	cfg.LastSyncAt = time.Now().UnixMilli()
-	if err := s.st.SetRulesConfig(cfg); err != nil {
+	if err := s.st.UpdateRulesConfig(func(cfg *store.RulesConfig) {
+		cfg.LastSyncAt = time.Now().UnixMilli()
+	}); err != nil {
 		return rep, err
 	}
 	s.Load()
@@ -234,5 +239,3 @@ func (s *SourcesService) RuleCount() int {
 	defer s.mu.Unlock()
 	return s.loaded
 }
-
-var _ = fmt.Sprintf

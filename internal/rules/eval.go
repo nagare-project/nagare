@@ -112,7 +112,10 @@ func extractItems(rule *Rule, body []byte) ([]itemSource, error) {
 		if err != nil {
 			return nil, err
 		}
-		nodes := selectXML(doc, segs)
+		nodes, err := selectItems(doc, segs)
+		if err != nil {
+			return nil, err
+		}
 		out := make([]itemSource, 0, len(nodes))
 		for _, n := range nodes {
 			out = append(out, xmlItem{node: n, ns: rule.Namespaces})

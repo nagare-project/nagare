@@ -38,6 +38,21 @@ func (g *Registry) Replace(rules []*Rule) {
 	g.mu.Unlock()
 }
 
+// ReplaceWithDisabled 一次性替换规则集与禁用集，并发中的 Search 要么看到旧的整体、
+// 要么看到新的整体，不会看到"新规则 + 旧禁用集"这种中间态（那会让已禁用的源多打一次上游）。
+func (g *Registry) ReplaceWithDisabled(rules []*Rule, disabled map[string]bool) {
+	next := make(map[string]bool, len(disabled))
+	for id, off := range disabled {
+		if off {
+			next[id] = true
+		}
+	}
+	g.mu.Lock()
+	g.rules = rules
+	g.disabled = next
+	g.mu.Unlock()
+}
+
 // Rules 返回规则快照（顺序即合并顺序）。
 func (g *Registry) Rules() []*Rule {
 	g.mu.RLock()

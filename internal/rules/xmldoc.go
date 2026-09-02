@@ -3,7 +3,9 @@ package rules
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -23,10 +25,10 @@ func parseXMLDoc(data []byte) (*xmlNode, error) {
 	stack := []*xmlNode{doc}
 	for {
 		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
 		if err != nil {
-			if err.Error() == "EOF" {
-				break
-			}
 			return nil, err
 		}
 		switch t := tok.(type) {
@@ -83,7 +85,12 @@ func compileXMLPath(path string, ns map[string]string) ([]xmlSegment, error) {
 		} else {
 			seg.local = name
 		}
-		if seg.local == "" && seg.attr == "" {
+		if seg.local == "" {
+			// 属性必须写成 elem@attr 贴在元素名后；单独一段的 "@attr" / "elem/@attr"
+			// 会被误读成当前节点自己的属性，错得很安静，所以在加载期直接拒绝。
+			if seg.attr != "" {
+				return nil, fmt.Errorf("路径 %q：@属性必须紧跟元素名（写成 elem@attr），不能单独成段", path)
+			}
 			return nil, fmt.Errorf("路径 %q 含空段", path)
 		}
 		segs = append(segs, seg)
@@ -95,9 +102,6 @@ func compileXMLPath(path string, ns map[string]string) ([]xmlSegment, error) {
 func selectXML(from *xmlNode, segs []xmlSegment) []*xmlNode {
 	current := []*xmlNode{from}
 	for _, seg := range segs {
-		if seg.local == "" { // 仅 "@attr" 这种引用自身属性的写法
-			break
-		}
 		var next []*xmlNode
 		for _, n := range current {
 			for _, c := range n.children {
@@ -120,17 +124,39 @@ func xmlValue(from *xmlNode, segs []xmlSegment) (string, bool) {
 		return "", false
 	}
 	last := segs[len(segs)-1]
-	target := from
-	if last.local != "" {
-		nodes := selectXML(from, segs)
-		if len(nodes) == 0 {
-			return "", false
-		}
-		target = nodes[0]
+	nodes := selectXML(from, segs)
+	if len(nodes) == 0 {
+		return "", false
 	}
+	target := nodes[0]
 	if last.attr != "" {
 		v, ok := target.attrs[last.attr]
 		return v, ok
 	}
 	return target.text.String(), true
+}
+
+// selectItems 解析条目集合路径。父链（最后一段之前）在文档里一个都对不上视为
+// 「响应结构变了」，返回错误 —— 不能和「父链在、只是没有条目」（合法的零结果）混为一谈，
+// 否则站点改版就会被当成"没有资源"（决议 CQ3）。
+func selectItems(doc *xmlNode, segs []xmlSegment) ([]*xmlNode, error) {
+	if len(segs) == 0 {
+		return nil, fmt.Errorf("items 路径为空")
+	}
+	if segs[len(segs)-1].attr != "" {
+		return nil, fmt.Errorf("items 路径不能指向属性")
+	}
+	parents := []*xmlNode{doc}
+	if len(segs) > 1 {
+		parents = selectXML(doc, segs[:len(segs)-1])
+		if len(parents) == 0 {
+			return nil, fmt.Errorf("items 路径的父级在响应里不存在（响应结构可能已变更）")
+		}
+	}
+	var out []*xmlNode
+	last := segs[len(segs)-1]
+	for _, p := range parents {
+		out = append(out, selectXML(p, []xmlSegment{last})...)
+	}
+	return out, nil
 }

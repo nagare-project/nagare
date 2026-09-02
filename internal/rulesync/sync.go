@@ -109,40 +109,15 @@ func (s *Syncer) Sync(ctx context.Context, remoteURL, dir string) (Report, error
 			continue
 		}
 		wanted[e.File] = true
-		body, err := s.get(ctx, base+"/"+e.File)
-		if err != nil {
-			rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 下载失败：%v", e.File, err))
-			continue
-		}
-		if e.SHA256 != "" {
-			sum := sha256.Sum256(body)
-			if !strings.EqualFold(hex.EncodeToString(sum[:]), e.SHA256) {
-				rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 校验和不匹配，已拒绝", e.File))
-				continue
-			}
-		}
-		if _, err := rules.Parse(body); err != nil {
-			rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 规则无效，未安装：%v", e.File, err))
-			continue
-		}
-		target := filepath.Join(dir, e.File)
-		old, readErr := os.ReadFile(target)
-		switch {
-		case readErr == nil && string(old) == string(body):
-			rep.Unchanged++
-			continue
-		case readErr == nil:
-			rep.Updated++
-		default:
-			rep.Added++
-		}
-		if err := writeAtomic(target, body); err != nil {
-			rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 写入失败：%v", e.File, err))
-		}
+		s.installOne(ctx, base, dir, e, &rep)
 	}
 
 	// 清单里已不存在的规则文件视为下架，删除。
-	entries, _ := os.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		rep.Errors = append(rep.Errors, fmt.Sprintf("清理下架规则时读取目录失败：%v", err))
+		return rep, nil
+	}
 	for _, ent := range entries {
 		name := ent.Name()
 		if ent.IsDir() || !fileNameRE.MatchString(name) || wanted[name] {
@@ -150,9 +125,45 @@ func (s *Syncer) Sync(ctx context.Context, remoteURL, dir string) (Report, error
 		}
 		if err := os.Remove(filepath.Join(dir, name)); err == nil {
 			rep.Removed++
+		} else {
+			rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 删除下架规则失败：%v", name, err))
 		}
 	}
 	return rep, nil
+}
+
+// installOne 下载、校验并安装一个规则文件；任何失败只记入 rep.Errors。
+func (s *Syncer) installOne(ctx context.Context, base, dir string, e IndexEntry, rep *Report) {
+	body, err := s.get(ctx, base+"/"+e.File)
+	if err != nil {
+		rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 下载失败：%v", e.File, err))
+		return
+	}
+	if e.SHA256 != "" {
+		sum := sha256.Sum256(body)
+		if !strings.EqualFold(hex.EncodeToString(sum[:]), e.SHA256) {
+			rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 校验和不匹配，已拒绝", e.File))
+			return
+		}
+	}
+	if _, err := rules.Parse(body); err != nil {
+		rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 规则无效，未安装：%v", e.File, err))
+		return
+	}
+	target := filepath.Join(dir, e.File)
+	old, readErr := os.ReadFile(target)
+	switch {
+	case readErr == nil && string(old) == string(body):
+		rep.Unchanged++
+		return
+	case readErr == nil:
+		rep.Updated++
+	default:
+		rep.Added++
+	}
+	if err := writeAtomic(target, body); err != nil {
+		rep.Errors = append(rep.Errors, fmt.Sprintf("%s: 写入失败：%v", e.File, err))
+	}
 }
 
 func (s *Syncer) get(ctx context.Context, u string) ([]byte, error) {

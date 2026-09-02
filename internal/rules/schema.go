@@ -146,6 +146,9 @@ func (r *Rule) Validate() error {
 	if r.Items == "" {
 		return fmt.Errorf("[%s] items 路径不能为空", r.ID)
 	}
+	if err := r.checkPath(r.Items); err != nil {
+		return fmt.Errorf("[%s] items: %w", r.ID, err)
+	}
 	if r.Fields.Title == nil || r.Fields.Magnet == nil {
 		return fmt.Errorf("[%s] fields.title 与 fields.magnet 必填", r.ID)
 	}
@@ -200,20 +203,14 @@ func (f *FieldSpec) validate(r *Rule) error {
 	return nil
 }
 
-// checkPath 校验路径里用到的命名空间前缀都已声明（XML）。
+// checkPath 在加载期完整编译 XML 路径：命名空间前缀、属性写法、空段全部在这里报错，
+// 不留到搜索时静默出错。
 func (r *Rule) checkPath(path string) error {
 	if r.Format != "xml" {
 		return nil
 	}
-	for _, seg := range strings.Split(path, "/") {
-		seg = strings.SplitN(seg, "@", 2)[0]
-		if i := strings.IndexByte(seg, ':'); i > 0 {
-			if _, ok := r.Namespaces[seg[:i]]; !ok {
-				return fmt.Errorf("路径 %q 用到未声明的命名空间前缀 %q", path, seg[:i])
-			}
-		}
-	}
-	return nil
+	_, err := compileXMLPath(path, r.Namespaces)
+	return err
 }
 
 func (t *Transform) validate() error {

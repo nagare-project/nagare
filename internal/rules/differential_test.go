@@ -70,12 +70,18 @@ func TestDifferentialAgainstReferenceGoldens(t *testing.T) {
 				require.NoError(t, err, "缺黄金文件")
 				assert.Equal(t, string(golden), encodeGolden(t, out.Items), "与旧适配器输出不一致")
 
+				// 状态断言精确到一种：empty 必须是 zero（父级在、没条目），
+				// items 有产出是 ok、全被丢弃是 dead —— 两者混淆正是 CQ3 要抓的回归。
 				switch c.Expect {
 				case "items":
-					assert.Equal(t, StateOK, out.State)
+					if len(out.Items) > 0 {
+						assert.Equal(t, StateOK, out.State)
+					} else {
+						assert.Equal(t, StateDead, out.State, "上游有条目但一条没解出，应判 dead")
+					}
 				case "empty":
 					assert.Empty(t, out.Items)
-					assert.Contains(t, []State{StateZero, StateDead}, out.State)
+					assert.Equal(t, StateZero, out.State, "合法零结果必须是 zero，不是 dead/failed")
 				}
 			})
 		}

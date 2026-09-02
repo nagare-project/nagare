@@ -73,3 +73,20 @@ func TestParseRuleRejectsHugeTimeout(t *testing.T) {
 	_, err := Parse([]byte(src))
 	assert.Error(t, err)
 }
+
+// H2 回归：属性必须写成 elem@attr；"elem/@attr" 与孤立的 "@attr" 在加载期就拒绝，
+// 否则会静默读到当前节点自己的属性（错得很安静）。
+func TestParseRuleRejectsDetachedAttributeSegment(t *testing.T) {
+	for name, path := range map[string]string{
+		"斜杠后单独 @attr": `"enclosure/@url"`,
+		"孤立 @attr":     `"@url"`,
+		"items 指向属性":  `"rss/channel/item@id"`,
+	} {
+		src := strings.Replace(minimalRule, `- { path: "enclosure@url" }`, `- { path: `+path+` }`, 1)
+		if name == "items 指向属性" {
+			src = strings.Replace(minimalRule, "items: rss/channel/item", "items: rss/channel/item@id", 1)
+		}
+		_, err := Parse([]byte(src))
+		assert.Error(t, err, name)
+	}
+}

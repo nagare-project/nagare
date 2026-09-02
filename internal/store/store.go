@@ -296,3 +296,15 @@ func (s *Store) SetRulesConfig(c RulesConfig) error {
 	s.data.Rules = c
 	return s.save()
 }
+
+// UpdateRulesConfig 在锁内读改写规则配置：并发的两个变更不会互相盖掉对方的改动
+// （分开 Get/Set 是经典的丢失更新）。
+func (s *Store) UpdateRulesConfig(mutate func(c *RulesConfig)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.data.Rules
+	c.Disabled = append([]string(nil), c.Disabled...)
+	mutate(&c)
+	s.data.Rules = c
+	return s.save()
+}

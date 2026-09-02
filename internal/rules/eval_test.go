@@ -176,3 +176,21 @@ func TestFetcherRun(t *testing.T) {
 	assert.Equal(t, StateFailed, slow.State)
 	assert.Contains(t, slow.Reason, "超时")
 }
+
+// H1 回归：items 路径的父级整个对不上（站点改版换了 feed 结构）必须是 failed，
+// 而「父级在、只是没有条目」才是 zero —— 两者混淆就是规则静默死掉（CQ3）。
+func TestEvaluateXMLStructuralMismatchIsFailedNotZero(t *testing.T) {
+	r := mustRule(t, rssRule, "http://x")
+
+	atom := []byte(`<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry><title>A</title></entry></feed>`)
+	out := Evaluate(r, atom)
+	assert.Equal(t, StateFailed, out.State, "根本不是 rss/channel 结构：应判 failed")
+	assert.Contains(t, out.Detail, "父级")
+
+	renamed := []byte(`<?xml version="1.0"?><rss><channel><title>f</title><entry><title>A</title></entry></channel></rss>`)
+	out = Evaluate(r, renamed)
+	assert.Equal(t, StateZero, out.State, "父级 rss/channel 在、没有 <item>：是合法零结果")
+
+	empty := Evaluate(r, rss(``))
+	assert.Equal(t, StateZero, empty.State)
+}
