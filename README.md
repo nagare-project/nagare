@@ -173,7 +173,7 @@ nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供
 - **M2 声明式源规则引擎** —— 已完成：磁力源由 YAML 规则描述（只能"发一个 GET + 按路径解字段"，
   无脚本无沙箱），规则从用户指定的仓库同步、校验后加载；本体零内置源。搜索结果区分
   「无结果」与「源异常（规则失效）」；规则格式见 [docs/rules-format.md](docs/rules-format.md)
-- M3 磁力边下边播
+- M3 磁力边下边播 —— 方案已定稿：[docs/m3-torrent-streaming.md](docs/m3-torrent-streaming.md)
 - **M4 打包与分发** —— 进行中：macOS dmg（ad-hoc 签名的 universal .app）、Windows 安装包与便携版
   （内置 mpv）、Linux deb/rpm/tar.gz；零证书、零年费，安装步骤见上方「安装」
 - M5 收尾
