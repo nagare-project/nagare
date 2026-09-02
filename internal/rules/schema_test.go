@@ -79,7 +79,7 @@ func TestParseRuleRejectsHugeTimeout(t *testing.T) {
 func TestParseRuleRejectsDetachedAttributeSegment(t *testing.T) {
 	for name, path := range map[string]string{
 		"斜杠后单独 @attr": `"enclosure/@url"`,
-		"孤立 @attr":     `"@url"`,
+		"孤立 @attr":    `"@url"`,
 		"items 指向属性":  `"rss/channel/item@id"`,
 	} {
 		src := strings.Replace(minimalRule, `- { path: "enclosure@url" }`, `- { path: `+path+` }`, 1)

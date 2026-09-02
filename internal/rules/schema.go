@@ -149,6 +149,12 @@ func (r *Rule) Validate() error {
 	if err := r.checkPath(r.Items); err != nil {
 		return fmt.Errorf("[%s] items: %w", r.ID, err)
 	}
+	if r.Format == "xml" {
+		segs, _ := compileXMLPath(r.Items, r.Namespaces)
+		if len(segs) > 0 && segs[len(segs)-1].attr != "" {
+			return fmt.Errorf("[%s] items 路径不能指向属性", r.ID)
+		}
+	}
 	if r.Fields.Title == nil || r.Fields.Magnet == nil {
 		return fmt.Errorf("[%s] fields.title 与 fields.magnet 必填", r.ID)
 	}
