@@ -7,7 +7,11 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
+
+// disconnectGrace：IPC 干净断开后等待进程退出结论的宽限期。
+const disconnectGrace = 3 * time.Second
 
 // eventBufferSize 是 Events() 通道的缓冲。time-pos 观察推送很频繁，
 // 消费慢时按「丢最旧」策略腾位，绝不阻塞读循环。
@@ -125,6 +129,17 @@ func (p *Player) onDisconnect(readErr error) {
 	case readErr != nil:
 		p.terminate(readErr)
 	default:
+		// 干净的 EOF 但没收到 shutdown 事件：用户直接关掉 mpv 窗口时最常见——
+		// mpv 先关 socket、事件没送到。此时进程往往几毫秒后就以 exit 0 退出，
+		// 先把判定权让给 watchProcess（它按 exit code 定终态），别抢先判成异常；
+		// 进程在宽限期内仍不退出，才是真正的"socket 死了但进程还活着"。
+		if p.proc != nil {
+			select {
+			case <-p.done:
+				return
+			case <-time.After(disconnectGrace):
+			}
+		}
 		p.terminate(fmt.Errorf("mpv IPC 连接意外断开（进程可能被强制结束）；最后进度已保留，可重新发起播放"))
 	}
 }

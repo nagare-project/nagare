@@ -78,3 +78,34 @@ func TestLaunch_MissingMediaRejectedEarly(t *testing.T) {
 	_, err = Launch(context.Background(), LaunchOptions{})
 	require.ErrorContains(t, err, "缺少 mpv 路径")
 }
+
+// 验收：用户自己关掉 mpv（窗口关闭 / 按 q）不是异常 —— mpv 关 socket 时
+// shutdown 事件常常送不到，IPC 先于进程退出断开；终态必须按 exit 0 判正常。
+// 这里用 IPC 发 quit 模拟用户退出，而不是走 Close()。
+func TestIntegration_UserQuitIsNotAnError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("-short 模式跳过真 mpv 集成测试")
+	}
+	mpvPath, err := exec.LookPath("mpv")
+	if err != nil {
+		t.Skip("未安装 mpv，跳过集成测试")
+	}
+	info, err := Detect(mpvPath)
+	require.NoError(t, err)
+
+	dir, err := os.MkdirTemp("", "nagit")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	p, err := Launch(ctx, LaunchOptions{MPVPath: info.Path, SocketDir: dir})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = p.Close() })
+
+	// 等价于用户在窗口里按 q：quit 的响应经常赶不上进程退出，错误不算数。
+	_, _ = p.Command("quit")
+
+	requireDoneWithin(t, p, 5*time.Second)
+	require.NoError(t, p.Err(), "用户主动退出 mpv 必须判为正常结束，而不是「IPC 意外断开」")
+}
