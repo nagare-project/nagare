@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/animego"
-	"github.com/nagare-player/nagare/internal/danmaku"
+	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/danmaku"
 )
 
 func TestCommentsOK(t *testing.T) {

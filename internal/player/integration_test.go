@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/library"
-	"github.com/nagare-player/nagare/internal/mpv"
-	"github.com/nagare-player/nagare/internal/store"
+	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/mpv"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 // 端到端集成（T1 精神）：真 ffmpeg 造 1 秒视频 → 真 mpv 播完自动退出 →

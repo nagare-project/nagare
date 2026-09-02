@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nagare-player/nagare/internal/random"
+	"github.com/nagare-project/nagare/internal/random"
 )
 
 // Folder 是用户添加的媒体库根目录。

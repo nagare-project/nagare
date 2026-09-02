@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/nagare-player/nagare/internal/danmaku"
+	"github.com/nagare-project/nagare/internal/danmaku"
 )
 
 // Comments 拉取一集的全部弹幕。

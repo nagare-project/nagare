@@ -1,4 +1,4 @@
-module github.com/nagare-player/nagare
+module github.com/nagare-project/nagare
 
 go 1.25.0
 

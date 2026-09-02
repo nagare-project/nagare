@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/animego"
 )
 
 // refreshBackend 模拟「旧 token 一律 401、refresh 换新 token」的服务端。

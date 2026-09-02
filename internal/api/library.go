@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	errs "github.com/nagare-player/nagare/internal/errors"
-	"github.com/nagare-player/nagare/internal/library"
-	"github.com/nagare-player/nagare/internal/store"
+	errs "github.com/nagare-project/nagare/internal/errors"
+	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 // Stats 是一次扫描的汇总。

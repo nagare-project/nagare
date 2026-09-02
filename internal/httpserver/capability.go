@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/nagare-player/nagare/internal/random"
+	"github.com/nagare-project/nagare/internal/random"
 )
 
 // capabilityBytes 是能力段的随机字节数（128 位，与主 token 同强度）。

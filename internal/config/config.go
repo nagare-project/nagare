@@ -13,7 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/nagare-player/nagare/internal/random"
+	"github.com/nagare-project/nagare/internal/random"
 )
 
 // DefaultPort 是首次运行时的偏好端口，被占用时会自动向上递增并回写配置。

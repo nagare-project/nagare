@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/animego"
-	"github.com/nagare-player/nagare/internal/danmaku"
-	"github.com/nagare-player/nagare/internal/library"
-	"github.com/nagare-player/nagare/internal/mpv"
-	"github.com/nagare-player/nagare/internal/store"
+	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/danmaku"
+	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/mpv"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 // fakeClient 是 AnimegoClient 的可编程替身。

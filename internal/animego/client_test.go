@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/animego"
 )
 
 // closedPortURL 拿一个刚释放的本地端口 —— 连接必被拒绝。

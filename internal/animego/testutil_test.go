@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/animego"
 )
 
 // recorded 是测试服务器捕获的一次请求快照。

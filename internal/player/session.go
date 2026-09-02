@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nagare-player/nagare/internal/library"
-	"github.com/nagare-player/nagare/internal/mpv"
-	"github.com/nagare-player/nagare/internal/store"
+	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/mpv"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 // progressFlushInterval 是播放中进度落盘的节流间隔。

@@ -14,13 +14,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nagare-player/nagare/internal/animego"
-	"github.com/nagare-player/nagare/internal/danmaku"
-	errs "github.com/nagare-player/nagare/internal/errors"
-	"github.com/nagare-player/nagare/internal/library"
-	"github.com/nagare-player/nagare/internal/mpv"
-	"github.com/nagare-player/nagare/internal/random"
-	"github.com/nagare-player/nagare/internal/store"
+	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/danmaku"
+	errs "github.com/nagare-project/nagare/internal/errors"
+	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/mpv"
+	"github.com/nagare-project/nagare/internal/random"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 // SweepRuntimeDir 清掉上次运行残留的弹幕 ASS 与 mpv socket 私有目录

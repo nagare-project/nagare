@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/animego"
 )
 
 // matchServer 起一个对 /api/dandanplay/match 固定应答的客户端。

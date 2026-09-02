@@ -55,7 +55,7 @@
 - mpv（播放功能的运行时依赖，M1 起接入；构建不需要）
 
 ```bash
-git clone https://github.com/nagare-player/nagare.git
+git clone https://github.com/nagare-project/nagare.git
 cd nagare
 
 # 1. 构建前端，产物输出到仓库根的 web/

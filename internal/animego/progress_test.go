@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nagare-player/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/animego"
 )
 
 // loggedInClient 返回一个已持有效会话、服务端固定 200 的客户端。

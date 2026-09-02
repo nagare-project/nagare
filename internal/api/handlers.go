@@ -10,13 +10,13 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/nagare-player/nagare/internal/animego"
-	errs "github.com/nagare-player/nagare/internal/errors"
-	"github.com/nagare-player/nagare/internal/httpserver"
-	"github.com/nagare-player/nagare/internal/library"
-	"github.com/nagare-player/nagare/internal/mpv"
-	"github.com/nagare-player/nagare/internal/player"
-	"github.com/nagare-player/nagare/internal/store"
+	"github.com/nagare-project/nagare/internal/animego"
+	errs "github.com/nagare-project/nagare/internal/errors"
+	"github.com/nagare-project/nagare/internal/httpserver"
+	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/mpv"
+	"github.com/nagare-project/nagare/internal/player"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 // maxBodyBytes 是请求体上限（本地 API，1MB 足够）。

@@ -15,13 +15,13 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/nagare-player/nagare/internal/animego"
-	"github.com/nagare-player/nagare/internal/api"
-	"github.com/nagare-player/nagare/internal/config"
-	"github.com/nagare-player/nagare/internal/httpserver"
-	"github.com/nagare-player/nagare/internal/mpv"
-	"github.com/nagare-player/nagare/internal/player"
-	"github.com/nagare-player/nagare/internal/store"
+	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/api"
+	"github.com/nagare-project/nagare/internal/config"
+	"github.com/nagare-project/nagare/internal/httpserver"
+	"github.com/nagare-project/nagare/internal/mpv"
+	"github.com/nagare-project/nagare/internal/player"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 // embeddedWeb 内嵌前端构建产物。all: 前缀确保带点号的文件（如 .gitkeep）也被收进来，
