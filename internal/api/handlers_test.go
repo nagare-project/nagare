@@ -18,6 +18,8 @@ import (
 	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/mpv"
 	"github.com/nagare-project/nagare/internal/player"
+	"github.com/nagare-project/nagare/internal/rules"
+	"github.com/nagare-project/nagare/internal/rulesync"
 	"github.com/nagare-project/nagare/internal/store"
 )
 
@@ -64,11 +66,12 @@ func (f *fakeAuth) Session() animego.Session         { return f.session }
 func (f *fakeAuth) LoggedIn() bool                   { return f.loggedIn }
 
 type testEnv struct {
-	mux    *http.ServeMux
-	store  *store.Store
-	lib    *LibraryService
-	player *fakePlayer
-	auth   *fakeAuth
+	mux     *http.ServeMux
+	store   *store.Store
+	lib     *LibraryService
+	player  *fakePlayer
+	auth    *fakeAuth
+	sources *SourcesService
 }
 
 func newEnv(t *testing.T) *testEnv {
@@ -81,6 +84,7 @@ func newEnv(t *testing.T) *testEnv {
 		player: &fakePlayer{},
 		auth:   &fakeAuth{session: animego.Session{AccessToken: "at", RefreshCookie: "rc"}},
 	}
+	env.sources = NewSourcesService(st, &rules.Fetcher{}, &rulesync.Syncer{}, filepath.Join(t.TempDir(), "rules"))
 	h := New(Deps{
 		Store:          st,
 		Lib:            env.lib,
@@ -89,6 +93,7 @@ func newEnv(t *testing.T) *testEnv {
 		AnimegoBaseURL: "https://example.test",
 		MPV:            mpv.Info{Path: "/usr/bin/mpv", Version: "0.41.0"},
 		Version:        "test",
+		Sources:        env.sources,
 	})
 	env.mux = http.NewServeMux()
 	h.Register(env.mux)

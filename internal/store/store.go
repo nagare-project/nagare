@@ -49,6 +49,14 @@ type AnimegoSession struct {
 	RefreshCookie string `json:"refreshCookie,omitempty"`
 }
 
+// RulesConfig 是磁力源规则的用户配置：规则从哪来、哪些源被禁用（决议 A3：本体零内置源）。
+type RulesConfig struct {
+	RemoteURL  string   `json:"remoteUrl,omitempty"`
+	LocalDir   string   `json:"localDir,omitempty"`
+	Disabled   []string `json:"disabled,omitempty"`
+	LastSyncAt int64    `json:"lastSyncAt,omitempty"`
+}
+
 // Data 是落盘的全部状态。
 type Data struct {
 	Folders  []Folder            `json:"folders"`
@@ -56,6 +64,7 @@ type Data struct {
 	Bindings map[string]Binding  `json:"bindings"` // fileID → 匹配
 	Progress map[string]Progress `json:"progress"` // fileID → 进度
 	Animego  AnimegoSession      `json:"animego"`
+	Rules    RulesConfig         `json:"rules"`
 }
 
 func emptyData() Data {
@@ -269,4 +278,21 @@ func (s *Store) AnimegoSession() AnimegoSession {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.data.Animego
+}
+
+// RulesConfig 读取磁力源规则配置（Disabled 是副本）。
+func (s *Store) RulesConfig() RulesConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.data.Rules
+	c.Disabled = append([]string(nil), c.Disabled...)
+	return c
+}
+
+// SetRulesConfig 保存磁力源规则配置。
+func (s *Store) SetRulesConfig(c RulesConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.Rules = c
+	return s.save()
 }

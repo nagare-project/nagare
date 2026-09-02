@@ -49,6 +49,7 @@ type Deps struct {
 	MPV            mpv.Info
 	MPVErr         error // mpv 探测失败时的用户提示来源
 	Version        string
+	Sources        *SourcesService
 }
 
 // Handler 汇集全部业务端点。
@@ -71,6 +72,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/settings", h.settings)
 	mux.HandleFunc("POST /api/animego/login", h.login)
 	mux.HandleFunc("POST /api/animego/logout", h.logout)
+	mux.HandleFunc("GET /api/search", h.search)
+	mux.HandleFunc("GET /api/sources", h.sources)
+	mux.HandleFunc("POST /api/sources/reload", h.sourcesReload)
+	mux.HandleFunc("POST /api/sources/sync", h.sourcesSync)
+	mux.HandleFunc("POST /api/sources/config", h.sourcesConfig)
+	mux.HandleFunc("POST /api/sources/{id}/enabled", h.sourceEnabled)
+	mux.HandleFunc("POST /api/sources/{id}/selfcheck", h.sourceSelfCheck)
 }
 
 // decodeBody 解析 JSON 请求体（限长）。失败返回 false 且已写响应。
@@ -278,4 +286,70 @@ func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
 		log.Printf("api: 清除 animego 会话失败：%v", err)
 	}
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}
+
+// ── 磁力源：搜索与规则管理 ──
+
+func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
+	httpserver.WriteJSON(w, http.StatusOK, h.deps.Sources.Search(r.Context(), r.URL.Query().Get("q")))
+}
+
+func (h *Handler) sources(w http.ResponseWriter, _ *http.Request) {
+	httpserver.WriteJSON(w, http.StatusOK, h.deps.Sources.View())
+}
+
+func (h *Handler) sourcesReload(w http.ResponseWriter, _ *http.Request) {
+	n, errsList := h.deps.Sources.Load()
+	if errsList == nil {
+		errsList = []string{}
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{"loaded": n, "errors": errsList})
+}
+
+func (h *Handler) sourcesSync(w http.ResponseWriter, r *http.Request) {
+	rep, err := h.deps.Sources.Sync(r.Context())
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, rep)
+}
+
+func (h *Handler) sourcesConfig(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RemoteURL *string `json:"remoteUrl"`
+		LocalDir  *string `json:"localDir"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	view, err := h.deps.Sources.SetConfig(req.RemoteURL, req.LocalDir)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, view)
+}
+
+func (h *Handler) sourceEnabled(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if err := h.deps.Sources.SetEnabled(r.PathValue("id"), req.Enabled); err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}
+
+func (h *Handler) sourceSelfCheck(w http.ResponseWriter, r *http.Request) {
+	out, err := h.deps.Sources.SelfCheck(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, out)
 }

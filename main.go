@@ -8,12 +8,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/nagare-project/nagare/internal/animego"
 	"github.com/nagare-project/nagare/internal/api"
@@ -21,6 +23,8 @@ import (
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/mpv"
 	"github.com/nagare-project/nagare/internal/player"
+	"github.com/nagare-project/nagare/internal/rules"
+	"github.com/nagare-project/nagare/internal/rulesync"
 	"github.com/nagare-project/nagare/internal/store"
 )
 
@@ -105,6 +109,20 @@ func main() {
 		log.Printf("媒体库就绪：%d 个视频，%d 个剧集簇", stats.Videos, stats.Clusters)
 	}
 
+	// 磁力源规则：零内置，规则目录空就是空；来源由用户在设置里指定（A3 / 红线 1）。
+	rulesDir := filepath.Join(configDir, "rules")
+	sourceClient := &http.Client{Timeout: 20 * time.Second}
+	sources := api.NewSourcesService(st,
+		&rules.Fetcher{Client: sourceClient, UserAgent: "nagare/" + version},
+		&rulesync.Syncer{Client: sourceClient, UserAgent: "nagare/" + version},
+		rulesDir)
+	if n, loadErrs := sources.Load(); n > 0 || len(loadErrs) > 0 {
+		log.Printf("磁力源规则：%d 条已加载，%d 个文件有问题", n, len(loadErrs))
+		for _, e := range loadErrs {
+			log.Printf("  规则错误：%s", e)
+		}
+	}
+
 	apiHandler := api.New(api.Deps{
 		Store:          st,
 		Lib:            lib,
@@ -114,6 +132,7 @@ func main() {
 		MPV:            mpvInfo,
 		MPVErr:         mpvErr,
 		Version:        version,
+		Sources:        sources,
 	})
 
 	ln, port, err := httpserver.Listen(cfg.Port)
