@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>share.dmhy.org</title>
+    <item>
+      <title>[X] HTTP enclosure, not a magnet</title>
+      <link>https://share.dmhy.org/topics/view/1.html</link>
+      <pubDate>Sat, 01 Jan 2026 00:00:00 +0800</pubDate>
+      <enclosure url="https://share.dmhy.org/some.torrent" type="application/x-bittorrent" length="100"/>
+    </item>
+    <item>
+      <title></title>
+      <link>https://share.dmhy.org/topics/view/2.html</link>
+      <pubDate>Sat, 01 Jan 2026 00:00:00 +0800</pubDate>
+      <enclosure url="magnet:?xt=urn:btih:cccc3333" type="application/x-bittorrent" length="100"/>
+    </item>
+    <item>
+      <title>[Y] Valid</title>
+      <link>https://share.dmhy.org/topics/view/3.html</link>
+      <pubDate>Sat, 01 Jan 2026 00:00:00 +0800</pubDate>
+      <enclosure url="magnet:?xt=urn:btih:dddd4444" type="application/x-bittorrent" length="100"/>
+    </item>
+  </channel>
+</rss>

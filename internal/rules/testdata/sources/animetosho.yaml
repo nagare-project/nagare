@@ -1,0 +1,26 @@
+schema: 1
+id: tosho
+name: AnimeTosho
+homepage: https://animetosho.org
+request:
+  url: "https://feed.animetosho.org/json?q={{query}}&only_tor=1"
+  headers:
+    Accept: application/json
+format: json
+# 响应是裸数组
+items: $
+fields:
+  title: title
+  magnet: magnet_uri
+  size: { path: total_size, transforms: [format_bytes] }
+  # unix 秒 → RFC3339 UTC；0/缺失 → null
+  date: { path: timestamp, transforms: [unix_rfc3339] }
+  # 三态：缺失/null = 未知，0 = 已知为零
+  seeders: seeders
+  infohash: { path: info_hash, transforms: [trim, lower] }
+  # tosho 不解析字幕组（与旧适配器一致）
+capabilities:
+  seeders: true
+  priority: 10
+selftest:
+  query: "frieren"

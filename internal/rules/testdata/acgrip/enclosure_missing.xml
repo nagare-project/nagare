@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>acg.rip</title>
+    <item>
+      <title>[X] No Enclosure, HTTP Link</title>
+      <link>https://acg.rip/t/1234</link>
+      <pubDate>Sat, 01 Jan 2026 12:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>[Y] No Enclosure, Magnet Link</title>
+      <link>magnet:?xt=urn:btih:ccc</link>
+      <pubDate>Sat, 01 Jan 2026 13:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

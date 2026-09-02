@@ -1,0 +1,20 @@
+[
+	  {
+	    "title": "[X] http link, not a magnet",
+	    "magnet_uri": "https://animetosho.org/view/1",
+	    "info_hash": "1111",
+	    "total_size": 100
+	  },
+	  {
+	    "title": "",
+	    "magnet_uri": "magnet:?xt=urn:btih:2222",
+	    "info_hash": "2222",
+	    "total_size": 100
+	  },
+	  {
+	    "title": "[Y] Valid",
+	    "magnet_uri": "magnet:?xt=urn:btih:3333",
+	    "info_hash": "3333",
+	    "total_size": 100
+	  }
+	]

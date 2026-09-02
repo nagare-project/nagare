@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:nyaa="https://nyaa.si/xmlns/nyaa">
+  <channel>
+    <title>Nyaa</title>
+    <item>
+      <title>[喵萌奶茶屋&amp;Lol] Show #1 - 01</title>
+      <link>https://nyaa.si/view/1</link>
+      <pubDate>...</pubDate>
+      <nyaa:infoHash>abcdef0123456789abcdef0123456789abcdef01</nyaa:infoHash>
+      <nyaa:size>900 MiB</nyaa:size>
+    </item>
+  </channel>
+</rss>

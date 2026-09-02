@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:torrent="https://mikanani.me/0.1/">
+  <channel>
+    <title>Mikan Project</title>
+    <item>
+      <title>[X] No hash in URL or link</title>
+      <link>https://mikanani.me/Home/Episode/not-a-hash</link>
+      <enclosure type="application/x-bittorrent" length="0"
+        url="https://mikanani.me/Download/20260101/file.torrent"/>
+      <torrent xmlns="https://mikanani.me/0.1/">
+        <contentLength>100</contentLength>
+      </torrent>
+    </item>
+    <item>
+      <title></title>
+      <link>https://mikanani.me/Home/Episode/0123456789abcdef0123456789abcdef01234567</link>
+      <enclosure type="application/x-bittorrent" length="0"
+        url="https://mikanani.me/Download/20260101/0123456789abcdef0123456789abcdef01234567.torrent"/>
+      <torrent xmlns="https://mikanani.me/0.1/">
+        <contentLength>100</contentLength>
+      </torrent>
+    </item>
+    <item>
+      <title>[Y] Valid</title>
+      <link>https://mikanani.me/Home/Episode/ffffffffffffffffffffffffffffffffffffffff</link>
+      <enclosure type="application/x-bittorrent" length="0"
+        url="https://mikanani.me/Download/20260101/ffffffffffffffffffffffffffffffffffffffff.torrent"/>
+      <torrent xmlns="https://mikanani.me/0.1/">
+        <contentLength>100</contentLength>
+      </torrent>
+    </item>
+  </channel>
+</rss>

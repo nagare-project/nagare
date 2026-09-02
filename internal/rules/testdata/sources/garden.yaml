@@ -1,0 +1,24 @@
+schema: 1
+id: garden
+name: Anime Garden
+homepage: https://animes.garden
+request:
+  # type=动画 必须是中文字面量（URL 编码后），用罗马音 anime 会得到零行
+  url: "https://api.animes.garden/resources?search={{query}}&type=%E5%8A%A8%E7%94%BB&pageSize=80"
+  headers:
+    Accept: application/json
+format: json
+items: resources
+fields:
+  title: title
+  magnet: magnet
+  # garden 的 size 单位是 KB，不是字节
+  size: { path: size, transforms: [format_kb] }
+  date: createdAt
+  fansub:
+    any:
+      - { path: fansub.name }
+      - { path: "$title", transforms: [parse_fansub] }
+  provider: provider
+selftest:
+  query: "葬送的芙莉莲"

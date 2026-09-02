@@ -1,0 +1,33 @@
+schema: 1
+id: mikan
+name: Mikan Project
+homepage: https://mikanani.me
+request:
+  url: "https://mikanani.me/RSS/Search?searchstr={{query}}"
+format: xml
+namespaces:
+  mikan: https://mikanani.me/0.1/
+items: rss/channel/item
+fields:
+  title: title
+  # 没有 magnet：从 .torrent 下载地址（其次 <link>）里取 40 位 hex 再拼装
+  magnet:
+    any:
+      - { path: "enclosure@url", transforms: [{ regex: "[0-9a-fA-F]{40}" }] }
+      - { path: link, transforms: [{ regex: "[0-9a-fA-F]{40}" }] }
+    transforms:
+      - magnet:
+          dn: $title
+          trackers:
+            - http://nyaa.tracker.wf:7777/announce
+            - http://tracker.opentrackr.org:1337/announce
+  # enclosure@length 恒为 0，真实体积在命名空间元素 torrent/contentLength（字节）
+  size: { path: "mikan:torrent/mikan:contentLength", transforms: [format_bytes] }
+  # 标准 pubDate 优先；缺失时用 torrent/pubDate（无时区，原样透传）
+  date:
+    any:
+      - { path: pubDate }
+      - { path: "mikan:torrent/mikan:pubDate" }
+  fansub: { path: "$title", transforms: [parse_fansub] }
+selftest:
+  query: "葬送的芙莉莲"

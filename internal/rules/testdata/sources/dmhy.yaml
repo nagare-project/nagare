@@ -1,0 +1,18 @@
+schema: 1
+id: dmhy
+name: 動漫花園
+homepage: https://share.dmhy.org
+request:
+  url: "https://share.dmhy.org/topics/rss/rss.xml?keyword={{query}}"
+format: xml
+items: rss/channel/item
+fields:
+  title: title
+  # enclosure@url 就是 magnet（XML 实体由解析器解码，不要二次 unescape）；刻意不回落 <link>
+  magnet: "enclosure@url"
+  # dmhy 常给 length="0" → 空串，表示没有体积
+  size: { path: "enclosure@length", transforms: [format_bytes] }
+  date: pubDate
+  fansub: { path: "$title", transforms: [parse_fansub] }
+selftest:
+  query: "葬送的芙莉莲"

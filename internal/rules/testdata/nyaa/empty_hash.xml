@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:nyaa="https://nyaa.si/xmlns/nyaa">
+  <channel>
+    <title>Nyaa</title>
+    <item>
+      <title>[X] No Hash, HTTP Link</title>
+      <link>https://nyaa.si/view/1234</link>
+      <pubDate>...</pubDate>
+      <nyaa:infoHash></nyaa:infoHash>
+      <nyaa:size>500 MiB</nyaa:size>
+    </item>
+    <item>
+      <title>[Y] Has Hash</title>
+      <link>https://nyaa.si/view/5678</link>
+      <pubDate>...</pubDate>
+      <nyaa:infoHash>ffffffffffffffffffffffffffffffffffffffff</nyaa:infoHash>
+      <nyaa:size>800 MiB</nyaa:size>
+    </item>
+  </channel>
+</rss>

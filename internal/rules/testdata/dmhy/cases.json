@@ -1,0 +1,42 @@
+[
+  {
+    "name": "happy",
+    "file": "happy.xml",
+    "query": "frieren",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "non_magnet_and_missing_title",
+    "file": "non_magnet_and_missing_title.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "empty_channel",
+    "file": "empty_channel.xml",
+    "query": "no-results",
+    "status": 200,
+    "kind": "search",
+    "expect": "empty"
+  },
+  {
+    "name": "malformed",
+    "file": "malformed.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_503",
+    "file": "no_body.xml",
+    "query": "x",
+    "status": 503,
+    "kind": "search",
+    "expect": "error"
+  }
+]

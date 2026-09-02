@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:torrent="https://mikanani.me/0.1/">
+  <channel>
+    <title>Mikan Project</title>
+    <item>
+      <title>[Sub] Fallback - 02</title>
+      <link>https://mikanani.me/Home/Episode/ffffffffffffffffffffffffffffffffffffffff</link>
+      <enclosure type="application/x-bittorrent" length="0"
+        url="https://mikanani.me/Download/20260101/file.torrent"/>
+      <torrent xmlns="https://mikanani.me/0.1/">
+        <contentLength>800000000</contentLength>
+        <pubDate>2026-01-02T00:00:00</pubDate>
+      </torrent>
+    </item>
+  </channel>
+</rss>

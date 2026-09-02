@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:nyaa="https://nyaa.si/xmlns/nyaa">
+  <channel>
+    <title>Nyaa</title>
+    <item>
+      <title>[SomeGroup] Anime - 01</title>
+      <link>https://nyaa.si/view/1234</link>
+      <pubDate>Sat, 01 Jan 2026 12:00:00 GMT</pubDate>
+      <nyaa:infoHash>0123456789abcdef0123456789abcdef01234567</nyaa:infoHash>
+      <nyaa:size>1.5 GiB</nyaa:size>
+    </item>
+  </channel>
+</rss>

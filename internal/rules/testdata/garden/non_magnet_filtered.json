@@ -1,0 +1,8 @@
+{
+		"resources": [
+			{"id": 1, "title": "[X] Real", "magnet": "magnet:?xt=urn:btih:abc", "size": 100, "createdAt": "t", "fansub": null},
+			{"id": 2, "title": "[Y] No Magnet", "magnet": "https://example.com/torrent", "size": 100, "createdAt": "t", "fansub": null},
+			{"id": 3, "title": "[Z] Empty Magnet", "magnet": "", "size": 100, "createdAt": "t", "fansub": null},
+			{"id": 4, "title": "", "magnet": "magnet:?xt=urn:btih:def", "size": 100, "createdAt": "t", "fansub": null}
+		]
+	}

@@ -1,0 +1,22 @@
+[
+  {
+    "title": "[SubsPlease] Frieren - 01 (1080p) [ABCD].mkv",
+    "magnet": "magnet:?xt=urn:btih:AAAA1111&dn=Frieren&tr=udp://tracker.example:80",
+    "size": "1.5 GB",
+    "fansub": null,
+    "date": "2025-01-01T00:00:00Z",
+    "source": "tosho",
+    "seeders": 42,
+    "infohash": "aaaa1111"
+  },
+  {
+    "title": "[Group] Show - 02",
+    "magnet": "magnet:?xt=urn:btih:bbbb2222",
+    "size": "",
+    "fansub": null,
+    "date": null,
+    "source": "tosho",
+    "seeders": 0,
+    "infohash": "bbbb2222"
+  }
+]

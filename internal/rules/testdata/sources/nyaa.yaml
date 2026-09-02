@@ -1,0 +1,27 @@
+schema: 1
+id: nyaa
+name: Nyaa
+homepage: https://nyaa.si
+request:
+  url: "https://nyaa.si/?page=rss&q={{query}}&c=1_0&f=0"
+format: xml
+namespaces:
+  nyaa: https://nyaa.si/xmlns/nyaa
+items: rss/channel/item
+fields:
+  title: title
+  # feed 里没有 magnet：由 nyaa:infoHash 拼装，带两条公共 tracker
+  magnet:
+    path: "nyaa:infoHash"
+    transforms:
+      - magnet:
+          dn: $title
+          trackers:
+            - http://nyaa.tracker.wf:7777/announce
+            - http://tracker.opentrackr.org:1337/announce
+  # nyaa 已给出 "1.5 GiB" 这样的可读串，原样透传
+  size: "nyaa:size"
+  date: pubDate
+  fansub: { path: "$title", transforms: [parse_fansub] }
+selftest:
+  query: "frieren"

@@ -1,0 +1,82 @@
+[
+  {
+    "name": "happy",
+    "file": "happy.json",
+    "query": "naruto",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "empty_resources",
+    "file": "empty_resources.json",
+    "query": "rare-show",
+    "status": 200,
+    "kind": "search",
+    "expect": "empty"
+  },
+  {
+    "name": "blank_query",
+    "file": "empty_resources.json",
+    "query": "   ",
+    "status": 200,
+    "kind": "search",
+    "expect": "empty"
+  },
+  {
+    "name": "non_magnet_filtered",
+    "file": "non_magnet_filtered.json",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "empty_fansub_name",
+    "file": "empty_fansub_name.json",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "malformed",
+    "file": "malformed.json",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_500",
+    "file": "no_body.json",
+    "query": "x",
+    "status": 500,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_502",
+    "file": "no_body.json",
+    "query": "x",
+    "status": 502,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_503",
+    "file": "no_body.json",
+    "query": "x",
+    "status": 503,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_400",
+    "file": "no_body.json",
+    "query": "x",
+    "status": 400,
+    "kind": "search",
+    "expect": "error"
+  }
+]

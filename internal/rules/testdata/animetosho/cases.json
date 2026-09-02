@@ -1,0 +1,76 @@
+[
+  {
+    "name": "happy",
+    "file": "happy.json",
+    "query": "frieren",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "non_magnet_and_titleless",
+    "file": "non_magnet_and_titleless.json",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "missing_fields",
+    "file": "missing_fields.json",
+    "query": "z",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "empty_array",
+    "file": "empty_array.json",
+    "query": "no-results",
+    "status": 200,
+    "kind": "search",
+    "expect": "empty"
+  },
+  {
+    "name": "empty_array_tripwire",
+    "file": "empty_array.json",
+    "query": "frieren",
+    "status": 200,
+    "kind": "search",
+    "expect": "empty"
+  },
+  {
+    "name": "aid_feed",
+    "file": "aid_feed.json",
+    "query": "",
+    "status": 200,
+    "kind": "anidb",
+    "anidbId": 17389,
+    "expect": "items"
+  },
+  {
+    "name": "aid_feed_empty",
+    "file": "empty_array.json",
+    "query": "",
+    "status": 200,
+    "kind": "anidb",
+    "anidbId": 999999,
+    "expect": "empty"
+  },
+  {
+    "name": "malformed",
+    "file": "malformed.json",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_503",
+    "file": "no_body.json",
+    "query": "x",
+    "status": 503,
+    "kind": "search",
+    "expect": "error"
+  }
+]

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>acg.rip</title>
+    <item>
+      <title>[SubsPlease] Show - 01 [1080p]</title>
+      <link>https://acg.rip/t/1234</link>
+      <pubDate>Sat, 01 Jan 2026 12:00:00 GMT</pubDate>
+      <enclosure url="magnet:?xt=urn:btih:aaa" length="1234567890" type="application/x-bittorrent"/>
+    </item>
+    <item>
+      <title>[VCB] Other - 02</title>
+      <link>https://acg.rip/t/5678</link>
+      <pubDate>Sat, 01 Jan 2026 13:00:00 GMT</pubDate>
+      <enclosure url="magnet:?xt=urn:btih:bbb" length="500000" type="application/x-bittorrent"/>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "happy",
+    "file": "happy.xml",
+    "query": "naruto",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "special_chars_title",
+    "file": "special_chars_title.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "empty_hash",
+    "file": "empty_hash.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "malformed",
+    "file": "malformed.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_502",
+    "file": "no_body.xml",
+    "query": "x",
+    "status": 502,
+    "kind": "search",
+    "expect": "error"
+  }
+]

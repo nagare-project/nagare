@@ -1,0 +1,20 @@
+schema: 1
+id: acg
+name: ACG.RIP
+homepage: https://acg.rip
+request:
+  url: "https://acg.rip/.xml?term={{query}}"
+format: xml
+items: rss/channel/item
+fields:
+  title: title
+  # enclosure 缺失时回落 <link>（六源里只有 acg.rip 有这个回落）
+  magnet:
+    any:
+      - { path: "enclosure@url" }
+      - { path: link }
+  size: { path: "enclosure@length", transforms: [format_bytes] }
+  date: pubDate
+  fansub: { path: "$title", transforms: [parse_fansub] }
+selftest:
+  query: "葬送的芙莉莲"

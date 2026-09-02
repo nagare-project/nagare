@@ -1,0 +1,50 @@
+[
+  {
+    "name": "happy",
+    "file": "happy.xml",
+    "query": "frieren",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "infohash_from_link",
+    "file": "infohash_from_link.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "no_hash_and_missing_title",
+    "file": "no_hash_and_missing_title.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "channel_pubdate_preferred",
+    "file": "channel_pubdate_preferred.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "items"
+  },
+  {
+    "name": "malformed",
+    "file": "malformed.xml",
+    "query": "x",
+    "status": 200,
+    "kind": "search",
+    "expect": "error"
+  },
+  {
+    "name": "status_502",
+    "file": "no_body.xml",
+    "query": "x",
+    "status": 502,
+    "kind": "search",
+    "expect": "error"
+  }
+]

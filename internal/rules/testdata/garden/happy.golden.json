@@ -1,0 +1,20 @@
+[
+  {
+    "title": "[SubsPlease] Show - 01",
+    "magnet": "magnet:?xt=urn:btih:abc",
+    "size": "3.5 GB",
+    "fansub": "SubsPlease",
+    "date": "2026-01-01T00:00:00Z",
+    "source": "garden",
+    "provider": "dmhy"
+  },
+  {
+    "title": "[喵萌奶茶屋] Other Show - 02",
+    "magnet": "magnet:?xt=urn:btih:def",
+    "size": "40 MB",
+    "fansub": "喵萌奶茶屋",
+    "date": "2026-01-02T00:00:00Z",
+    "source": "garden",
+    "provider": "moe"
+  }
+]

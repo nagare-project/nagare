@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:torrent="https://mikanani.me/0.1/">
+  <channel>
+    <title>Mikan Project</title>
+    <item>
+      <title>[Sub] Has both dates - 03</title>
+      <link>https://mikanani.me/Home/Episode/0123456789abcdef0123456789abcdef01234567</link>
+      <pubDate>Sat, 03 Jan 2026 09:00:00 GMT</pubDate>
+      <enclosure type="application/x-bittorrent" length="0"
+        url="https://mikanani.me/Download/20260103/0123456789abcdef0123456789abcdef01234567.torrent"/>
+      <torrent xmlns="https://mikanani.me/0.1/">
+        <contentLength>100</contentLength>
+        <pubDate>2026-01-03T09:00:00</pubDate>
+      </torrent>
+    </item>
+  </channel>
+</rss>

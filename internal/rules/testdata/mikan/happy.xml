@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:torrent="https://mikanani.me/0.1/">
+  <channel>
+    <title>Mikan Project</title>
+    <item>
+      <title>[喵萌奶茶屋] 番名 - 01 [1080p]</title>
+      <link>https://mikanani.me/Home/Episode/0123456789abcdef0123456789abcdef01234567</link>
+      <enclosure type="application/x-bittorrent" length="0"
+        url="https://mikanani.me/Download/20260101/0123456789abcdef0123456789abcdef01234567.torrent"/>
+      <torrent xmlns="https://mikanani.me/0.1/">
+        <link>https://mikanani.me/Home/Episode/0123456789abcdef0123456789abcdef01234567</link>
+        <contentLength>1500000000</contentLength>
+        <pubDate>2026-01-01T12:00:00</pubDate>
+      </torrent>
+    </item>
+  </channel>
+</rss>
