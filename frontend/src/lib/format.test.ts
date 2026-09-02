@@ -4,8 +4,10 @@ import {
   formatBytes,
   formatClock,
   formatDate,
+  formatDateTime,
   formatDuration,
   formatEpisode,
+  formatVersion,
   progressPercent,
 } from './format'
 
@@ -113,6 +115,24 @@ describe('formatClock / formatDate', () => {
 
   it('秒级时间戳 → YYYY-MM-DD', () => {
     expect(formatDate(Math.floor(new Date(2026, 11, 31).getTime() / 1000))).toBe('2026-12-31')
+  })
+
+  it('formatDateTime → YYYY-MM-DD HH:MM（秒级与毫秒级都行）', () => {
+    expect(formatDateTime(morning.getTime())).toBe('2026-08-30 09:05')
+    expect(formatDateTime(Math.floor(morning.getTime() / 1000))).toBe('2026-08-30 09:05')
+  })
+})
+
+describe('formatVersion', () => {
+  it.each<[string, string]>([
+    ['0.2.0', 'v0.2.0'],
+    ['v0.2.0', 'v0.2.0'],
+    ['V0.2.0', 'v0.2.0'],
+    ['  v1.0.0-rc.1 ', 'v1.0.0-rc.1'],
+    ['', '—'],
+    ['v', '—'],
+  ])('%j → %s', (input, expected) => {
+    expect(formatVersion(input)).toBe(expected)
   })
 })
 

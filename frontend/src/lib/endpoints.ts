@@ -4,6 +4,7 @@ import { apiFetch } from './api'
  * 后端契约层。
  * M1：/api/library · /api/play · /api/player/* · /api/settings · /api/animego/*
  * M2：/api/search · /api/sources/*（声明式规则引擎）
+ * M4：/api/mpv/detect · /api/update* · /api/shutdown（打包后的运行时兜底）
  * 类型与 Go 侧信封 data 载荷一一对应；传输细节（token 头、信封解析、错误分类）
  * 全部由 lib/api.ts 的 apiFetch 承担，这里只做「路径 + 形状」。
  */
@@ -109,12 +110,28 @@ export type PlayerStatus = PlayingStatus | { playing: false }
 
 // ---------- 设置 ----------
 
+/** 后端运行的操作系统（决定 mpv 安装引导与退出提示的措辞） */
+export type Platform = 'darwin' | 'linux' | 'windows'
+
+/** mpv 是怎么被找到的：显式配置 / 随包内置 / PATH / 各平台常见安装位置 */
+export type MpvSource = 'explicit' | 'bundled' | 'path' | 'known'
+
+/** found=false 时的安装引导（按平台生成）；windows 的 command 为空串（只给 url） */
+export interface MpvInstallGuide {
+  command: string
+  url: string
+  note: string
+}
+
 export interface MpvInfo {
   found: boolean
-  version?: string
   path?: string
-  /** found=false 时的安装引导文案（按平台生成） */
+  version?: string
+  source?: MpvSource
+  /** found=false 时的一句话提示 */
   hint?: string
+  /** 仅 found=false 时出现 */
+  install?: MpvInstallGuide
 }
 
 export interface AnimegoInfo {
@@ -126,8 +143,32 @@ export interface AnimegoInfo {
 /** GET /api/settings 的 data 载荷 */
 export interface SettingsData {
   version: string
+  platform: Platform
+  arch: string
+  /** 配置 / state.json 所在目录 */
+  dataDir: string
+  /** 日志文件路径（「复制诊断信息」的落点） */
+  logPath: string
   mpv: MpvInfo
   animego: AnimegoInfo
+}
+
+// ---------- 更新（M4：只提示，不自更新） ----------
+
+/** GET /api/update · POST /api/update/check · POST /api/update/config 共用的 data 载荷 */
+export interface UpdateView {
+  /** 是否开启自动检查（每天最多向 GitHub 查一次） */
+  enabled: boolean
+  current: string
+  /** 尚未检查过时为空串 */
+  latest: string
+  available: boolean
+  /** 新版本的下载页；未检查过时为空串 */
+  url: string
+  /** 上次检查的时间戳；从未检查过为 null */
+  checkedAt: number | null
+  /** 上次检查失败的中文原因；成功为空串 */
+  error: string
 }
 
 // ---------- 请求函数 ----------
@@ -192,6 +233,29 @@ export function animegoLogin(email: string, password: string): Promise<{ user: {
 
 export function animegoLogout(): Promise<void> {
   return requestJson<Record<string, never>>('/api/animego/logout', 'POST').then(() => undefined)
+}
+
+/** 重新探测 mpv（用户装完后不用重启）；返回与 settings.mpv 同构的结果 */
+export function redetectMpv(): Promise<MpvInfo> {
+  return requestJson<MpvInfo>('/api/mpv/detect', 'POST')
+}
+
+export function fetchUpdate(): Promise<UpdateView> {
+  return apiFetch<UpdateView>('/api/update')
+}
+
+/** 立即向 GitHub Releases 查一次；查询失败不抛，落在返回值的 error 字段里 */
+export function checkUpdate(): Promise<UpdateView> {
+  return requestJson<UpdateView>('/api/update/check', 'POST')
+}
+
+export function setUpdateEnabled(enabled: boolean): Promise<UpdateView> {
+  return requestJson<UpdateView>('/api/update/config', 'POST', { enabled })
+}
+
+/** 让后端进程退出；响应后约 100ms 进程结束，之后页面的任何请求都会失败 */
+export function shutdownNagare(): Promise<void> {
+  return requestJson<Record<string, never>>('/api/shutdown', 'POST').then(() => undefined)
 }
 
 // ---------- 磁力搜索 · 源管理（M2） ----------

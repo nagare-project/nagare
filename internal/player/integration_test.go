@@ -37,7 +37,7 @@ func TestPlayRealMPVEndToEnd(t *testing.T) {
 
 	st, err := store.Open(filepath.Join(dir, "state.json"))
 	require.NoError(t, err)
-	m := New(Options{Store: st, Client: nil, MPV: mpvInfo, RuntimeDir: dir})
+	m := New(Options{Store: st, Client: nil, MPV: mpv.NewRuntimeWith(func(string) (mpv.Info, error) { return mpvInfo, nil }, ""), RuntimeDir: dir})
 
 	items := library.BuildItems([]library.SourceFile{{
 		RelPath: filepath.Base(media), AbsPath: media, Size: 1, MTimeMs: 1,

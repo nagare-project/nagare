@@ -46,10 +46,14 @@ type Deps struct {
 	Player         PlayerAPI
 	Auth           AnimegoAuth
 	AnimegoBaseURL string
-	MPV            mpv.Info
-	MPVErr         error // mpv 探测失败时的用户提示来源
+	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
 	Version        string
 	Sources        *SourcesService
+	// Shutdown 触发整个进程退出（主进程的根 cancel）；nil 表示不支持从界面退出。
+	Shutdown func()
+	// DataDir / LogPath 展示给用户：数据在哪、出问题看哪个文件。
+	DataDir string
+	LogPath string
 }
 
 // Handler 汇集全部业务端点。
@@ -70,6 +74,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/player/pause", h.playerPause)
 	mux.HandleFunc("POST /api/player/seek", h.playerSeek)
 	mux.HandleFunc("GET /api/settings", h.settings)
+	mux.HandleFunc("POST /api/mpv/detect", h.mpvDetect)
+	mux.HandleFunc("POST /api/shutdown", h.shutdown)
 	mux.HandleFunc("POST /api/animego/login", h.login)
 	mux.HandleFunc("POST /api/animego/logout", h.logout)
 	mux.HandleFunc("GET /api/search", h.search)
@@ -234,27 +240,7 @@ func (h *Handler) playerSeek(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
 }
 
-// ── 设置与账号 ──
-
-func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
-	mpvView := map[string]any{"found": h.deps.MPVErr == nil && h.deps.MPV.Path != ""}
-	if h.deps.MPV.Path != "" {
-		mpvView["path"] = h.deps.MPV.Path
-		mpvView["version"] = h.deps.MPV.Version
-	}
-	if h.deps.MPVErr != nil {
-		mpvView["hint"] = h.deps.MPVErr.Error()
-	}
-	httpserver.WriteJSON(w, http.StatusOK, map[string]any{
-		"version": h.deps.Version,
-		"mpv":     mpvView,
-		"animego": map[string]any{
-			"loggedIn": h.deps.Auth.LoggedIn(),
-			"email":    h.deps.Store.AnimegoSession().Email,
-			"baseUrl":  h.deps.AnimegoBaseURL,
-		},
-	})
-}
+// ── 账号 ──（设置载荷在 system.go）
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var req struct {

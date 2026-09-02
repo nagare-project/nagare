@@ -1,0 +1,178 @@
+# nagare 发布流水线（GoReleaser v2 OSS）。零证书方案：
+#   macOS    universal 二进制 → ad-hoc 签名的 Nagare.app → dmg（scripts/macos/build-app.sh）
+#   Windows  无签名 NSIS 按用户安装包 + 便携 zip，两者都内置 mpv（scripts/windows/*）
+#   Linux    tar.gz + deb/rpm，依赖系统 mpv
+# 前端构建不在这里做：release workflow 先 bun run build，before hook 只检查 web/ 就位。
+# 本机验证：goreleaser check && goreleaser release --snapshot --clean --skip=publish
+#
+# 阶段 B 再考虑的可选渠道（本文件刻意不配）：brews / scoops / winget / aurs。
+# 它们各自需要独立的 tap / bucket / 清单仓库与推送 token，等 Release 形态稳定后再接。
+version: 2
+
+project_name: nagare
+
+report_sizes: true
+
+# 注意：goreleaser 在 before hooks 之后才检查 dist/ 为空，所以往 dist/ 写东西的步骤
+# （拉取 mpv）不能放这里，放在 windows build 的 pre hook 里。
+before:
+  hooks:
+    - scripts/release/check-web.sh
+
+builds:
+  # macOS：托盘用 fyne.io/systray，需要 cgo，所以只能在 macOS runner 上原生编；
+  # 两个 arch 再由 universal_binaries 合成一个。
+  # CGO_ENABLED 默认 1（CI 必须是 1，否则 .app 没有托盘）；本机 SDK 过旧链接不过时可用
+  # `CGO_ENABLED=0 goreleaser release --snapshot ...` 临时覆盖，只验证流水线其余部分。
+  - id: darwin
+    binary: nagare
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED={{ if index .Env "CGO_ENABLED" }}{{ .Env.CGO_ENABLED }}{{ else }}1{{ end }}
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # Windows：纯 Go 交叉编译；-H=windowsgui 去掉控制台窗口（界面在浏览器 + 托盘）。
+  - id: windows
+    binary: nagare
+    goos: [windows]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -H=windowsgui -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    hooks:
+      # pre：按 scripts/windows/mpv.lock 拉取并校验内置 mpv → dist/mpv-win、dist/mpv-sources
+      pre:
+        - cmd: scripts/windows/fetch-mpv.sh
+          output: true
+      post:
+        - cmd: scripts/windows/build-installer.sh "{{ .Path }}" "{{ .Version }}" dist
+          output: true
+
+  - id: linux
+    binary: nagare
+    goos: [linux]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+universal_binaries:
+  - id: darwin-universal # 合成后的产物挂这个 id（不是 darwin），archives 里要按它引用
+    ids: [darwin]
+    name_template: nagare
+    replace: true # 只发 universal，不单发 amd64 / arm64
+    hooks:
+      post:
+        - cmd: scripts/macos/build-app.sh "{{ .Path }}" "{{ .Version }}" dist
+          output: true
+
+# 归档命名：nagare-<版本>_<MacOS|Linux|Windows>_<universal|x86_64|arm64>
+archives:
+  - id: unix
+    ids: [darwin-universal, linux]
+    formats: [tar.gz]
+    name_template: '{{ .ProjectName }}-{{ .Version }}_{{ if eq .Os "darwin" }}MacOS{{ else }}{{ title .Os }}{{ end }}_{{ if eq .Arch "amd64" }}x86_64{{ else if eq .Arch "all" }}universal{{ else }}{{ .Arch }}{{ end }}'
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_NOTICES.md
+
+  # 便携版：解压后 nagare.exe 旁边就是 mpv\mpv.exe，Go 侧按这个相对位置找内置 mpv。
+  - id: windows
+    ids: [windows]
+    formats: [zip]
+    name_template: '{{ .ProjectName }}-{{ .Version }}_{{ title .Os }}_{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}'
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_NOTICES.md
+      - src: dist/mpv-win/**
+        dst: mpv
+
+nfpms:
+  - id: linux-packages
+    ids: [linux]
+    package_name: nagare
+    vendor: nagare project
+    maintainer: nagare project <noreply@github.com>
+    homepage: https://github.com/nagare-project/nagare
+    license: AGPL-3.0
+    description: |-
+      本地动漫播放 agent
+      本地文件与磁力边下边播共用同一个 mpv 播放引擎，浏览器就是遥控器。
+      只监听 127.0.0.1，本体不内置任何内容源。
+    formats: [deb, rpm]
+    # 各发行版惯用名：nagare_<版本>_amd64.deb / nagare-<版本>.x86_64.rpm
+    file_name_template: "{{ .ConventionalFileName }}"
+    section: video
+    priority: optional
+    bindir: /usr/bin
+    dependencies:
+      - mpv
+    contents:
+      - src: packaging/linux/nagare.desktop
+        dst: /usr/share/applications/nagare.desktop
+      - src: packaging/icon/nagare-256.png
+        dst: /usr/share/icons/hicolor/256x256/apps/nagare.png
+      - src: THIRD_PARTY_NOTICES.md
+        dst: /usr/share/doc/nagare/THIRD_PARTY_NOTICES.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+  # dmg / setup.exe / mpv 构建脚本快照不是 goreleaser 自己的归档，显式纳入校验
+  extra_files:
+    - glob: dist/*.dmg
+    - glob: dist/*-setup.exe
+    - glob: dist/mpv-sources/*
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^chore"
+      - "^ci"
+      - "^docs"
+      - "^Merge "
+  groups:
+    - title: 新功能
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 修复
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 其他
+      order: 999
+
+release:
+  github:
+    owner: nagare-project
+    name: nagare
+  draft: true # 先出草稿，人工检查产物后再点发布
+  prerelease: auto # 带 -rc / -beta 之类后缀的 tag 自动标 pre-release
+  extra_files:
+    - glob: dist/*.dmg
+    - glob: dist/*-setup.exe
+    - glob: dist/mpv-sources/* # GPL 合规：Windows 包内 mpv 的构建脚本源码快照
+  footer: |
+    ---
+    安装步骤（macOS「仍要打开」/ Windows「仍要运行」、mpv 依赖、校验方法）见
+    [README「安装」](https://github.com/nagare-project/nagare#安装)。
+    Windows 包内置的 mpv 及其许可证信息见 `THIRD_PARTY_NOTICES.md`。

@@ -12,6 +12,7 @@
 package httpserver
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"io/fs"
@@ -48,6 +49,9 @@ type Server struct {
 	opts    Options
 	caps    *Capabilities
 	handler http.Handler
+	// httpSrv 在 New 里就建好（不是等到 Serve）：Shutdown 可能先于 Serve 的
+	// goroutine 被调度到 —— 那时若还是 nil，关闭就成了空操作，进程会一直挂着。
+	httpSrv *http.Server
 }
 
 // New 组装完整的中间件链与路由。Token 为空是编程错误，直接 panic。
@@ -71,20 +75,23 @@ func New(opts Options) *Server {
 	root.Handle("/", s.staticHandler())
 
 	s.handler = securityHeaders(checkHost(opts.Port, root))
+	s.httpSrv = &http.Server{
+		Handler:           s.handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+	}
 	return s
 }
 
 // Handler 暴露完整处理链，测试直接打这里。
 func (s *Server) Handler() http.Handler { return s.handler }
 
-// Serve 在给定 listener 上阻塞服务，直到出错或被关闭。
-func (s *Server) Serve(ln net.Listener) error {
-	srv := &http.Server{
-		Handler:           s.handler,
-		ReadHeaderTimeout: readHeaderTimeout,
-	}
-	return srv.Serve(ln)
-}
+// Serve 在给定 listener 上阻塞服务，直到出错或被 Shutdown 关闭（返回 http.ErrServerClosed）。
+func (s *Server) Serve(ln net.Listener) error { return s.httpSrv.Serve(ln) }
+
+// Shutdown 优雅关闭：停止接受新连接并等在途请求完成（受 ctx 限时），
+// 让 POST /api/shutdown 的响应有机会送达后再收尾。
+// 早于 Serve 调用也安全：net/http 会记住关闭状态，之后的 Serve 立刻返回 ErrServerClosed。
+func (s *Server) Shutdown(ctx context.Context) error { return s.httpSrv.Shutdown(ctx) }
 
 // StreamCapability 返回当前流端点的能力段（拼流 URL 用）。
 func (s *Server) StreamCapability() string { return s.caps.Stream() }

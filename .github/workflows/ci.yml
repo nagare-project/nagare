@@ -1,4 +1,5 @@
-# CI：前端先构建（产物是 go:embed 的输入），再跑 Go 测试与三平台交叉编译（未签名，签名在 M4）。
+# CI：前端先构建（产物是 go:embed 的输入），再跑 Go 测试与五目标交叉编译。
+# 发布产物（dmg / NSIS / deb / rpm）走 release.yml；零证书方案不签名（见 README「为什么会有系统警告」）。
 name: CI
 
 on:
@@ -6,13 +7,18 @@ on:
     branches: [main]
   pull_request:
 
+# 最小权限：CI 只读代码，不发布任何东西。显式声明而非依赖仓库默认设置
+# —— 以后有人往这里加写操作时，会先撞到这一行而不是悄悄拿到写权限。
+permissions:
+  contents: read
+
 jobs:
   frontend:
     name: 前端测试与构建
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
       - name: 安装依赖
@@ -63,7 +69,13 @@ jobs:
       - name: go test
         run: go test ./...
       - name: govulncheck 漏洞扫描
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      - name: goreleaser 配置检查
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
 
   build:
     name: 交叉编译 ${{ matrix.goos }}/${{ matrix.goarch }}

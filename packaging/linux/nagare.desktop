@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=nagare
+Comment=本地动漫播放 agent
+Comment[en]=Local anime playback agent
+Exec=nagare
+Icon=nagare
+Terminal=false
+Categories=AudioVideo;Video;Player;
+StartupNotify=false
+Keywords=anime;mpv;player;danmaku;

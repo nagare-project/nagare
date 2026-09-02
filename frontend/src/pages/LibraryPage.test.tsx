@@ -3,10 +3,11 @@
 // 证明「路由 → 页面 → hooks → 组件」整条装配线能对着契约数据渲染出界面。
 import { RouterProvider } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LibraryData, PlayerStatus, SettingsData } from '../lib/endpoints'
+import type { LibraryData, PlayerStatus, SettingsData, UpdateView } from '../lib/endpoints'
 import { TOKEN_STORAGE_KEY } from '../lib/token'
 import { router } from '../routes'
 import { mount } from '../test/harness'
+import { installLocalStorage } from '../test/storage'
 
 const LIBRARY: LibraryData = {
   folders: [{ id: 'folder-1', path: '/Users/you/Movies/Anime', addedAt: 1_756_500_000 }],
@@ -51,21 +52,45 @@ const LIBRARY: LibraryData = {
 
 const SETTINGS: SettingsData = {
   version: '0.1.0',
-  mpv: { found: true, version: '0.38.0', path: '/opt/homebrew/bin/mpv' },
+  platform: 'darwin',
+  arch: 'arm64',
+  dataDir: '/Users/you/Library/Application Support/nagare',
+  logPath: '/Users/you/Library/Application Support/nagare/nagare.log',
+  mpv: { found: true, version: '0.38.0', path: '/opt/homebrew/bin/mpv', source: 'path' },
   animego: { loggedIn: false, baseUrl: 'https://animego.example' },
+}
+
+const MPV_MISSING: SettingsData = {
+  ...SETTINGS,
+  mpv: {
+    found: false,
+    hint: '未检测到 mpv，macOS 需要自行安装。',
+    install: { command: 'brew install mpv', url: 'https://mpv.io/installation/', note: '' },
+  },
 }
 
 const PLAYER: PlayerStatus = { playing: false }
 
+const UPDATE: UpdateView = {
+  enabled: true,
+  current: '0.1.0',
+  latest: '',
+  available: false,
+  url: '',
+  checkedAt: null,
+  error: '',
+}
+
 /** 按路径分发的 fetch 桩，一律返回统一信封 */
-function stubFetch(): ReturnType<typeof vi.fn> {
+function stubFetch(settings: SettingsData = SETTINGS): ReturnType<typeof vi.fn> {
   const impl = async (input: RequestInfo | URL): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const path = new URL(url, 'http://127.0.0.1').pathname
     const payload: Record<string, unknown> = {
       '/api/library': LIBRARY,
-      '/api/settings': SETTINGS,
+      '/api/settings': settings,
       '/api/player/status': PLAYER,
+      '/api/update': UPDATE,
     }
     const data = payload[path]
     if (data === undefined) {
@@ -90,6 +115,8 @@ beforeEach(() => {
   window.history.replaceState(null, '', '/')
   // jsdom 没实现 scrollTo，TanStack Router 挂载时会调一次；打桩消掉告警噪音
   vi.stubGlobal('scrollTo', vi.fn())
+  // 根布局的 UpdateBanner 会读 localStorage（Node 自带的全局壳在测试里不可用）
+  installLocalStorage()
 })
 
 afterEach(() => {
@@ -102,15 +129,17 @@ describe('LibraryPage（整页冒烟）', () => {
     const fetchMock = stubFetch()
     const { container, unmount } = await mount(<RouterProvider router={router} />)
 
-    // 三份数据都请求过（library / settings / player status）
+    // 四份数据都请求过（library / settings / player status / 根布局的 update）
     const requested = fetchMock.mock.calls.map((call) => {
       const input = call[0] as RequestInfo | URL
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       return new URL(url, 'http://127.0.0.1').pathname
     })
     expect(requested).toEqual(
-      expect.arrayContaining(['/api/library', '/api/settings', '/api/player/status']),
+      expect.arrayContaining(['/api/library', '/api/settings', '/api/player/status', '/api/update']),
     )
+    // 没有新版本：不出提示条
+    expect(document.querySelector('.update-banner')).toBeNull()
 
     // 顶栏与 mpv 状态点
     expect(container.querySelector('.topbar-brand')?.textContent).toContain('nagare')
@@ -133,13 +162,30 @@ describe('LibraryPage（整页冒烟）', () => {
     await unmount()
   })
 
+  it('mpv 未找到：状态点变红，提示条里给出「去设置安装 mpv」链接', async () => {
+    stubFetch(MPV_MISSING)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    expect(container.querySelector('.mpv-dot--missing')).not.toBeNull()
+    const alert = container.querySelector('.mpv-alert')
+    expect(alert?.textContent).toContain('未检测到 mpv')
+    expect(alert?.querySelector('a')?.getAttribute('href')).toBe('/settings')
+    expect(alert?.querySelector('a')?.textContent).toContain('去设置安装 mpv')
+    await unmount()
+  })
+
   it('库为空时显示添加文件夹引导', async () => {
     const empty: LibraryData = { folders: [], clusters: [], scannedAt: null }
     const impl = async (input: RequestInfo | URL): Promise<Response> => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       const path = new URL(url, 'http://127.0.0.1').pathname
       const data =
-        path === '/api/library' ? empty : path === '/api/settings' ? SETTINGS : PLAYER
+        path === '/api/library'
+          ? empty
+          : path === '/api/settings'
+            ? SETTINGS
+            : path === '/api/update'
+              ? UPDATE
+              : PLAYER
       return new Response(JSON.stringify({ success: true, data }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

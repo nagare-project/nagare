@@ -5,13 +5,15 @@ import { act } from 'react'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchResult, SourceOutcome, SourcesData } from '../lib/endpoints'
-import { fetchSources, searchMagnets, setSourceEnabled } from '../lib/endpoints'
+import { fetchSources, fetchUpdate, searchMagnets, setSourceEnabled } from '../lib/endpoints'
 import { createAppRouter } from '../routes'
 import { mount } from '../test/harness'
+import { installLocalStorage } from '../test/storage'
 
 vi.mock('../lib/endpoints', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/endpoints')>()),
   fetchSources: vi.fn(),
+  fetchUpdate: vi.fn(),
   searchMagnets: vi.fn(),
   setSourceEnabled: vi.fn(),
 }))
@@ -62,7 +64,17 @@ async function mountAt(path: string) {
 
 beforeEach(() => {
   vi.stubGlobal('scrollTo', vi.fn())
+  installLocalStorage()
   vi.mocked(fetchSources).mockResolvedValue(TWO_SOURCES)
+  vi.mocked(fetchUpdate).mockResolvedValue({
+    enabled: true,
+    current: '0.1.0',
+    latest: '',
+    available: false,
+    url: '',
+    checkedAt: null,
+    error: '',
+  })
   vi.mocked(searchMagnets).mockResolvedValue({ query: '', items: [], sources: [] })
   vi.mocked(setSourceEnabled).mockResolvedValue(undefined)
 })

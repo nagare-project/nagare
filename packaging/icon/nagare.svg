@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  nagare 应用图标源文件。
+  与 frontend/index.html 的内联 favicon 视觉一致：「流」字、LIVE Cyan #5ac8fa；
+  favicon 是透明底，这里按 macOS 图标惯例加了深色圆角方块底（1024 画布、824 方块，
+  与 Apple 图标模板的留白比例一致），.icns / .ico / Linux PNG 都从它渲染。
+  产物由 scripts/icon/build-icons.sh 生成。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17263d"/>
+      <stop offset="1" stop-color="#0a1322"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="186" ry="186" fill="url(#bg)"/>
+  <!-- 内描边：让图标在深色桌面上仍有边界 -->
+  <rect x="106" y="106" width="812" height="812" rx="180" ry="180" fill="none" stroke="#5ac8fa" stroke-opacity="0.22" stroke-width="6"/>
+  <text x="512" y="512" font-size="600" font-weight="600"
+        font-family="PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Source Han Sans SC, Microsoft YaHei, sans-serif"
+        fill="#5ac8fa" text-anchor="middle" dominant-baseline="central">流</text>
+</svg>

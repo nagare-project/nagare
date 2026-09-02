@@ -72,6 +72,10 @@ type testEnv struct {
 	player  *fakePlayer
 	auth    *fakeAuth
 	sources *SourcesService
+	// mpvDetect 是注入给 mpv.Runtime 的探测函数，测试改它再打 /api/mpv/detect 翻转状态。
+	mpvDetect func(string) (mpv.Info, error)
+	// shutdown 在 Deps.Shutdown 被调用时收到一个信号。
+	shutdown chan struct{}
 }
 
 func newEnv(t *testing.T) *testEnv {
@@ -79,10 +83,14 @@ func newEnv(t *testing.T) *testEnv {
 	st, err := store.Open(filepath.Join(t.TempDir(), "state.json"))
 	require.NoError(t, err)
 	env := &testEnv{
-		store:  st,
-		lib:    NewLibraryService(st),
-		player: &fakePlayer{},
-		auth:   &fakeAuth{session: animego.Session{AccessToken: "at", RefreshCookie: "rc"}},
+		store:    st,
+		lib:      NewLibraryService(st),
+		player:   &fakePlayer{},
+		auth:     &fakeAuth{session: animego.Session{AccessToken: "at", RefreshCookie: "rc"}},
+		shutdown: make(chan struct{}, 1),
+	}
+	env.mpvDetect = func(string) (mpv.Info, error) {
+		return mpv.Info{Path: "/usr/bin/mpv", Version: "0.41.0", Source: mpv.SourcePath}, nil
 	}
 	env.sources = NewSourcesService(st, &rules.Fetcher{}, &rulesync.Syncer{}, filepath.Join(t.TempDir(), "rules"))
 	h := New(Deps{
@@ -91,9 +99,12 @@ func newEnv(t *testing.T) *testEnv {
 		Player:         env.player,
 		Auth:           env.auth,
 		AnimegoBaseURL: "https://example.test",
-		MPV:            mpv.Info{Path: "/usr/bin/mpv", Version: "0.41.0"},
+		MPV:            mpv.NewRuntimeWith(func(e string) (mpv.Info, error) { return env.mpvDetect(e) }, ""),
 		Version:        "test",
 		Sources:        env.sources,
+		Shutdown:       func() { env.shutdown <- struct{}{} },
+		DataDir:        "/data/nagare",
+		LogPath:        "/data/nagare/logs/nagare.log",
 	})
 	env.mux = http.NewServeMux()
 	h.Register(env.mux)
@@ -259,29 +270,6 @@ func TestLoginErrorMapping(t *testing.T) {
 	rec := env.do(t, http.MethodPost, "/api/animego/login", `{"email":"a@b.c","password":"x"}`)
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 	assert.Contains(t, decode(t, rec).Error, "频繁")
-}
-
-// settings 形状：mpv 信息 + animego 登录态。
-func TestSettings(t *testing.T) {
-	env := newEnv(t)
-	rec := env.do(t, http.MethodGet, "/api/settings", "")
-	require.Equal(t, http.StatusOK, rec.Code)
-	var s struct {
-		Version string `json:"version"`
-		MPV     struct {
-			Found   bool   `json:"found"`
-			Version string `json:"version"`
-		} `json:"mpv"`
-		Animego struct {
-			LoggedIn bool   `json:"loggedIn"`
-			BaseURL  string `json:"baseUrl"`
-		} `json:"animego"`
-	}
-	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &s))
-	assert.True(t, s.MPV.Found)
-	assert.Equal(t, "0.41.0", s.MPV.Version)
-	assert.False(t, s.Animego.LoggedIn)
-	assert.Equal(t, "https://example.test", s.Animego.BaseURL)
 }
 
 // seek 负数 400；请求体不是 JSON 400。

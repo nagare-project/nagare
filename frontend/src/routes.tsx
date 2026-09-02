@@ -1,12 +1,13 @@
-import { Outlet, createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
+import { RootLayout } from './components/RootLayout'
 import { LibraryPage } from './pages/LibraryPage'
 import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
 
-/** 根路由：一层 Outlet；页面各自带完整壳（顶栏/页头），暂不需要全局布局 */
+/** 根路由：新版本提示条 + Outlet（M4）；页面各自带完整壳（顶栏/页头） */
 const rootRoute = createRootRoute({
-  component: () => <Outlet />,
+  component: RootLayout,
 })
 
 /** `/` 媒体库主页（M1 起取代 M0 的连接检查壳） */
@@ -46,7 +47,7 @@ const searchRoute = createRoute({
   component: SearchPage,
 })
 
-/** `/settings` 设置页：animego 账号 · mpv 信息 · 磁力源 · 文件夹管理 */
+/** `/settings` 设置页：animego 账号 · mpv · 更新 · 磁力源 · 文件夹管理 · 关于 · 退出 */
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',

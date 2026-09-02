@@ -52,7 +52,7 @@
   box-shadow: 0 0 6px var(--color-err);
 }
 
-/* mpv 缺失提示条 */
+/* mpv 缺失提示条（设置页的 mpv 卡也用它） */
 .mpv-alert {
   padding: 0.65rem 0.9rem;
   border: 1px solid var(--color-warn-border);
@@ -62,13 +62,23 @@
   font-size: 0.82rem;
 }
 
+.mpv-alert-link {
+  white-space: nowrap;
+}
+
 /* 顶栏下的状态行（扫描结果 / 播放错误 / 上次扫描时间） */
 .lib-status {
   display: flex;
   align-items: baseline;
   justify-content: flex-end;
+  gap: 0.7rem;
   min-height: 1.3em;
   font-size: 0.72rem;
+}
+
+/* 状态行里的恢复动作（播放失败且 mpv 缺失 → 去设置） */
+.lib-status-link {
+  white-space: nowrap;
 }
 
 /* ---------- 空态引导 ---------- */

@@ -1,0 +1,92 @@
+# 发布流水线：打 v* tag 触发，或手动 workflow_dispatch 跑 snapshot 先验流水线（不发布）。
+# 单 job 跑在 macOS runner 上：darwin 托盘需要 cgo 只能原生编（两 arch 再 lipo 成 universal），
+# windows / linux 是纯 Go 交叉编译；makensis / 7zz 用 brew 装。产物形态见 .goreleaser.yaml。
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: "snapshot 构建（不打 tag、不发布，产物以 artifact 形式上传）"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 构建并发布
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # changelog 与 snapshot 版本号都要完整 tag 历史
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - name: 前端：安装依赖、类型检查、测试、构建到 web/
+        working-directory: frontend
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run test
+          bun run build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: 安装打包工具（NSIS、7-Zip）
+        run: brew install makensis sevenzip
+
+      - name: 生成图标产物是否入库自检
+        run: test -f packaging/icon/nagare.icns && test -f packaging/icon/nagare.ico && test -f packaging/icon/nagare-256.png
+
+      - name: GoReleaser（发布）
+        if: github.event_name == 'push'
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: GoReleaser（snapshot，不发布）
+        if: github.event_name == 'workflow_dispatch'
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 排查用：不管发布与否，把安装包与校验文件留成 artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nagare-packages
+          path: |
+            dist/*.dmg
+            dist/*-setup.exe
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+            dist/checksums.txt
+            dist/mpv-sources/*
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: nagare-dist-full
+          path: dist/
+          include-hidden-files: true
+          if-no-files-found: error

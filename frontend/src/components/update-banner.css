@@ -1,0 +1,39 @@
+/* ============================================================
+   顶部新版本提示条（RootLayout 挂在所有页面之上）。
+   它在各页面的 <main> 之外，--hud-* 变量由组件自行注入（hudPalette）。
+   ============================================================ */
+
+.update-banner {
+  border-bottom: 1px solid var(--hud-border);
+  background: var(--hud-flash);
+}
+
+.update-banner-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding: 0.55rem clamp(1rem, 4vw, 2.5rem);
+  font-size: 0.82rem;
+}
+
+.update-banner-tag {
+  color: var(--hud-accent);
+}
+
+.update-banner-text {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.update-banner-link {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+}
+
+.update-banner-ignore {
+  font-size: 0.66rem;
+}

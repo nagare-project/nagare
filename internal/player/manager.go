@@ -59,9 +59,9 @@ type Launcher func(ctx context.Context, opts mpv.LaunchOptions) (*mpv.Player, er
 type Options struct {
 	Store      *store.Store
 	Client     AnimegoClient // 可为 nil：纯离线（弹幕/匹配一律标不可用）
-	MPV        mpv.Info
-	RuntimeDir string   // 弹幕 ASS、IPC socket 等运行时文件目录
-	Launch     Launcher // 为 nil 时用 mpv.Launch
+	MPV        *mpv.Runtime  // 共享探测状态；可为 nil（测试注入假 Launch 时不需要真实 mpv）
+	RuntimeDir string        // 弹幕 ASS、IPC socket 等运行时文件目录
+	Launch     Launcher      // 为 nil 时用 mpv.Launch
 	// PersistSession 在任何可能刷新过 animego 会话的操作后调用（登录态的
 	// refresh cookie 会轮换，不落盘下次启动就要重新登录）。可为 nil。
 	PersistSession func()
@@ -143,8 +143,12 @@ func (m *Manager) Play(ctx context.Context, item library.Item, subPath string) (
 		}
 	}
 
+	mpvPath, err := m.mpvPath()
+	if err != nil {
+		return PlayResult{}, err
+	}
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{
-		MPVPath:   m.opts.MPV.Path,
+		MPVPath:   mpvPath,
 		MediaPath: item.AbsPath,
 		SubPath:   subPath,
 		Title:     title,
@@ -281,6 +285,21 @@ func (m *Manager) writeDanmakuASS(ctx context.Context, path string, episodeID in
 		return 0, fmt.Errorf("生成弹幕字幕失败：%w", err)
 	}
 	return stats.Converted, nil
+}
+
+// mpvPath 从共享探测状态取 mpv 路径；未找到时给出带安装指引的播放类错误
+// —— 用户装好后到设置页点「重新检测」即可，不必重启。Runtime 为 nil 时返回空路径，
+// 交给 Launch 自行报错（测试注入假实现时走这里）。
+func (m *Manager) mpvPath() (string, error) {
+	if m.opts.MPV == nil {
+		return "", nil
+	}
+	info, err := m.opts.MPV.Get()
+	if err != nil {
+		return "", errs.Wrap(errs.CategoryPlayback, "player.mpv",
+			"mpv 不可用，无法播放", "按设置页的指引安装 mpv 后点「重新检测」", err)
+	}
+	return info.Path, nil
 }
 
 // Stop 停止当前会话（若有）并等待进度落盘。

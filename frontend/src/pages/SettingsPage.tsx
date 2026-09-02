@@ -3,12 +3,17 @@ import type { FormEvent } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AddFolderForm } from '../components/library/AddFolderForm'
 import { SourcesCard } from '../components/search/SourcesCard'
+import { AboutCard } from '../components/settings/AboutCard'
+import { MpvCard } from '../components/settings/MpvCard'
+import { QuitCard, QuitNotice } from '../components/settings/QuitCard'
+import { UpdateCard } from '../components/settings/UpdateCard'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { useSettings } from '../hooks/useSettings'
 import { useSources } from '../hooks/useSources'
+import { useUpdateContext } from '../hooks/useUpdate'
 import { animegoLogin, animegoLogout } from '../lib/endpoints'
-import type { AnimegoInfo, MpvInfo } from '../lib/endpoints'
+import type { AnimegoInfo } from '../lib/endpoints'
 import type { LibraryState } from '../hooks/useLibrary'
 import { errorText, formatDate } from '../lib/format'
 import { hudPalette } from '../lib/palette'
@@ -16,14 +21,20 @@ import { label, mono } from '../tokens'
 import './settings.css'
 
 /**
- * `/settings`：animego 账号卡 + mpv 信息卡 + 磁力源 + 库文件夹管理。
- * 三份数据独立加载，任一返回 401 都切到 token 提示页。
+ * `/settings`：animego 账号 · mpv · 更新 · 磁力源 · 库文件夹 · 关于 · 退出。
+ * 设置 / 库 / 源三份数据独立加载，任一返回 401 都切到 token 提示页；
+ * 更新状态来自根布局（与顶部提示条同一份）。退出成功后整页换成 QuitNotice。
  */
 export function SettingsPage() {
   const settings = useSettings()
   const library = useLibrary()
   const sources = useSources()
+  const update = useUpdateContext()
+  const [hasQuit, setHasQuit] = useState(false)
 
+  if (hasQuit) {
+    return <QuitNotice />
+  }
   if (
     settings.state.phase === 'unauthorized' ||
     library.state.phase === 'unauthorized' ||
@@ -68,9 +79,11 @@ export function SettingsPage() {
       {settings.state.phase === 'ready' && (
         <>
           <AccountCard animego={settings.state.data.animego} onReload={settings.reload} />
-          <MpvCard mpv={settings.state.data.mpv} />
+          <MpvCard mpv={settings.state.data.mpv} onReload={settings.reload} />
         </>
       )}
+
+      <UpdateCard update={update} />
 
       <SourcesCard sources={sources} />
 
@@ -81,10 +94,17 @@ export function SettingsPage() {
         onRetry={() => void library.reload()}
       />
 
+      {settings.state.phase === 'ready' && <AboutCard settings={settings.state.data} />}
+
+      <QuitCard
+        platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined}
+        onQuit={() => setHasQuit(true)}
+      />
+
       <footer className="colophon" style={label}>
         {settings.state.phase === 'ready'
-          ? `nagare v${settings.state.data.version} · M2 · library + search`
-          : 'nagare · M2 · library + search'}
+          ? `nagare v${settings.state.data.version} · M4 · packaging`
+          : 'nagare · M4 · packaging'}
       </footer>
     </main>
   )
@@ -215,37 +235,6 @@ function AccountCard({
       >
         {error}
       </p>
-    </section>
-  )
-}
-
-/** mpv 信息卡：版本 / 路径；未找到时给出按平台的安装引导 */
-function MpvCard({ mpv }: { mpv: MpvInfo }) {
-  return (
-    <section className="panel settings-card" aria-labelledby="mpv-heading">
-      <h2 id="mpv-heading" className="panel-heading" style={label}>
-        mpv runtime
-      </h2>
-      {mpv.found ? (
-        <dl className="kv-list">
-          <dt>状态</dt>
-          <dd className="result--ok">已找到 ✓</dd>
-          <dt>版本</dt>
-          <dd style={mono}>{mpv.version ?? '（未知）'}</dd>
-          <dt>路径</dt>
-          <dd style={mono}>{mpv.path ?? '（未知）'}</dd>
-        </dl>
-      ) : (
-        <>
-          <dl className="kv-list">
-            <dt>状态</dt>
-            <dd className="result--err">未找到</dd>
-          </dl>
-          <p className="mpv-alert" role="alert">
-            {mpv.hint ?? '未检测到 mpv，请先安装 mpv 后重启 nagare。'}
-          </p>
-        </>
-      )}
     </section>
   )
 }

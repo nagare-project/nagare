@@ -1,0 +1,131 @@
+/* ============================================================
+   设置页 M4 新增卡片样式：mpv 安装指引 · 更新 · 退出 · 关于。
+   .settings-card / .kv-list / .form-actions 来自 pages/settings.css（这些卡只在设置页渲染）；
+   .mpv-alert 来自 components/library/library.css（库页与设置页共用同一条提示样式）；
+   .switch 与其它原子件见 styles/global.css。
+   ============================================================ */
+
+/* ---------- mpv 安装指引 ---------- */
+
+.mpv-install {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem 0.95rem;
+  border: 1px solid var(--hud-border-dim);
+  border-radius: 2px;
+  background: var(--color-surface-sunken);
+}
+
+.mpv-install-heading {
+  font-weight: 400;
+}
+
+.mpv-install-note {
+  font-size: 0.82rem;
+  color: var(--color-text-dim);
+}
+
+/* 等宽命令块 + 复制按钮 */
+.mpv-command {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.mpv-command-text {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--hud-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+  color: var(--hud-accent-hot);
+  font-size: 0.82rem;
+  overflow-x: auto;
+  white-space: pre;
+  user-select: all;
+}
+
+.mpv-copy {
+  flex: none;
+  min-width: 5.2em;
+}
+
+.mpv-copy--failed {
+  border-color: var(--color-err-border);
+  color: var(--color-err);
+}
+
+.mpv-install-link {
+  align-self: flex-start;
+  font-size: 0.78rem;
+}
+
+.mpv-detect-hint {
+  font-size: 0.72rem;
+}
+
+/* ---------- 更新 ---------- */
+
+.update-badge {
+  margin-left: 0.6em;
+  vertical-align: middle;
+}
+
+.update-download {
+  margin-left: 0.8em;
+  font-size: 0.78rem;
+}
+
+.update-error {
+  overflow-wrap: anywhere;
+}
+
+.update-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.update-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+}
+
+.update-toggle-text {
+  font-size: 0.8rem;
+}
+
+.update-note {
+  font-size: 0.78rem;
+}
+
+/* ---------- 退出 ---------- */
+
+.quit-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem 0.85rem;
+  border: 1px solid var(--color-warn-border);
+  border-left: 3px solid var(--color-warn);
+  border-radius: 2px;
+  background: var(--color-warn-wash);
+}
+
+.quit-confirm-copy {
+  font-size: 0.84rem;
+}
+
+.quit-confirm-button {
+  border-color: var(--color-err-border);
+  color: var(--color-err);
+}
+
+.quit-confirm-button:hover:not(:disabled) {
+  border-color: var(--color-err);
+  background-color: transparent;
+  color: var(--color-err);
+}

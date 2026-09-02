@@ -15,11 +15,15 @@ import { hudPalette } from '../lib/palette'
 import { label, mono } from '../tokens'
 import '../components/library/library.css'
 
-/** 顶栏状态行的一条消息 */
+/** 顶栏状态行的一条消息；link 是附带的恢复动作（目前只有「去设置安装 mpv」） */
 interface Notice {
   tone: 'dim' | 'ok' | 'err'
   text: string
+  link?: { to: '/settings'; label: string }
 }
+
+/** mpv 缺失时的恢复动作：设置页有安装指引 + 一键复制 + 重新检测 */
+const INSTALL_MPV_LINK = { to: '/settings', label: '去设置安装 mpv →' } as const
 
 /**
  * `/` 媒体库主页：顶栏（品牌 + mpv 状态 + 重扫 + 设置）、簇列表 /
@@ -54,7 +58,13 @@ export function LibraryPage() {
       })
     } catch (err) {
       console.error('播放失败', err)
-      setNotice({ tone: 'err', text: errorText(err, '播放失败') })
+      // mpv 没装时播放必失败，错误旁直接给出去处，别让用户去猜
+      const isMpvMissing = settings.state.phase === 'ready' && !settings.state.data.mpv.found
+      setNotice({
+        tone: 'err',
+        text: errorText(err, '播放失败'),
+        ...(isMpvMissing ? { link: INSTALL_MPV_LINK } : {}),
+      })
     } finally {
       setPendingFileId(null)
     }
@@ -150,6 +160,11 @@ export function LibraryPage() {
         aria-live="polite"
       >
         {statusLine?.text}
+        {statusLine?.link !== undefined && (
+          <Link to={statusLine.link.to} className="hud-link lib-status-link">
+            {statusLine.link.label}
+          </Link>
+        )}
       </p>
 
       <LibraryBody
@@ -192,12 +207,15 @@ function MpvChip({ state }: { state: SettingsState }) {
   )
 }
 
-/** mpv 缺失时的显眼提示条（settings.mpv.hint 按平台给出安装引导） */
+/** mpv 缺失时的显眼提示条：一句 hint + 去设置页（安装指引 / 复制命令 / 重新检测都在那） */
 function MpvAlert({ state }: { state: SettingsState }) {
   if (state.phase !== 'ready' || state.data.mpv.found) return null
   return (
     <p className="mpv-alert" role="alert">
-      未检测到 mpv，无法播放。{state.data.mpv.hint ?? '请先安装 mpv 后重启 nagare。'}
+      未检测到 mpv，无法播放。{state.data.mpv.hint ?? '请先安装 mpv。'}{' '}
+      <Link to={INSTALL_MPV_LINK.to} className="hud-link mpv-alert-link">
+        {INSTALL_MPV_LINK.label}
+      </Link>
     </p>
   )
 }

@@ -1,13 +1,18 @@
 // @vitest-environment jsdom
-// M2 契约层：只验「路径 + 编码 + 方法 + body」，信封解析归 api.ts 的测试管。
+// M2/M4 契约层：只验「路径 + 编码 + 方法 + body」，信封解析归 api.ts 的测试管。
 // apiFetch 会读 sessionStorage 里的 token，所以需要 jsdom。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  checkUpdate,
   fetchSources,
+  fetchUpdate,
+  redetectMpv,
   reloadSources,
   searchMagnets,
   selfCheckSource,
   setSourceEnabled,
+  setUpdateEnabled,
+  shutdownNagare,
   syncSources,
   updateRulesConfig,
 } from './endpoints'
@@ -114,5 +119,49 @@ describe('sources 端点', () => {
       method: 'POST',
       body: { remoteUrl: 'https://example.invalid/rules' },
     })
+  })
+})
+
+describe('M4 运行时端点', () => {
+  it('redetectMpv → POST /api/mpv/detect，无 body，返回 MpvInfo', async () => {
+    const info = { found: true, path: '/opt/homebrew/bin/mpv', version: '0.38.0', source: 'path' }
+    const { calls } = stubFetch(info)
+    await expect(redetectMpv()).resolves.toEqual(info)
+    expect(calls[0]).toEqual({ url: '/api/mpv/detect', method: 'POST', body: undefined })
+  })
+
+  it('fetchUpdate → GET /api/update；checkUpdate → POST /api/update/check', async () => {
+    const view = {
+      enabled: true,
+      current: '0.1.0',
+      latest: '',
+      available: false,
+      url: '',
+      checkedAt: null,
+      error: '',
+    }
+    const { calls } = stubFetch(view)
+    await expect(fetchUpdate()).resolves.toEqual(view)
+    await expect(checkUpdate()).resolves.toEqual(view)
+    expect(calls.map((call) => [call.url, call.method, call.body])).toEqual([
+      ['/api/update', 'GET', undefined],
+      ['/api/update/check', 'POST', undefined],
+    ])
+  })
+
+  it('setUpdateEnabled → POST /api/update/config，body 只带 enabled', async () => {
+    const { calls } = stubFetch({ enabled: false })
+    await setUpdateEnabled(false)
+    expect(calls[0]).toEqual({
+      url: '/api/update/config',
+      method: 'POST',
+      body: { enabled: false },
+    })
+  })
+
+  it('shutdownNagare → POST /api/shutdown，空 data 也算成功', async () => {
+    const { calls } = stubFetch({})
+    await expect(shutdownNagare()).resolves.toBeUndefined()
+    expect(calls[0]).toEqual({ url: '/api/shutdown', method: 'POST', body: undefined })
   })
 })

@@ -1,4 +1,5 @@
 import type { SourceInfo, SourceOutcome } from '../../lib/endpoints'
+import { isHttpUrl } from '../../lib/url'
 import { mono } from '../../tokens'
 import { SourceStateChip } from './SourceStateChip'
 import './sources.css'
@@ -17,9 +18,6 @@ export interface SourceRowProps {
   onToggle: (enabled: boolean) => void
   onSelfCheck: () => void
 }
-
-/** 只把 http(s) 链接渲染成 <a>；规则文件是用户提供的，javascript: 之类不该变成可点的东西 */
-const SAFE_HTTP_URL = /^https?:\/\//i
 
 /**
  * 已加载规则列表的一行：名称 · id · 主页 · 能力标记 · 启用开关 · 自检 · 自检结果。
@@ -80,7 +78,8 @@ export function SourceRow({ source, check, toggling, onToggle, onSelfCheck }: So
 
 function HomepageLink({ homepage, name }: { homepage: string; name: string }) {
   if (homepage === '') return null
-  if (!SAFE_HTTP_URL.test(homepage)) {
+  // 只把 http(s) 链接渲染成 <a>；规则文件是用户提供的，javascript: 之类不该变成可点的东西
+  if (!isHttpUrl(homepage)) {
     return (
       <span className="source-home-text" style={mono} title="主页不是 http(s) 链接，不予打开">
         {homepage}

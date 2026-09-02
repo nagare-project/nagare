@@ -1,0 +1,19 @@
+# Windows 包内置 mpv 的钉死记录（shinchiro/mpv-winbuild-cmake 的 x86_64 构建）。
+# fetch-mpv.sh 读取本文件；sha256 不符即失败。
+#
+# 更新步骤：
+#   1. gh release view -R shinchiro/mpv-winbuild-cmake --json tagName,assets
+#      选最新 release 里 mpv-x86_64-<日期>-git-<hash>.7z（不是 v3 / aarch64 变体）
+#   2. gh api repos/shinchiro/mpv-winbuild-cmake/git/ref/tags/<tag> --jq .object.sha 取 commit
+#   3. 下载两个文件，shasum -a 256 算哈希填进来
+#   4. 对照 THIRD_PARTY_NOTICES.md 里的组件表，与该 commit 的 packages/*.cmake 核一遍
+release_tag=20260902
+release_url=https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20260902
+commit=cd1edc11dc6887a50f705717619d879f5a93a488
+mpv_git=174b638f29
+asset=mpv-x86_64-20260902-git-174b638f29.7z
+url=https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260902/mpv-x86_64-20260902-git-174b638f29.7z
+sha256=00fe0b9fdab5d6699d13a9f320ba740b6c497d1b1fbc313708f76c987f63406b
+# 构建脚本源码快照（GPL「完整对应源码」的一部分，随 Release 一起挂）
+sources_url=https://github.com/shinchiro/mpv-winbuild-cmake/archive/cd1edc11dc6887a50f705717619d879f5a93a488.tar.gz
+sources_sha256=8b92a254771496b0dcc23017c2734bfa7545441d3e6a37958b063d6e7814a657

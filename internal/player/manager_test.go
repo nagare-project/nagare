@@ -14,6 +14,7 @@ import (
 
 	"github.com/nagare-project/nagare/internal/animego"
 	"github.com/nagare-project/nagare/internal/danmaku"
+	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/mpv"
 	"github.com/nagare-project/nagare/internal/store"
@@ -245,4 +246,47 @@ func TestPickTitle(t *testing.T) {
 	assert.Equal(t, "芙莉莲 第7集", pickTitle(store.Binding{Title: "芙莉莲", Episode: 7}, item))
 	assert.Equal(t, "标题", pickTitle(store.Binding{}, item))
 	assert.Equal(t, "f.mkv", pickTitle(store.Binding{}, library.Item{FileName: "f.mkv"}))
+}
+
+// mpv 缺失：Play 直接返回带安装指引的播放类错误，不会去调 Launch。
+func TestPlayWithoutMPVGivesGuidance(t *testing.T) {
+	m, _, dir := newTestManager(t, nil)
+	m.opts.MPV = mpv.NewRuntimeWith(func(string) (mpv.Info, error) {
+		return mpv.Info{}, errors.New("未找到 mpv")
+	}, "")
+	m.opts.Launch = func(context.Context, mpv.LaunchOptions) (*mpv.Player, error) {
+		t.Fatal("mpv 缺失时不应启动")
+		return nil, nil
+	}
+
+	_, err := m.Play(context.Background(), testItem(t, dir, 1), "")
+	var ce *errs.E
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, errs.CategoryPlayback, ce.Category)
+	assert.Contains(t, ce.UserFacing(), "重新检测")
+	assert.False(t, m.Status().Playing)
+}
+
+// 共享状态里的路径就是喂给 Launch 的路径；Redetect 后立刻生效（不必重启）。
+func TestPlayUsesRuntimeMPVPath(t *testing.T) {
+	m, _, dir := newTestManager(t, nil)
+	path := "/first/mpv"
+	m.opts.MPV = mpv.NewRuntimeWith(func(string) (mpv.Info, error) {
+		return mpv.Info{Path: path, Version: "0.41.0"}, nil
+	}, "")
+	var got string
+	m.opts.Launch = func(_ context.Context, o mpv.LaunchOptions) (*mpv.Player, error) {
+		got = o.MPVPath
+		return nil, errors.New("到此为止")
+	}
+
+	_, err := m.Play(context.Background(), testItem(t, dir, 1), "")
+	require.Error(t, err)
+	assert.Equal(t, "/first/mpv", got)
+
+	path = "/second/mpv"
+	_, err = m.opts.MPV.Redetect("")
+	require.NoError(t, err)
+	_, _ = m.Play(context.Background(), testItem(t, dir, 1), "")
+	assert.Equal(t, "/second/mpv", got)
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { copyText } from '../../lib/clipboard'
 import type { SearchItem } from '../../lib/endpoints'
 import { mono } from '../../tokens'
 import './search.css'
@@ -27,7 +28,7 @@ export interface ResultRowProps {
 
 /**
  * 结果表的一行：标题（可换行）· 体积 · 字幕组 · 日期（原样）· 做种（可选）· 来源 · 操作。
- * 「复制磁力」走 navigator.clipboard；「播放」禁用并提示 M3。
+ * 「复制磁力」走 lib/clipboard 的 copyText；「播放」禁用并提示 M3。
  */
 export function ResultRow({ item, sourceName, showSeeders }: ResultRowProps) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
@@ -41,8 +42,7 @@ export function ResultRow({ item, sourceName, showSeeders }: ResultRowProps) {
   }, [])
 
   async function handleCopy(): Promise<void> {
-    const next = await copyToClipboard(item.magnet)
-    setCopyState(next)
+    setCopyState((await copyText(item.magnet)) ? 'copied' : 'failed')
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     timerRef.current = window.setTimeout(() => setCopyState('idle'), COPY_FEEDBACK_MS)
   }
@@ -104,20 +104,4 @@ export function ResultRow({ item, sourceName, showSeeders }: ResultRowProps) {
       </td>
     </tr>
   )
-}
-
-/** 写剪贴板；不安全上下文 / 权限拒绝都归为 failed，并在控制台留原因 */
-async function copyToClipboard(text: string): Promise<CopyState> {
-  const clipboard = navigator.clipboard as Clipboard | undefined
-  if (clipboard === undefined) {
-    console.error('复制磁力链接失败：当前环境没有 navigator.clipboard')
-    return 'failed'
-  }
-  try {
-    await clipboard.writeText(text)
-    return 'copied'
-  } catch (err) {
-    console.error('复制磁力链接失败', err)
-    return 'failed'
-  }
 }

@@ -98,3 +98,18 @@ export function errorText(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message !== '') return err.message
   return fallback
 }
+
+/** 时间戳 → 本地 `YYYY-MM-DD HH:MM`（「上次检查更新」这类既要日期也要时刻的场景） */
+export function formatDateTime(epoch: number): string {
+  return `${formatDate(epoch)} ${formatClock(epoch)}`
+}
+
+/**
+ * 版本号展示：统一带一个小写 `v` 前缀（`0.2.0` / `v0.2.0` / `V0.2.0` → `v0.2.0`）。
+ * GitHub tag 与二进制内嵌的版本串是否带 v 不一致，界面只认这一种写法。
+ * 空串（尚未检查过）显示为 `—`。
+ */
+export function formatVersion(version: string): string {
+  const bare = version.trim().replace(/^v/i, '')
+  return bare === '' ? '—' : `v${bare}`
+}

@@ -2,8 +2,9 @@
 
 跑在你自己电脑上的本地动漫播放 agent：本地文件与磁力边下边播共用同一个 mpv 播放引擎，浏览器就是遥控器。
 
-> ⚠️ **早期开发中**：M1（本地媒体库 + mpv 播放 + 弹幕）已落地——可以添加本地文件夹、
-> 秒级扫描出剧集列表、调起 mpv 播放、自动匹配弹幕并回写观看进度。磁力与安装包尚未就绪。
+> ⚠️ **早期开发中**：M1（本地媒体库 + mpv 播放 + 弹幕）与 M2（声明式源规则）已落地——可以添加
+> 本地文件夹、秒级扫描出剧集列表、调起 mpv 播放、自动匹配弹幕并回写观看进度。磁力边下边播尚未就绪；
+> 三平台安装包随 [GitHub Releases](https://github.com/nagare-project/nagare/releases) 发布，见下方「安装」。
 
 ## 它是什么
 
@@ -46,7 +47,58 @@
 
 仓库内含这四个攻击面的验收测试：无 token 请求、伪造 Host 头、变更请求缺自定义头、伪造能力 URL。
 
-## 构建与运行
+## 安装
+
+从 [GitHub Releases](https://github.com/nagare-project/nagare/releases) 下载对应平台的包。
+nagare 没有购买代码签名证书（原因见下方「为什么会有警告」），所以首次打开时系统会拦一下，
+按提示放行一次即可，之后不再询问。
+
+### macOS
+
+1. 下载 `nagare-<版本>_MacOS_universal.dmg`（Intel 与 Apple Silicon 通用），打开后把 `Nagare` 拖进「应用程序」。
+2. 双击 `Nagare`。首次会提示「无法验证开发者」/「Apple 无法检查其是否包含恶意软件」——点「完成」，
+   然后打开 **系统设置 › 隐私与安全性**，滚到「安全性」一栏，点 **「仍要打开」**，再确认一次。
+   macOS 15 起右键「打开」已不能绕过这一步；如果没看到「仍要打开」，在终端执行
+   `xattr -c /Applications/Nagare.app` 后再双击。
+3. 菜单栏出现 nagare 图标（它是菜单栏应用，不占 Dock），浏览器自动打开界面。退出在菜单栏图标的菜单里。
+4. **mpv 需要自行安装**：`brew install mpv`（界面里也有一键复制）。没有 mpv 时媒体库照常可用，只是不能播放。
+
+### Windows
+
+1. 下载 `nagare-<版本>_Windows_x86_64-setup.exe` 双击。SmartScreen 会显示「Windows 已保护你的电脑」——
+   点 **「更多信息」→「仍要运行」**。
+2. 安装到当前用户目录（`%LOCALAPPDATA%\Programs\nagare`），不需要管理员权限、不会弹 UAC。
+3. 完成后托盘出现 nagare 图标，浏览器自动打开界面。**mpv 已内置**，不用另装。
+4. 便携版：下载 `nagare-<版本>_Windows_x86_64.zip`，解压到任意目录，双击 `nagare.exe`
+   （`mpv\` 子目录要和 exe 放在一起）。
+
+### Linux
+
+- Debian / Ubuntu：`sudo apt install ./nagare_<版本>_amd64.deb`，或双击用软件中心安装；会自动装上 mpv。
+- Fedora / openSUSE：`sudo dnf install ./nagare-<版本>-1.x86_64.rpm`。
+- 其他发行版：解压 `nagare-<版本>_Linux_x86_64.tar.gz`（也有 `arm64`），自行安装 mpv，运行 `./nagare`。
+- 退出用界面里的「退出 nagare」，或托盘图标的菜单。
+
+### 为什么会有警告
+
+代码签名证书是年费制的（Apple 开发者计划 $99/年，Windows OV/EV 证书每年数百美元），nagare 是零成本
+发布的开源项目，选择不买；代价就是首次打开多点一次「仍要打开 / 仍要运行」。macOS 包做了 ad-hoc
+签名，Windows 包没有签名。想确认下载的文件没被动过手脚，用 Release 附带的 `checksums.txt` 校验：
+
+```bash
+shasum -a 256 -c checksums.txt --ignore-missing   # macOS / Linux，在下载目录里执行
+certutil -hashfile <文件名> SHA256                  # Windows，和 checksums.txt 里的值比对
+```
+
+### 更新与日志
+
+- **更新检查**：启动后每天最多向 GitHub 查一次最新版本号，只发出版本号、不带任何其他信息，
+  可在设置里关闭。有新版时界面会提示，去 Releases 下载新包覆盖安装即可。
+- **日志**：macOS `~/Library/Application Support/nagare/logs/nagare.log`、
+  Windows `%AppData%\nagare\logs\`、Linux `~/.config/nagare/logs/`。反馈问题时请附上。
+- **卸载**不会删除配置目录（token、媒体库状态、观看进度都在里面），不需要的话手动删。
+
+## 从源码构建与运行
 
 依赖：
 
@@ -121,7 +173,8 @@ nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供
   无脚本无沙箱），规则从用户指定的仓库同步、校验后加载；本体零内置源。搜索结果区分
   「无结果」与「源异常（规则失效）」；规则格式见 [docs/rules-format.md](docs/rules-format.md)
 - M3 磁力边下边播
-- M4 三平台签名安装包
+- **M4 打包与分发** —— 进行中：macOS dmg（ad-hoc 签名的 universal .app）、Windows 安装包与便携版
+  （内置 mpv）、Linux deb/rpm/tar.gz；零证书、零年费，安装步骤见上方「安装」
 - M5 收尾
 
 ## 许可证
