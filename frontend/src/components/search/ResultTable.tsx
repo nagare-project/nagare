@@ -52,7 +52,8 @@ export function ResultTable({ items, names }: ResultTableProps) {
         <tbody>
           {visible.map((item, index) => (
             <ResultRow
-              // 同一 infohash 可能来自多个源；行不重排，source + 序号足够稳定
+              // 同一 infohash 可能来自多个源；用 index 作 key 在这里是安全的：
+              // 每次搜索整体替换 items，从不原地增删/重排，不会把行内状态错挂到别的行
               key={`${item.source}#${index}`}
               item={item}
               sourceName={names[item.source] ?? item.source}

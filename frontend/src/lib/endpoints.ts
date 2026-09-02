@@ -294,7 +294,7 @@ export interface SyncResult {
   errors: string[]
 }
 
-/** POST /api/sources/config 的 body：只带要改的字段 */
+/** POST /api/sources/config 的 body：字段均可选，缺席表示不改（当前表单总是两项都发） */
 export interface RulesConfigPatch {
   remoteUrl?: string
   localDir?: string
