@@ -1,11 +1,15 @@
 # 发布流水线：打 v* tag 触发，或手动 workflow_dispatch 跑 snapshot 先验流水线（不发布）。
-# 单 job 跑在 macOS runner 上：darwin 托盘需要 cgo 只能原生编（两 arch 再 lipo 成 universal），
+# 构建 job 跑在 macOS runner 上：darwin 托盘需要 cgo 只能原生编（两 arch 再 lipo 成 universal），
 # windows / linux 是纯 Go 交叉编译；makensis / 7zz 用 brew 装。产物形态见 .goreleaser.yaml。
+#
+# 第二个 job（homebrew）由 **Release 被手动发布**这件事触发，不跟着 tag 走 —— 理由见那个 job。
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  release:
+    types: [published] # 只驱动 homebrew job；构建 job 用下面的 if 排除掉这个事件
   workflow_dispatch:
     inputs:
       snapshot:
@@ -19,6 +23,9 @@ permissions:
 jobs:
   release:
     name: 构建并发布
+    # release: published 事件是给下面的 homebrew job 用的，构建这一条不能跟着跑：
+    # 那时没有 dist/，「配了密钥就必须产出签名」会直接把一次正常的发布点成红的。
+    if: github.event_name != 'release'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +70,24 @@ jobs:
             echo "::warning::未配置 MINISIGN_SECRET_KEY，本次发布不带更新签名 —— 客户端将无法自更新（见 docs/releasing.md）"
           fi
 
+      # Scoop bucket（.goreleaser.yaml 的 scoops 块）要写【另一个仓库】
+      # nagare-project/scoop-nagare，而 Actions 默认的 GITHUB_TOKEN 只能写当前仓库，
+      # 所以要一个跨仓库 PAT。没配就整条跳过（--skip=scoop），照 minisign 的做法：
+      # 一个可选分发渠道缺 token，不该让整次发布失败 —— bucket 事后手动补一次即可
+      # （建仓、PAT scope 与手动补的步骤见 docs/releasing.md）。
+      - name: 准备 Scoop bucket 推送 token
+        id: scoop
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -n "$TAP_GITHUB_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Scoop bucket：已配置"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::未配置 TAP_GITHUB_TOKEN，本次发布不更新 Scoop bucket —— Scoop 用户仍停在旧版本（见 docs/releasing.md）"
+          fi
+
       - name: 生成图标产物是否入库自检
         run: test -f packaging/icon/nagare.icns && test -f packaging/icon/nagare.ico && test -f packaging/icon/nagare-256.png
 
@@ -75,10 +100,11 @@ jobs:
           # 三元的真分支【不能】是空串：GitHub Actions 里 '' 是 falsy，
           # `cond && '' || X` 会因为 && 求值出假而继续走到 X —— 也就是永远 X。
           # 所以把非空的那支放在 && 后面，用取反的条件。
-          args: release --clean ${{ steps.signing.outputs.enabled != 'true' && '--skip=sign' || '' }}
+          args: release --clean ${{ steps.signing.outputs.enabled != 'true' && '--skip=sign' || '' }} ${{ steps.scoop.outputs.enabled != 'true' && '--skip=scoop' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MINISIGN_KEY_FILE: ${{ runner.temp }}/minisign.key
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
 
       - name: GoReleaser（snapshot，不发布）
         if: github.event_name == 'workflow_dispatch'
@@ -86,10 +112,15 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
+          # snapshot 这一支【故意】不加 --skip=scoop：--skip=publish 已经挡掉推送，
+          # 让 scoop 这一步照跑能把生成的 manifest 落到 dist/scoop/bucket/nagare.json
+          # （随 nagare-dist-full artifact 上传），这是发版前唯一能看到 manifest 长什么样的机会。
+          # TAP_GITHUB_TOKEN 即使没配也照传（值为空串）：{{ .Env.X }} 只在变量【不存在】时报错。
           args: release --snapshot --clean --skip=publish ${{ steps.signing.outputs.enabled != 'true' && '--skip=sign' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MINISIGN_KEY_FILE: ${{ runner.temp }}/minisign.key
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
 
       # 配了密钥就必须真的签出来。上一版这里没有守卫，而三元表达式的 falsy 陷阱
       # 让 --skip=sign 永远生效 —— 日志显示「更新签名：已配置」，产物里却没有签名，
@@ -142,3 +173,59 @@ jobs:
           path: dist/
           include-hidden-files: true
           if-no-files-found: error
+
+  # Homebrew cask（macOS 可选渠道）。把 Casks/nagare.rb 的 version 与 sha256 填成本次
+  # 发布的值，推到独立仓库 nagare-project/homebrew-nagare。
+  #
+  # 为什么是【单独一个 job、由 release: published 触发】，而不是跟着 tag 塞进上面那条：
+  # 上面出的是 **draft** Release，人工验完产物才手动点发布，而 draft 的资产匿名下载
+  # 一律 404 —— 打 tag 那一刻就把 cask 推过去的话，这段时间里 brew install 会下载失败；
+  # 更糟的是万一验收没过、draft 被丢掉，tap 会永久指着一个不存在的地址。
+  # （docs/releasing.md 的 AUR 一节对同一个坑给的答案也是「永远排在点发布之后」。）
+  #
+  # ⚠️ 代价：GitHub 不会为「用 GITHUB_TOKEN 做的动作」派发新的 workflow。人在网页上点
+  # Publish、或本机 `gh release edit --draft=false`（用的是你自己的凭证）都会触发；
+  # 但哪天把「发布草稿」这一步也写成用 GITHUB_TOKEN 的 workflow，这个 job 会**静默不跑**。
+  # 真要那样自动化，publish 那一步得改用 PAT。
+  #
+  # 为什么不用 goreleaser 的 homebrew_casks：它只认 archives 产出的归档，配不出「装 .app」
+  # 的 cask —— 实测三条理由写在 scripts/release/publish-homebrew-cask.sh 开头。
+  homebrew:
+    name: 更新 Homebrew cask
+    # 预发布不进稳定渠道（脚本里还有一道同样的判断，这里是省一次 runner）。
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    runs-on: ubuntu-latest # 纯 shell + git，不需要 macOS runner
+    permissions:
+      contents: read # 只读本仓库的 Release 资产；写 tap 用的是下面的 PAT
+    steps:
+      # 按 tag 检出：release 事件默认跑默认分支的代码，而 cask 模板要与这一版对齐。
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      # dmg 的 sha256 从本次 Release 的 checksums.txt 里取，不重新算 ——
+      # 那份清单是被 minisign 签过的，是这条链上唯一的权威。
+      - name: 取回本次 Release 的校验清单
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release download "$TAG" --pattern checksums.txt --dir dist --clobber
+
+      # 跨仓库推送用不了 Actions 默认的 GITHUB_TOKEN（它只对当前仓库有写权限），
+      # 必须另配 PAT。没配就警告 + 跳过（脚本里处理），照 MINISIGN_SECRET_KEY 的做法：
+      # 一个可选分发渠道缺 token，不该让一次已经成功的发布变红。
+      # 这个 secret 与 Scoop bucket 共用一个，PAT 的 scope 里两个仓库都要勾上。
+      - name: 渲染并推送 cask
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: scripts/release/publish-homebrew-cask.sh "${TAG#v}" dist/checksums.txt
+
+      # 排查用：不管推没推成功，都把渲染出来的 cask 留一份 —— 没配 PAT 时它就是
+      # 人工补推的输入（步骤见 docs/releasing.md）。
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nagare-homebrew-cask
+          path: dist/homebrew/Casks/nagare.rb
+          if-no-files-found: warn

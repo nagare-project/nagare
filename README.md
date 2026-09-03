@@ -57,14 +57,29 @@ nagare 没有购买代码签名证书（原因见下方「为什么会有警告�
 
 ### macOS
 
-0. 系统要求：**macOS 13 或更新**（Intel 与 Apple Silicon 通用）。
+系统要求：**macOS 13 或更新**（Intel 与 Apple Silicon 通用）。
+
+用 [Homebrew](https://brew.sh) 装最省事，**mpv 会作为依赖一起装上**：
+
+```bash
+brew tap nagare-project/nagare
+brew install --cask nagare
+```
+
+它装的就是下面那个 dmg 里的同一个 `Nagare.app`。⚠️ **首次打开一样会被 Gatekeeper 拦一次**
+（步骤见下面第 2 步）——包管理器不会、也不能凭空给一个没证书的 app 加上信任。
+tap 仓库与更多说明见 [`packaging/homebrew/`](packaging/homebrew/README.md)。
+
+手动安装：
+
 1. 下载 `nagare-<版本>_MacOS_universal.dmg`，打开后把 `Nagare` 拖进「应用程序」。
 2. 双击 `Nagare`。首次会提示「无法验证开发者」/「Apple 无法检查其是否包含恶意软件」——点「完成」，
    然后打开 **系统设置 › 隐私与安全性**，滚到「安全性」一栏，点 **「仍要打开」**，再确认一次。
    macOS 15 起右键「打开」已不能绕过这一步；如果没看到「仍要打开」，在终端执行
    `xattr -c /Applications/Nagare.app` 后再双击。
 3. 菜单栏出现 nagare 图标（它是菜单栏应用，不占 Dock），浏览器自动打开界面。退出在菜单栏图标的菜单里。
-4. **mpv 需要自行安装**：`brew install mpv`（界面里也有一键复制）。没有 mpv 时媒体库照常可用，只是不能播放。
+4. **mpv 需要自行安装**：`brew install mpv`（界面里也有一键复制；用上面的 cask 装的话已经一起装好了）。
+   没有 mpv 时媒体库照常可用，只是不能播放。
 
 ### Windows
 
@@ -74,11 +89,24 @@ nagare 没有购买代码签名证书（原因见下方「为什么会有警告�
 3. 完成后托盘出现 nagare 图标，浏览器自动打开界面。**mpv 已内置**，不用另装。
 4. 便携版：下载 `nagare-<版本>_Windows_x86_64.zip`，解压到任意目录，双击 `nagare.exe`
    （`mpv\` 子目录要和 exe 放在一起）。
+5. [Scoop](https://scoop.sh) 用户可以直接装便携版：
+
+   ```powershell
+   scoop bucket add nagare https://github.com/nagare-project/scoop-nagare
+   scoop install nagare
+   ```
+
+   装完开始菜单里有快捷方式，升级用 `scoop update nagare`（升级前先退出 nagare）。
+   **exe 同样没有签名**——包管理器不会凭空给二进制加上信任，首次运行 SmartScreen 仍可能拦一次。
 
 ### Linux
 
 - Debian / Ubuntu：`sudo apt install ./nagare_<版本>_amd64.deb`，或双击用软件中心安装；会自动装上 mpv。
 - Fedora / openSUSE：`sudo dnf install ./nagare-<版本>-1.x86_64.rpm`。
+- Arch Linux：`yay -S nagare-bin`（或 `paru -S nagare-bin`）。**AUR 是社区渠道**——包由
+  志愿维护者手工上传，不是本项目 CI 的产物，可能落后于最新版本；装之前照 AUR 的惯例
+  看一眼 PKGBUILD。它用的是本项目官方发布的二进制，打包脚本在
+  [`packaging/aur/`](packaging/aur/README.md)。
 - 其他发行版：解压 `nagare-<版本>_Linux_x86_64.tar.gz`（也有 `arm64`），自行安装 mpv，运行 `./nagare`。
 - 退出用界面里的「退出 nagare」，或托盘图标的菜单。
 
@@ -99,8 +127,13 @@ certutil -hashfile <文件名> SHA256                  # Windows，和 checksums
   可在设置里关闭。
 - **一键更新**：有新版本时设置页出现「立即更新」。它会下载更新包、用**内置公钥校验
   minisign 签名**（零证书发布，完整性只能靠这个），再核对 sha256，通过之后才替换并自动重启；
-  任何一步不通过都不会动现有版本。用包管理器装的（deb / rpm / Homebrew）不走自更新，
-  界面会提示用 `apt` / `dnf` / `brew` 升级。
+  任何一步不通过都不会动现有版本。用 deb / rpm 装的不走自更新，界面会提示用
+  `apt` / `dnf` 升级。
+  **Scoop 与 Homebrew cask 是例外**：nagare 判断「自己是怎么装进来的」只看可执行文件路径，
+  这两种装法落在它认得的位置上（Scoop 的应用目录、`/Applications/Nagare.app`），
+  「立即更新」都点得动，但点完包管理器记的版本号就对不上了。
+  用 Scoop 装的请走 `scoop update nagare`；用 brew 装的，cask 已声明 `auto_updates true`
+  （`brew upgrade` 默认不再管它），想让 brew 的记录追上用 `brew upgrade --cask --greedy nagare`。
 - 更新检查或下载失败**不影响已安装版本运行**。想手动校验下载的文件，
   用 Release 里的 `checksums.txt` 与 `checksums.txt.minisig`（步骤见
   [docs/releasing.md](docs/releasing.md)）。
