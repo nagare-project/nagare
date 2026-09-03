@@ -2,9 +2,12 @@ import { createRootRoute, createRoute, createRouter } from '@tanstack/react-rout
 import type { RouterHistory } from '@tanstack/react-router'
 import { RootLayout } from './components/RootLayout'
 import { AnimePage } from './pages/AnimePage'
+import { AutoDownloaderPage } from './pages/AutoDownloaderPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ListsPage } from './pages/ListsPage'
+import { ScanSummariesPage } from './pages/ScanSummariesPage'
 import { SchedulePage } from './pages/SchedulePage'
+import { TorrentsPage } from './pages/TorrentsPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -39,6 +42,11 @@ const animeRoute = createRoute({
 const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists', component: ListsPage })
 const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: DiscoverPage })
 const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
+
+/** `/torrents` 磁力任务：走真实的 /api/torrent/status，没有假数据 */
+const torrentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/torrents', component: TorrentsPage })
+const scanRoute = createRoute({ getParentRoute: () => rootRoute, path: '/scan-summaries', component: ScanSummariesPage })
+const autoDlRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auto-downloader', component: AutoDownloaderPage })
 
 /** `/search` 的 query 形状：q 缺省或空白时省略，地址栏保持干净 */
 export interface SearchRouteParams {
@@ -83,6 +91,9 @@ const routeTree = rootRoute.addChildren([
   listsRoute,
   discoverRoute,
   scheduleRoute,
+  torrentsRoute,
+  scanRoute,
+  autoDlRoute,
   searchRoute,
   settingsRoute,
 ])
