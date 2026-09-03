@@ -92,13 +92,12 @@ Hayase 写了三千字免责声明、零内置源、零预填，照样被清 193
 | 4 | 发现 | `/discover` | ✅ **完整克隆**（hero 轮播 + 7 板块 + 标签） | ❌ 假数据 |
 | 5 | 放送表 | `/schedule` | ✅ 建好 | ❌ 假数据 |
 | 6 | 磁力任务 | `/torrents` | ✅ 建好 | ✅ **真数据** |
-| 7 | 扫描记录 | `/scan-summaries` | ✅ 建好 | ❌ 假数据 |
-| 8 | 自动下载 | `/auto-downloader` | ⚠️ 仅界面预览 | ❌ 无后端 |
-| 9 | 搜索 | `/search` | ✅ 磁力搜索 | 已有 |
-| 10 | 设置 | `/settings` | ✅ | 已有 |
-| 11 | 浏览器内播放 | `/watch/$fileId` | ✅ 建好 | ✅ **真数据** |
-| 12 | 扩展 | `/extensions` | ✅ 建好 | ✅ **真数据** |
-| 13 | Debrid | `/debrid` | ⚠️ 仅界面预览 | ❌ 无后端（G7） |
+| 7 | 自动下载 | `/auto-downloader` | ⚠️ 仅界面预览 | ❌ 无后端 |
+| 8 | 搜索 | `/search` | ✅ 磁力搜索 | 已有 |
+| 9 | 设置 | `/settings` | ✅ | 已有 |
+| 10 | 浏览器内播放 | `/watch/$fileId` | ✅ 建好 | ✅ **真数据** |
+| 11 | 扩展 | `/extensions` | ✅ 建好 | ✅ **真数据** |
+| 12 | Debrid | `/debrid` | ⚠️ 仅界面预览 | ❌ 无后端（G7） |
 | — | 在线播放 | `/onlinestream` | ❌ 没建 | 见上方分界线一节 |
 | — | 漫画 | — | 🚫 用户明确排除 | — |
 
@@ -155,14 +154,30 @@ seanime 的五档：Watching / Planning / Completed / Paused / Dropped，
 
 要做成队列＝推翻 M3-4，那是要重新决议的事，不该由一个界面顺手决定。
 
-### G5 · 扫描记录 `/scan-summaries`
+### ✅ G5 · 扫描记录 —— 页面已删除，问题换了个地方解决
 
-每次扫描的结果存档：匹配上多少、失败多少、各是哪些文件。
+`/scan-summaries` 连同 `FAKE_SCANS` 一起删了。**不是放弃，是换了落点。**
 
-- **nagare 现状**：`Rescan()` 只返回 `{videos, clusters}` 计数，**不留历史**
-- **要的接口**：`GET /api/scan-summaries` → 历次扫描的详细结果
-- **缺口**：需要在扫描时把结果落盘（`store` 加一张表）
-- 假数据：`frontend/src/lib/fixtures/scans.ts` 的 `FAKE_SCANS`
+那一页当初的价值全押在一句话上：「解析不出集号的文件会被静默跳过」。
+**那句话是错的。** `internal/library/items.go:44-80` 的 `BuildItems` 只在
+非视频文件上 `continue`；集号解析失败时 `Episode` 是 nil，条目照样进库，
+集号列显示「—」。当时这句错话同时活在四个地方——本文件、页面的文档注释、
+页面文案，以及**一条断言它的测试**。一条测试在钉一句错话，那会让错误在重构里活下来。
+
+剔掉那句之后，那一页剩下的字段（folder / at / videos / clusters / durationMs）
+要么库页已经有，要么根本没人测量（`library.go` 里没有任何 `time.Since`，
+`durationMs` 是编出来的）。
+
+**真正存在的问题是扫描确实会丢文件，而且是静默地丢。** 已修，落点是
+「用户扫描完当场看的地方」而不是一个需要他先想到去点的归档页：
+
+- `library.ScanDir` 返回 `ScanResult{Files, Dropped}`，五类原因
+  （symlink / too-deep / too-small / unreadable-dir / stat-failed），
+  每类带稳定码 + 中文文案 + **恢复动作**
+- `GET /api/library` 的 `folders[].dropped` 带出来；一个都没跳过时字段整个不出现
+- 库页在状态行下面显示可展开的面板；一部作品都没扫到时空态直接摊开原因
+
+推演与实测记录（含三条被推翻的错误前提）在 `docs/scan-drops.md`（内部文档，不进仓库）。
 
 ### G7 · Debrid `/debrid` —— ⚠️ 只有界面，后端未对接
 

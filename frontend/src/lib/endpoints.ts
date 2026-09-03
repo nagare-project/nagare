@@ -12,12 +12,39 @@ import { apiFetch } from './api'
 
 // ---------- 媒体库 ----------
 
+/**
+ * 一类被跳过的东西。reason 是稳定码（分组/断言用），message 与 recovery
+ * 是给用户看的中文；两者都由后端给，前端不自己编文案。
+ *
+ * 现有的 reason：symlink · too-deep · too-small · unreadable-dir · stat-failed。
+ * 后端加了新码这里不会红 —— 界面直接渲染 message/recovery，本来就不认识具体的码。
+ */
+export interface LibraryDropGroup {
+  reason: string
+  count: number
+  message: string
+  recovery: string
+  /** 完整路径样本，后端每类最多给几条；count 才是真实数量 */
+  samples: string[]
+}
+
+/** 一个库目录这次扫描跳过了什么。字段缺席 = 一个都没跳过（常态） */
+export interface LibraryDrops {
+  total: number
+  groups: LibraryDropGroup[]
+}
+
 /** 用户添加的库文件夹；error 非空表示上次扫描该文件夹时出错（路径失效等） */
 export interface LibraryFolder {
   id: string
   path: string
   addedAt: number
   error?: string
+  /**
+   * 上次扫描跳过了什么。缺席表示什么都没跳过 —— 那是常态，
+   * 界面在这种时候【不出】任何提示。
+   */
+  dropped?: LibraryDrops
 }
 
 /** 单个视频文件的观看进度 */

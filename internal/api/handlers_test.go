@@ -219,6 +219,51 @@ func TestAddFolderAndGetLibrary(t *testing.T) {
 	assert.InDelta(t, 100, view.Clusters[0].Groups[0].Items[0].Progress.PositionSec, 0.01)
 }
 
+// 扫描丢弃要一路走到 GET /api/library：库层记了、视图层丢了，
+// 用户仍然什么都看不到 —— 这条守的是这段传导。
+func TestLibraryViewCarriesScanDrops(t *testing.T) {
+	env := newEnv(t)
+	dir := makeMediaDir(t)
+	// 树内软链子目录：真实场景里最贵的一种丢弃（一整季静默消失）。
+	outside := t.TempDir()
+	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "Season2")))
+
+	rec := env.do(t, http.MethodPost, "/api/library/folders", `{"path":`+string(mustJSON(t, dir))+`}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = env.do(t, http.MethodGet, "/api/library", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	var view LibraryView
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
+	require.Len(t, view.Folders, 1)
+
+	drops := view.Folders[0].Dropped
+	require.NotNil(t, drops, "软链子目录被跳过了却没有出现在视图里")
+	assert.Equal(t, 1, drops.Total)
+	require.Len(t, drops.Groups, 1)
+	g := drops.Groups[0]
+	assert.Equal(t, "symlink", g.Reason)
+	assert.Equal(t, 1, g.Count)
+	assert.NotEmpty(t, g.Message)
+	assert.NotEmpty(t, g.Recovery)
+	// 样本给的是完整路径：多个库目录的丢弃在界面上会合并，相对路径那时有歧义
+	assert.Equal(t, []string{filepath.Join(dir, "Season2")}, g.Samples)
+}
+
+// 什么都没跳过时 dropped 字段整个不出现 —— 界面据此决定完全不出提示。
+// 每次扫描都吓用户一跳是另一种病。
+func TestLibraryViewOmitsDropsWhenNothingDropped(t *testing.T) {
+	env := newEnv(t)
+	dir := makeMediaDir(t)
+
+	rec := env.do(t, http.MethodPost, "/api/library/folders", `{"path":`+string(mustJSON(t, dir))+`}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = env.do(t, http.MethodGet, "/api/library", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.NotContains(t, rec.Body.String(), `"dropped"`)
+}
+
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)

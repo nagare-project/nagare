@@ -1,16 +1,8 @@
-// FIXME(G5/G6): 假数据。真接口缺口见仓库根 todos.md。
-
-/** 一次扫描的存档 */
-export interface FakeScan {
-  id: string
-  at: string
-  folder: string
-  videos: number
-  clusters: number
-  /** 解析不出集号、需要人工确认的文件 */
-  unresolved: string[]
-  durationMs: number
-}
+// FIXME(G6): 自动下载的假数据。真接口缺口见仓库根 todos.md。
+//
+// 这里原本还有 FAKE_SCANS（扫描记录页）。那一页连同它的假数据一起删掉了：
+// 扫描信息该出现在用户扫描完【当场看的地方】，而不是一个需要他先想到去点的
+// 归档页。真实的扫描丢弃现在走 GET /api/library 的 folders[].dropped。
 
 /** 自动下载的一条订阅规则 */
 export interface FakeRule {
@@ -25,36 +17,6 @@ export interface FakeRule {
 }
 
 const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600_000).toISOString()
-
-export const FAKE_SCANS: FakeScan[] = [
-  {
-    id: 's-3',
-    at: hoursAgo(2),
-    folder: '/Volumes/Media/Anime',
-    videos: 412,
-    clusters: 38,
-    unresolved: ['[Unknown] special-ova.mkv', 'bonus_disc_menu.mkv'],
-    durationMs: 8_420,
-  },
-  {
-    id: 's-2',
-    at: hoursAgo(26),
-    folder: '/Volumes/Media/Anime',
-    videos: 388,
-    clusters: 35,
-    unresolved: [],
-    durationMs: 7_910,
-  },
-  {
-    id: 's-1',
-    at: hoursAgo(74),
-    folder: '/Users/you/Movies/Anime',
-    videos: 24,
-    clusters: 3,
-    unresolved: ['第1话.mkv'],
-    durationMs: 640,
-  },
-]
 
 export const FAKE_RULES: FakeRule[] = [
   {

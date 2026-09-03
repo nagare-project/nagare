@@ -93,12 +93,15 @@ const UPDATE: UpdateView = {
 }
 
 /** 按路径分发的 fetch 桩，一律返回统一信封 */
-function stubFetch(settings: SettingsData = SETTINGS): ReturnType<typeof vi.fn> {
+function stubFetch(
+  settings: SettingsData = SETTINGS,
+  library: LibraryData = LIBRARY,
+): ReturnType<typeof vi.fn> {
   const impl = async (input: RequestInfo | URL): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const path = new URL(url, 'http://127.0.0.1').pathname
     const payload: Record<string, unknown> = {
-      '/api/library': LIBRARY,
+      '/api/library': library,
       '/api/settings': settings,
       '/api/player/status': PLAYER,
       '/api/update': UPDATE,
@@ -232,6 +235,101 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(container.querySelector('input[name="path"]')).not.toBeNull()
     // mpv 已装 → 绿点；其余三项都是待办
     expect(container.querySelectorAll('.onboard-dot--done')).toHaveLength(1)
+    await unmount()
+  })
+
+  /**
+   * 端到端：树内软链子目录被跳过 → 用户在界面上读到原因【与恢复动作】。
+   *
+   * 这条守的是整条链路（ScanDir → ViewFolder.dropped → 库页），
+   * 任何一环把丢弃吞掉都会红。丢弃在这个项目里的默认失败模式就是「静默」，
+   * 所以断的是「看得见」，不是「记下来了」。
+   */
+  it('扫描跳过的东西要能在界面上读到原因与恢复动作', async () => {
+    const withDrops: LibraryData = {
+      ...LIBRARY,
+      folders: [
+        {
+          ...LIBRARY.folders[0]!,
+          dropped: {
+            total: 3,
+            groups: [
+              {
+                reason: 'symlink',
+                count: 2,
+                message: '符号链接，nagare 不跟随',
+                recovery: '把链接指向的真实路径直接添加进库，或把软链换成硬链接',
+                samples: ['/Users/you/Movies/Anime/Season2'],
+              },
+              {
+                reason: 'too-small',
+                count: 1,
+                message: '视频文件小于 1MB',
+                recovery: '多半是没下完的片或采样文件；下完之后重新扫描',
+                samples: ['/Users/you/Movies/Anime/sample.mkv'],
+              },
+            ],
+          },
+        },
+      ],
+    }
+    stubFetch(SETTINGS, withDrops)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+
+    const drops = container.querySelector('.drops')
+    expect(drops, '扫描跳过了东西，界面上却没有任何痕迹').not.toBeNull()
+    expect(drops?.querySelector('.drops-count')?.textContent).toBe('3 项没有进库')
+    // 收起状态下也要看得见原因 —— 只说「3 项没有进库」等于什么都没说
+    expect(drops?.querySelector('.drops-why')?.textContent).toContain('符号链接')
+
+    // 恢复动作：这才是这块东西存在的理由
+    const recoveries = [...container.querySelectorAll('.drops-recovery')].map((e) => e.textContent)
+    expect(recoveries[0]).toContain('真实路径')
+    expect(recoveries).toHaveLength(2)
+    // 具体是哪个文件，用户得能照着去找
+    expect(container.textContent).toContain('/Users/you/Movies/Anime/Season2')
+    await unmount()
+  })
+
+  it('一部作品都没扫到时，空态直接把原因摊开而不是让用户猜', async () => {
+    const allDropped: LibraryData = {
+      ...LIBRARY,
+      clusters: [],
+      folders: [
+        {
+          ...LIBRARY.folders[0]!,
+          dropped: {
+            total: 3,
+            groups: [
+              {
+                reason: 'symlink',
+                count: 3,
+                message: '符号链接，nagare 不跟随',
+                recovery: '把链接指向的真实路径直接添加进库，或把软链换成硬链接',
+                samples: ['/Users/you/Movies/Anime/Season1'],
+              },
+            ],
+          },
+        },
+      ],
+    }
+    stubFetch(SETTINGS, allDropped)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+
+    expect(container.querySelector('.page-notice-title')?.textContent).toBe('没有发现视频文件')
+    expect(container.querySelector('.page-notice-copy')?.textContent).toContain('3 项都被跳过了')
+    // 空库时原因就是这一页的全部内容，所以默认展开
+    const drops = container.querySelector('.drops')
+    expect(drops?.hasAttribute('open')).toBe(true)
+    // 同一条信息不该在一屏里出现两次
+    expect(container.querySelectorAll('.drops')).toHaveLength(1)
+    await unmount()
+  })
+
+  it('什么都没跳过时完全不出这一块 —— 每次扫描都吓用户一跳是另一种病', async () => {
+    stubFetch()
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    expect(container.querySelector('.drops')).toBeNull()
     await unmount()
   })
 

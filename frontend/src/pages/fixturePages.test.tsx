@@ -106,19 +106,12 @@ describe('假数据页面', () => {
   })
 })
 
-describe('扫描记录 / 自动下载', () => {
-  it('扫描记录：列出每次扫描，解析失败的文件必须可见', async () => {
-    const { ScanSummariesPage } = await import('./ScanSummariesPage')
-    const { container, unmount } = await mount(<ScanSummariesPage />)
-    expect(container.querySelectorAll('.scan').length).toBeGreaterThan(1)
-    // 解析不出集号的文件会被静默跳过，用户唯一能察觉的方式就是这一段。
-    // 它消失了 = 又变回静默失败，所以钉住。
-    const unresolved = container.querySelector('.scan-unresolved')
-    expect(unresolved).not.toBeNull()
-    expect(unresolved?.textContent).toContain('解析不出集号')
-    await unmount()
-  })
-
+// 这里原来还有一条「扫描记录」的用例，断言界面上必须出现
+// 「N 个文件解析不出集号，已跳过」。那句话是错的：items.go:44-80 的 BuildItems
+// 只在非视频文件上 continue，集号解析失败时 Episode 是 nil，条目照样进库。
+// 一条测试在钉一句错话 —— 那会让错误在重构里活下来。整页连同它一起删了，
+// 真实的扫描丢弃改由 GET /api/library 的 folders[].dropped 提供。
+describe('自动下载', () => {
   it('自动下载：措辞必须说清「点了也不会下载」，而不是只说数据是假的', async () => {
     const { AutoDownloaderPage } = await import('./AutoDownloaderPage')
     const { container, unmount } = await mount(<AutoDownloaderPage />)
