@@ -34,13 +34,17 @@ type ViewProgress struct {
 
 // ViewItem 是给前端的条目投影。
 type ViewItem struct {
-	FileID     string        `json:"fileId"`
-	FileName   string        `json:"fileName"`
-	Episode    *int          `json:"episode"`
-	Kind       string        `json:"kind"`
-	Resolution *string       `json:"resolution"`
-	SizeBytes  int64         `json:"sizeBytes"`
-	Progress   *ViewProgress `json:"progress"`
+	FileID     string  `json:"fileId"`
+	FileName   string  `json:"fileName"`
+	Episode    *int    `json:"episode"`
+	Kind       string  `json:"kind"`
+	Resolution *string `json:"resolution"`
+	SizeBytes  int64   `json:"sizeBytes"`
+	// Stream 是可直接放进 <video src> 的本机地址（浏览器内播放用）。
+	// 空串表示媒体端点未挂载。⚠️ 能不能播【完全】取决于浏览器认不认这个编码 ——
+	// 后端不转码，只原样喂字节。正常播放路径仍然是 mpv。
+	Stream   string        `json:"stream,omitempty"`
+	Progress *ViewProgress `json:"progress"`
 }
 
 // ViewGroup 是目录分组投影。
@@ -129,6 +133,15 @@ type LibraryService struct {
 	// artPrefix 形如 /art/<能力段>；空串表示封面端点未挂载，视图里一律不给封面地址。
 	// 由启动流程注入（能力段归 httpserver 生成），不在这里自己造。
 	artPrefix string
+	// mediaPrefix 形如 /media/<能力段>；空串表示浏览器内播放不可用。
+	mediaPrefix string
+}
+
+// SetMediaPrefix 注入本地媒体流前缀（形如 /media/<能力段>）。启动时调用一次。
+func (s *LibraryService) SetMediaPrefix(prefix string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mediaPrefix = prefix
 }
 
 // SetArtPrefix 注入封面端点前缀（形如 /art/<能力段>）。启动时调用一次。
@@ -275,6 +288,7 @@ func (s *LibraryService) View() LibraryView {
 	defer s.mu.RUnlock()
 
 	prefix := s.artPrefix
+	mediaPrefix := s.mediaPrefix
 	view := LibraryView{
 		Folders:          []ViewFolder{},
 		Clusters:         []ViewCluster{},
@@ -326,6 +340,9 @@ func (s *LibraryService) View() LibraryView {
 					Kind:       it.ParsedKind,
 					Resolution: it.ParsedResolution,
 					SizeBytes:  it.Size,
+				}
+				if mediaPrefix != "" {
+					vi.Stream = mediaPrefix + "/" + url.PathEscape(it.FileID)
 				}
 				if p, ok := progress[it.FileID]; ok {
 					vi.Progress = &ViewProgress{

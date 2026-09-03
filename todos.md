@@ -27,11 +27,32 @@
 | `/extensions` 可执行插件 | **A3 / 红线 1** | 向用户机器投递代码执行引擎。seanime 自己 `BindFetch` 默认白名单 `["*"]`、`vm.Interrupt()` 全仓 0 调用 |
 | `/debrid` Debrid 中间商 | 同类 | 调研结论：真正的打击落在 Real-Debrid 这类中间服务上 |
 
+（`/mediastream` 原本也在这张表里，用户已决定接上，见下。）
+
 **建议**：这三个不做。侧栏少三个图标，换来的是本体零下架记录那条路
 （Jackett/Prowlarr 引擎活、把源加回去的 fork 全 451）。
 
-`/mediastream`（内置网页播放器 + 转码）不是红线问题，但与 A5「不做浏览器内播放、
-一律交给 mpv」正面冲突。同样建议不做。
+### ✅ `/mediastream` —— 用户 2026-09-03 决定接上，已建（`/watch/$fileId`）
+
+我提过它撞 A5「不做浏览器内播放、一律交给 mpv」，用户决定要，所以建了。
+**但要清楚它建到了什么程度：**
+
+| | seanime | nagare |
+|---|---|---|
+| 转码 | ffmpeg 转码 + HLS 切片 | **没有**。原始字节 + Range，交给 `<video>` |
+| 能播什么 | 几乎任何编码 | 只有浏览器认的：MP4 里的 H.264+AAC 基本都行；MKV 容器、HEVC、AV1 多半不行 |
+| 弹幕 / ASS 字幕 | 有 | **没有**，那是 mpv 那条路的能力 |
+| 进度回写账号 | 有 | **没有** |
+
+所以它是**补充路径**不是替代：手边没装 mpv、或只想快速瞄一眼时用。
+播不了时页面如实说明原因并把用户送回 mpv，不留黑屏。
+
+真做转码 = 引入 ffmpeg 依赖 + 切片 + 缓存管理，那是一个独立的里程碑，
+而且会让「nagare 不解码」这条设计前提失效。要做要先重新决议。
+
+**端点形状**：`/media/<能力段>/<fileId>`，与封面同一套安全设计 ——
+客户端只给 fileId，路径由服务端从已扫描条目里查，所以目录穿越与
+「读媒体库外的文件」在客户端侧都不成立（有测试钉住）。
 
 ---
 
@@ -42,13 +63,14 @@
 | 1 | 首页 | `/` | ✅ 继续观看 + 海报网格 | 已有 |
 | 2 | 作品详情 | `/anime/$clusterKey` | ✅ 横幅 + 剧集列表 | 已有 |
 | 3 | 我的列表 | `/lists` | ✅ 建好 | ❌ 假数据 |
-| 4 | 发现 | `/discover` | ✅ 建好 | ❌ 假数据 |
+| 4 | 发现 | `/discover` | ✅ **完整克隆**（hero 轮播 + 7 板块 + 标签） | ❌ 假数据 |
 | 5 | 放送表 | `/schedule` | ✅ 建好 | ❌ 假数据 |
 | 6 | 磁力任务 | `/torrents` | ✅ 建好 | ✅ **真数据** |
 | 7 | 扫描记录 | `/scan-summaries` | ✅ 建好 | ❌ 假数据 |
 | 8 | 自动下载 | `/auto-downloader` | ⚠️ 仅界面预览 | ❌ 无后端 |
 | 9 | 搜索 | `/search` | ✅ 磁力搜索 | 已有 |
 | 10 | 设置 | `/settings` | ✅ | 已有 |
+| 11 | 浏览器内播放 | `/watch/$fileId` | ✅ 建好 | ✅ **真数据** |
 | — | 漫画 | — | 🚫 用户明确排除 | — |
 
 ---
@@ -69,7 +91,14 @@ seanime 的五档：Watching / Planning / Completed / Paused / Dropped，
 
 ### G2 · 发现 `/discover`
 
-seanime 是 Trending / Popular / Upcoming / 本季新番，全部来自 AniList。
+板块顺序已按 seanime 的 anime 标签页克隆：
+**热门 → 最近更新 → 本季 → 上季 → 错过的续作 → 即将播出 → 剧场版**，
+外加顶部 hero 轮播与「动画 / 放送表」标签。全部来自 AniList。
+
+⚠️ 两处刻意不照抄：
+- **不嵌预告片**。seanime 的 hero 里是 YouTube iframe，而 CSP 的 `frame-src`
+  没开 —— 为一个装饰性预告片放开 iframe 白名单不划算。有测试钉住「页面里没有 iframe」
+- **横幅是渐变不是图**。animego 只给竖版封面、没有横幅图，真数据阶段也要靠封面派生
 
 - **要的接口**：`GET /api/discover?section=trending|popular|upcoming|season`
 - **animego 侧**：未知是否有榜单接口，需要查

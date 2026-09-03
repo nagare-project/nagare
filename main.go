@@ -453,6 +453,11 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		svc.lib.SetArtPrefix("/art/" + srv.ArtCapability())
 	}
 
+	// 本地媒体流（浏览器内播放）。决议 A5 原本不做这件事，用户 2026-09-03
+	// 要求接上；正常播放路径仍是 mpv，这条只是补一个「手边没有 mpv 时」的出路。
+	srv.SetMediaHandler(api.NewMediaHandler(svc.lib))
+	svc.lib.SetMediaPrefix("/media/" + srv.MediaCapability())
+
 	// 后台检查随 ctx 退出；关闭时不需要额外等待（只有一个 HTTP GET）。
 	if updater != nil {
 		updater.Start(ctx)

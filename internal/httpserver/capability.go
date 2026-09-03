@@ -21,11 +21,16 @@ type Capabilities struct {
 	mu     sync.RWMutex
 	stream string
 	art    string
+	media  string
 }
 
-// NewCapabilities 生成初始能力集。
+// NewCapabilities 生成初始能力集。每一段互相独立：一段泄露不牵连另一段。
 func NewCapabilities() *Capabilities {
-	return &Capabilities{stream: random.Hex(capabilityBytes), art: random.Hex(capabilityBytes)}
+	return &Capabilities{
+		stream: random.Hex(capabilityBytes),
+		art:    random.Hex(capabilityBytes),
+		media:  random.Hex(capabilityBytes),
+	}
 }
 
 // Stream 返回当前流能力段。
@@ -52,6 +57,24 @@ func (c *Capabilities) artValid(candidate string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return subtle.ConstantTimeCompare([]byte(candidate), []byte(c.art)) == 1
+}
+
+// Media 返回本地媒体流的能力段（浏览器内播放用）。
+//
+// 与 stream / art 分成三段而不是复用一段：<video src> 会把整条地址写进 DOM
+// 与浏览器网络面板，而这一段能读到的只是媒体库里的文件；万一泄露，
+// 它换不来磁力流也换不来 API 访问。
+func (c *Capabilities) Media() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.media
+}
+
+// mediaValid 用常数时间比较校验媒体能力段。
+func (c *Capabilities) mediaValid(candidate string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return subtle.ConstantTimeCompare([]byte(candidate), []byte(c.media)) == 1
 }
 
 // Rotate 更换流能力段，旧 URL 立即失效。
@@ -128,6 +151,36 @@ func (s *Server) handleArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h := s.artHandler()
+	if h == nil {
+		writeError(w, http.StatusNotFound, "未找到")
+		return
+	}
+	fwd := r.Clone(r.Context())
+	fwd.URL.Path = "/" + r.PathValue("path")
+	fwd.URL.RawPath = ""
+	h.ServeHTTP(w, fwd)
+}
+
+// SetMediaHandler 注册本地媒体流处理器；传 nil 即注销。
+func (s *Server) SetMediaHandler(h http.Handler) {
+	s.mediaMu.Lock()
+	defer s.mediaMu.Unlock()
+	s.media = h
+}
+
+func (s *Server) mediaHandler() http.Handler {
+	s.mediaMu.RLock()
+	defer s.mediaMu.RUnlock()
+	return s.media
+}
+
+// handleMedia 校验能力段并转发；与流/封面同一手法，能力段在转发前剥掉。
+func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
+	if !s.caps.mediaValid(r.PathValue("capability")) {
+		writeError(w, http.StatusNotFound, "未找到")
+		return
+	}
+	h := s.mediaHandler()
 	if h == nil {
 		writeError(w, http.StatusNotFound, "未找到")
 		return

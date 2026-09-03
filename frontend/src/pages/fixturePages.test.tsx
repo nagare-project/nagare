@@ -35,15 +35,47 @@ describe('假数据页面', () => {
     await unmount()
   })
 
-  it('发现：三个板块各有卡片', async () => {
+  it('发现：板块顺序对齐 seanime，每块都有卡片', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
     const rows = [...container.querySelectorAll('.row')]
+    // 顺序照 seanime 的 anime 标签页；改这里之前先确认那边也改了
     expect(rows.map((r) => r.querySelector('.row-title')?.textContent)).toEqual([
-      '本季热门', '高人气', '即将播出',
+      '本季热门', '最近更新', '本季新番', '上季作品', '错过的续作', '即将播出', '剧场版',
     ])
     for (const row of rows) {
       expect(row.querySelectorAll('.poster').length).toBeGreaterThan(0)
     }
+    await unmount()
+  })
+
+  it('发现：hero 轮播可点圆点切换，且不含预告片 iframe', async () => {
+    const { container, unmount } = await mount(<DiscoverPage />)
+    const hero = container.querySelector('.hero')
+    expect(hero).not.toBeNull()
+    expect(hero?.querySelector('.hero-title')?.textContent).not.toBe('')
+
+    // CSP 没开 frame-src：seanime 那里嵌 YouTube 预告片，我们刻意不做。
+    // 哪天有人加了 iframe，这条会红。
+    expect(container.querySelector('iframe')).toBeNull()
+
+    const dots = [...container.querySelectorAll<HTMLButtonElement>('.hero-dot')]
+    expect(dots.length).toBeGreaterThan(1)
+    const first = hero?.querySelector('.hero-title')?.textContent
+    await act(async () => dots[1]!.click())
+    expect(container.querySelector('.hero-title')?.textContent).not.toBe(first)
+    await unmount()
+  })
+
+  it('发现：切到「放送表」标签复用同一个周历，不重复页头', async () => {
+    const { container, unmount } = await mount(<DiscoverPage />)
+    expect(container.querySelector('.week')).toBeNull()
+    const scheduleTab = [...container.querySelectorAll<HTMLButtonElement>('.tab')].find(
+      (t) => t.textContent === '放送表',
+    )
+    await act(async () => scheduleTab?.click())
+    expect(container.querySelectorAll('.day')).toHaveLength(7)
+    // 内嵌时不该冒出第二个 <h1>
+    expect(container.querySelectorAll('.page-title')).toHaveLength(0)
     await unmount()
   })
 

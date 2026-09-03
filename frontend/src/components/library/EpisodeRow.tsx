@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
 import type { LibraryItem } from '../../lib/endpoints'
 import { mono } from '../../theme'
@@ -52,6 +53,20 @@ export function EpisodeRow({ item, onPlay, isActive = false, isPending = false }
       </span>
 
       <RowProgress progress={progress} />
+
+      {/* 浏览器内播放（决议 A5 之外的补充路径）：只有后端挂了媒体端点才出现。
+          放在 ▶ 之前、图标弱化，是因为它不是推荐路径 —— 没有弹幕也没有字幕。 */}
+      {item.stream !== undefined && (
+        <Link
+          to="/watch/$fileId"
+          params={{ fileId }}
+          className="ep-browser"
+          aria-label={`在浏览器里播放 ${episode !== null ? `第${formatEpisode(episode)}集` : fileName}`}
+          title="在浏览器里播（无弹幕/字幕）"
+        >
+          ⧉
+        </Link>
+      )}
 
       <button
         type="button"

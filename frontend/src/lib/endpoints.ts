@@ -37,6 +37,12 @@ export interface LibraryItem {
   kind: string
   resolution: string | null
   sizeBytes: number
+  /**
+   * 可直接放进 <video src> 的本机地址；缺省表示媒体端点未挂载。
+   * ⚠️ 后端不转码，能不能播完全取决于浏览器认不认这个编码 ——
+   * HEVC / AV1 的 MKV 在多数浏览器上放不了。正常播放路径仍然是 mpv。
+   */
+  stream?: string
   progress: ItemProgress | null
 }
 
