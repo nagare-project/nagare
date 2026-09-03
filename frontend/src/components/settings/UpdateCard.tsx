@@ -1,13 +1,19 @@
 import { useState } from 'react'
+import { isSettledPhase } from '../../hooks/useSelfUpdate'
+import type { UseSelfUpdateResult } from '../../hooks/useSelfUpdate'
 import type { UseUpdateResult } from '../../hooks/useUpdate'
 import type { UpdateView } from '../../lib/endpoints'
 import { errorText, formatDateTime, formatVersion } from '../../lib/format'
+import { CHANNEL_LABEL, UNSUPPORTED_REASON, selfUpdateStatus } from '../../lib/selfUpdateText'
+import type { SelfUpdateStatus } from '../../lib/selfUpdateText'
 import { isHttpUrl } from '../../lib/url'
 import { label, mono } from '../../tokens'
 import './cards.css'
 
 export interface UpdateCardProps {
   update: UseUpdateResult
+  /** 一键更新流程；由根布局持有，切页面不会中断（见 useSelfUpdate） */
+  selfUpdate: UseSelfUpdateResult
 }
 
 type Action = 'check' | 'toggle'
@@ -21,13 +27,15 @@ type ActionState =
 
 /**
  * 设置页「更新」卡：当前 / 最新版本、上次检查时间、失败原因、「立即检查」与
- * 「自动检查更新」开关。只提示不自更新（M4 零证书方案）。
+ * 「自动检查更新」开关，以及能自更新时的「立即更新」（M4 阶段 B）。
  * 数据来自根布局共享的 useUpdate，点「立即检查」后顶部提示条同步变化。
  */
-export function UpdateCard({ update }: UpdateCardProps) {
+export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
   const { state } = update
   const [action, setAction] = useState<ActionState>({ phase: 'idle' })
-  const busy = action.phase === 'busy'
+  // 更新期间连「立即检查」和自动检查开关一起锁上：那时改这些既没意义，
+  // 又会让用户以为可以在下载途中改主意。
+  const busy = action.phase === 'busy' || selfUpdate.busy
 
   async function handleCheck(): Promise<void> {
     setAction({ phase: 'busy', action: 'check' })
@@ -106,12 +114,21 @@ export function UpdateCard({ update }: UpdateCardProps) {
             <dd style={mono}>
               {state.data.checkedAt === null ? '尚未检查' : formatDateTime(state.data.checkedAt)}
             </dd>
+            {/* 能不能一键更新是常驻信息：等到有新版本才发现「原来我这个装法不行」太晚了 */}
+            <dt>自更新</dt>
+            <dd>
+              {state.data.selfUpdate.supported
+                ? `可用（${CHANNEL_LABEL[state.data.selfUpdate.channel]}）`
+                : `不可用（${CHANNEL_LABEL[state.data.selfUpdate.channel]}）`}
+            </dd>
           </dl>
           {state.data.error !== '' && (
             <p className="result result--err update-error" style={mono} role="alert">
               上次检查失败：{state.data.error}
             </p>
           )}
+
+          <SelfUpdateSection view={state.data} selfUpdate={selfUpdate} />
 
           <div className="form-actions update-actions">
             <button
@@ -153,6 +170,128 @@ export function UpdateCard({ update }: UpdateCardProps) {
         {view?.text}
       </p>
     </section>
+  )
+}
+
+/**
+ * 一键更新区块。四种形态：
+ * - 不支持（包管理器装的等）：不给按钮，改为说清原因 + 手动更新的去处；
+ * - 支持且有新版本：「立即更新」+ 一行说明它到底会做什么、动哪个文件；
+ * - 更新进行中：阶段文案 + 走秒（活着的反馈），按钮禁用；
+ * - 已经装好（done / timeout）：**只留收尾文案，不留按钮** —— 见 isSettledPhase，
+ *   文案说「已经装好了」而按钮会把同一版本重下一遍，那是界面在自相矛盾。
+ *   失败（error）才给「重试」，那时确实什么都没装上。
+ *
+ * 没有新版本且没有更新在进行时整块不渲染 —— 那时它没有任何可说的。
+ */
+function SelfUpdateSection({
+  view,
+  selfUpdate,
+}: {
+  view: UpdateView
+  selfUpdate: UseSelfUpdateResult
+}) {
+  const { supported, channel, reason, target } = view.selfUpdate
+  const status = selfUpdateStatus(selfUpdate.state, selfUpdate.elapsedSec)
+  const failed = selfUpdate.state.phase === 'error'
+  const downloadable = isHttpUrl(view.url)
+
+  if (!view.available && status === null) return null
+
+  // 新版本已经落盘：done 等着自动刷新，timeout 要用户手动重开。两者都不给按钮。
+  if (isSettledPhase(selfUpdate.state.phase) && status !== null) {
+    return (
+      <div className="self-update">
+        {selfUpdate.state.phase === 'timeout' ? (
+          // 终态且需要用户动手，用与 mpv 缺失同一条警示样式，别让它淹在正文里。
+          // 文案是静态的（不含走秒），挂 role="status" 不会被反复播报。
+          <p className="alert-warn self-update-settled" role="status">
+            {status.text}
+          </p>
+        ) : (
+          <StatusLine status={status} />
+        )}
+      </div>
+    )
+  }
+
+  if (!supported) {
+    return (
+      <div className="self-update">
+        <p className="alert-warn self-update-unsupported">
+          {reason === undefined || reason === '' ? UNSUPPORTED_REASON[channel] : reason}
+        </p>
+        {downloadable && (
+          <a
+            className="hud-link self-update-link"
+            href={view.url}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            打开下载页手动更新 ↗
+          </a>
+        )}
+        {/* 更新途中后端把 supported 翻成 false 是极小概率，但真发生时
+            「正在更新」的状态比「不支持」更该被看见，所以两条都留着 */}
+        <StatusLine status={status} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="self-update">
+      <div className="form-actions self-update-actions">
+        {selfUpdate.busy && <span className="self-update-dot" aria-hidden="true" />}
+        <button
+          type="button"
+          className="hud-button hud-button--small"
+          onClick={selfUpdate.start}
+          disabled={selfUpdate.busy}
+        >
+          {selfUpdate.busy ? '更新中 …' : failed ? '重试' : '立即更新'}
+        </button>
+        {failed && downloadable && (
+          <a
+            className="hud-link self-update-link"
+            href={view.url}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            改用下载页手动更新 ↗
+          </a>
+        )}
+      </div>
+
+      <p className="self-update-note">
+        会依次下载新版本、验证 minisign 签名与校验和、替换{' '}
+        <code className="self-update-target" style={mono}>
+          {target}
+        </code>
+        ，然后自动重启并刷新页面。下载可能要几分钟，其间请不要关闭 nagare。
+      </p>
+
+      <StatusLine status={status} />
+    </div>
+  )
+}
+
+/**
+ * 阶段文案。可见那行**不是** live region —— 秒数每秒都变，挂上去读屏会一秒念一遍；
+ * 播报交给旁边那个只含粗粒度文案的隐藏 live region（与 TorrentStatusBar 同一手法）。
+ */
+function StatusLine({ status }: { status: SelfUpdateStatus | null }) {
+  return (
+    <>
+      {status !== null && (
+        <p className={`result result--${status.tone} self-update-status`} style={mono}>
+          {status.text}
+          <span aria-hidden="true">{status.elapsed}</span>
+        </p>
+      )}
+      <span className="visually-hidden" role="status" aria-live="polite">
+        {status?.text ?? ''}
+      </span>
+    </>
   )
 }
 

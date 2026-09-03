@@ -96,7 +96,13 @@ certutil -hashfile <文件名> SHA256                  # Windows，和 checksums
 
 - **更新检查**：启动后每天最多向 GitHub 查一次最新版本号，只发出版本号、不带任何其他信息，
   可在设置里关闭。
-- 有新版时界面会提示，去 Releases 下载新包覆盖安装即可。
+- **一键更新**：有新版本时设置页出现「立即更新」。它会下载更新包、用**内置公钥校验
+  minisign 签名**（零证书发布，完整性只能靠这个），再核对 sha256，通过之后才替换并自动重启；
+  任何一步不通过都不会动现有版本。用包管理器装的（deb / rpm / Homebrew）不走自更新，
+  界面会提示用 `apt` / `dnf` / `brew` 升级。
+- 更新检查或下载失败**不影响已安装版本运行**。想手动校验下载的文件，
+  用 Release 里的 `checksums.txt` 与 `checksums.txt.minisig`（步骤见
+  [docs/releasing.md](docs/releasing.md)）。
 - **日志**：macOS `~/Library/Application Support/nagare/logs/nagare.log`、
   Windows `%AppData%\nagare\logs\`、Linux `~/.config/nagare/logs/`。反馈问题时请附上。
 - **卸载**不会删除配置目录（token、媒体库状态、观看进度都在里面），不需要的话手动删。
@@ -200,7 +206,7 @@ nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供
   停止播放即删分片。实现说明见 [docs/m3-torrent-streaming.md](docs/m3-torrent-streaming.md)
 - **M4 打包与分发** —— macOS dmg（ad-hoc 签名的 universal .app）、Windows 安装包与便携版
   （内置 mpv）、Linux deb/rpm/tar.gz；零证书、零年费，安装步骤见上方「安装」。
-  自更新与可选分发渠道见 M4 阶段 B
+  更新走 minisign 验签的一键自更新，发布流程见 [docs/releasing.md](docs/releasing.md)
 - M5 收尾
 
 ## 许可证

@@ -41,8 +41,27 @@ jobs:
           go-version-file: go.mod
           check-latest: true
 
-      - name: 安装打包工具（NSIS、7-Zip）
-        run: brew install makensis sevenzip
+      - name: 安装打包工具（NSIS、7-Zip、minisign）
+        run: brew install makensis sevenzip minisign
+
+      # 更新包的完整性靠 minisign 签 checksums.txt（客户端内嵌公钥校验）。
+      # 密钥没配置时不阻断发布，但要在 workflow 摘要里显眼地警告：那样发出去的版本
+      # 客户端校验不了，自更新会拒绝执行（内嵌公钥为空 = 失败关闭），只能手动下载。
+      # 生成密钥与配置 secret 的步骤见 docs/releasing.md。
+      - name: 准备更新签名密钥
+        id: signing
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          if [ -n "$MINISIGN_SECRET_KEY" ]; then
+            umask 077
+            printf '%s\n' "$MINISIGN_SECRET_KEY" > "$RUNNER_TEMP/minisign.key"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "更新签名：已配置"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::未配置 MINISIGN_SECRET_KEY，本次发布不带更新签名 —— 客户端将无法自更新（见 docs/releasing.md）"
+          fi
 
       - name: 生成图标产物是否入库自检
         run: test -f packaging/icon/nagare.icns && test -f packaging/icon/nagare.ico && test -f packaging/icon/nagare-256.png
@@ -53,9 +72,10 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean ${{ steps.signing.outputs.enabled == 'true' && '' || '--skip=sign' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MINISIGN_KEY_FILE: ${{ runner.temp }}/minisign.key
 
       - name: GoReleaser（snapshot，不发布）
         if: github.event_name == 'workflow_dispatch'
@@ -63,9 +83,23 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --snapshot --clean --skip=publish
+          args: release --snapshot --clean --skip=publish ${{ steps.signing.outputs.enabled == 'true' && '' || '--skip=sign' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MINISIGN_KEY_FILE: ${{ runner.temp }}/minisign.key
+
+      # 自更新要下载的产物名在 goreleaser 模板与 internal/selfupdate 里各写了一遍，
+      # 没有东西把它们绑在一起。改错了只会在那个平台的用户点更新时才暴露。
+      - name: 校验自更新要用的产物都在
+        if: always()
+        run: |
+          test -f dist/checksums.txt || { echo "没有 dist/checksums.txt，跳过"; exit 0; }
+          scripts/release/check-update-assets.sh dist/checksums.txt
+
+      # 密钥文件在同一个 job 里用完即删；runner 是一次性的，这一步是纵深防御。
+      - name: 清理签名密钥
+        if: always()
+        run: rm -f "$RUNNER_TEMP/minisign.key"
 
       # 排查用：不管发布与否，把安装包与校验文件留成 artifact
       - uses: actions/upload-artifact@v4
@@ -74,10 +108,13 @@ jobs:
           name: nagare-packages
           path: |
             dist/*.dmg
+            dist/*.app.zip
             dist/*-setup.exe
             dist/*.zip
             dist/*.tar.gz
             dist/*.deb
+            dist/checksums.txt
+            dist/checksums.txt.minisig
             dist/*.rpm
             dist/checksums.txt
             dist/mpv-sources/*

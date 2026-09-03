@@ -21,6 +21,7 @@ import (
 	"time"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
+	"github.com/nagare-project/nagare/internal/selfupdate"
 	"golang.org/x/mod/semver"
 )
 
@@ -46,6 +47,20 @@ type Options struct {
 	CacheDir       string           // 落盘目录（配置目录），文件 <CacheDir>/update.json
 	Client         *http.Client     // nil 用默认（10s 超时）；注入的客户端也会被套上「拒绝重定向」
 	Now            func() time.Time // 测试注入；nil 用 time.Now
+	// SelfUpdate 是「把新版本装上」的能力。为 nil 表示这个构建不带自更新
+	// （没配更新公钥，或调用方没装配），此时 View.SelfUpdate 会如实报告原因，
+	// /api/update/apply 返回 503 —— 降级但可见，不是按钮点了没反应。
+	SelfUpdate *selfupdate.Updater
+	// OnRestart 在新版本装好后被调用（延迟一小会儿，让响应先送达）。
+	// 装配层应当在这里触发优雅退出，退出收尾完成后再 exec 新二进制。
+	OnRestart func()
+	// BeforeApply 在开始下载之前调用，用来停掉会占住待替换文件的东西。
+	//
+	// Windows 上这一步是必需的而不是礼貌：安装目录里的 mpv\ 子目录在 mpv 进程
+	// 活着时换不动（Windows 不允许 rename 覆盖被打开的文件），整次更新会因此回滚
+	// —— 而「正看着番看到更新提示就点更新」恰恰是最常见的路径。顺带这也更正确：
+	// 不该在用户正看着的时候把播放器脚下的二进制换掉。可为 nil。
+	BeforeApply func()
 }
 
 // View 是给界面的只读快照。
@@ -57,10 +72,21 @@ type View struct {
 	URL       string `json:"url"`
 	CheckedAt *int64 `json:"checkedAt"` // 上次检查（含失败）的毫秒时间戳；从未检查为 null
 	Error     string `json:"error"`     // 上次检查的用户可读错误；成功为空串
+	// SelfUpdate 是「这个安装能不能一键更新」。总是有值：不支持时 Supported=false
+	// 且 Reason 里是中文原因（包管理器装的、目录不可写、这个构建没配公钥……）。
+	SelfUpdate selfupdate.Capability `json:"selfUpdate"`
 }
 
 // Checker 是更新检查器。并发安全：状态由 mu 保护，网络请求由 fetchMu 串行化。
 type Checker struct {
+	// selfUpdate 可为 nil：这个构建不带自更新。
+	selfUpdate *selfupdate.Updater
+	// beforeApply 由装配层给：见 Options.BeforeApply。可为 nil。
+	beforeApply func()
+	// onRestart 由装配层给：装好新版本后走【优雅退出 → exec 新二进制】那条路，
+	// 而不是在 HTTP 处理器里直接 exec —— 那会跳过停播放与进度回写。可为 nil。
+	onRestart func()
+
 	current   string
 	repo      string
 	apiBase   string // 测试改成 httptest 地址
@@ -100,15 +126,18 @@ func New(opts Options) (*Checker, error) {
 		now = time.Now
 	}
 	c := &Checker{
-		current:    strings.TrimSpace(opts.CurrentVersion),
-		repo:       repo,
-		apiBase:    githubAPIBase,
-		cachePath:  filepath.Join(opts.CacheDir, cacheFileName),
-		client:     newClient(opts.Client),
-		now:        now,
-		startDelay: defaultStartDelay,
-		interval:   defaultInterval,
-		fetchSem:   make(chan struct{}, 1),
+		selfUpdate:  opts.SelfUpdate,
+		onRestart:   opts.OnRestart,
+		beforeApply: opts.BeforeApply,
+		current:     strings.TrimSpace(opts.CurrentVersion),
+		repo:        repo,
+		apiBase:     githubAPIBase,
+		cachePath:   filepath.Join(opts.CacheDir, cacheFileName),
+		client:      newClient(opts.Client),
+		now:         now,
+		startDelay:  defaultStartDelay,
+		interval:    defaultInterval,
+		fetchSem:    make(chan struct{}, 1),
 	}
 	c.st = loadCache(c.cachePath, repo)
 	return c, nil
@@ -141,6 +170,14 @@ func (c *Checker) viewLocked() View {
 		Available: isNewer(c.current, c.st.Latest),
 		URL:       c.st.URL,
 		Error:     userMessage(c.lastErr),
+		SelfUpdate: selfupdate.Capability{
+			Supported: false,
+			Channel:   selfupdate.ChannelUnknown,
+			Reason:    "这个版本不带一键更新，请到下载页手动更新",
+		},
+	}
+	if c.selfUpdate != nil {
+		v.SelfUpdate = c.selfUpdate.Capability()
 	}
 	if at := max(c.attemptAt, c.st.LastCheckAt); at != 0 {
 		v.CheckedAt = &at

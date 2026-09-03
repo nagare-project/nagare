@@ -86,5 +86,43 @@ if ! grep -q 'Signature=adhoc' <<<"$sig"; then
   echo "$sig" >&2
   exit 1
 fi
+# 自更新要用的 .app 整包压缩。
+#
+# 为什么不是「只替换 .app 里的那个二进制」：bundle 是 ad-hoc 签名的，换掉里面的
+# 可执行文件会让签名失效，macOS 直接拒绝启动。自更新只能整包替换，所以这里必须
+# 单独出一个 .app 的 zip（dmg 也能用，但要 hdiutil 挂载，客户端侧复杂得多）。
+appzip="$out/nagare-${version}_MacOS_universal.app.zip"
+rm -f "$appzip"
+echo "==> 打包 .app zip（自更新用）：$appzip"
+# 用 ditto 而不是 zip：只有它完整保留 bundle 的符号链接、扩展属性与代码签名。
+# 普通 zip 压出来的包解开后 codesign 校验不过，自更新装上去就是个打不开的 app。
+(cd "$out" && ditto -c -k --sequesterRsrc --keepParent Nagare.app "$appzip")
+
+# 验证 zip 往返之后签名仍然成立。
+#
+# 【两种解包方式都要验】，这不是重复：
+#   ditto -x  是 Apple 自己的解包器，会把 __MACOSX/ 里 sequester 的扩展属性与资源叉
+#             还原回去；
+#   unzip     只还原普通文件，与客户端实际用的 Go archive/zip 是同一档能力。
+# 只验前者的话，一旦签名材料哪天落到扩展属性上，CI 会一直是绿的，而每个用户
+# 自更新出来的都是打不开的 app —— 失败发生在最看不见的地方。
+echo "==> 验证 zip 往返之后签名仍然成立（ditto 与 unzip 两种解包）"
+for extractor in ditto unzip; do
+  zipcheck=$(mktemp -d)
+  case "$extractor" in
+    ditto) ditto -x -k "$appzip" "$zipcheck" ;;
+    unzip) unzip -qq "$appzip" -d "$zipcheck" ;;
+  esac
+  if ! codesign --verify --deep --strict "$zipcheck/Nagare.app" 2>/dev/null; then
+    echo "用 ${extractor} 解包后 Nagare.app 的签名校验不过 —— 自更新装上去会打不开。" >&2
+    codesign --verify --deep --strict --verbose=2 "$zipcheck/Nagare.app" >&2 || true
+    rm -rf "$zipcheck"
+    exit 1
+  fi
+  echo "==> ${extractor} 解包后签名有效 ✓"
+  rm -rf "$zipcheck"
+done
+
 echo "==> 完成：$app"
 echo "==> 完成：$dmg"
+echo "==> 完成：$appzip"
