@@ -72,7 +72,10 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean ${{ steps.signing.outputs.enabled == 'true' && '' || '--skip=sign' }}
+          # 三元的真分支【不能】是空串：GitHub Actions 里 '' 是 falsy，
+          # `cond && '' || X` 会因为 && 求值出假而继续走到 X —— 也就是永远 X。
+          # 所以把非空的那支放在 && 后面，用取反的条件。
+          args: release --clean ${{ steps.signing.outputs.enabled != 'true' && '--skip=sign' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MINISIGN_KEY_FILE: ${{ runner.temp }}/minisign.key
@@ -83,10 +86,22 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --snapshot --clean --skip=publish ${{ steps.signing.outputs.enabled == 'true' && '' || '--skip=sign' }}
+          args: release --snapshot --clean --skip=publish ${{ steps.signing.outputs.enabled != 'true' && '--skip=sign' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MINISIGN_KEY_FILE: ${{ runner.temp }}/minisign.key
+
+      # 配了密钥就必须真的签出来。上一版这里没有守卫，而三元表达式的 falsy 陷阱
+      # 让 --skip=sign 永远生效 —— 日志显示「更新签名：已配置」，产物里却没有签名，
+      # 只有把产物下下来才发现。让它变成红的。
+      - name: 配了密钥就必须产出签名
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          if [ ! -f dist/checksums.txt.minisig ]; then
+            echo "::error::已配置 MINISIGN_SECRET_KEY，但没有产出 dist/checksums.txt.minisig"
+            exit 1
+          fi
+          echo "签名已产出：$(wc -c < dist/checksums.txt.minisig) 字节"
 
       # 自更新要下载的产物名在 goreleaser 模板与 internal/selfupdate 里各写了一遍，
       # 没有东西把它们绑在一起。改错了只会在那个平台的用户点更新时才暴露。
