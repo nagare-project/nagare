@@ -174,22 +174,47 @@ func TestAPIResponsesAreNoStore(t *testing.T) {
 
 // ---------- 流端点 ----------
 
-func TestValidStreamCapability(t *testing.T) {
+// okStreamHandler 是记录收到路径的假流处理器。
+func okStreamHandler(got *string, status int) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*got = r.URL.Path
+		w.WriteHeader(status)
+	})
+}
+
+// 合法能力段但没有注册流处理器时同样 404：与「能力段错误」不可区分，
+// 探测者无法用状态码反推出能力段是否猜对。
+func TestValidCapabilityWithoutHandlerIsNotFound(t *testing.T) {
 	s, _ := newTestServer(t, nil)
-	rec := do(s, http.MethodGet, "/stream/"+s.StreamCapability()+"/ep1.mkv", localHost, nil)
-	assert.Equal(t, http.StatusNoContent, rec.Code, "合法能力段应通过校验（占位实现回 204）")
+	rec := do(s, http.MethodGet, "/stream/"+s.StreamCapability()+"/t/abcdef/0", localHost, nil)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// 能力段校验通过后，请求以【剥掉能力段】的路径转发给处理器 ——
+// 能力段等同凭证，不流到处理器就不可能被它写进日志或错误信息。
+func TestStreamHandlerReceivesRewrittenPath(t *testing.T) {
+	s, _ := newTestServer(t, nil)
+	var got string
+	s.SetStreamHandler(okStreamHandler(&got, http.StatusPartialContent))
+
+	rec := do(s, http.MethodGet, "/stream/"+s.StreamCapability()+"/t/abcdef/3", localHost, nil)
+	assert.Equal(t, http.StatusPartialContent, rec.Code)
+	assert.Equal(t, "/t/abcdef/3", got)
+	assert.NotContains(t, got, s.StreamCapability())
 }
 
 func TestRotateInvalidatesOldCapability(t *testing.T) {
 	s, _ := newTestServer(t, nil)
+	var got string
+	s.SetStreamHandler(okStreamHandler(&got, http.StatusOK))
 	old := s.StreamCapability()
 	s.caps.Rotate()
 
-	rec := do(s, http.MethodGet, "/stream/"+old+"/ep1.mkv", localHost, nil)
+	rec := do(s, http.MethodGet, "/stream/"+old+"/t/abcdef/0", localHost, nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code, "轮换后旧能力 URL 必须立即失效")
 
-	rec = do(s, http.MethodGet, "/stream/"+s.StreamCapability()+"/ep1.mkv", localHost, nil)
-	assert.Equal(t, http.StatusNoContent, rec.Code)
+	rec = do(s, http.MethodGet, "/stream/"+s.StreamCapability()+"/t/abcdef/0", localHost, nil)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 // ---------- 静态资源 ----------

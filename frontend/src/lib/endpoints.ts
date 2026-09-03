@@ -4,6 +4,7 @@ import { apiFetch } from './api'
  * 后端契约层。
  * M1：/api/library · /api/play · /api/player/* · /api/settings · /api/animego/*
  * M2：/api/search · /api/sources/*（声明式规则引擎）
+ * M3：/api/torrent/*（磁力边下边播）
  * M4：/api/mpv/detect · /api/update* · /api/shutdown（打包后的运行时兜底）
  * 类型与 Go 侧信封 data 载荷一一对应；传输细节（token 头、信封解析、错误分类）
  * 全部由 lib/api.ts 的 apiFetch 承担，这里只做「路径 + 形状」。
@@ -151,9 +152,30 @@ export interface SettingsData {
   logPath: string
   mpv: MpvInfo
   animego: AnimegoInfo
+  /** 磁力边下边播的当前配置与缓存占用（M3） */
+  torrent: TorrentSettings
 }
 
-// ---------- 更新（M4：只提示，不自更新） ----------
+// ---------- 更新（M4 阶段 A：只提示；阶段 B：一键更新） ----------
+
+/**
+ * 这个安装是怎么装的 —— 决定能不能一键更新：
+ * - `app-bundle`：macOS 的 `.app`（整包替换）
+ * - `direct`：Windows 安装包 / 便携版、Linux 裸 tar.gz（替换二进制）
+ * - `package`：deb / rpm / brew —— 归包管理器管，nagare 不能自己动
+ * - `unknown`：认不出来，保守当作不能自更新
+ */
+export type SelfUpdateChannel = 'app-bundle' | 'direct' | 'package' | 'unknown'
+
+/** 这个安装能不能自更新（GET /api/update 的 selfUpdate 字段） */
+export interface SelfUpdateInfo {
+  supported: boolean
+  channel: SelfUpdateChannel
+  /** supported=false 时的中文原因与用户该做什么；后端可能不给，界面要有兜底 */
+  reason?: string
+  /** 将被替换的东西（二进制路径或 .app 路径），给用户看清楚要动哪里 */
+  target: string
+}
 
 /** GET /api/update · POST /api/update/check · POST /api/update/config 共用的 data 载荷 */
 export interface UpdateView {
@@ -169,14 +191,32 @@ export interface UpdateView {
   checkedAt: number | null
   /** 上次检查失败的中文原因；成功为空串 */
   error: string
+  /** 这个安装能不能一键更新（M4 阶段 B） */
+  selfUpdate: SelfUpdateInfo
+}
+
+/** POST /api/update/apply 的 data 载荷 */
+export interface ApplyUpdateData {
+  /** 已经装好的新版本号；调用方拿它跟 /api/health 的版本比对，判断新进程起来了没 */
+  version: string
 }
 
 // ---------- 请求函数 ----------
 
-/** 带 JSON body 的变更请求（apiFetch 会在此基础上补 token 头） */
-function requestJson<T>(path: string, method: 'POST' | 'DELETE', body?: unknown): Promise<T> {
+/**
+ * 带 JSON body 的变更请求（apiFetch 会在此基础上补 token 头）。
+ * signal 只有长耗时请求用得上（磁力起播可能跑一两分钟，用户取消时要真正掐断连接，
+ * 否则浏览器每域名 6 条并发很快被挂起的请求占满，连状态轮询都发不出去）。
+ */
+function requestJson<T>(
+  path: string,
+  method: 'POST' | 'DELETE',
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   return apiFetch<T>(path, {
     method,
+    ...(signal === undefined ? {} : { signal }),
     ...(body === undefined
       ? {}
       : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
@@ -251,6 +291,19 @@ export function checkUpdate(): Promise<UpdateView> {
 
 export function setUpdateEnabled(enabled: boolean): Promise<UpdateView> {
   return requestJson<UpdateView>('/api/update/config', 'POST', { enabled })
+}
+
+/**
+ * 一键更新：后端下载归档 → minisign 验签 → 按 sha256 校验 → 解包 → 原子替换。
+ *
+ * **这是一个阻塞请求**：要下 20–120MB 再校验解包，几十秒到几分钟都正常。
+ * 响应返回后后端会在约一秒内**重启自己**，期间所有请求都会失败 ——
+ * 由调用方轮询 /api/health 等它带着新版本号回来。
+ *
+ * 刻意不接 signal：替换到一半掐断连接并不会让后端回滚，只会让用户以为取消了。
+ */
+export function applyUpdate(): Promise<ApplyUpdateData> {
+  return requestJson<ApplyUpdateData>('/api/update/apply', 'POST')
 }
 
 /** 让后端进程退出；响应后约 100ms 进程结束，之后页面的任何请求都会失败 */
@@ -397,4 +450,135 @@ export function updateRulesConfig(patch: RulesConfigPatch): Promise<RulesInfo> {
 /** 从 remoteUrl 拉取规则；remoteUrl 为空时后端 400（中文报错原样透出） */
 export function syncSources(): Promise<SyncResult> {
   return requestJson<SyncResult>('/api/sources/sync', 'POST')
+}
+
+// ---------- 磁力边下边播（M3） ----------
+
+/** 种子里的一个文件（需要用户选集时由 /api/torrent/play 返回） */
+export interface TorrentFile {
+  index: number
+  name: string
+  /** 种子内的相对路径（同名文件靠它区分） */
+  path: string
+  sizeBytes: number
+  /** 解析链解出的集号；解析不出为 null，界面留空 */
+  episode: number | null
+}
+
+/**
+ * 一次磁力播放会话所处的阶段：
+ * idle 无会话 · metadata 等元数据（找分享者）· selecting 等用户选集 ·
+ * buffering 起播缓冲 · ready 缓冲够了，正在交给 mpv
+ */
+export type TorrentPhase = 'idle' | 'metadata' | 'selecting' | 'buffering' | 'ready'
+
+/** GET /api/torrent/status 的 data 载荷 */
+export interface TorrentStatus {
+  /** false 表示后端当前没有活动的磁力会话 */
+  active: boolean
+  phase: TorrentPhase
+  /** 种子名 */
+  name?: string
+  /** 已选中的文件名 */
+  fileName?: string
+  infohash?: string
+  peers: number
+  seeders: number
+  /** 字节/秒 */
+  downRate: number
+  upRate: number
+  /** 0–1，起播缓冲进度 */
+  buffered: number
+  /** 0–1，所选文件已完成比例 */
+  progress: number
+  cacheBytes: number
+  seeding: boolean
+  /**
+   * 会话已经发生、但不体现在 /api/torrent/play 返回值里的失败中文提示。
+   * 目前只有「播放开始之后的分片写盘失败」会走这里 —— 那时没有任何请求在等着
+   * 接这个错误，只有轮询看得见，否则用户只会看到进度不动了。
+   */
+  error?: string
+}
+
+/** POST /api/torrent/play 的 body */
+export interface TorrentPlayRequest {
+  magnet: string
+  title?: string
+  /**
+   * 合集里定位文件用的集号。**当前搜索页不传**：`SearchItem` 没有集号字段，
+   * 而后端在缺席时会用同一条解析链从 `title` 里派生，效果一样且少一处会漂移的重复。
+   * 留着这个字段是给将来「用户在界面上直接指定第几集」用的。
+   */
+  episodeHint?: number
+  /** 用户在选集弹窗里选定的文件序号（第二次请求才带） */
+  fileIndex?: number
+}
+
+/**
+ * POST /api/torrent/play 的 data 载荷（判别联合：以 needSelection 收窄）。
+ * needSelection=true 时后端保留着种子等用户选集 —— 用户放弃时必须 POST /api/torrent/stop 释放。
+ */
+export type TorrentPlayData =
+  | { needSelection: true; files: TorrentFile[] }
+  | { needSelection: false; title: string; danmaku: DanmakuStatus }
+
+/** 磁力配置与缓存占用（GET /api/settings 的 torrent 字段） */
+export interface TorrentSettings {
+  /**
+   * 磁力引擎是否可用；false 表示引擎启动失败（磁盘 / 端口问题），
+   * 此时所有 /api/torrent/* 返回 503。降级运行可以，但必须让用户看见。
+   */
+  enabled: boolean
+  /** 停止播放后是否继续上传；播放期间的分片交换是 BT 协议必需的，不受此开关影响 */
+  seeding: boolean
+  /** 用户自填的 tracker，默认空（本体不内置任何 tracker）；只补给公开种子 */
+  trackers: string[]
+  /** UPnP / NAT-PMP 自动端口映射 */
+  portForwarding: boolean
+  listenPort: number
+  cacheDir: string
+  cacheBytes: number
+}
+
+/** POST /api/torrent/config 的 data 载荷：配置全量 + 是否需要重启才生效 */
+export interface TorrentConfigData extends TorrentSettings {
+  /** 端口 / 映射类改动要重启 nagare 才生效 */
+  restartRequired: boolean
+}
+
+/** POST /api/torrent/config 的 body：字段均可选，缺席表示不改 */
+export interface TorrentConfigPatch {
+  seeding?: boolean
+  trackers?: string[]
+  portForwarding?: boolean
+  listenPort?: number
+}
+
+/**
+ * 发起磁力播放。**这是一个阻塞请求**：要等元数据 + 起播缓冲，10 秒到 2 分钟都正常，
+ * 期间由调用方轮询 /api/torrent/status 显示进展。signal 用于用户取消时掐断连接。
+ */
+export function startTorrentPlay(
+  request: TorrentPlayRequest,
+  signal?: AbortSignal,
+): Promise<TorrentPlayData> {
+  return requestJson<TorrentPlayData>('/api/torrent/play', 'POST', request, signal)
+}
+
+export function fetchTorrentStatus(): Promise<TorrentStatus> {
+  return apiFetch<TorrentStatus>('/api/torrent/status')
+}
+
+/** 停止当前磁力会话并释放种子（取消缓冲 / 停止播放 / 放弃选集都走这里） */
+export function stopTorrent(): Promise<void> {
+  return requestJson<Record<string, never>>('/api/torrent/stop', 'POST').then(() => undefined)
+}
+
+export function clearTorrentCache(): Promise<{ cacheBytes: number }> {
+  return requestJson<{ cacheBytes: number }>('/api/torrent/cache/clear', 'POST')
+}
+
+export function updateTorrentConfig(patch: TorrentConfigPatch): Promise<TorrentConfigData> {
+  return requestJson<TorrentConfigData>('/api/torrent/config', 'POST', patch)
 }

@@ -7,8 +7,11 @@ import {
   formatDateTime,
   formatDuration,
   formatEpisode,
+  formatRate,
   formatVersion,
+  normalizeVersion,
   progressPercent,
+  ratioPercent,
 } from './format'
 
 describe('formatDuration', () => {
@@ -84,6 +87,35 @@ describe('progressPercent', () => {
   })
 })
 
+describe('ratioPercent', () => {
+  it.each<[number, number]>([
+    [0, 0],
+    [0.005, 1], // 四舍五入
+    [0.42, 42],
+    [0.999, 100],
+    [1, 100],
+    [1.5, 100], // 超出封顶（后端算漂了也不该出现 150%）
+    [-0.2, 0], // 负数下限
+    [NaN, 0],
+    [Infinity, 0],
+  ])('%s → %s%%', (input, expected) => {
+    expect(ratioPercent(input)).toBe(expected)
+  })
+})
+
+describe('formatRate', () => {
+  it.each<[number, string]>([
+    [0, '0 B/s'],
+    [900, '900 B/s'],
+    [1024, '1 KB/s'],
+    [1572864, '1.5 MB/s'], // 1.5 * 1024^2
+    [-1, '0 B/s'],
+    [NaN, '0 B/s'],
+  ])('%s 字节/秒 → %s', (input, expected) => {
+    expect(formatRate(input)).toBe(expected)
+  })
+})
+
 describe('formatEpisode', () => {
   it.each<[number, string]>([
     [0, '00'],
@@ -133,6 +165,24 @@ describe('formatVersion', () => {
     ['v', '—'],
   ])('%j → %s', (input, expected) => {
     expect(formatVersion(input)).toBe(expected)
+  })
+})
+
+describe('normalizeVersion', () => {
+  // 一键更新拿它比对 /api/health 与 apply 返回的版本号，两边带不带 v 由不同代码路径决定
+  it.each<[string, string]>([
+    ['0.2.0', '0.2.0'],
+    ['v0.2.0', '0.2.0'],
+    ['V0.2.0', '0.2.0'],
+    ['  v1.0.0-rc.1 ', '1.0.0-rc.1'],
+    ['', ''],
+    ['v', ''],
+  ])('%j → %j', (input, expected) => {
+    expect(normalizeVersion(input)).toBe(expected)
+  })
+
+  it('归一后相等即视为同一版本（v 前缀 / 空白不构成差异）', () => {
+    expect(normalizeVersion('v0.2.0')).toBe(normalizeVersion(' 0.2.0 '))
   })
 })
 

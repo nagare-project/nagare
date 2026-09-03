@@ -1,0 +1,276 @@
+/* ============================================================
+   磁力边下边播 feature 样式（M3）：底部状态条 · 选集弹窗。
+   原子件（.panel / .hud-button / .result / .badge）见 styles/global.css；
+   设置页的磁力卡片复用 pages/settings.css 的 .settings-card / .field / .form-actions，
+   其专属样式在 components/settings/cards.css。
+   颜色一律走 lib/palette.ts 注入的 --hud-* 与 global.css 的语义色变量。
+   ============================================================ */
+
+/* ---------- 底部状态条 ---------- */
+
+.tsb-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.1rem;
+  padding: 0.7rem clamp(1rem, 4vw, 2rem) 0.8rem;
+  border-top: 1px solid var(--hud-border);
+  /* 与 now-playing.css 同一手法：底色要带透明度配合 backdrop-filter，
+     而 --color-surface 是不透明的，所以在这里把 trench 档（14% 0.04 / HUE.s07）写开 */
+  background: oklch(14% 0.04 195 / 0.9);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.tsb-bar--error {
+  border-top-color: var(--color-err-border);
+}
+
+/* 顶缘 2px 起播缓冲进度线（与正在播放条同一语言，播放开始后就撤掉） */
+.tsb-track {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--progress-track);
+  pointer-events: none;
+}
+
+.tsb-track-fill {
+  height: 100%;
+  background: var(--progress-fill);
+  transition: width var(--duration-fast) linear;
+}
+
+/* 缓冲中的呼吸点；播放中转为常亮，失败转红 */
+.tsb-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hud-accent-hot);
+  box-shadow: 0 0 8px var(--hud-accent-hot);
+  animation: tsb-pulse 1.4s ease-in-out infinite;
+}
+
+.tsb-bar--streaming .tsb-dot {
+  animation-duration: 2.6s;
+}
+
+.tsb-dot--error {
+  background: var(--color-err);
+  box-shadow: none;
+  animation: none;
+}
+
+@keyframes tsb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.tsb-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.tsb-phase {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.tsb-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+}
+
+/* 分享者 / 速度读数 */
+.tsb-readout {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 0.45em;
+  font-size: 0.72rem;
+  color: var(--hud-accent);
+}
+
+/* peers=0：整块转警示色，这是「换一条资源」的判断依据，不能弱化 */
+.tsb-readout--nopeers {
+  color: var(--color-warn);
+}
+
+.tsb-seeders {
+  color: var(--color-text-dim);
+}
+
+.tsb-sep {
+  opacity: 0.5;
+}
+
+.tsb-actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
+/* peers 长期为 0 的显式警告，占满一整行 */
+.tsb-alert {
+  flex-basis: 100%;
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .tsb-main {
+    flex-basis: 100%;
+    order: -1;
+  }
+}
+
+/* ---------- 选集弹窗 ---------- */
+
+.ep-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 5vh, 3rem) 1rem;
+  /* 遮罩要比页面底色更暗才压得住，取 trench 档再降一级明度与彩度 */
+  background: oklch(10% 0.02 195 / 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.ep-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(46rem, 100%);
+  max-height: 100%;
+  padding: 1.25rem 1.25rem 1.35rem;
+  overflow: hidden;
+}
+
+.ep-heading {
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.ep-desc {
+  font-size: 0.82rem;
+  color: var(--color-text-dim);
+}
+
+.ep-source {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
+}
+
+.ep-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+/* 一行 = 一个可点的文件：集号 · 文件名 · 体积 */
+.ep-item {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.9rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--hud-border-dim);
+  border-radius: 2px;
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out-expo),
+    background-color var(--duration-fast) var(--ease-out-expo);
+}
+
+.ep-item:hover {
+  border-color: var(--hud-border);
+  background: var(--hud-flash);
+}
+
+.ep-item:focus-visible {
+  outline: 2px solid var(--hud-accent-hot);
+  outline-offset: 2px;
+}
+
+.ep-ep {
+  font-size: 0.74rem;
+  color: var(--hud-accent);
+}
+
+.ep-name {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.ep-size {
+  font-size: 0.7rem;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.ep-actions {
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+
+.ep-hint {
+  font-size: 0.72rem;
+}
+
+@media (max-width: 560px) {
+  .ep-item {
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 0.2rem 0.7rem;
+  }
+
+  .ep-size {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tsb-dot {
+    animation: none;
+  }
+
+  .tsb-track-fill,
+  .ep-item {
+    transition: none;
+  }
+}

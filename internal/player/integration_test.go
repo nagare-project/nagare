@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,14 +38,21 @@ func TestPlayRealMPVEndToEnd(t *testing.T) {
 
 	st, err := store.Open(filepath.Join(dir, "state.json"))
 	require.NoError(t, err)
-	m := New(Options{Store: st, Client: nil, MPV: mpv.NewRuntimeWith(func(string) (mpv.Info, error) { return mpvInfo, nil }, ""), RuntimeDir: dir})
+	var sessionEnds atomic.Int32
+	m := New(Options{
+		Store:        st,
+		Client:       nil,
+		MPV:          mpv.NewRuntimeWith(func(string) (mpv.Info, error) { return mpvInfo, nil }, ""),
+		RuntimeDir:   dir,
+		OnSessionEnd: func() { sessionEnds.Add(1) },
+	})
 
 	items := library.BuildItems([]library.SourceFile{{
 		RelPath: filepath.Base(media), AbsPath: media, Size: 1, MTimeMs: 1,
 	}})
 	require.Len(t, items, 1)
 
-	res, err := m.Play(context.Background(), items[0], "")
+	res, err := m.Play(context.Background(), NewLocalSource(items[0]), "")
 	require.NoError(t, err)
 	// Play 先起 mpv 再后台解析弹幕，所以立刻返回的是 loading；
 	// 离线（Client=nil）时后台会很快收敛成 none。
@@ -73,4 +81,7 @@ func TestPlayRealMPVEndToEnd(t *testing.T) {
 	p, ok := st.Progress(items[0].FileID)
 	require.True(t, ok, "播完应写入进度")
 	assert.True(t, p.Completed, "eof 结束应标记看完")
+	// 会话终结回调必须恰好触发一次：磁力播放靠它停做种删分片，
+	// 漏调等于种子永远挂着，多调等于把下一个会话误杀。
+	assert.Equal(t, int32(1), sessionEnds.Load(), "OnSessionEnd 应在会话终结时恰好触发一次")
 }

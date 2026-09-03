@@ -6,9 +6,11 @@ import { SourcesCard } from '../components/search/SourcesCard'
 import { AboutCard } from '../components/settings/AboutCard'
 import { MpvCard } from '../components/settings/MpvCard'
 import { QuitCard, QuitNotice } from '../components/settings/QuitCard'
+import { TorrentCard } from '../components/settings/TorrentCard'
 import { UpdateCard } from '../components/settings/UpdateCard'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
+import { useSelfUpdateContext } from '../hooks/useSelfUpdate'
 import { useSettings } from '../hooks/useSettings'
 import { useSources } from '../hooks/useSources'
 import { useUpdateContext } from '../hooks/useUpdate'
@@ -21,7 +23,7 @@ import { label, mono } from '../tokens'
 import './settings.css'
 
 /**
- * `/settings`：animego 账号 · mpv · 更新 · 磁力源 · 库文件夹 · 关于 · 退出。
+ * `/settings`：animego 账号 · mpv · 磁力 · 更新 · 磁力源 · 库文件夹 · 关于 · 退出。
  * 设置 / 库 / 源三份数据独立加载，任一返回 401 都切到 token 提示页；
  * 更新状态来自根布局（与顶部提示条同一份）。退出成功后整页换成 QuitNotice。
  */
@@ -30,6 +32,7 @@ export function SettingsPage() {
   const library = useLibrary()
   const sources = useSources()
   const update = useUpdateContext()
+  const selfUpdate = useSelfUpdateContext()
   const [hasQuit, setHasQuit] = useState(false)
 
   if (hasQuit) {
@@ -80,10 +83,11 @@ export function SettingsPage() {
         <>
           <AccountCard animego={settings.state.data.animego} onReload={settings.reload} />
           <MpvCard mpv={settings.state.data.mpv} onReload={settings.reload} />
+          <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />
         </>
       )}
 
-      <UpdateCard update={update} />
+      <UpdateCard update={update} selfUpdate={selfUpdate} />
 
       <SourcesCard sources={sources} />
 

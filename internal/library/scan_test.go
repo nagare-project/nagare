@@ -1,6 +1,7 @@
 package library
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"os"
@@ -171,7 +172,7 @@ func TestHash16M(t *testing.T) {
 
 	// 16MB + 尾巴：尾巴不参与哈希。
 	big := filepath.Join(dir, "big.bin")
-	head := make([]byte, hash16MBytes)
+	head := make([]byte, Hash16MBytes)
 	for i := range head {
 		head[i] = byte(i % 251)
 	}
@@ -183,4 +184,34 @@ func TestHash16M(t *testing.T) {
 
 	_, err = Hash16M(filepath.Join(dir, "missing.bin"))
 	assert.Error(t, err)
+}
+
+// Hash16MFrom：与路径版共用同一份取样长度与算法 —— 磁力侧拿种子 reader
+// 调它，两条来源不能算出两个哈希。
+func TestHash16MFrom(t *testing.T) {
+	// 不足 16MB：对读到的全部内容求值。
+	small := []byte("nagare")
+	sum := md5.Sum(small)
+	got, err := Hash16MFrom(bytes.NewReader(small))
+	require.NoError(t, err)
+	assert.Equal(t, hex.EncodeToString(sum[:]), got)
+
+	// 超过 16MB：只取前 16MB，尾巴不参与。
+	head := make([]byte, Hash16MBytes)
+	for i := range head {
+		head[i] = byte(i % 251)
+	}
+	headSum := md5.Sum(head)
+	got, err = Hash16MFrom(bytes.NewReader(append(append([]byte{}, head...), []byte("tail-ignored")...)))
+	require.NoError(t, err)
+	assert.Equal(t, hex.EncodeToString(headSum[:]), got)
+
+	// 与路径版对同一份内容结果一致。
+	path := filepath.Join(t.TempDir(), "same.bin")
+	require.NoError(t, os.WriteFile(path, small, 0o644))
+	viaPath, err := Hash16M(path)
+	require.NoError(t, err)
+	viaReader, err := Hash16MFrom(bytes.NewReader(small))
+	require.NoError(t, err)
+	assert.Equal(t, viaPath, viaReader)
 }

@@ -1,6 +1,7 @@
 import type { SearchItem } from '../../lib/endpoints'
 import { mono } from '../../tokens'
 import { ResultRow } from './ResultRow'
+import type { PlayControl } from './ResultRow'
 import './search.css'
 
 /** 最多渲染多少行；再多就提示换更具体的关键词（检索工具不需要翻页） */
@@ -10,10 +11,11 @@ export interface ResultTableProps {
   items: SearchItem[]
   /** 规则 id → 展示名 */
   names: Record<string, string>
+  play: PlayControl
 }
 
 /** 结果表：紧凑密度、mono 数字；「做种」列只在有任一条带 seeders 时出现 */
-export function ResultTable({ items, names }: ResultTableProps) {
+export function ResultTable({ items, names, play }: ResultTableProps) {
   const showSeeders = items.some((item) => typeof item.seeders === 'number')
   const isTruncated = items.length > MAX_RENDERED_RESULTS
   const visible = isTruncated ? items.slice(0, MAX_RENDERED_RESULTS) : items
@@ -58,6 +60,7 @@ export function ResultTable({ items, names }: ResultTableProps) {
               item={item}
               sourceName={names[item.source] ?? item.source}
               showSeeders={showSeeders}
+              play={play}
             />
           ))}
         </tbody>

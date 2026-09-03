@@ -62,6 +62,23 @@ export function progressPercent(positionSec: number, durationSec: number): numbe
 }
 
 /**
+ * 0–1 的比例 → 0–100 的整数百分比。
+ * 磁力的 buffered / progress 是比例而不是秒数，复用 progressPercent 的
+ * 钳位与除零处理，避免第二套边界逻辑。
+ */
+export function ratioPercent(ratio: number): number {
+  return progressPercent(ratio, 1)
+}
+
+/**
+ * 字节/秒 → 人类可读速率（`1.5 MB/s`）。
+ * 非法输入按 `0 B/s` 处理（与 formatBytes 一致，后端异常值不该炸出 `NaN/s`）。
+ */
+export function formatRate(bytesPerSecond: number): string {
+  return `${formatBytes(bytesPerSecond)}/s`
+}
+
+/**
  * 集号展示：整数补零到两位（`3` → `03`，`100` → `100`），
  * 半集这类小数原样保留（`3.5` → `3.5`）。
  */
@@ -105,11 +122,21 @@ export function formatDateTime(epoch: number): string {
 }
 
 /**
+ * 版本号归一：去首尾空白、去掉大小写的 `v` 前缀（` V0.2.0 ` → `0.2.0`）。
+ * 展示与比较共用同一套归一规则 —— 一键更新要拿 /api/health 的版本号和
+ * /api/update/apply 返回的版本号比对，两边是否带 v 由不同代码路径决定，
+ * 各写一份归一迟早会漂成「明明起来了却一直等」。
+ */
+export function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '')
+}
+
+/**
  * 版本号展示：统一带一个小写 `v` 前缀（`0.2.0` / `v0.2.0` / `V0.2.0` → `v0.2.0`）。
  * GitHub tag 与二进制内嵌的版本串是否带 v 不一致，界面只认这一种写法。
  * 空串（尚未检查过）显示为 `—`。
  */
 export function formatVersion(version: string): string {
-  const bare = version.trim().replace(/^v/i, '')
+  const bare = normalizeVersion(version)
   return bare === '' ? '—' : `v${bare}`
 }

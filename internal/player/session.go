@@ -29,6 +29,9 @@ const markWatchedTimeout = 10 * time.Second
 
 type session struct {
 	// 不可变字段（创建后只读，无需加锁）：
+	// src 是媒体来源（本地文件或磁力流），后台弹幕解析要用它算 16MB 哈希；
+	// item 是 src.Item() 的快照 —— 会话内所有下游只认这一份。
+	src      MediaSource
 	item     library.Item
 	player   *mpv.Player
 	finished chan struct{} // watcher 完成最终回写后关闭
@@ -147,6 +150,12 @@ func (m *Manager) watch(sess *session) {
 				m.current = nil
 			}
 			m.mu.Unlock()
+			// 放在函数体里而不是 defer 里：sess.finished 由顶部的 defer 关闭，
+			// 而 Stop 等的正是那个信号 —— 回调必须先跑完，换会话时新旧才不会重叠
+			// （磁力场景下重叠意味着新种子刚建好就被旧会话的收尾停掉）。
+			if m.opts.OnSessionEnd != nil {
+				m.opts.OnSessionEnd()
+			}
 			return
 		}
 	}

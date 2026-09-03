@@ -222,8 +222,10 @@ func TestStartChecksWhenEnabledAndRespectsCache(t *testing.T) {
 	t.Cleanup(cancel)
 
 	c.Start(ctx)
-	require.Eventually(t, func() bool { return s.hits.Load() == 1 }, time.Second, 5*time.Millisecond)
-	assert.Equal(t, "0.2.0", c.View().Latest)
+	// 等的是【结果落到视图上】而不是「stub 收到请求了」：收到请求与把结果记下来
+	// 之间有一个窗口，机器一忙（-race 跑全量）就会撞进去，看起来像功能坏了。
+	require.Eventually(t, func() bool { return c.View().Latest == "0.2.0" }, 5*time.Second, 5*time.Millisecond)
+	assert.Equal(t, int32(1), s.hits.Load())
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, int32(1), s.hits.Load(), "后续周期命中 24 小时缓存，不再联网")
 	cancel()

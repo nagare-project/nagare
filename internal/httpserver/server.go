@@ -19,6 +19,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -52,6 +53,10 @@ type Server struct {
 	// httpSrv 在 New 里就建好（不是等到 Serve）：Shutdown 可能先于 Serve 的
 	// goroutine 被调度到 —— 那时若还是 nil，关闭就成了空操作，进程会一直挂着。
 	httpSrv *http.Server
+
+	// stream 是流端点的实际处理器，启动后才注册（见 SetStreamHandler）。
+	streamMu sync.RWMutex
+	stream   http.Handler
 }
 
 // New 组装完整的中间件链与路由。Token 为空是编程错误，直接 panic。

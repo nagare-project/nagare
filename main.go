@@ -21,6 +21,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -33,7 +35,9 @@ import (
 	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/rulesync"
+	"github.com/nagare-project/nagare/internal/selfupdate"
 	"github.com/nagare-project/nagare/internal/store"
+	"github.com/nagare-project/nagare/internal/torrentstream"
 	"github.com/nagare-project/nagare/internal/tray"
 	"github.com/nagare-project/nagare/internal/update"
 )
@@ -54,7 +58,12 @@ const shutdownGrace = 3 * time.Second
 type flags struct {
 	noBrowser bool // 启动时不自动开浏览器
 	noTray    bool // headless：brew services / Linux 服务，不占主线程放托盘
+	update    bool // 装上最新版本后退出（无界面场景：systemd / brew services / 纯终端）
 }
+
+// cliUpdateTimeout 是 -update 的总时限。Windows 包内置 mpv 有 120MB，
+// 慢网络下几分钟很正常，给足余量；它只是防挂死的兜底。
+const cliUpdateTimeout = 15 * time.Minute
 
 // services 是主进程持有的全部业务对象。
 type services struct {
@@ -64,6 +73,37 @@ type services struct {
 	player  *player.Manager
 	lib     *api.LibraryService
 	sources *api.SourcesService
+	// torrent 为 nil 表示磁力引擎启动失败：其余功能照常，磁力端点整体返回 503，
+	// 设置页据此显示降级原因（决议 CQ3：降级必须可见）。
+	torrent         *torrentstream.Engine
+	torrentCacheDir string
+	// streamBase 是流地址前缀的延迟绑定，见 streamBaseHolder。
+	streamBase *streamBaseHolder
+	// selfUpdate 为 nil 表示这个构建不带自更新（没配更新公钥，或构造失败）。
+	selfUpdate *selfupdate.Updater
+	// restartWanted 由 /api/update/apply 在装好新版本后置位：退出收尾跑完之后
+	// 用新二进制替换本进程。不在 HTTP 处理器里直接 exec —— 那会跳过停播放与进度回写。
+	restartWanted atomic.Bool
+}
+
+// streamBaseHolder 解决一个时序问题：磁力引擎必须在组装阶段就建好（它要清空缓存
+// 目录、起 BT client），而流地址前缀依赖那时还不存在的监听端口与能力段。
+// 引擎拿到的是一个取值函数，服务起来之后再把真值填进来。
+type streamBaseHolder struct {
+	mu   sync.RWMutex
+	base string
+}
+
+func (h *streamBaseHolder) get() string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.base
+}
+
+func (h *streamBaseHolder) set(v string) {
+	h.mu.Lock()
+	h.base = v
+	h.mu.Unlock()
 }
 
 // main 只负责解析开关与决定退出码；真正的启动逻辑在 start 里，
@@ -72,6 +112,7 @@ func main() {
 	var f flags
 	flag.BoolVar(&f.noBrowser, "no-browser", false, "启动时不自动打开浏览器")
 	flag.BoolVar(&f.noTray, "no-tray", false, "不显示菜单栏/托盘图标（headless：brew services、Linux 服务）")
+	flag.BoolVar(&f.update, "update", false, "下载并安装最新版本后退出（无界面场景用；不自动重启）")
 	showVersion := flag.Bool("version", false, "打印版本号并退出")
 	flag.Parse()
 	if *showVersion {
@@ -104,6 +145,11 @@ func start(f flags) error {
 	}
 	log.Printf("nagare %s 启动（%s/%s）", version, runtime.GOOS, runtime.GOARCH)
 
+	// -update 是一次性动作，走完就退出：不起服务、不碰媒体库、不动播放状态。
+	if f.update {
+		return runCLIUpdate(configDir)
+	}
+
 	webFS, apiOnly := httpserver.SubWebFS(embeddedWeb)
 	if apiOnly {
 		log.Print("未找到内嵌 web 产物，进入 API-only 模式（先 cd frontend && bun run build 再重新编译）")
@@ -121,6 +167,45 @@ func start(f flags) error {
 		return err
 	}
 	return run(cfg, configDir, svc, webFS, f, apiOnly)
+}
+
+// runCLIUpdate 是无界面场景的一次性更新：查最新版本 → 装上 → 退出。
+//
+// 刻意【不】自动重启：这条路径的调用方是 systemd / brew services 之类的服务管理器，
+// 它们自己记着进程账，我们擅自 exec 只会让它对不上账。装好就退出，由它决定何时重启。
+func runCLIUpdate(configDir string) error {
+	su, err := selfupdate.New(selfupdate.Options{
+		CurrentVersion: version,
+		PublicKey:      updatePublicKey,
+	})
+	if err != nil {
+		return fmt.Errorf("自更新不可用：%w", err)
+	}
+	if c := su.Capability(); !c.Supported {
+		return errors.New(c.Reason)
+	}
+	checker, err := update.New(update.Options{CurrentVersion: version, CacheDir: configDir})
+	if err != nil {
+		return fmt.Errorf("构造更新检查失败：%w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), cliUpdateTimeout)
+	defer cancel()
+	v := checker.Check(ctx, true)
+	if v.Error != "" {
+		return errors.New(v.Error)
+	}
+	if !v.Available {
+		fmt.Printf("已经是最新版本（%s）\n", version)
+		return nil
+	}
+
+	fmt.Printf("正在更新 %s → %s …\n", version, v.Latest)
+	if err := su.Apply(ctx, v.Latest); err != nil {
+		return err
+	}
+	fmt.Printf("已更新到 %s。重新启动 nagare 即可生效。\n", v.Latest)
+	return nil
 }
 
 // 这三个变量是单实例判定的注入点：测试替换它们即可覆盖四种分支组合，
@@ -219,13 +304,41 @@ func buildServices(configDir string) (*services, error) {
 
 	client, persistSession := newAnimegoClient(st)
 
+	// 磁力引擎：起不来不阻断启动（本地库与播放照常），磁力端点整体降级。
+	streamBase := &streamBaseHolder{}
+	cacheDir := filepath.Join(configDir, "cache", "torrent")
+	engine, err := newTorrentEngine(st, cacheDir, streamBase)
+	if err != nil {
+		log.Printf("磁力播放不可用（不影响本地文件播放）：%v", err)
+	}
+
 	mgr := player.New(player.Options{
 		Store:          st,
 		Client:         client,
 		MPV:            mpvRT,
 		RuntimeDir:     runtimeDir,
 		PersistSession: persistSession,
+		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
+		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
+		OnSessionEnd: func() {
+			if engine != nil {
+				engine.Stop()
+			}
+		},
 	})
+
+	// 自更新：公钥为空（未配置签名密钥）时 New 仍然成功，只是 Capability 报不支持
+	// —— 失败关闭，界面如实说明而不是按钮点了没反应。构造失败同样不阻断启动。
+	su, err := selfupdate.New(selfupdate.Options{
+		CurrentVersion: version,
+		PublicKey:      updatePublicKey,
+	})
+	if err != nil {
+		log.Printf("自更新不可用（不影响其余功能）：%v", err)
+		su = nil
+	} else {
+		su.SweepOldFiles() // 清掉上次更新留下的 .old 残留
+	}
 
 	lib := api.NewLibraryService(st)
 	if stats := lib.Rescan(); stats.Videos > 0 {
@@ -245,7 +358,26 @@ func buildServices(configDir string) (*services, error) {
 		}
 	}
 
-	return &services{store: st, mpv: mpvRT, auth: client, player: mgr, lib: lib, sources: sources}, nil
+	return &services{
+		store: st, mpv: mpvRT, auth: client, player: mgr, lib: lib, sources: sources,
+		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
+		selfUpdate: su,
+	}, nil
+}
+
+// newTorrentEngine 按持久化配置起磁力引擎。
+func newTorrentEngine(st *store.Store, cacheDir string, base *streamBaseHolder) (*torrentstream.Engine, error) {
+	c := st.TorrentConfig()
+	return torrentstream.New(torrentstream.Options{
+		CacheDir:   cacheDir,
+		StreamBase: base.get,
+		Config: torrentstream.Config{
+			Seeding:        c.Seeding,
+			Trackers:       c.Trackers,
+			PortForwarding: c.PortForwarding,
+			ListenPort:     c.ListenPort,
+		},
+	})
 }
 
 // run 起 HTTP 服务、放托盘、等退出。
@@ -264,6 +396,13 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	}
 	defer httpserver.ClearInstance(configDir)
 
+	// 流端点接上磁力引擎，并把地址前缀回填给它（能力段与端口到这一步才确定）。
+	// 能力段等同凭证：只交给引擎用于拼给 mpv 的地址，不进日志。
+	if svc.torrent != nil {
+		svc.streamBase.set(fmt.Sprintf("http://127.0.0.1:%d/stream/%s", port, srv.StreamCapability()))
+		srv.SetStreamHandler(svc.torrent.Handler())
+	}
+
 	// 后台检查随 ctx 退出；关闭时不需要额外等待（只有一个 HTTP GET）。
 	if updater != nil {
 		updater.Start(ctx)
@@ -275,7 +414,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		serveErr <- srv.Serve(ln)
 		cancel() // 服务意外退出时也要让托盘 / 主循环收工
 	}()
-	stopped := teardownOnCancel(ctx, srv, svc.player)
+	stopped := teardownOnCancel(ctx, srv, svc.player, svc.torrent)
 
 	// 带 token 的首启 URL 只交给浏览器与托盘；日志（会落盘）里只打端口，token 到配置文件里取。
 	url := launchURL(port, cfg.Token)
@@ -304,6 +443,14 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("HTTP 服务异常退出：%w", err)
 	}
+	// 自更新装好之后才走到这里：收尾已经跑完（播放停了、进度写了、磁力引擎关了），
+	// 现在才能安全地把自己换成新版本。Restart 正常情况下不返回。
+	if svc.restartWanted.Load() && svc.selfUpdate != nil {
+		log.Print("以新版本重启…")
+		if err := svc.selfUpdate.Restart(); err != nil {
+			return fmt.Errorf("以新版本重启失败（新版本已经装好，手动重新打开 nagare 即可）：%w", err)
+		}
+	}
 	log.Print("已退出")
 	return nil
 }
@@ -313,20 +460,45 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 // 更新检查构造失败不阻断启动 —— 播放是主线功能，少一个「有新版本」提示
 // 不该让用户打不开 nagare；此时返回的 updater 为 nil，端点自然缺席。
 func buildHandlers(configDir string, svc *services, cancel context.CancelFunc) (*api.Handler, *update.Checker) {
-	h := api.New(api.Deps{
-		Store:          svc.store,
-		Lib:            svc.lib,
-		Player:         svc.player,
-		Auth:           svc.auth,
-		AnimegoBaseURL: animego.DefaultBaseURL,
-		MPV:            svc.mpv,
-		Version:        version,
-		Sources:        svc.sources,
-		Shutdown:       cancel,
-		DataDir:        configDir,
-		LogPath:        logfile.Path(configDir),
+	deps := api.Deps{
+		Store:           svc.store,
+		Lib:             svc.lib,
+		Player:          svc.player,
+		Auth:            svc.auth,
+		AnimegoBaseURL:  animego.DefaultBaseURL,
+		MPV:             svc.mpv,
+		Version:         version,
+		Sources:         svc.sources,
+		Shutdown:        cancel,
+		DataDir:         configDir,
+		LogPath:         logfile.Path(configDir),
+		TorrentCacheDir: svc.torrentCacheDir,
+	}
+	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
+	// 「非 nil 接口包着 nil 指针」，降级判断会失效并在调用时 panic。
+	if svc.torrent != nil {
+		deps.Torrent = svc.torrent
+	}
+	h := api.New(deps)
+	updater, err := update.New(update.Options{
+		CurrentVersion: version,
+		CacheDir:       configDir,
+		SelfUpdate:     svc.selfUpdate,
+		// 装好新版本后不直接 exec：置位并触发根 cancel，让退出收尾（停播放、
+		// 回写进度、关 HTTP、停磁力引擎）照常跑完，收尾之后 run 再 exec 新二进制。
+		OnRestart: func() {
+			svc.restartWanted.Store(true)
+			cancel()
+		},
+		// 更新前把占着文件的东西停掉：mpv 进程（Windows 上会锁住内置的 mpv\），
+		// 以及磁力会话（它在缓存目录里持续写盘）。
+		BeforeApply: func() {
+			svc.player.Stop()
+			if svc.torrent != nil {
+				svc.torrent.Stop()
+			}
+		},
 	})
-	updater, err := update.New(update.Options{CurrentVersion: version, CacheDir: configDir})
 	if err != nil {
 		log.Printf("更新检查不可用（不影响其余功能）：%v", err)
 		return h, nil
@@ -384,8 +556,14 @@ func listenAndBuild(
 //
 // 先关 HTTP 再停播放：Shutdown 会等在途请求（含 /api/shutdown 自己的响应）收尾，
 // 之后不再有新的 /api/play 能插进来 —— 否则它会趁 Stop 之后另起一个 mpv，
-// 而收尾只跑一次，那个进程就没人管了。
-func teardownOnCancel(ctx context.Context, srv *httpserver.Server, p *player.Manager) <-chan struct{} {
+// 而收尾只跑一次，那个进程就没人管了。磁力引擎放最后关，理由同上：
+// 停播放会触发会话终结回调，那里还要用到引擎。
+func teardownOnCancel(
+	ctx context.Context,
+	srv *httpserver.Server,
+	p *player.Manager,
+	engine *torrentstream.Engine,
+) <-chan struct{} {
 	stopped := make(chan struct{})
 	go func() {
 		defer close(stopped)
@@ -397,6 +575,13 @@ func teardownOnCancel(ctx context.Context, srv *httpserver.Server, p *player.Man
 			log.Printf("关闭 HTTP 服务：%v", err)
 		}
 		p.Stop()
+		// 播放停完再关引擎：Stop 会触发会话终结回调，那里还要碰引擎。
+		// 关闭时停做种并清空缓存目录（决议 M3-2 / M3-4：退出即停、退出即清）。
+		if engine != nil {
+			if err := engine.Close(); err != nil {
+				log.Printf("关闭磁力引擎：%v", err)
+			}
+		}
 	}()
 	return stopped
 }

@@ -25,6 +25,7 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 		"dataDir":  h.deps.DataDir,
 		"logPath":  h.deps.LogPath,
 		"mpv":      mpvView(h.deps.MPV),
+		"torrent":  torrentView(h.deps.Store.TorrentConfig(), h.deps.Torrent, h.deps.TorrentCacheDir),
 		"animego": map[string]any{
 			"loggedIn": h.deps.Auth.LoggedIn(),
 			"email":    h.deps.Store.AnimegoSession().Email,

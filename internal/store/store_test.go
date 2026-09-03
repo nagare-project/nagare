@@ -96,3 +96,49 @@ func TestSnapshotIsCopy(t *testing.T) {
 	snap.Hashes["id1"] = "bbbb"
 	assert.Equal(t, "aaaa", s.Hash("id1"))
 }
+
+// 从未配置过磁力时读到的是默认值：端口映射【开】、默认端口非零。
+// 这条是指针存储的意义所在 —— 用零值结构体表示「缺席」会让老状态文件
+// 加载后把 PortForwarding 静默变成关。
+func TestTorrentConfigDefaultsWhenNeverSet(t *testing.T) {
+	s, _ := newStore(t)
+	c := s.TorrentConfig()
+	assert.True(t, c.PortForwarding, "未配置时端口映射应为默认开")
+	assert.False(t, c.Seeding, "持续做种默认关")
+	assert.Equal(t, defaultListenPort, c.ListenPort)
+	assert.Empty(t, c.Trackers, "本体不内置任何 tracker")
+}
+
+// 显式关掉的 PortForwarding 必须在重新加载后保持关 —— 不能被默认值覆盖回去。
+func TestTorrentConfigExplicitFalseSurvivesReload(t *testing.T) {
+	s, path := newStore(t)
+	got, err := s.UpdateTorrentConfig(func(c *TorrentConfig) {
+		c.PortForwarding = false
+		c.Seeding = true
+		c.ListenPort = 51413
+		c.Trackers = []string{"udp://tracker.example:6969"}
+	})
+	require.NoError(t, err)
+	assert.False(t, got.PortForwarding)
+
+	reopened, err := Open(path)
+	require.NoError(t, err)
+	c := reopened.TorrentConfig()
+	assert.False(t, c.PortForwarding, "显式关掉的开关不能被默认值覆盖")
+	assert.True(t, c.Seeding)
+	assert.Equal(t, 51413, c.ListenPort)
+	assert.Equal(t, []string{"udp://tracker.example:6969"}, c.Trackers)
+}
+
+// 读出来的 Trackers 是副本：调用方改它不能影响 store 里的状态。
+func TestTorrentConfigTrackersAreCopied(t *testing.T) {
+	s, _ := newStore(t)
+	_, err := s.UpdateTorrentConfig(func(c *TorrentConfig) {
+		c.Trackers = []string{"udp://a:1", "udp://b:2"}
+	})
+	require.NoError(t, err)
+
+	got := s.TorrentConfig()
+	got.Trackers[0] = "udp://tampered:9"
+	assert.Equal(t, "udp://a:1", s.TorrentConfig().Trackers[0], "返回的切片必须是副本")
+}

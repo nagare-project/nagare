@@ -3,6 +3,7 @@
 // apiFetch 会读 sessionStorage 里的 token，所以需要 jsdom。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  applyUpdate,
   checkUpdate,
   fetchSources,
   fetchUpdate,
@@ -157,6 +158,12 @@ describe('M4 运行时端点', () => {
       method: 'POST',
       body: { enabled: false },
     })
+  })
+
+  it('applyUpdate → POST /api/update/apply，无 body，返回新版本号', async () => {
+    const { calls } = stubFetch({ version: '0.2.0' })
+    await expect(applyUpdate()).resolves.toEqual({ version: '0.2.0' })
+    expect(calls[0]).toEqual({ url: '/api/update/apply', method: 'POST', body: undefined })
   })
 
   it('shutdownNagare → POST /api/shutdown，空 data 也算成功', async () => {

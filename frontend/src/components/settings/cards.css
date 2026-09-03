@@ -1,7 +1,7 @@
 /* ============================================================
    设置页 M4 新增卡片样式：mpv 安装指引 · 更新 · 退出 · 关于。
    .settings-card / .kv-list / .form-actions 来自 pages/settings.css（这些卡只在设置页渲染）；
-   .mpv-alert 来自 components/library/library.css（库页与设置页共用同一条提示样式）；
+   .mpv-alert / .alert-warn 来自 styles/global.css（三个页面共用同一条警示样式）；
    .switch 与其它原子件见 styles/global.css。
    ============================================================ */
 
@@ -102,6 +102,80 @@
   font-size: 0.78rem;
 }
 
+/* ---------- 一键更新（M4 阶段 B） ---------- */
+
+.self-update {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.8rem 0.9rem 0.9rem;
+  border: 1px solid var(--hud-border-dim);
+  border-radius: 2px;
+  background: var(--color-surface-sunken);
+}
+
+/* 不支持自更新时的原因框，用与 mpv 缺失同一条警示样式（.alert-warn 来自 global.css） */
+.self-update-unsupported {
+  overflow-wrap: anywhere;
+}
+
+.self-update-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.self-update-link {
+  font-size: 0.78rem;
+}
+
+.self-update-note {
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--color-text-dim);
+}
+
+/* 要被替换的路径可能很长，允许自己滚，别把卡片撑破 */
+.self-update-target {
+  color: var(--hud-accent);
+  overflow-wrap: anywhere;
+}
+
+.self-update-status {
+  overflow-wrap: anywhere;
+}
+
+/* 「已装好但没等到重启」：终态且要用户动手，用警示框而不是普通结果行 */
+.self-update-settled {
+  overflow-wrap: anywhere;
+}
+
+/* 呼吸点：下载可能几分钟没有任何数字变化，用它 + 走秒表明进程还活着 */
+.self-update-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hud-accent-hot);
+  box-shadow: 0 0 8px var(--hud-accent-hot);
+  animation: self-update-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes self-update-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .self-update-dot {
+    animation: none;
+  }
+}
+
 /* ---------- 退出 ---------- */
 
 .quit-confirm {
@@ -128,4 +202,88 @@
   border-color: var(--color-err);
   background-color: transparent;
   color: var(--color-err);
+}
+
+/* ---------- 磁力（M3） ---------- */
+
+.torrent-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* 开关 + 标题 + 一段说明；说明与标题左对齐，开关单独占一列 */
+.torrent-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.torrent-toggle .switch {
+  margin-top: 0.2rem;
+}
+
+.torrent-toggle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.torrent-toggle-text {
+  font-size: 0.84rem;
+}
+
+.torrent-toggle-note {
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--color-text-dim);
+}
+
+.torrent-toggle-note b {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.torrent-note {
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: var(--color-text-dim);
+}
+
+/* 端口是个短数字，不需要撑满整行 */
+.torrent-port {
+  max-width: 9rem;
+}
+
+.torrent-trackers {
+  resize: vertical;
+  min-height: 4.5rem;
+  line-height: 1.6;
+}
+
+.torrent-dirty {
+  font-size: 0.74rem;
+}
+
+/* 重启才生效：比普通结果行更显眼，用警示框 */
+.torrent-restart {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-warn-border);
+  border-left: 3px solid var(--color-warn);
+  border-radius: 2px;
+  background: var(--color-warn-wash);
+  color: var(--color-warn);
+  font-size: 0.78rem;
+}
+
+.torrent-restart b {
+  font-weight: 500;
+}
+
+.torrent-cache-note {
+  font-size: 0.72rem;
+  line-height: 1.5;
 }

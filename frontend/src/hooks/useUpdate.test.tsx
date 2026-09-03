@@ -22,6 +22,7 @@ const IDLE: UpdateView = {
   url: '',
   checkedAt: null,
   error: '',
+  selfUpdate: { supported: true, channel: 'app-bundle', target: '/Applications/Nagare.app' },
 }
 
 const NEWER: UpdateView = {

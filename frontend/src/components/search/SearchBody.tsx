@@ -3,6 +3,7 @@ import type { SearchResult, SourceOutcome, SourcesData } from '../../lib/endpoin
 import type { SearchState } from '../../hooks/useMagnetSearch'
 import type { SourcesState } from '../../hooks/useSources'
 import { mono } from '../../tokens'
+import type { PlayControl } from './ResultRow'
 import { ResultTable } from './ResultTable'
 import { SourceStatusBar } from './SourceStatusBar'
 import './search.css'
@@ -18,6 +19,8 @@ export interface SearchBodyProps {
   onToggleSource: (id: string, enabled: boolean) => void
   /** 切换源在途 */
   toggling: boolean
+  /** 磁力播放的占用情况，透传给每一行的播放按钮 */
+  play: PlayControl
 }
 
 /**
@@ -73,7 +76,7 @@ export function SearchBody(props: SearchBodyProps) {
       {result.items.length === 0 ? (
         <EmptyResultsNotice query={result.query} outcomes={result.sources} />
       ) : (
-        <ResultTable items={result.items} names={props.names} />
+        <ResultTable items={result.items} names={props.names} play={props.play} />
       )}
     </div>
   )
@@ -145,7 +148,8 @@ function IdleNotice({ data }: { data: SourcesData }) {
         输入关键词开始搜索
       </h2>
       <p className="page-notice-copy">
-        已加载 {total} 个源，{enabled} 个启用。结果里的磁力链接可直接复制；边下边播在下一里程碑上线。
+        已加载 {total} 个源，{enabled} 个启用。结果可以直接「播放」（边下边播，交给 mpv），
+        也可以复制磁力链接到别的下载器。
       </p>
     </section>
   )

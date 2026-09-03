@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -37,7 +38,9 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Player, error) {
 	if opts.MPVPath == "" {
 		return nil, fmt.Errorf("缺少 mpv 路径：请先调用 Detect 探测 mpv 安装")
 	}
-	if opts.MediaPath != "" {
+	// 存在性预检只对本地路径有意义：磁力边下边播传进来的是本机流端点
+	// （http://127.0.0.1:<port>/stream/...），对它 os.Stat 必然失败。
+	if opts.MediaPath != "" && !isRemoteURL(opts.MediaPath) {
 		if _, err := os.Stat(opts.MediaPath); err != nil {
 			return nil, fmt.Errorf("找不到要播放的文件 %q：%w。请确认文件仍在原位置", opts.MediaPath, err)
 		}
@@ -77,6 +80,14 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Player, error) {
 		return nil, err // newPlayer 失败时已自行 Close 清理
 	}
 	return p, nil
+}
+
+// isRemoteURL 判断媒体路径是不是 HTTP(S) 地址。只认这两个 scheme：
+// 其余（file://、裸路径）都当本地路径走存在性预检，宁可多检查也不放过
+// 「文件被移走」这个最常见的失效方式。
+func isRemoteURL(p string) bool {
+	lower := strings.ToLower(p)
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
 }
 
 // buildArgs 组装 mpv 启动参数。

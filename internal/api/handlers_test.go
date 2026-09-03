@@ -31,13 +31,22 @@ type fakePlayer struct {
 	lastSub  string
 	stopped  bool
 	status   player.Status
+	// log 记调用顺序（可为 nil）。磁力播放里「先停播放器再准备种子」的顺序
+	// 是正确性的一部分，只能靠调用序来断言。
+	log func(string)
 }
 
-func (f *fakePlayer) Play(_ context.Context, item library.Item, sub string) (player.PlayResult, error) {
-	f.lastItem, f.lastSub = item, sub
+func (f *fakePlayer) Play(_ context.Context, src player.MediaSource, sub string) (player.PlayResult, error) {
+	f.record("player.play")
+	f.lastItem, f.lastSub = src.Item(), sub
 	return f.playRes, f.playErr
 }
-func (f *fakePlayer) Stop()                 { f.stopped = true }
+func (f *fakePlayer) record(op string) {
+	if f.log != nil {
+		f.log(op)
+	}
+}
+func (f *fakePlayer) Stop()                 { f.record("player.stop"); f.stopped = true }
 func (f *fakePlayer) SetPause(bool) error   { return nil }
 func (f *fakePlayer) Seek(float64) error    { return nil }
 func (f *fakePlayer) Status() player.Status { return f.status }
@@ -72,6 +81,9 @@ type testEnv struct {
 	player  *fakePlayer
 	auth    *fakeAuth
 	sources *SourcesService
+	torrent *fakeTorrent
+	// calls 是跨替身的调用顺序记录。
+	calls *[]string
 	// mpvDetect 是注入给 mpv.Runtime 的探测函数，测试改它再打 /api/mpv/detect 翻转状态。
 	mpvDetect func(string) (mpv.Info, error)
 	// shutdown 在 Deps.Shutdown 被调用时收到一个信号。
@@ -79,6 +91,17 @@ type testEnv struct {
 }
 
 func newEnv(t *testing.T) *testEnv {
+	t.Helper()
+	return newEnvWith(t, true)
+}
+
+// newEnvNoTorrent 造一个磁力引擎缺席的环境（引擎启动失败时的降级形态）。
+func newEnvNoTorrent(t *testing.T) *testEnv {
+	t.Helper()
+	return newEnvWith(t, false)
+}
+
+func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "state.json"))
 	require.NoError(t, err)
@@ -93,19 +116,29 @@ func newEnv(t *testing.T) *testEnv {
 		return mpv.Info{Path: "/usr/bin/mpv", Version: "0.41.0", Source: mpv.SourcePath}, nil
 	}
 	env.sources = NewSourcesService(st, &rules.Fetcher{}, &rulesync.Syncer{}, filepath.Join(t.TempDir(), "rules"))
-	h := New(Deps{
-		Store:          st,
-		Lib:            env.lib,
-		Player:         env.player,
-		Auth:           env.auth,
-		AnimegoBaseURL: "https://example.test",
-		MPV:            mpv.NewRuntimeWith(func(e string) (mpv.Info, error) { return env.mpvDetect(e) }, ""),
-		Version:        "test",
-		Sources:        env.sources,
-		Shutdown:       func() { env.shutdown <- struct{}{} },
-		DataDir:        "/data/nagare",
-		LogPath:        "/data/nagare/logs/nagare.log",
-	})
+	calls := []string{}
+	env.calls = &calls
+	record := func(op string) { calls = append(calls, op) }
+	env.player.log = record
+	deps := Deps{
+		Store:           st,
+		Lib:             env.lib,
+		Player:          env.player,
+		Auth:            env.auth,
+		AnimegoBaseURL:  "https://example.test",
+		MPV:             mpv.NewRuntimeWith(func(e string) (mpv.Info, error) { return env.mpvDetect(e) }, ""),
+		Version:         "test",
+		Sources:         env.sources,
+		Shutdown:        func() { env.shutdown <- struct{}{} },
+		DataDir:         "/data/nagare",
+		LogPath:         "/data/nagare/logs/nagare.log",
+		TorrentCacheDir: "/data/nagare/cache/torrent",
+	}
+	if withTorrent {
+		env.torrent = &fakeTorrent{log: record}
+		deps.Torrent = env.torrent
+	}
+	h := New(deps)
 	env.mux = http.NewServeMux()
 	h.Register(env.mux)
 	return env

@@ -20,6 +20,12 @@
   align-self: center;
 }
 
+/* 底部固定的磁力状态条会盖住页尾，播放流程进行中时给它让出高度
+   （与库页 .lib-shell--with-bar 同一手法；状态条本体样式在 components/torrent/torrent.css） */
+.search-shell--with-bar {
+  padding-bottom: 8.5rem;
+}
+
 /* ---------- 搜索框 ---------- */
 
 .search-form {
@@ -290,6 +296,17 @@ td.res-actions .hud-button + .res-play-wrap {
 
 .res-play-wrap {
   display: inline-block;
+}
+
+.res-play {
+  min-width: 4.6em;
+}
+
+/* 正在边下边播的那一行：按钮虽禁用，仍要一眼看出是它 */
+.res-play--active {
+  border-color: var(--hud-accent-hot);
+  color: var(--hud-accent-hot);
+  opacity: 1;
 }
 
 .res-truncated {
