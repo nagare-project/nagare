@@ -151,6 +151,50 @@ describe('扫描记录 / 自动下载', () => {
   })
 })
 
+describe('作品卡的信息分层', () => {
+  it('重要信息常驻可见，只有简介收进 hover 浮层', async () => {
+    // 这条守的是一条无障碍规则：hover 在触屏上根本不存在，所以评分、
+    // 年份、集数、类型这些不能只在浮层里。哪天有人把它们挪进浮层，这里会红。
+    const { container, unmount } = await mount(<ListsPage />)
+    const card = container.querySelector('.poster')
+
+    expect(card?.querySelector('.poster-score')?.textContent).toBe('92')
+    expect(card?.querySelector('.poster-title')?.textContent).toBe('葬送的芙莉莲')
+    expect(card?.querySelector('.poster-meta')?.textContent).toContain('12 / 28 集')
+    expect([...(card?.querySelectorAll('.poster-genre') ?? [])].map((g) => g.textContent)).toEqual([
+      '奇幻', '冒险', '剧情',
+    ])
+    await unmount()
+  })
+
+  it('简介留在 DOM 里，只是视觉上默认收起（读屏拿得到）', async () => {
+    const { container, unmount } = await mount(<ListsPage />)
+    const over = container.querySelector('.poster-over-desc')
+    expect(over).not.toBeNull()
+    expect(over?.textContent).not.toBe('')
+    // 不能用 hidden / display:none 藏 —— 那样读屏也读不到了
+    expect(container.querySelector('.poster-over')?.getAttribute('hidden')).toBeNull()
+    await unmount()
+  })
+
+  it('类型标签最多三个，多了会把卡片撑得高矮不一', async () => {
+    const { container, unmount } = await mount(<ListsPage />)
+    for (const card of container.querySelectorAll('.poster')) {
+      expect(card.querySelectorAll('.poster-genre').length).toBeLessThanOrEqual(3)
+    }
+    await unmount()
+  })
+
+  it('评分为 0 或缺席时不出徽标，而不是显示一个 0 分', async () => {
+    const { DiscoverPage } = await import('./DiscoverPage')
+    const { container, unmount } = await mount(<DiscoverPage />)
+    // 「即将播出」里那部是刻意造的半空条目：评分 0、集数未知
+    const scores = [...container.querySelectorAll('.poster-score')].map((e) => e.textContent)
+    expect(scores).not.toContain('0')
+    await unmount()
+  })
+})
+
 describe('扩展 / Debrid', () => {
   it('扩展页：讲清规则与插件的区别，并挂上真实的源管理', async () => {
     // 这一页【不是】假数据：nagare 的规则系统是真的，只是之前埋在设置页里。
