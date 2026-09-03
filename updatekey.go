@@ -13,4 +13,9 @@ package main
 // 空串 = 这个构建没有配置更新公钥，自更新一律拒绝（失败关闭），界面只提示去
 // 下载页手动更新。生成密钥、填写这里、配置 CI secret 的完整步骤见
 // docs/releasing.md。
-const updatePublicKey = ""
+//
+// 轮换的代价要清楚：换了这把钥匙，**装着旧版本的用户就再也自更新不到新版本了**
+// （他们内嵌的是旧公钥，验不过新签名），只能手动下载一次。所以只有私钥泄露才轮换，
+// 轮换时必须在 Release 说明里写明「本次需要手动下载安装」。
+// 密钥 id 0D92DC63DCD98F6B，2026-09-03 生成（不加密私钥，见 docs/releasing.md）。
+const updatePublicKey = "RWRrj9ncY9ySDa+ySdKTEK+jOgOC8Epc9azEhv0lGUn+RWD6oh+bi5II"
