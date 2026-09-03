@@ -13,14 +13,17 @@ import { Link } from '@tanstack/react-router'
  */
 
 interface RailItem {
-  to: '/' | '/search' | '/settings'
+  to: '/' | '/lists' | '/discover' | '/schedule' | '/search' | '/settings'
   glyph: string
   label: string
 }
 
-/** 图标用字符不用 SVG：三个入口不值得引一套图标库，字符在 4.5rem 宽下也够清楚 */
+/** 图标用字符不用 SVG：入口不多，字符在 4.5rem 宽下也够清楚，还省一套图标库 */
 const ITEMS: readonly RailItem[] = [
   { to: '/', glyph: '▤', label: '媒体库' },
+  { to: '/lists', glyph: '☰', label: '我的' },
+  { to: '/discover', glyph: '◎', label: '发现' },
+  { to: '/schedule', glyph: '▦', label: '放送' },
   { to: '/search', glyph: '⌕', label: '搜索' },
   { to: '/settings', glyph: '⚙', label: '设置' },
 ]

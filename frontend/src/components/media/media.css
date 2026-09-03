@@ -1,0 +1,221 @@
+/* ============================================================
+   元数据类页面（我的列表 / 发现 / 放送表）的样式。
+   底座 token 与海报网格在 styles/global.css 与 library.css 里，
+   这里只加这三页特有的东西。
+   ============================================================ */
+
+/* ---------- 假封面上的首字 ---------- */
+
+.poster-art-mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 2.4rem;
+  font-weight: 300;
+  user-select: none;
+}
+
+/* 卡片上的观看进度条：压在海报下缘，与「继续观看」用同一套值 */
+.poster-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--progress-track);
+}
+
+.poster-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--progress-fill);
+}
+
+/* 原文标题：比副标题再弱一档，单行截断 */
+.poster-native {
+  color: var(--fg-subtle);
+  font-size: 0.8rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 状态分档标签 ---------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.1rem;
+  padding: 0 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.tab:hover {
+  background: var(--subtle);
+  color: var(--fg);
+}
+
+/* 当前档只提亮 + 一层白底纹，不染品牌色（见 global.css 规则 3） */
+.tab--on {
+  background: var(--subtle);
+  color: var(--fg);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.tab-count {
+  color: var(--fg-subtle);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 横向板块行 ---------- */
+
+.row + .row {
+  margin-top: 1.75rem;
+}
+
+.row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.7rem;
+}
+
+.row-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.row-sub {
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+}
+
+.row-scroll {
+  display: flex;
+  gap: 1rem;
+  margin: 0.85rem 0 0;
+  padding: 0 0 0.4rem;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* 行内的卡片不参与网格分配，给一个随视口伸缩的固定宽度 */
+.row-scroll .poster {
+  flex: 0 0 clamp(9rem, 15vw, 12rem);
+}
+
+/* ---------- 放送表 ---------- */
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 700px) {
+  .week {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  /* 七列一周：只有在放得下的时候才排成日历形状，
+     否则一列宽度不足 10rem，标题会被压成一堆省略号 */
+  .week {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+.day {
+  min-width: 0;
+  padding: 0.8rem 0.85rem 0.9rem;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+}
+
+.day--today {
+  border-color: var(--brand-line);
+}
+
+.day-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.day-empty {
+  color: var(--fg-subtle);
+}
+
+.day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.airing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.airing-time {
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+.airing-title {
+  font-size: 0.88rem;
+  font-weight: 500;
+  /* 七列布局下每列很窄，两行截断避免把卡片撑得高矮不一 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.airing-ep {
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+}

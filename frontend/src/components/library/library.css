@@ -647,3 +647,221 @@
   font-size: 0.95rem;
   user-select: none;
 }
+
+/* ---------- 海报网格 ----------
+   断点表与卡片比例照 seanime 量出来的实测值：2 列起步，
+   768/1080/1320/1750 各加一列，间距 1rem，海报 3:4。 */
+
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .poster-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1080px) {
+  .poster-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1320px) {
+  .poster-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1750px) {
+  .poster-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.poster {
+  min-width: 0; /* 让长标题能省略，而不是把网格列撑开 */
+}
+
+.poster-hit {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.poster-hit:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+}
+
+.poster-art {
+  position: relative;
+  display: block;
+  /* 3:4 —— 动漫海报的通用比例，用它意味着封面不必裁切 */
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.poster-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 200ms ease-out;
+}
+
+.poster-hit:hover .poster-art img,
+.poster-hit:focus-visible .poster-art img {
+  transform: scale(1.1);
+}
+
+/* 无图版式保持同一比例占位，网格不会因为缺图而参差 */
+.poster-art-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--fg-subtle);
+  font-size: 2rem;
+  user-select: none;
+}
+
+.poster-flag {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+}
+
+.poster-title {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+  /* 两行截断：卡片高度要一致，否则一行网格会参差不齐 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.poster-meta {
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+}
+
+/* ---------- 单部作品页 ---------- */
+
+.anime-shell {
+  gap: 1.25rem;
+}
+
+.anime-hero {
+  position: relative;
+  /* 顶到内容区边缘之外：横幅满幅才成立 */
+  margin: 0 calc(-1 * clamp(1rem, 4vw, 2.5rem));
+  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 1.75rem;
+}
+
+.anime-hero-bg {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.anime-hero-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 竖版海报铺成横幅只能看到中间一条，所以放大重模糊，只取色调当氛围 */
+  transform: scale(1.6);
+  filter: blur(44px) saturate(1.25);
+  opacity: 0.4;
+}
+
+.anime-hero-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(7, 7, 7, 0.5) 0%, rgba(7, 7, 7, 0.82) 55%, var(--bg) 100%);
+}
+
+.anime-hero-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.25rem;
+}
+
+.anime-hero-art {
+  flex: none;
+  display: block;
+  width: clamp(6rem, 14vw, 9rem);
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.anime-hero-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.anime-hero-text {
+  min-width: 0;
+}
+
+.anime-back {
+  font-size: 0.86rem;
+}
+
+.anime-title {
+  margin-top: 0.35rem;
+  font-size: clamp(1.4rem, 3.5vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.anime-meta {
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+
+.anime-group + .anime-group {
+  margin-top: 1.25rem;
+}
+
+.anime-group-label {
+  margin-bottom: 0.4rem;
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-art img {
+    transition: none;
+  }
+
+  .poster-hit:hover .poster-art img,
+  .poster-hit:focus-visible .poster-art img {
+    transform: none;
+  }
+}

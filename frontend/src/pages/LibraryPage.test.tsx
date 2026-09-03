@@ -157,15 +157,16 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(container.querySelector('.mpv-dot--ok')).not.toBeNull()
     expect(container.querySelector('.alert-warn')).toBeNull()
 
-    // 簇卡片：标题 + 季徽标 + 集数；置信度 0.93 不出「低置信」
-    expect(container.textContent).toContain('葬送的芙莉莲')
-    expect(container.textContent).toContain('第1季')
-    expect(container.textContent).toContain('2 集')
+    // 海报卡：标题 + 季 + 集数；置信度 0.93 不出「低置信」
+    const poster = container.querySelector('.poster')
+    expect(poster?.querySelector('.poster-title')?.textContent).toBe('葬送的芙莉莲')
+    expect(poster?.querySelector('.poster-meta')?.textContent).toContain('第 1 季')
+    expect(poster?.querySelector('.poster-meta')?.textContent).toContain('2 集')
     expect(container.textContent).not.toContain('低置信')
 
-    // 两行剧集 + 看到一半那行的进度条
-    expect(container.querySelectorAll('.ep-row')).toHaveLength(2)
-    expect(container.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('50')
+    // 剧集列表【不】在库页上：它住在 /anime/$clusterKey，卡片链过去
+    expect(container.querySelectorAll('.ep-row')).toHaveLength(0)
+    expect(poster?.querySelector('a')?.getAttribute('href')).toBe('/anime/frieren')
 
     // 未在播放：不出现在播条
     expect(container.querySelector('.np-bar')).toBeNull()
