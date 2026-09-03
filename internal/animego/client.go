@@ -47,6 +47,17 @@ type Options struct {
 	HTTPClient *http.Client
 	// UserAgent 形如 "nagare/1.2.3"，版本号由调用方注入；空则用 defaultUserAgent。
 	UserAgent string
+	// OnSessionChange 在会话【真的变了】之后调用（登录、刷新轮换、refresh 失效清空），
+	// 由调用方落盘。RestoreSession 不触发 —— 那是把盘上的东西读回内存，不是新状态。
+	//
+	// 为什么由本包主动通知，而不是让调用方「在可能刷新过之后记得去取」：
+	// 后者是照着记性写的契约，漏一个调用点就是一次静默掉线（曾经漏过一个：
+	// 播放开始时的 match 会触发 401 刷新，而用户看一半停掉时那条路径不落盘，
+	// 轮换后的 cookie 从没写进磁盘，下次启动拿着已作废的旧 cookie）。
+	//
+	// 回调在锁外同步执行，参数是快照 —— 实现里不要回头调 Session()（会自锁），
+	// 也不要做慢活儿：刷新链路上所有等着的 goroutine 都在它后面排队。
+	OnSessionChange func(Session)
 }
 
 // Client 是 animego API 客户端。并发安全：会话状态由锁保护，可被多 goroutine 共用。
@@ -64,6 +75,9 @@ type Client struct {
 	// 同时撞 401 时只有第一个真正打 refresh 端点，其余在锁上排队，醒来后
 	// 发现 token 已换新就直接复用 —— 互斥锁在这里就是 singleflight。
 	refreshMu sync.Mutex
+
+	// onSessionChange 见 Options.OnSessionChange。构造后只读，无需加锁。
+	onSessionChange func(Session)
 }
 
 // New 构造客户端。
@@ -85,7 +99,12 @@ func New(opts Options) *Client {
 	if ua == "" {
 		ua = defaultUserAgent
 	}
-	return &Client{baseURL: strings.TrimRight(base, "/"), hc: hc, ua: ua}
+	return &Client{
+		baseURL:         strings.TrimRight(base, "/"),
+		hc:              hc,
+		ua:              ua,
+		onSessionChange: opts.OnSessionChange,
+	}
 }
 
 // httpResult 是一次已完成请求的原始结果；HTTP 状态码的分类交给上层。

@@ -62,9 +62,6 @@ type Options struct {
 	MPV        *mpv.Runtime  // 共享探测状态；可为 nil（测试注入假 Launch 时不需要真实 mpv）
 	RuntimeDir string        // 弹幕 ASS、IPC socket 等运行时文件目录
 	Launch     Launcher      // 为 nil 时用 mpv.Launch
-	// PersistSession 在任何可能刷新过 animego 会话的操作后调用（登录态的
-	// refresh cookie 会轮换，不落盘下次启动就要重新登录）。可为 nil。
-	PersistSession func()
 	// OnSessionEnd 在一次播放会话终结后调用（mpv 播完、用户关窗、或被 Stop）。
 	//
 	// 磁力播放靠它兑现「停止播放即停做种并删分片」：用户直接关掉 mpv 窗口时
@@ -78,6 +75,24 @@ type DanmakuInfo struct {
 	State  string `json:"state"` // ok / unmatched / unavailable / degraded / none
 	Count  int    `json:"count,omitempty"`
 	Reason string `json:"reason,omitempty"` // 中文，用户可读
+}
+
+// SyncInfo 是「看完标记回写 animego 账号」的结果。
+//
+// 存在的理由与 DanmakuInfo 一样（CQ3：失败不静默），但它比弹幕更需要被看见：
+// 弹幕没了用户当场就知道，而进度没同步上去【毫无迹象】—— 用户以为记上了，
+// 下次打开网站发现还停在上一集，也不知道是哪一集丢的。
+//
+// 只在【失败】时存在。成功不报：每看完一集弹一次「已同步」是噪音，
+// 而噪音会让人学会忽略这块区域，真出事时也就跟着被忽略了。
+type SyncInfo struct {
+	State string `json:"state"` // failed
+	// Title / Episode 说清是哪一集没上去 —— 只说「同步失败」用户无从下手。
+	Title    string `json:"title,omitempty"`
+	Episode  int    `json:"episode,omitempty"`
+	Reason   string `json:"reason,omitempty"`   // 中文，用户可读
+	Recovery string `json:"recovery,omitempty"` // 用户能做的一步动作
+	At       int64  `json:"at,omitempty"`       // 毫秒时间戳
 }
 
 // PlayResult 是发起播放的即时结果。
@@ -95,6 +110,10 @@ type Status struct {
 	Duration float64      `json:"duration,omitempty"`
 	Paused   bool         `json:"paused,omitempty"`
 	Danmaku  *DanmakuInfo `json:"danmaku,omitempty"`
+	// Sync 是上一次回写账号失败的留痕，成功或从未失败时为 nil。
+	// 它【不随会话结束消失】：失败发生在 mpv 已经退出之后，
+	// 挂在会话上等于永远没人看得见。
+	Sync *SyncInfo `json:"sync,omitempty"`
 }
 
 // Manager 串联一次播放会话的全生命周期；同一时刻至多一个会话。
@@ -108,6 +127,9 @@ type Manager struct {
 	startMu sync.Mutex
 	mu      sync.Mutex
 	current *session
+	// lastSync 是上一次回写账号失败的留痕（nil = 没有待处理的失败）。
+	// 归 Manager 而不是 session：失败发生在会话已经结束之后。
+	lastSync *SyncInfo
 }
 
 // New 构造 Manager。
@@ -374,10 +396,10 @@ func (m *Manager) Seek(seconds float64) error {
 // Status 返回当前播放状态快照。
 func (m *Manager) Status() Status {
 	m.mu.Lock()
-	sess := m.current
+	sess, syncFailure := m.current, m.lastSync
 	m.mu.Unlock()
 	if sess == nil {
-		return Status{Playing: false}
+		return Status{Playing: false, Sync: syncFailure}
 	}
 	st := sess.player.State()
 	dan := sess.danmakuInfo()
@@ -389,7 +411,15 @@ func (m *Manager) Status() Status {
 		Duration: st.Duration,
 		Paused:   st.Paused,
 		Danmaku:  &dan,
+		Sync:     syncFailure,
 	}
+}
+
+// setSyncFailure 记下一次回写失败；nil 表示清掉（成功了，或不再适用）。
+func (m *Manager) setSyncFailure(info *SyncInfo) {
+	m.mu.Lock()
+	m.lastSync = info
+	m.mu.Unlock()
 }
 
 func pickTitle(b store.Binding, item library.Item) string {
@@ -415,6 +445,24 @@ func firstNonEmpty(ss ...string) string {
 }
 
 // classifyAnimegoErr 把 animego 客户端错误翻成用户可读的中文（CQ3 分类）。
+// classifySyncErr 把回写失败翻成「用户看到什么、能做什么」。
+// 与 classifyAnimegoErr 分开：弹幕失败的落款是「本地播放不受影响」，
+// 而这里丢的是账号进度，恢复动作完全不同。
+func classifySyncErr(err error) (reason, recovery string) {
+	var ae *animego.Error
+	if errors.As(err, &ae) {
+		switch ae.Kind {
+		case animego.ErrUnavailable:
+			return "animego 服务暂不可达", "确认网络后重看这一集的结尾，会自动再试一次"
+		case animego.ErrRateLimited:
+			return "请求过于频繁被限流", "过几分钟后重看这一集的结尾，会自动再试一次"
+		case animego.ErrAuthExpired:
+			return "登录已过期", "到设置里重新登录，然后重看这一集的结尾"
+		}
+	}
+	return "回写失败：" + err.Error(), "可以到 animego 网站上手动标记这一集"
+}
+
 func classifyAnimegoErr(err error) string {
 	var ae *animego.Error
 	if errors.As(err, &ae) {

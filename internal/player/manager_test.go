@@ -290,3 +290,91 @@ func TestPlayUsesRuntimeMPVPath(t *testing.T) {
 	_, _ = m.Play(context.Background(), NewLocalSource(testItem(t, dir, 1)), "")
 	assert.Equal(t, "/second/mpv", got)
 }
+
+// ---------- 看完回写失败必须可见（CQ3：错误不静默） ----------
+
+// syncFailClient 让 MarkWatched 按注入的错误失败。
+type syncFailClient struct {
+	fakeClient
+	markErr error
+}
+
+func (c *syncFailClient) MarkWatched(context.Context, int, int) error { return c.markErr }
+func (c *syncFailClient) LoggedIn() bool                              { return true }
+
+// syncFixture 造一个「这一集已看完、还没同步」的收尾场景。
+// 不起真 mpv：syncWatched 从 store 读进度、从 session 读绑定，两者都不碰播放器。
+func syncFixture(t *testing.T, client AnimegoClient) (*Manager, *session, string) {
+	t.Helper()
+	m, st, dir := newTestManager(t, client)
+	item := testItem(t, dir, 3)
+	require.NoError(t, st.SetProgress(item.FileID, store.Progress{
+		PositionSec: 1400, DurationSec: 1400, Completed: true, Synced: false,
+	}))
+	sess := &session{
+		item:     item,
+		finished: make(chan struct{}),
+		binding:  store.Binding{AnilistID: 42, Episode: 3, Title: "测试番剧"},
+	}
+	return m, sess, dir
+}
+
+func TestSyncFailureIsVisibleInStatus(t *testing.T) {
+	m, sess, _ := syncFixture(t, &syncFailClient{
+		markErr: &animego.Error{Kind: animego.ErrUnavailable, Op: "markWatched"},
+	})
+
+	m.syncWatched(sess)
+
+	// 只写日志等于没说：mpv 已经退出，用户面前什么都不会变。
+	got := m.Status().Sync
+	require.NotNil(t, got, "回写失败了，Status 里却没有任何痕迹")
+	assert.Equal(t, "failed", got.State)
+	// 说清是哪一集 —— 只说「同步失败」用户无从下手
+	assert.Equal(t, "测试番剧", got.Title)
+	assert.Equal(t, 3, got.Episode)
+	assert.Contains(t, got.Reason, "暂不可达")
+	assert.NotEmpty(t, got.Recovery, "必须给一个用户能做的动作")
+	assert.NotZero(t, got.At)
+}
+
+// 登录过期与服务不可达的恢复动作必须不同：一个要去重新登录，一个只要等。
+func TestSyncFailureRecoveryDependsOnCause(t *testing.T) {
+	expired, sess, _ := syncFixture(t, &syncFailClient{
+		markErr: &animego.Error{Kind: animego.ErrAuthExpired, Op: "markWatched"},
+	})
+	expired.syncWatched(sess)
+	assert.Contains(t, expired.Status().Sync.Recovery, "重新登录")
+
+	limited, sess2, _ := syncFixture(t, &syncFailClient{
+		markErr: &animego.Error{Kind: animego.ErrRateLimited, Op: "markWatched"},
+	})
+	limited.syncWatched(sess2)
+	assert.Contains(t, limited.Status().Sync.Reason, "限流")
+	assert.NotContains(t, limited.Status().Sync.Recovery, "重新登录")
+}
+
+// 回写成功后横幅要自己消失，不用用户手动关。
+func TestSyncSuccessClearsPreviousFailure(t *testing.T) {
+	m, sess, _ := syncFixture(t, &syncFailClient{
+		markErr: &animego.Error{Kind: animego.ErrUnavailable, Op: "markWatched"},
+	})
+	m.syncWatched(sess)
+	require.NotNil(t, m.Status().Sync)
+
+	// 同一个 Manager 换一个会成功的客户端，再收尾一次
+	ok, sess2, _ := syncFixture(t, &fakeClient{loggedIn: true})
+	m.opts.Client = ok.opts.Client
+	m.opts.Store = ok.opts.Store
+	m.syncWatched(sess2)
+
+	assert.Nil(t, m.Status().Sync, "已经同步上去了，横幅还挂着就是在误导用户")
+}
+
+// 一切正常时 Status 里不该有这个字段 —— 每看完一集报一次「已同步」是噪音，
+// 而噪音会让人学会忽略这块区域。
+func TestSyncSilentWhenNothingWrong(t *testing.T) {
+	m, sess, _ := syncFixture(t, &fakeClient{loggedIn: true})
+	m.syncWatched(sess)
+	assert.Nil(t, m.Status().Sync)
+}

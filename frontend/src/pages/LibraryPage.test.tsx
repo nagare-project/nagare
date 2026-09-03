@@ -96,6 +96,7 @@ const UPDATE: UpdateView = {
 function stubFetch(
   settings: SettingsData = SETTINGS,
   library: LibraryData = LIBRARY,
+  player: PlayerStatus = PLAYER,
 ): ReturnType<typeof vi.fn> {
   const impl = async (input: RequestInfo | URL): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -103,7 +104,7 @@ function stubFetch(
     const payload: Record<string, unknown> = {
       '/api/library': library,
       '/api/settings': settings,
-      '/api/player/status': PLAYER,
+      '/api/player/status': player,
       '/api/update': UPDATE,
     }
     const data = payload[path]
@@ -330,6 +331,46 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFetch()
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     expect(container.querySelector('.drops')).toBeNull()
+    await unmount()
+  })
+
+  /**
+   * 回写账号失败必须在界面上说出来。
+   *
+   * 这条守的是一个特别容易复发的形态：失败发生在 mpv 已经退出【之后】，
+   * 那条路径上原本只有一句 log.Printf —— 用户面前什么都不会变，
+   * 他以为这一集记上了，下次打开网站才发现没有。
+   */
+  it('看完没能同步到账号时，界面要说清是哪一集、以及怎么办', async () => {
+    stubFetch(SETTINGS, LIBRARY, {
+      playing: false,
+      sync: {
+        state: 'failed',
+        title: '葬送的芙莉莲',
+        episode: 3,
+        reason: 'animego 服务暂不可达',
+        recovery: '确认网络后重看这一集的结尾，会自动再试一次',
+      },
+    })
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+
+    const alerts = [...container.querySelectorAll('.alert-warn')].map((e) => e.textContent ?? '')
+    const sync = alerts.find((t) => t.includes('animego 账号'))
+    expect(sync, `没有任何横幅提到同步失败，实际横幅：${JSON.stringify(alerts)}`).toBeDefined()
+    // 是哪一集 —— 只说「同步失败」用户无从下手
+    expect(sync).toContain('葬送的芙莉莲')
+    expect(sync).toContain('第3集')
+    expect(sync).toContain('animego 服务暂不可达')
+    // 恢复动作
+    expect(container.querySelector('.alert-warn-recovery')?.textContent).toContain('再试一次')
+    await unmount()
+  })
+
+  it('没有同步失败时不出这条横幅', async () => {
+    stubFetch()
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const alerts = [...container.querySelectorAll('.alert-warn')].map((e) => e.textContent ?? '')
+    expect(alerts.filter((t) => t.includes('animego 账号'))).toEqual([])
     await unmount()
   })
 
