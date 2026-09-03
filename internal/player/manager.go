@@ -283,6 +283,7 @@ func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item libra
 		Episode:         episode,
 		Title:           firstNonEmpty(res.TitleChinese, res.TitleNative, keyword),
 		EpisodeTitle:    ref.Title,
+		CoverURL:        res.CoverImageURL,
 		MatchedAt:       time.Now().UnixMilli(),
 	}
 	if err := m.opts.Store.SetBinding(item.FileID, b); err != nil {

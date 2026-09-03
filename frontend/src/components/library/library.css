@@ -418,3 +418,232 @@
     transition: none;
   }
 }
+
+/* ---------- 继续观看（首屏横幅 + 横向卡片行） ---------- */
+
+.cont {
+  position: relative;
+  /* 横幅要顶到内容区左右边缘之外去（页面外壳有 padding），
+     负 margin 是让它满幅的唯一办法，而满幅正是它的全部意义。 */
+  margin: 0 calc(-1 * clamp(1rem, 4vw, 2.5rem));
+  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 1.75rem;
+}
+
+.cont-backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cont-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 海报是竖版，铺成横幅必然只能看到中间一条 —— 所以干脆放大 + 重模糊，
+     只取它的色调当氛围。不模糊的话裁出来的那条既没信息又抢注意力。 */
+  transform: scale(1.6);
+  filter: blur(38px) saturate(1.25);
+  opacity: 0.42;
+}
+
+/* 底部渐隐到页面底色，避免横幅和下方内容之间出现一条硬边 */
+.cont-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(7, 7, 7, 0.45) 0%, rgba(7, 7, 7, 0.8) 55%, var(--bg) 100%);
+}
+
+.cont-head,
+.cont-row {
+  position: relative;
+  z-index: 1;
+}
+
+.cont-kicker {
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.cont-lead-title {
+  margin-top: 0.1rem;
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.cont-row {
+  display: flex;
+  gap: 0.9rem;
+  margin: 1.1rem 0 0;
+  padding: 0 0 0.35rem;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.cont-card {
+  flex: 0 0 clamp(15rem, 26vw, 19rem);
+  min-width: 0;
+}
+
+.cont-card-hit {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.cont-card-hit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.cont-card-hit:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: var(--radius-lg);
+}
+
+.cont-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+}
+
+.cont-thumb img {
+  width: 100%;
+  height: 100%;
+  /* 竖版海报裁成 16:9：重心偏上 —— 海报的脸通常在上半部分，
+     居中裁会正好把它切掉。 */
+  object-fit: cover;
+  object-position: center 22%;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.cont-card-hit:hover .cont-thumb img {
+  transform: scale(1.04);
+}
+
+/* 无图版式：不放破图，放一个安静的品牌记号 */
+.cont-thumb-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--fg-subtle);
+  font-size: 1.5rem;
+}
+
+.cont-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.9rem;
+  transform: translate(-50%, -50%) scale(0.9);
+  opacity: 0;
+  transition:
+    opacity var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.cont-card-hit:hover .cont-play,
+.cont-card-hit:focus-visible .cont-play {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.cont-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--progress-track);
+}
+
+.cont-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--progress-fill);
+}
+
+.cont-card-title {
+  margin-top: 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  /* 集标题可能很长，压成一行 —— 卡片高度必须一致，否则一行卡片会参差不齐 */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cont-card-meta {
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cont-card--active .cont-thumb {
+  border-color: var(--brand-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cont-thumb img,
+  .cont-play {
+    transition: none;
+  }
+
+  .cont-card-hit:hover .cont-thumb img {
+    transform: none;
+  }
+}
+
+/* ---------- 作品簇的小海报 ---------- */
+
+.cluster-cover {
+  flex: none;
+  display: block;
+  width: 2.4rem;
+  height: 3.2rem;
+  overflow: hidden;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+}
+
+.cluster-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cluster-cover--blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-subtle);
+  font-size: 0.95rem;
+  user-select: none;
+}

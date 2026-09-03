@@ -29,7 +29,12 @@ type Binding struct {
 	Episode         int    `json:"episode,omitempty"`
 	Title           string `json:"title,omitempty"`
 	EpisodeTitle    string `json:"episodeTitle,omitempty"`
-	MatchedAt       int64  `json:"matchedAt"`
+	// CoverURL 是番剧封面（animego 匹配接口本来就返回，M1 时丢掉了）。
+	// 存下来的意义：匹配只在首次播放前发生，把它落盘之后，媒体库界面
+	// 对【播过的】作品就有图可用，不必为了显示封面再发一轮请求 ——
+	// animego 全局限速 1 req/s，为一屏封面打一轮请求是不可接受的。
+	CoverURL  string `json:"coverUrl,omitempty"`
+	MatchedAt int64  `json:"matchedAt"`
 }
 
 // Progress 是单文件的观看进度（挂软 id；文件改名后 id 变化即视为新条目，M1 接受）。

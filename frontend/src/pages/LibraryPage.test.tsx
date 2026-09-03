@@ -10,6 +10,7 @@ import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
 
 const LIBRARY: LibraryData = {
+  continueWatching: [],
   folders: [{ id: 'folder-1', path: '/Users/you/Movies/Anime', addedAt: 1_756_500_000 }],
   clusters: [
     {
@@ -185,7 +186,7 @@ describe('LibraryPage（整页冒烟）', () => {
 
   /** 库为空 + 未配规则仓库：最"空"的首次运行状态 */
   function stubFirstRun(): void {
-    const empty: LibraryData = { folders: [], clusters: [], scannedAt: null }
+    const empty: LibraryData = { folders: [], clusters: [], continueWatching: [], scannedAt: null }
     const noSources = {
       sources: [],
       rules: {

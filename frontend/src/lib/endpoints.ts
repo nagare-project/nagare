@@ -56,13 +56,33 @@ export interface LibraryCluster {
   /** 归簇置信度 0–1；低于阈值时界面标「低置信」 */
   confidence: number
   episodeCount: number
+  /**
+   * 可直接放进 <img src> 的本机封面地址；缺省表示【还没有图】。
+   * 没有图是常态不是错误：封面来自播放前的 animego 匹配，
+   * 从没播过的番就是没有。界面必须有无图版式。
+   */
+  cover?: string
   groups: LibraryGroup[]
+}
+
+/** 「继续观看」的一张卡片（看过一点、又没看完的条目，按最近观看倒序） */
+export interface ContinueItem {
+  fileId: string
+  title: string
+  episodeTitle?: string
+  episode: number | null
+  episodeCount: number
+  cover?: string
+  positionSec: number
+  durationSec: number
+  updatedAt: number
 }
 
 /** GET /api/library 的 data 载荷 */
 export interface LibraryData {
   folders: LibraryFolder[]
   clusters: LibraryCluster[]
+  continueWatching: ContinueItem[]
   scannedAt: number | null
 }
 
