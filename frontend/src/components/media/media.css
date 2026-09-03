@@ -34,6 +34,81 @@
   background: var(--progress-fill);
 }
 
+/* ---------- 卡片信息层 ---------- */
+
+/* 评分徽标与 hover 浮层都相对它定位 */
+.poster-hit {
+  position: relative;
+}
+
+.poster-score {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  height: 1.35rem;
+  padding: 0 0.4rem;
+  border-radius: var(--radius-sm);
+  /* 压在图上，所以底色要够实才读得清 —— 这里不用 --subtle */
+  background: rgba(7, 7, 7, 0.78);
+  color: var(--brand);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* 类型标签：比副标题再弱，单行不换行（换行会让卡片高度参差） */
+.poster-genres {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+  overflow: hidden;
+}
+
+.poster-genre {
+  flex: none;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  color: var(--fg-subtle);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+/* hover 浮层：画在海报框【内部】——发现页的板块是横向滚动容器，
+   往外弹会被 overflow 裁掉。 */
+.poster-over {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 0.7rem;
+  background: linear-gradient(180deg, rgba(7, 7, 7, 0.1) 0%, rgba(7, 7, 7, 0.92) 100%);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+  pointer-events: none;
+}
+
+/* 键盘也要能看到：focus-within 与 hover 同等对待 */
+.poster-hit:hover .poster-over,
+.poster-hit:focus-within .poster-over {
+  opacity: 1;
+}
+
+.poster-over-desc {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  /* 简介长短不一，截断保证浮层不溢出海报框 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+}
+
 /* 原文标题：比副标题再弱一档，单行截断 */
 .poster-native {
   color: var(--fg-subtle);
@@ -215,7 +290,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab {
+  .tab,
+  .poster-over {
     transition: none;
   }
 }
