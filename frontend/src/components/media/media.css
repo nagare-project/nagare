@@ -379,6 +379,15 @@
   font-size: 0.82rem;
 }
 
+/* ---------- 扩展页的说明卡 ---------- */
+
+.ext-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.15rem 1.25rem 1.3rem;
+}
+
 /* ---------- 浏览器内播放 ---------- */
 
 /* 限宽：不设的话超宽屏上视频会被拉到两千多像素，
