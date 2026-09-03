@@ -13,7 +13,6 @@ import (
 	"github.com/nagare-project/nagare/internal/animego"
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
-	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/mpv"
 	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/store"
@@ -24,7 +23,7 @@ const maxBodyBytes = 1 << 20
 
 // PlayerAPI 是处理器需要的播放能力子集。
 type PlayerAPI interface {
-	Play(ctx context.Context, item library.Item, subPath string) (player.PlayResult, error)
+	Play(ctx context.Context, src player.MediaSource, subPath string) (player.PlayResult, error)
 	Stop()
 	SetPause(v bool) error
 	Seek(seconds float64) error
@@ -49,6 +48,11 @@ type Deps struct {
 	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
 	Version        string
 	Sources        *SourcesService
+	// Torrent 是磁力边下边播引擎；nil 表示引擎启动失败，磁力端点整体降级
+	// （返回 503 并在设置页显示原因），其余功能不受影响。
+	Torrent TorrentAPI
+	// TorrentCacheDir 展示给用户：分片落在哪，清空缓存清的是哪个目录。
+	TorrentCacheDir string
 	// Shutdown 触发整个进程退出（主进程的根 cancel）；nil 表示不支持从界面退出。
 	Shutdown func()
 	// DataDir / LogPath 展示给用户：数据在哪、出问题看哪个文件。
@@ -85,6 +89,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/sources/config", h.sourcesConfig)
 	mux.HandleFunc("POST /api/sources/{id}/enabled", h.sourceEnabled)
 	mux.HandleFunc("POST /api/sources/{id}/selfcheck", h.sourceSelfCheck)
+	mux.HandleFunc("POST /api/torrent/play", h.torrentPlay)
+	mux.HandleFunc("GET /api/torrent/status", h.torrentStatus)
+	mux.HandleFunc("POST /api/torrent/stop", h.torrentStop)
+	mux.HandleFunc("POST /api/torrent/cache/clear", h.torrentCacheClear)
+	mux.HandleFunc("POST /api/torrent/config", h.torrentConfig)
 }
 
 // decodeBody 解析 JSON 请求体（限长）。失败返回 false 且已写响应。
@@ -113,9 +122,11 @@ func writeErr(w http.ResponseWriter, err error) {
 			status = http.StatusNotFound
 		case errs.CategoryAuth:
 			status = http.StatusUnauthorized
-		case errs.CategoryNetwork, errs.CategoryUpstream:
+		case errs.CategoryNetwork, errs.CategoryUpstream, errs.CategoryTorrent:
+			// 磁力失败归 502：问题在 swarm 那一侧（没人分享、缓冲太慢），
+			// 与本机无关，用户的恢复动作是换一条资源或稍后重试。
 			status = http.StatusBadGateway
-		case errs.CategoryPlayback, errs.CategoryInternal:
+		case errs.CategoryPlayback, errs.CategoryInternal, errs.CategoryStorage:
 			status = http.StatusInternalServerError
 		}
 		httpserver.WriteError(w, status, ce.UserFacing())
@@ -191,7 +202,7 @@ func (h *Handler) play(w http.ResponseWriter, r *http.Request) {
 		httpserver.WriteError(w, http.StatusNotFound, "文件不在当前库里，试试重新扫描")
 		return
 	}
-	res, err := h.deps.Player.Play(r.Context(), item, h.deps.Lib.SubtitlePath(req.FileID))
+	res, err := h.deps.Player.Play(r.Context(), player.NewLocalSource(item), h.deps.Lib.SubtitlePath(req.FileID))
 	if err != nil {
 		writeErr(w, err)
 		return

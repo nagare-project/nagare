@@ -65,6 +65,12 @@ type Options struct {
 	// PersistSession 在任何可能刷新过 animego 会话的操作后调用（登录态的
 	// refresh cookie 会轮换，不落盘下次启动就要重新登录）。可为 nil。
 	PersistSession func()
+	// OnSessionEnd 在一次播放会话终结后调用（mpv 播完、用户关窗、或被 Stop）。
+	//
+	// 磁力播放靠它兑现「停止播放即停做种并删分片」：用户直接关掉 mpv 窗口时
+	// 没有任何 API 请求发生，没有这个回调，种子会一直挂在那里下载和上传。
+	// 播放层不认识磁力，装配层决定要不要收掉引擎。可为 nil。
+	OnSessionEnd func()
 }
 
 // DanmakuInfo 是弹幕链路的结果状态 —— 失败必须可见（CQ3：不静默）。
@@ -118,17 +124,21 @@ const completionRatio = 0.9
 // resumeMinSec：小于 5 秒的进度不值得续播（对齐网页端 MIN_POSITION_SEC）。
 const resumeMinSec = 5.0
 
-// Play 停掉现有会话并播放给定条目。subPath 是配对的外挂对白字幕（可空，
-// mpv 会选中它做主轨）。匹配/弹幕失败不阻断播放，结果写进 DanmakuInfo。
-func (m *Manager) Play(ctx context.Context, item library.Item, subPath string) (PlayResult, error) {
+// Play 停掉现有会话并播放 src 指向的媒体（本地文件或磁力流，见 source.go）。
+// subPath 是配对的外挂对白字幕（可空，mpv 会选中它做主轨）。
+// 匹配/弹幕失败不阻断播放，结果写进 DanmakuInfo。
+func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (PlayResult, error) {
 	m.startMu.Lock()
 	defer m.startMu.Unlock()
 	m.takeAndStopCurrent()
 
-	if _, err := os.Stat(item.AbsPath); err != nil {
-		return PlayResult{}, errs.Wrap(errs.CategoryFS, "player.play",
-			"文件不存在或已被移动："+item.FileName, "重新扫描媒体库后再试", err)
+	if err := src.Probe(ctx); err != nil {
+		return PlayResult{}, err
 	}
+
+	// 元数据在这里取一次快照存进会话：整条链路（标题、进度、匹配、看完同步）
+	// 都只认这一份，避免同一会话里前后两次 Item() 拿到不一致的值。
+	item := src.Item()
 
 	// 先起 mpv，再在后台匹配弹幕 —— animego 慢/挂都不能拖住本地播放（CQ3）。
 	// 窗口标题先用文件名派生的本地标题，匹配到官方标题后由后台升级。
@@ -149,7 +159,7 @@ func (m *Manager) Play(ctx context.Context, item library.Item, subPath string) (
 	}
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{
 		MPVPath:   mpvPath,
-		MediaPath: item.AbsPath,
+		MediaPath: src.MPVPath(),
 		SubPath:   subPath,
 		Title:     title,
 		StartAt:   startAt,
@@ -162,6 +172,7 @@ func (m *Manager) Play(ctx context.Context, item library.Item, subPath string) (
 
 	loading := DanmakuInfo{State: "loading", Reason: "正在匹配弹幕…"}
 	sess := &session{
+		src:          src,
 		item:         item,
 		player:       pl,
 		finished:     make(chan struct{}),
@@ -179,8 +190,13 @@ func (m *Manager) Play(ctx context.Context, item library.Item, subPath string) (
 	return PlayResult{Title: title, Danmaku: loading}, nil
 }
 
-// danmakuResolveTimeout 是后台弹幕解析的总时限（含匹配 + 拉取 + 写盘）。
-const danmakuResolveTimeout = 30 * time.Second
+// danmakuResolveTimeout 是后台弹幕解析的总时限（含懒哈希 + 匹配 + 拉取 + 写盘）。
+//
+// 之所以宽到 120 秒：本地文件算首 16MB 哈希是瞬时的，磁力却要等头部 16MB
+// 从 swarm 到齐，30 秒经常不够 —— 一超时磁力播放就永远匹配不到弹幕。
+// 这段是纯后台工作，不阻塞播放也不占用请求，放宽只影响一个后台 goroutine
+// 的存活时长。
+const danmakuResolveTimeout = 120 * time.Second
 
 // resolveDanmaku 在后台完成 懒哈希 → 匹配 → 弹幕 ASS，把结果落回 session，
 // 最后关闭 danmakuReady 通知 watcher 可以编排字幕轨了。用独立的后台 ctx：
@@ -190,7 +206,7 @@ func (m *Manager) resolveDanmaku(sess *session) {
 	ctx, cancel := context.WithTimeout(context.Background(), danmakuResolveTimeout)
 	defer cancel()
 
-	binding, dan := m.ensureBinding(ctx, sess.item)
+	binding, dan := m.ensureBinding(ctx, sess.src, sess.item)
 	assPath := ""
 	if dan.State == "ok" {
 		if count, err := m.writeDanmakuASS(ctx, sess.assTarget, binding.DandanEpisodeID); err != nil {
@@ -204,7 +220,9 @@ func (m *Manager) resolveDanmaku(sess *session) {
 
 // ensureBinding 取（或建立）文件与 dandanplay 剧集的绑定；一并返回弹幕链路状态。
 // 任何失败都只影响 DanmakuInfo，不影响播放。
-func (m *Manager) ensureBinding(ctx context.Context, item library.Item) (store.Binding, DanmakuInfo) {
+//
+// item 是调用方持有的 src.Item() 快照，一并传进来是为了不在这里重复取。
+func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item library.Item) (store.Binding, DanmakuInfo) {
 	if b, ok := m.opts.Store.Binding(item.FileID); ok && b.DandanEpisodeID != 0 {
 		return b, DanmakuInfo{State: "ok"}
 	}
@@ -214,7 +232,7 @@ func (m *Manager) ensureBinding(ctx context.Context, item library.Item) (store.B
 
 	hash := m.opts.Store.Hash(item.FileID)
 	if hash == "" {
-		h, err := library.Hash16M(item.AbsPath)
+		h, err := src.Hash16M(ctx)
 		if err != nil {
 			return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: "计算文件指纹失败，弹幕匹配跳过"}
 		}

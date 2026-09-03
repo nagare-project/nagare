@@ -58,6 +58,15 @@ const SETTINGS: SettingsData = {
   logPath: '/Users/you/Library/Application Support/nagare/nagare.log',
   mpv: { found: true, version: '0.38.0', path: '/opt/homebrew/bin/mpv', source: 'path' },
   animego: { loggedIn: false, baseUrl: 'https://animego.example' },
+  torrent: {
+    enabled: true,
+    seeding: false,
+    trackers: [],
+    portForwarding: true,
+    listenPort: 6881,
+    cacheDir: '/Users/you/Library/Application Support/nagare/cache/torrent',
+    cacheBytes: 0,
+  },
 }
 
 const MPV_MISSING: SettingsData = {
@@ -79,6 +88,7 @@ const UPDATE: UpdateView = {
   url: '',
   checkedAt: null,
   error: '',
+  selfUpdate: { supported: true, channel: 'app-bundle', target: '/Applications/Nagare.app' },
 }
 
 /** 按路径分发的 fetch 桩，一律返回统一信封 */

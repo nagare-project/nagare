@@ -302,6 +302,25 @@ body {
   color: var(--color-err);
 }
 
+/* ---------- 警示提示条（mpv 缺失 / 磁力引擎起不来） ---------- */
+
+/* 三个页面共用同一条警示样式。.mpv-alert 是 M1 起的历史名字，保留为别名，
+   新代码一律用语义化的 .alert-warn。 */
+.alert-warn,
+.mpv-alert {
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--color-warn-border);
+  border-left: 3px solid var(--color-warn);
+  background: var(--color-warn-wash);
+  color: var(--color-warn);
+  font-size: 0.82rem;
+}
+
+.alert-warn-link,
+.mpv-alert-link {
+  white-space: nowrap;
+}
+
 /* ---------- 全页提示（无 token / 库加载失败） ---------- */
 
 .page-notice {

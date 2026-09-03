@@ -4,9 +4,6 @@ import type { SearchItem } from '../../lib/endpoints'
 import { mono } from '../../tokens'
 import './search.css'
 
-/** 播放按钮禁用态的提示（M3 之前磁力不能播） */
-export const PLAY_UNAVAILABLE_HINT = '边下边播在下一里程碑（M3）上线，目前请复制磁力链接到其他下载器'
-
 /** 「已复制」提示停留多久后恢复按钮文案 */
 const COPY_FEEDBACK_MS = 1800
 
@@ -18,19 +15,71 @@ const COPY_LABEL: Record<CopyState, string> = {
   failed: '复制失败',
 }
 
+/**
+ * 一行的播放按钮状态：
+ * idle 可点 · pending 本行正在起播 · active 本行正在边下边播 ·
+ * blocked 别的行占着后端 · disabled 磁力引擎不可用
+ */
+export type PlayStage = 'idle' | 'pending' | 'active' | 'blocked' | 'disabled'
+
+/** 同一时刻只允许一条磁力占着后端 */
+export const PLAY_BLOCKED_HINT = '已有一条磁力在播放，先停止底部状态条里的那条再播这条'
+
+/** 引擎起不来时的按钮提示（详细原因与恢复动作在设置页） */
+export const PLAY_ENGINE_DOWN_HINT = '磁力播放未启用，请查看设置页'
+
+const PLAY_LABEL: Record<PlayStage, string> = {
+  idle: '播放',
+  pending: '启动中 …',
+  active: '播放中',
+  blocked: '播放',
+  disabled: '播放',
+}
+
+/** 禁用态各自的原因；idle 为 null 表示可点 */
+const PLAY_HINT: Record<PlayStage, string | null> = {
+  idle: null,
+  pending: '正在等待元数据与起播缓冲，进度见底部状态条',
+  active: '这条磁力正在播放，停止请用底部状态条',
+  blocked: PLAY_BLOCKED_HINT,
+  disabled: PLAY_ENGINE_DOWN_HINT,
+}
+
+/** 磁力播放的当前占用情况，由搜索页从 useTorrentPlay 推导后传下来 */
+export interface PlayControl {
+  /**
+   * 播放这一条。第二个参数是被点下的那个按钮元素 —— 选集弹窗关闭后要把焦点
+   * 交还给它，而弹窗自己读 document.activeElement 是读不到的（按钮点下即禁用）。
+   */
+  onPlay: (item: SearchItem, trigger: HTMLButtonElement) => void
+  /** 正占着后端的那条磁力；null = 空闲 */
+  busy: { magnet: string; stage: 'pending' | 'active' } | null
+  /** 磁力引擎不可用（后端 torrent.enabled=false）：整列禁用 */
+  engineDown: boolean
+}
+
 export interface ResultRowProps {
   item: SearchItem
   /** 来源规则的展示名（查不到时传 id） */
   sourceName: string
   /** 表头是否有「做种」列（整表统一，由 ResultTable 决定） */
   showSeeders: boolean
+  play: PlayControl
+}
+
+/** 本行的播放按钮该是什么状态 */
+export function playStage(magnet: string, play: PlayControl): PlayStage {
+  if (play.engineDown) return 'disabled'
+  if (play.busy === null) return 'idle'
+  return play.busy.magnet === magnet ? play.busy.stage : 'blocked'
 }
 
 /**
  * 结果表的一行：标题（可换行）· 体积 · 字幕组 · 日期（原样）· 做种（可选）· 来源 · 操作。
- * 「复制磁力」走 lib/clipboard 的 copyText；「播放」禁用并提示 M3。
+ * 「复制磁力」走 lib/clipboard 的 copyText；「播放」把这条磁力交给 useTorrentPlay，
+ * 进行中 / 被别的行占着 / 引擎不可用时禁用，并把原因写在 title 与 aria-label 里。
  */
-export function ResultRow({ item, sourceName, showSeeders }: ResultRowProps) {
+export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProps) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const timerRef = useRef<number | null>(null)
 
@@ -51,6 +100,9 @@ export function ResultRow({ item, sourceName, showSeeders }: ResultRowProps) {
     copyState === 'failed'
       ? 'hud-button hud-button--small res-copy res-copy--failed'
       : 'hud-button hud-button--small res-copy'
+
+  const stage = playStage(item.magnet, play)
+  const hint = PLAY_HINT[stage]
 
   return (
     <tr className="res-row" data-source={item.source}>
@@ -91,14 +143,20 @@ export function ResultRow({ item, sourceName, showSeeders }: ResultRowProps) {
         <span className="visually-hidden" role="status" aria-live="polite">
           {copyState === 'idle' ? '' : COPY_LABEL[copyState]}
         </span>
-        <span className="res-play-wrap" title={PLAY_UNAVAILABLE_HINT}>
+        {/* 禁用的按钮收不到 hover 事件，title 挂在外层 span 上才提示得出来 */}
+        <span className="res-play-wrap" title={hint ?? undefined}>
           <button
             type="button"
-            className="hud-button hud-button--small hud-button--ghost"
-            disabled
-            aria-label={`播放（${PLAY_UNAVAILABLE_HINT}）`}
+            className={
+              stage === 'active'
+                ? 'hud-button hud-button--small res-play res-play--active'
+                : 'hud-button hud-button--small res-play'
+            }
+            onClick={(event) => play.onPlay(item, event.currentTarget)}
+            disabled={stage !== 'idle'}
+            aria-label={hint === null ? `播放：${item.title}` : `播放（${hint}）`}
           >
-            播放
+            {PLAY_LABEL[stage]}
           </button>
         </span>
       </td>

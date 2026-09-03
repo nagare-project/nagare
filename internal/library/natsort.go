@@ -83,3 +83,11 @@ func localeCompare(a, b string, numeric bool) int {
 		return 0
 	}
 }
+
+// CompareFileNames 按「文件名自然序」比较（数字串按数值，与网页端
+// `localeCompare(b, undefined, {numeric: true})` 对齐），返回 -1/0/1。
+//
+// 导出是给磁力选集用的：一个种子里同集号的多个文件（不同分辨率、不同语种）
+// 落在同一档时要有稳定且符合直觉的次序，而这条规则只能有一份实现 ——
+// 在别处再写一个"自然序比较"正是会漂移的那类重复。
+func CompareFileNames(a, b string) int { return localeCompare(a, b, true) }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, Ref } from 'react'
 import './search.css'
 
 export interface SearchFormProps {
@@ -10,10 +10,18 @@ export interface SearchFormProps {
   /** 搜索在途：按钮文案变化，但不禁用 —— 用户随时可以改关键词重搜 */
   busy?: boolean
   autoFocus?: boolean
+  /** 输入框的 ref：选集弹窗关掉而原触发按钮已禁用时，焦点回落到这里 */
+  inputRef?: Ref<HTMLInputElement>
 }
 
 /** 关键词输入 + 提交。不做任何联想 / 推荐：源是用户自己的，关键词也是。 */
-export function SearchForm({ initialQuery, onSubmit, busy = false, autoFocus = false }: SearchFormProps) {
+export function SearchForm({
+  initialQuery,
+  onSubmit,
+  busy = false,
+  autoFocus = false,
+  inputRef,
+}: SearchFormProps) {
   const [value, setValue] = useState(initialQuery)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -24,6 +32,7 @@ export function SearchForm({ initialQuery, onSubmit, busy = false, autoFocus = f
   return (
     <form className="search-form" role="search" onSubmit={handleSubmit}>
       <input
+        ref={inputRef}
         className="hud-input search-input"
         type="search"
         name="q"

@@ -27,6 +27,15 @@ const (
 	CategoryInput Category = "input"
 	// CategoryInternal：nagare 自身缺陷，兜底类。
 	CategoryInternal Category = "internal"
+
+	// 下面两类是 M3 磁力边下边播新增的，与已有分类的差别在【恢复动作】上：
+	//
+	// CategoryTorrent：swarm 侧的问题（没人在分享、元数据拿不到、缓冲太慢），
+	// 用户能做的是换一条资源或稍后再试，与本机无关。
+	CategoryTorrent Category = "torrent"
+	// CategoryStorage：本机磁盘写不进去（空间不足、无权限）。不能并进 CategoryFS
+	// —— 那类是「文件不存在」映射 404，而写不进去既不是 404，也不该让用户去重新扫描。
+	CategoryStorage Category = "storage"
 )
 
 // E 是带分类与用户提示的错误。

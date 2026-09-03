@@ -53,18 +53,8 @@
 }
 
 /* mpv 缺失提示条（设置页的 mpv 卡也用它） */
-.mpv-alert {
-  padding: 0.65rem 0.9rem;
-  border: 1px solid var(--color-warn-border);
-  border-left: 3px solid var(--color-warn);
-  background: var(--color-warn-wash);
-  color: var(--color-warn);
-  font-size: 0.82rem;
-}
-
-.mpv-alert-link {
-  white-space: nowrap;
-}
+/* .mpv-alert / .mpv-alert-link 已提升到 styles/global.css（库页 / 设置页 / 搜索页共用），
+   新代码用那边的语义名 .alert-warn。 */
 
 /* 顶栏下的状态行（扫描结果 / 播放错误 / 上次扫描时间） */
 .lib-status {

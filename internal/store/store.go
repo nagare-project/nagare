@@ -65,6 +65,8 @@ type Data struct {
 	Progress map[string]Progress `json:"progress"` // fileID → 进度
 	Animego  AnimegoSession      `json:"animego"`
 	Rules    RulesConfig         `json:"rules"`
+	// Torrent 存指针：nil = 从未配置过，读取时回落到 DefaultTorrentConfig。
+	Torrent *TorrentConfig `json:"torrent,omitempty"`
 }
 
 func emptyData() Data {
@@ -307,4 +309,61 @@ func (s *Store) UpdateRulesConfig(mutate func(c *RulesConfig)) error {
 	mutate(&c)
 	s.data.Rules = c
 	return s.save()
+}
+
+// defaultListenPort 是 BT 监听端口的默认值：避开常见 BT 端口段（6881-6889）
+// 以减少运营商针对性限速，也避开 nagare 自己的 8590。
+const defaultListenPort = 47850
+
+// TorrentConfig 是磁力边下边播的用户配置（决议 M3-2 / M3-3 / M3-6）。
+type TorrentConfig struct {
+	// Seeding：停止播放后是否继续做种。播放期间的分片交换是协议必需，
+	// 与这个开关无关；它只决定「停止播放后要不要继续上传」，默认关。
+	Seeding bool `json:"seeding"`
+	// Trackers 是为【公开】种子补充的 tracker 列表：默认空、不硬编码进二进制
+	// （与 rules 的零硬编码姿态一致）。私有种子一律不补 —— 给私有站种子补公共
+	// tracker 会把 passkey 泄露给外部，导致封号。
+	Trackers []string `json:"trackers,omitempty"`
+	// PortForwarding：UPnP/NAT-PMP 自动端口映射，默认开（决议 M3-6：开箱连接质量优先）。
+	PortForwarding bool `json:"portForwarding"`
+	// ListenPort 是 BT 监听端口；0 表示交由系统随机分配。
+	ListenPort int `json:"listenPort"`
+}
+
+// DefaultTorrentConfig 是首次运行的默认值。
+func DefaultTorrentConfig() TorrentConfig {
+	return TorrentConfig{PortForwarding: true, ListenPort: defaultListenPort}
+}
+
+// clone 返回深拷贝（Trackers 切片不与内部共享）。
+func (c TorrentConfig) clone() TorrentConfig {
+	c.Trackers = append([]string(nil), c.Trackers...)
+	return c
+}
+
+// TorrentConfig 读取磁力配置；从未配置过时返回默认值。
+//
+// 存成指针是为了把「没配过」和「显式关掉」分开：PortForwarding 默认为 true，
+// 若用零值结构体表示缺席，老状态文件加载后会静默变成「关」。
+func (s *Store) TorrentConfig() TorrentConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.Torrent == nil {
+		return DefaultTorrentConfig()
+	}
+	return s.data.Torrent.clone()
+}
+
+// UpdateTorrentConfig 在锁内读改写（避免分开 Get/Set 的丢失更新）。
+func (s *Store) UpdateTorrentConfig(mutate func(c *TorrentConfig)) (TorrentConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := DefaultTorrentConfig()
+	if s.data.Torrent != nil {
+		c = s.data.Torrent.clone()
+	}
+	mutate(&c)
+	stored := c.clone()
+	s.data.Torrent = &stored
+	return c, s.save()
 }

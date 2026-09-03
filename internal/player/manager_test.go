@@ -78,7 +78,7 @@ func TestEnsureBindingMatchSuccess(t *testing.T) {
 	m, st, dir := newTestManager(t, client)
 	item := testItem(t, dir, 7)
 
-	b, dan := m.ensureBinding(context.Background(), item)
+	b, dan := m.ensureBinding(context.Background(), NewLocalSource(item), item)
 	assert.Equal(t, "ok", dan.State)
 	assert.Equal(t, int64(184300007), b.DandanEpisodeID)
 	assert.Equal(t, 9527, b.AnilistID)
@@ -88,7 +88,7 @@ func TestEnsureBindingMatchSuccess(t *testing.T) {
 	assert.NotEmpty(t, st.Hash(item.FileID))
 	_, ok := st.Binding(item.FileID)
 	assert.True(t, ok)
-	_, dan2 := m.ensureBinding(context.Background(), item)
+	_, dan2 := m.ensureBinding(context.Background(), NewLocalSource(item), item)
 	assert.Equal(t, "ok", dan2.State)
 	assert.Equal(t, int32(1), client.matchCalls.Load(), "有缓存绑定时不应重复匹配")
 }
@@ -102,7 +102,7 @@ func TestEnsureBindingSkipsWhenEpisodeUnknown(t *testing.T) {
 	item.Episode = nil
 	item.ParsedNumber = nil
 
-	_, dan := m.ensureBinding(context.Background(), item)
+	_, dan := m.ensureBinding(context.Background(), NewLocalSource(item), item)
 	assert.Equal(t, "unmatched", dan.State)
 	assert.Contains(t, dan.Reason, "无法识别集号")
 	assert.Equal(t, int32(0), client.matchCalls.Load(), "集号未知时不该发起匹配")
@@ -112,7 +112,7 @@ func TestEnsureBindingSkipsWhenEpisodeUnknown(t *testing.T) {
 func TestEnsureBindingUnmatched(t *testing.T) {
 	m, _, dir := newTestManager(t, &fakeClient{matchRes: animego.MatchResult{Matched: false}})
 	item := testItem(t, dir, 7)
-	_, dan := m.ensureBinding(context.Background(), item)
+	_, dan := m.ensureBinding(context.Background(), NewLocalSource(item), item)
 	assert.Equal(t, "unmatched", dan.State)
 
 	m2, _, dir2 := newTestManager(t, &fakeClient{matchRes: animego.MatchResult{
@@ -120,7 +120,7 @@ func TestEnsureBindingUnmatched(t *testing.T) {
 		EpisodeMap: map[int]animego.EpisodeRef{1: {DandanEpisodeID: 1}},
 	}})
 	item2 := testItem(t, dir2, 7)
-	_, dan2 := m2.ensureBinding(context.Background(), item2)
+	_, dan2 := m2.ensureBinding(context.Background(), NewLocalSource(item2), item2)
 	assert.Equal(t, "unmatched", dan2.State)
 	assert.Contains(t, dan2.Reason, "第 7 集")
 }
@@ -130,7 +130,7 @@ func TestEnsureBindingUnavailable(t *testing.T) {
 	client := &fakeClient{matchErr: &animego.Error{Kind: animego.ErrUnavailable, Op: "match"}}
 	m, _, dir := newTestManager(t, client)
 	item := testItem(t, dir, 7)
-	_, dan := m.ensureBinding(context.Background(), item)
+	_, dan := m.ensureBinding(context.Background(), NewLocalSource(item), item)
 	assert.Equal(t, "unavailable", dan.State)
 	assert.Contains(t, dan.Reason, "不可达")
 }
@@ -139,7 +139,7 @@ func TestEnsureBindingUnavailable(t *testing.T) {
 func TestEnsureBindingOffline(t *testing.T) {
 	m, _, dir := newTestManager(t, nil)
 	item := testItem(t, dir, 7)
-	_, dan := m.ensureBinding(context.Background(), item)
+	_, dan := m.ensureBinding(context.Background(), NewLocalSource(item), item)
 	assert.Equal(t, "none", dan.State)
 }
 
@@ -160,7 +160,7 @@ func TestPlayLaunchesBeforeAnimego(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_, _ = m.Play(context.Background(), item, "")
+		_, _ = m.Play(context.Background(), NewLocalSource(item), "")
 	}()
 
 	select {
@@ -194,7 +194,7 @@ func (s *slowClient) Match(ctx context.Context, _ animego.MatchInput) (animego.M
 func TestPlayMissingFile(t *testing.T) {
 	m, _, _ := newTestManager(t, nil)
 	item := library.Item{FileID: "x", FileName: "x.mkv", AbsPath: "/不存在/x.mkv"}
-	_, err := m.Play(context.Background(), item, "")
+	_, err := m.Play(context.Background(), NewLocalSource(item), "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "不存在或已被移动")
 }
@@ -259,7 +259,7 @@ func TestPlayWithoutMPVGivesGuidance(t *testing.T) {
 		return nil, nil
 	}
 
-	_, err := m.Play(context.Background(), testItem(t, dir, 1), "")
+	_, err := m.Play(context.Background(), NewLocalSource(testItem(t, dir, 1)), "")
 	var ce *errs.E
 	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, errs.CategoryPlayback, ce.Category)
@@ -280,13 +280,13 @@ func TestPlayUsesRuntimeMPVPath(t *testing.T) {
 		return nil, errors.New("到此为止")
 	}
 
-	_, err := m.Play(context.Background(), testItem(t, dir, 1), "")
+	_, err := m.Play(context.Background(), NewLocalSource(testItem(t, dir, 1)), "")
 	require.Error(t, err)
 	assert.Equal(t, "/first/mpv", got)
 
 	path = "/second/mpv"
 	_, err = m.opts.MPV.Redetect("")
 	require.NoError(t, err)
-	_, _ = m.Play(context.Background(), testItem(t, dir, 1), "")
+	_, _ = m.Play(context.Background(), NewLocalSource(testItem(t, dir, 1)), "")
 	assert.Equal(t, "/second/mpv", got)
 }

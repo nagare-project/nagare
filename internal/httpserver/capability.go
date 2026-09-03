@@ -48,14 +48,40 @@ func (c *Capabilities) streamValid(candidate string) bool {
 	return subtle.ConstantTimeCompare([]byte(candidate), []byte(c.stream)) == 1
 }
 
-// handleStream 是流端点占位：能力段错误一律 404 —— 对探测者来说
-// "端点不存在"比"端点存在但你没权限"泄露得更少。
-// 真正的媒体流在 M1（本地文件）/ M3（磁力）接入。
+// SetStreamHandler 注册流端点的实际处理器（M3 由磁力引擎提供）。传 nil 即注销。
+//
+// 能力段校验通过后请求会被改写路径再转发：处理器活在自己的路径空间里
+// （例如 /t/{infohash}/{index}），既不必知道能力段的存在，也就不可能把它
+// 写进日志或错误信息 —— 能力段等同凭证，少一处流经就少一处泄露面。
+func (s *Server) SetStreamHandler(h http.Handler) {
+	s.streamMu.Lock()
+	defer s.streamMu.Unlock()
+	s.stream = h
+}
+
+// streamHandler 取当前注册的处理器；未注册返回 nil。
+func (s *Server) streamHandler() http.Handler {
+	s.streamMu.RLock()
+	defer s.streamMu.RUnlock()
+	return s.stream
+}
+
+// handleStream 校验能力段并把请求转给注册的流处理器。
+// 能力段错误、或压根没有处理器，一律 404 —— 对探测者来说
+// 「端点不存在」比「端点存在但你没权限」泄露得更少。
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	if !s.caps.streamValid(r.PathValue("capability")) {
 		writeError(w, http.StatusNotFound, "未找到")
 		return
 	}
-	// 占位：能力校验通过，但还没有可服务的媒体。
-	w.WriteHeader(http.StatusNoContent)
+	h := s.streamHandler()
+	if h == nil {
+		writeError(w, http.StatusNotFound, "未找到")
+		return
+	}
+	// Clone 已深拷贝 URL，改 Path 不会影响原请求（中间件与日志仍看到原始路径）。
+	fwd := r.Clone(r.Context())
+	fwd.URL.Path = "/" + r.PathValue("path")
+	fwd.URL.RawPath = ""
+	h.ServeHTTP(w, fwd)
 }
