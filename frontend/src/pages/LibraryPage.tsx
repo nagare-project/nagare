@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ClusterCard } from '../components/library/ClusterCard'
+import { ContinueSection } from '../components/library/ContinueSection'
 import { GettingStarted } from '../components/library/GettingStarted'
 import { NowPlayingBar } from '../components/library/NowPlayingBar'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
@@ -253,7 +254,7 @@ function LibraryBody({
 
   // 此处 state.phase 只剩 'ready'（unauthorized 已在页面层拦截）
   if (state.phase !== 'ready') return null
-  const { folders, clusters } = state.data
+  const { folders, clusters, continueWatching } = state.data
 
   if (folders.length === 0) {
     // 首次运行：不把「添加文件夹」摆成唯一入口（磁力那条路不需要它）
@@ -272,17 +273,25 @@ function LibraryBody({
   }
 
   return (
-    <section className="cluster-list" aria-label="媒体库">
-      {clusters.map((cluster) => (
-        <ClusterCard
-          key={cluster.clusterKey}
-          cluster={cluster}
-          onPlay={onPlay}
-          activeFileId={activeFileId}
-          pendingFileId={pendingFileId}
-        />
-      ))}
-    </section>
+    <>
+      <ContinueSection
+        items={continueWatching}
+        onPlay={onPlay}
+        activeFileId={activeFileId}
+        pendingFileId={pendingFileId}
+      />
+      <section className="cluster-list" aria-label="媒体库">
+        {clusters.map((cluster) => (
+          <ClusterCard
+            key={cluster.clusterKey}
+            cluster={cluster}
+            onPlay={onPlay}
+            activeFileId={activeFileId}
+            pendingFileId={pendingFileId}
+          />
+        ))}
+      </section>
+    </>
   )
 }
 

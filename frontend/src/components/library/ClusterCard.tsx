@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import type { LibraryCluster } from '../../lib/endpoints'
 import { label, mono } from '../../theme'
 import { EpisodeRow } from './EpisodeRow'
@@ -17,16 +17,39 @@ export interface ClusterCardProps {
 }
 
 /**
+ * 作品簇标题旁的小海报。
+ *
+ * 没有图是常态而不是异常：封面来自播放前的 animego 匹配，一部从没播过的番
+ * 就是没有。加载失败也走同一条路 —— 破图图标比一个安静的占位块糟得多。
+ */
+function ClusterCover({ cover }: { cover?: string }) {
+  const [failed, setFailed] = useState(false)
+  if (cover === undefined || failed) {
+    return (
+      <span className="cluster-cover cluster-cover--blank" aria-hidden="true">
+        流
+      </span>
+    )
+  }
+  return (
+    <span className="cluster-cover" aria-hidden="true">
+      <img src={cover} alt="" onError={() => setFailed(true)} />
+    </span>
+  )
+}
+
+/**
  * 一个作品簇的区块卡：标题 + 季/置信度徽标 + 集数，卡内按 groups 分节列出文件行。
  */
 export function ClusterCard({ cluster, onPlay, activeFileId, pendingFileId }: ClusterCardProps) {
   const headingId = useId()
-  const { title, season, confidence, episodeCount, groups } = cluster
+  const { title, season, confidence, episodeCount, groups, cover } = cluster
   const isLowConfidence = confidence < LOW_CONFIDENCE_THRESHOLD
 
   return (
     <article className="panel cluster" aria-labelledby={headingId}>
       <header className="cluster-head">
+        <ClusterCover cover={cover} />
         <h3 id={headingId} className="cluster-title">
           {title}
         </h3>

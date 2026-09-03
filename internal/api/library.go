@@ -7,8 +7,10 @@ package api
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -51,12 +53,32 @@ type ViewGroup struct {
 
 // ViewCluster 是剧集簇投影。
 type ViewCluster struct {
-	ClusterKey   string      `json:"clusterKey"`
-	Title        string      `json:"title"`
-	Season       *int        `json:"season"`
-	Confidence   float64     `json:"confidence"`
-	EpisodeCount int         `json:"episodeCount"`
-	Groups       []ViewGroup `json:"groups"`
+	ClusterKey   string  `json:"clusterKey"`
+	Title        string  `json:"title"`
+	Season       *int    `json:"season"`
+	Confidence   float64 `json:"confidence"`
+	EpisodeCount int     `json:"episodeCount"`
+	// Cover 是可以直接放进 <img src> 的本机地址，空串表示还没有图。
+	// 「还没有图」是常态而非异常：封面来自播放前的 animego 匹配，
+	// 一部从未播过的番就是没有。界面必须有无图版式，不能把空串当错误。
+	Cover  string      `json:"cover,omitempty"`
+	Groups []ViewGroup `json:"groups"`
+}
+
+// ViewContinue 是「继续观看」的一张卡片。
+//
+// 数据全部来自本地：进度在 store.Progress，标题与封面在 store.Binding。
+// 不发任何网络请求 —— 这也是为什么它只包含【播放过的】条目。
+type ViewContinue struct {
+	FileID       string  `json:"fileId"`
+	Title        string  `json:"title"`
+	EpisodeTitle string  `json:"episodeTitle,omitempty"`
+	Episode      *int    `json:"episode"`
+	EpisodeCount int     `json:"episodeCount"`
+	Cover        string  `json:"cover,omitempty"`
+	PositionSec  float64 `json:"positionSec"`
+	DurationSec  float64 `json:"durationSec"`
+	UpdatedAt    int64   `json:"updatedAt"`
 }
 
 // ViewFolder 是库目录投影；Error 非空表示该目录本次扫描失败（部分降级，CQ3）。
@@ -69,10 +91,24 @@ type ViewFolder struct {
 
 // LibraryView 是 GET /api/library 的完整数据。
 type LibraryView struct {
-	Folders   []ViewFolder  `json:"folders"`
-	Clusters  []ViewCluster `json:"clusters"`
-	ScannedAt *int64        `json:"scannedAt"`
+	Folders  []ViewFolder  `json:"folders"`
+	Clusters []ViewCluster `json:"clusters"`
+	// ContinueWatching 按最近观看倒序，最多 continueLimit 条。
+	ContinueWatching []ViewContinue `json:"continueWatching"`
+	ScannedAt        *int64         `json:"scannedAt"`
 }
+
+const (
+	// continueLimit 是「继续观看」最多显示几条。横向一行放得下的量级；
+	// 再多用户也不会横向滚到底，只是徒增首屏数据。
+	continueLimit = 12
+	// continueMinSec 是进入「继续观看」的最低已看时长。
+	// 点开三秒就退出的不算「在看」，那多半是点错了。
+	continueMinSec = 30
+	// continueDoneRatio 是「看到这个比例就算这一集结束了」。
+	// 与 player 的完成判定分开：那边决定要不要回写账号，这里只决定要不要还挂在首页。
+	continueDoneRatio = 0.95
+)
 
 type clusterEntry struct {
 	cluster    library.Cluster
@@ -89,6 +125,28 @@ type LibraryService struct {
 	items     map[string]library.Item
 	subs      map[string]library.SubtitleRef
 	scannedAt int64 // 0 = 从未扫描
+
+	// artPrefix 形如 /art/<能力段>；空串表示封面端点未挂载，视图里一律不给封面地址。
+	// 由启动流程注入（能力段归 httpserver 生成），不在这里自己造。
+	artPrefix string
+}
+
+// SetArtPrefix 注入封面端点前缀（形如 /art/<能力段>）。启动时调用一次。
+func (s *LibraryService) SetArtPrefix(prefix string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.artPrefix = prefix
+}
+
+// artURL 拼出某个文件的封面地址；没有前缀或该文件没有封面时返回空串。
+//
+// 给客户端的是 fileId 而不是真实图床地址：客户端只知道键，地址留在服务端 ——
+// 这样客户端侧压根没有「让 nagare 去请求任意地址」的入口（SSRF）。
+func artURL(prefix, fileID string, b store.Binding) string {
+	if prefix == "" || b.CoverURL == "" {
+		return ""
+	}
+	return prefix + "/" + url.PathEscape(fileID)
 }
 
 // NewLibraryService 构造服务（不自动扫描；调用方决定时机）。
@@ -207,15 +265,21 @@ func (s *LibraryService) SubtitlePath(fileID string) string {
 	return ""
 }
 
-// View 组装 GET /api/library 的完整视图（进度实时从 store 取）。
+// View 组装 GET /api/library 的完整视图（进度与匹配结果实时从 store 取）。
 func (s *LibraryService) View() LibraryView {
-	// 一次性取进度快照：千集规模下逐条目加锁读会把 store 的互斥锁打成热点。
-	progress := s.st.Snapshot().Progress
+	// 一次性取快照：千集规模下逐条目加锁读会把 store 的互斥锁打成热点。
+	snap := s.st.Snapshot()
+	progress, bindings := snap.Progress, snap.Bindings
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	view := LibraryView{Folders: []ViewFolder{}, Clusters: []ViewCluster{}}
+	prefix := s.artPrefix
+	view := LibraryView{
+		Folders:          []ViewFolder{},
+		Clusters:         []ViewCluster{},
+		ContinueWatching: []ViewContinue{},
+	}
 	view.Folders = append(view.Folders, s.folders...)
 	if s.scannedAt > 0 {
 		at := s.scannedAt
@@ -244,6 +308,14 @@ func (s *LibraryService) View() LibraryView {
 		} else {
 			vc.EpisodeCount = len(c.Items)
 		}
+		// 簇封面取簇内【任意一个】已匹配条目的封面：同一部番的每一集
+		// 匹配回来的都是同一张图，取第一个有的即可，不必挑「代表集」。
+		for _, it := range c.Items {
+			if u := artURL(prefix, it.FileID, bindings[it.FileID]); u != "" {
+				vc.Cover = u
+				break
+			}
+		}
 		for _, g := range c.Groups {
 			vg := ViewGroup{GroupKey: g.GroupKey, Label: g.Label, SortMode: g.SortMode, Items: []ViewItem{}}
 			for _, it := range g.Items {
@@ -266,7 +338,71 @@ func (s *LibraryService) View() LibraryView {
 		}
 		view.Clusters = append(view.Clusters, vc)
 	}
+	view.ContinueWatching = s.continueWatching(prefix, progress, bindings)
 	return view
+}
+
+// continueWatching 组装「继续观看」：看过一点、又没看完的条目，按最近观看倒序。
+//
+// 调用方必须已持有 s.mu 读锁（本函数读 s.clusters）。
+func (s *LibraryService) continueWatching(
+	prefix string,
+	progress map[string]store.Progress,
+	bindings map[string]store.Binding,
+) []ViewContinue {
+	// 集数取自所属簇：Binding 里没有总集数，而「第 5 集 / 共 13 集」
+	// 里的分母正是用户判断还剩多少的依据。
+	total := map[string]int{}
+	for _, ce := range s.clusters {
+		n := 0
+		for _, it := range ce.cluster.Items {
+			if it.ParsedKind == "main" {
+				n++
+			}
+		}
+		if n == 0 {
+			n = len(ce.cluster.Items)
+		}
+		for _, it := range ce.cluster.Items {
+			total[it.FileID] = n
+		}
+	}
+
+	out := []ViewContinue{}
+	for _, ce := range s.clusters {
+		for _, it := range ce.cluster.Items {
+			p, ok := progress[it.FileID]
+			if !ok || p.Completed || p.PositionSec < continueMinSec {
+				continue
+			}
+			// 已经看到尾巴的不再挂在首页：即使 Completed 还没置位
+			//（用户在片尾手动退出，没触发 EOF），它对用户也已经"看完了"。
+			if p.DurationSec > 0 && p.PositionSec/p.DurationSec >= continueDoneRatio {
+				continue
+			}
+			b := bindings[it.FileID]
+			title := b.Title
+			if title == "" {
+				title = clusterTitle(ce.cluster)
+			}
+			out = append(out, ViewContinue{
+				FileID:       it.FileID,
+				Title:        title,
+				EpisodeTitle: b.EpisodeTitle,
+				Episode:      it.Episode,
+				EpisodeCount: total[it.FileID],
+				Cover:        artURL(prefix, it.FileID, b),
+				PositionSec:  p.PositionSec,
+				DurationSec:  p.DurationSec,
+				UpdatedAt:    p.UpdatedAt,
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt > out[j].UpdatedAt })
+	if len(out) > continueLimit {
+		out = out[:continueLimit]
+	}
+	return out
 }
 
 func clusterTitle(c library.Cluster) string {

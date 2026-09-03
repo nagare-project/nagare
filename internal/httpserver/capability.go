@@ -20,11 +20,12 @@ const capabilityBytes = 16
 type Capabilities struct {
 	mu     sync.RWMutex
 	stream string
+	art    string
 }
 
 // NewCapabilities 生成初始能力集。
 func NewCapabilities() *Capabilities {
-	return &Capabilities{stream: random.Hex(capabilityBytes)}
+	return &Capabilities{stream: random.Hex(capabilityBytes), art: random.Hex(capabilityBytes)}
 }
 
 // Stream 返回当前流能力段。
@@ -32,6 +33,25 @@ func (c *Capabilities) Stream() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.stream
+}
+
+// Art 返回当前封面图能力段。
+//
+// 为什么封面也要走能力 URL 而不是 /api/ + token：<img> 设不了自定义请求头，
+// 只能把凭证放进 URL。用独立的能力段而不是主 token，是为了让它出现在
+// 页面 DOM 与浏览器网络面板里时，泄露的不是那把能开所有接口的钥匙。
+// 与 stream 分开两段：一段泄露不牵连另一段。
+func (c *Capabilities) Art() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.art
+}
+
+// artValid 用常数时间比较校验封面能力段。
+func (c *Capabilities) artValid(candidate string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return subtle.ConstantTimeCompare([]byte(candidate), []byte(c.art)) == 1
 }
 
 // Rotate 更换流能力段，旧 URL 立即失效。
@@ -80,6 +100,38 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Clone 已深拷贝 URL，改 Path 不会影响原请求（中间件与日志仍看到原始路径）。
+	fwd := r.Clone(r.Context())
+	fwd.URL.Path = "/" + r.PathValue("path")
+	fwd.URL.RawPath = ""
+	h.ServeHTTP(w, fwd)
+}
+
+// SetArtHandler 注册封面图处理器；传 nil 即注销。
+// 与流端点同一手法：能力段校验通过后把它从路径里剥掉再转发，
+// 处理器看不到它，也就不可能把它写进日志。
+func (s *Server) SetArtHandler(h http.Handler) {
+	s.artMu.Lock()
+	defer s.artMu.Unlock()
+	s.art = h
+}
+
+func (s *Server) artHandler() http.Handler {
+	s.artMu.RLock()
+	defer s.artMu.RUnlock()
+	return s.art
+}
+
+// handleArt 校验封面能力段并转发。
+func (s *Server) handleArt(w http.ResponseWriter, r *http.Request) {
+	if !s.caps.artValid(r.PathValue("capability")) {
+		writeError(w, http.StatusNotFound, "未找到")
+		return
+	}
+	h := s.artHandler()
+	if h == nil {
+		writeError(w, http.StatusNotFound, "未找到")
+		return
+	}
 	fwd := r.Clone(r.Context())
 	fwd.URL.Path = "/" + r.PathValue("path")
 	fwd.URL.RawPath = ""

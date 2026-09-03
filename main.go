@@ -28,6 +28,7 @@ import (
 
 	"github.com/nagare-project/nagare/internal/animego"
 	"github.com/nagare-project/nagare/internal/api"
+	"github.com/nagare-project/nagare/internal/artcache"
 	"github.com/nagare-project/nagare/internal/config"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/logfile"
@@ -441,6 +442,15 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	if svc.torrent != nil {
 		svc.streamBase.set(fmt.Sprintf("http://127.0.0.1:%d/stream/%s", port, srv.StreamCapability()))
 		srv.SetStreamHandler(svc.torrent.Handler())
+	}
+
+	// 封面端点。起不来只是界面没图（走无图版式），不阻断启动 ——
+	// 它和播放、扫描、搜索都没有关系。
+	if art, err := artcache.New(filepath.Join(configDir, "cache", "art")); err != nil {
+		log.Printf("封面缓存不可用（界面将不显示封面）：%v", err)
+	} else {
+		srv.SetArtHandler(api.NewArtHandler(svc.store, art))
+		svc.lib.SetArtPrefix("/art/" + srv.ArtCapability())
 	}
 
 	// 后台检查随 ctx 退出；关闭时不需要额外等待（只有一个 HTTP GET）。
