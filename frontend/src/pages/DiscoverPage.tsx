@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { CarouselRow } from '../components/media/CarouselRow'
 import { DiscoverHero } from '../components/media/DiscoverHero'
 import { MediaCard } from '../components/media/MediaCard'
+// Tab 这个名字在本文件里已经是「哪个标签页」的类型别名，
+// 所以把原子件的 Tab 改名导入，避免两个 Tab 打架。
+import { Tab as TabButton, Tabs } from '../components/ui'
 import { FixtureNotice } from './ListsPage'
 import { SchedulePage } from './SchedulePage'
 import { FAKE_DISCOVER, FAKE_FEATURED } from '../lib/fixtures/library'
@@ -39,24 +42,10 @@ export function DiscoverPage() {
     <main className="lib-shell discover-shell">
       <DiscoverHero items={FAKE_FEATURED} />
 
-      <nav className="tabs tabs--center" aria-label="发现分类">
-        <button
-          type="button"
-          className={tab === 'anime' ? 'tab tab--on' : 'tab'}
-          aria-current={tab === 'anime' ? 'true' : undefined}
-          onClick={() => setTab('anime')}
-        >
-          动画
-        </button>
-        <button
-          type="button"
-          className={tab === 'schedule' ? 'tab tab--on' : 'tab'}
-          aria-current={tab === 'schedule' ? 'true' : undefined}
-          onClick={() => setTab('schedule')}
-        >
-          放送表
-        </button>
-      </nav>
+      <Tabs value={tab} onChange={(next) => setTab(next as Tab)} label="发现分类" center>
+        <TabButton value="anime">动画</TabButton>
+        <TabButton value="schedule">放送表</TabButton>
+      </Tabs>
 
       {tab === 'schedule' ? (
         // 放送表整页复用，不重写一份 —— 它在 /schedule 也是同一个东西

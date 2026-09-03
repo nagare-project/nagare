@@ -254,6 +254,21 @@ body {
   font-weight: 600;
 }
 
+/* 标题带右侧动作时的一行（Panel 的 action 形态） */
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.panel-head .panel-heading {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* ---------- 按钮 ----------
    三档意图 × 两档尺寸。默认档是【次要】（透明底 + 发丝边）：
    界面上大部分按钮都不是主动作，把默认设成主动作会让每一屏都在喊。 */

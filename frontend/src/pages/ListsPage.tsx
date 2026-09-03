@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MediaCard } from '../components/media/MediaCard'
+import { Result, Tab, TabCount, Tabs } from '../components/ui'
 import { FAKE_LISTS, LIST_STATUS_LABEL } from '../lib/fixtures/library'
 import type { ListStatus } from '../lib/fixtures/library'
 import '../components/library/library.css'
@@ -26,23 +27,21 @@ export function ListsPage() {
 
       <FixtureNotice gap="G1" what="收藏列表" />
 
-      <nav className="tabs" aria-label="观看状态">
+      <Tabs
+        value={status}
+        onChange={(next) => setStatus(next as ListStatus)}
+        label="观看状态"
+      >
         {ORDER.map((s) => (
-          <button
-            key={s}
-            type="button"
-            className={s === status ? 'tab tab--on' : 'tab'}
-            aria-current={s === status ? 'true' : undefined}
-            onClick={() => setStatus(s)}
-          >
+          <Tab key={s} value={s}>
             {LIST_STATUS_LABEL[s]}
-            <span className="tab-count">{FAKE_LISTS[s].length}</span>
-          </button>
+            <TabCount n={FAKE_LISTS[s].length} />
+          </Tab>
         ))}
-      </nav>
+      </Tabs>
 
       {items.length === 0 ? (
-        <p className="result result--dim">这一档还没有作品。</p>
+        <Result>这一档还没有作品。</Result>
       ) : (
         <ul className="poster-grid">
           {items.map((m) => (
