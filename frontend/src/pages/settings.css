@@ -121,3 +121,8 @@
   font-size: 0.72rem;
   color: var(--color-warn);
 }
+
+/* 账号卡里的已知限制说明：比正文重、比错误轻 —— 它不是失败，是登录前该知道的事实。 */
+.account-note {
+  margin: 0 0 var(--space-3, 0.75rem);
+}
