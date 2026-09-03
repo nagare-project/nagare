@@ -7,17 +7,17 @@ import type { FakeAiring, FakeMedia } from './types'
  * 否则演示时一眼看穿是拼的。
  */
 const SHOWS: readonly FakeMedia[] = [
-  { id: 154587, title: '葬送的芙莉莲', titleNative: '葬送のフリーレン', year: 2023, season: '秋', episodes: 28, watched: 12, score: 92, genres: ['奇幻', '冒险', '剧情'] },
-  { id: 162804, title: '药屋少女的呢喃', titleNative: '薬屋のひとりごと', year: 2023, season: '秋', episodes: 24, watched: 24, score: 87, genres: ['悬疑', '剧情', '历史'] },
+  { id: 154587, title: '葬送的芙莉莲', titleNative: '葬送のフリーレン', year: 2023, season: '秋', episodes: 28, watched: 12, score: 92, genres: ['奇幻', '冒险', '剧情'], description: '打倒魔王之后，勇者一行人各奔东西。身为精灵的魔法使芙莉莲，用漫长的寿命重新丈量那段短暂的旅程，以及人类留下的东西。' },
+  { id: 162804, title: '药屋少女的呢喃', titleNative: '薬屋のひとりごと', year: 2023, season: '秋', episodes: 24, watched: 24, score: 87, genres: ['悬疑', '剧情', '历史'], description: '在花街长大的药师少女猫猫，被卖进后宫当下女。她凭着对毒与药的执念，一头撞进宫廷深处那些没人想说破的事。' },
   { id: 140960, title: '孤独摇滚！', titleNative: 'ぼっち・ざ・ろっく！', year: 2022, season: '秋', episodes: 12, watched: 12, score: 88, genres: ['音乐', '喜剧', '日常'] },
   { id: 21519, title: '你的名字。', titleNative: '君の名は。', year: 2016, season: '夏', episodes: 1, watched: 1, score: 85, genres: ['剧情', '恋爱', '超自然'] },
-  { id: 145064, title: '间谍过家家', titleNative: 'SPY×FAMILY', year: 2022, season: '春', episodes: 25, watched: 8, score: 86, genres: ['喜剧', '动作', '日常'] },
+  { id: 145064, title: '间谍过家家', titleNative: 'SPY×FAMILY', year: 2022, season: '春', episodes: 25, watched: 8, score: 86, genres: ['喜剧', '动作', '日常'], description: '为了任务，间谍临时组了个家：一个会读心的女儿，一个是杀手的妻子。三个人都在瞒着彼此，却意外地像一家人。' },
   { id: 101922, title: '鬼灭之刃', titleNative: '鬼滅の刃', year: 2019, season: '春', episodes: 26, watched: 0, score: 83, genres: ['动作', '超自然', '历史'] },
   { id: 113415, title: '咒术回战', titleNative: '呪術廻戦', year: 2020, season: '秋', episodes: 24, watched: 5, score: 85, genres: ['动作', '超自然'] },
   { id: 108465, title: '摇曳露营△ 第二季', titleNative: 'ゆるキャン△ SEASON2', year: 2021, season: '冬', episodes: 13, watched: 0, score: 84, genres: ['日常', '治愈'] },
   { id: 131681, title: '欢迎来到实力至上主义的教室 第二季', year: 2022, season: '夏', episodes: 13, watched: 3, score: 79, genres: ['心理', '剧情'] },
   { id: 130003, title: '别当欧尼酱了！', titleNative: 'お兄ちゃんはおしまい！', year: 2023, season: '冬', episodes: 12, watched: 0, score: 76, genres: ['喜剧', '日常'] },
-  { id: 151970, title: '迷宫饭', titleNative: 'ダンジョン飯', year: 2024, season: '冬', episodes: 24, watched: 18, score: 86, genres: ['奇幻', '冒险', '喜剧'] },
+  { id: 151970, title: '迷宫饭', titleNative: 'ダンジョン飯', year: 2024, season: '冬', episodes: 24, watched: 18, score: 86, genres: ['奇幻', '冒险', '喜剧'], description: '妹妹被龙吃掉了，队伍散了，补给也没了。莱欧斯决定一边吃魔物一边往地牢深处走 —— 反正食材遍地都是。' },
   { id: 163132, title: '战场上的普通话', year: 2026, season: '冬', episodes: null, watched: 0, score: 0, genres: ['剧情'] },
 ]
 
@@ -41,11 +41,22 @@ export const FAKE_LISTS: Record<ListStatus, FakeMedia[]> = {
   dropped: [],
 }
 
+/**
+ * 发现页的板块，顺序与 seanime 的 anime 标签页一致：
+ * 热门 → 最近更新 → 本季 → 上季 → 补番 → 即将播出 → 剧场版。
+ */
 export const FAKE_DISCOVER = {
   trending: [SHOWS[10]!, SHOWS[0]!, SHOWS[6]!, SHOWS[4]!, SHOWS[1]!, SHOWS[2]!],
-  popular: [SHOWS[5]!, SHOWS[0]!, SHOWS[3]!, SHOWS[1]!, SHOWS[6]!, SHOWS[4]!],
+  recent: [SHOWS[0]!, SHOWS[10]!, SHOWS[1]!, SHOWS[4]!, SHOWS[8]!],
+  thisSeason: [SHOWS[11]!, SHOWS[10]!, SHOWS[0]!, SHOWS[1]!],
+  pastSeason: [SHOWS[2]!, SHOWS[9]!, SHOWS[7]!, SHOWS[8]!],
+  missedSequels: [SHOWS[6]!, SHOWS[5]!, SHOWS[8]!],
   upcoming: [SHOWS[11]!, SHOWS[7]!, SHOWS[8]!, SHOWS[9]!],
+  movies: [SHOWS[3]!],
 } satisfies Record<string, FakeMedia[]>
+
+/** hero 轮播的候选：有简介的那几部（没简介的 hero 是空的，不好看） */
+export const FAKE_FEATURED: FakeMedia[] = SHOWS.filter((s) => s.description !== undefined)
 
 /** 本周放送。日期按「本周一起算」生成，所以页面每天看都合理。 */
 export function fakeAiringThisWeek(now = new Date()): FakeAiring[] {

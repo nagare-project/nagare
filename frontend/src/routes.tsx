@@ -8,6 +8,7 @@ import { ListsPage } from './pages/ListsPage'
 import { ScanSummariesPage } from './pages/ScanSummariesPage'
 import { SchedulePage } from './pages/SchedulePage'
 import { TorrentsPage } from './pages/TorrentsPage'
+import { WatchPage } from './pages/WatchPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -47,6 +48,12 @@ const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sch
 const torrentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/torrents', component: TorrentsPage })
 const scanRoute = createRoute({ getParentRoute: () => rootRoute, path: '/scan-summaries', component: ScanSummariesPage })
 const autoDlRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auto-downloader', component: AutoDownloaderPage })
+
+/**
+ * `/watch/$fileId` 浏览器内播放。决议 A5 原本不做，用户 2026-09-03 要求接上。
+ * 它是补充路径：不转码、没有弹幕与 ASS 字幕、进度不回写。正常路径仍是 mpv。
+ */
+const watchRoute = createRoute({ getParentRoute: () => rootRoute, path: '/watch/$fileId', component: WatchPage })
 
 /** `/search` 的 query 形状：q 缺省或空白时省略，地址栏保持干净 */
 export interface SearchRouteParams {
@@ -94,6 +101,7 @@ const routeTree = rootRoute.addChildren([
   torrentsRoute,
   scanRoute,
   autoDlRoute,
+  watchRoute,
   searchRoute,
   settingsRoute,
 ])

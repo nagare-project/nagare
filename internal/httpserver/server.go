@@ -61,6 +61,10 @@ type Server struct {
 	// art 是封面图处理器，启动后才注册（见 SetArtHandler）。
 	artMu sync.RWMutex
 	art   http.Handler
+
+	// media 是本地媒体流处理器（浏览器内播放），启动后才注册。
+	mediaMu sync.RWMutex
+	media   http.Handler
 }
 
 // New 组装完整的中间件链与路由。Token 为空是编程错误，直接 panic。
@@ -82,6 +86,7 @@ func New(opts Options) *Server {
 	// 流端点只认能力 URL（见 capability.go），mpv 不用带任何请求头。
 	root.HandleFunc("GET /stream/{capability}/{path...}", s.handleStream)
 	root.HandleFunc("GET /art/{capability}/{path...}", s.handleArt)
+	root.HandleFunc("GET /media/{capability}/{path...}", s.handleMedia)
 	root.Handle("/", s.staticHandler())
 
 	s.handler = securityHeaders(checkHost(opts.Port, root))
@@ -108,6 +113,9 @@ func (s *Server) StreamCapability() string { return s.caps.Stream() }
 
 // ArtCapability 返回封面端点的能力段（拼 /art/<能力段> 用）。
 func (s *Server) ArtCapability() string { return s.caps.Art() }
+
+// MediaCapability 返回本地媒体流的能力段（拼 /media/<能力段> 用）。
+func (s *Server) MediaCapability() string { return s.caps.Media() }
 
 // handleHealth 是鉴权链路的活性探针：前端拿它验证 token 与服务状态。
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

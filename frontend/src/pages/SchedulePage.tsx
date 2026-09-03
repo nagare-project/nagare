@@ -14,7 +14,7 @@ import '../components/media/media.css'
 
 const DAY_LABEL = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
-export function SchedulePage() {
+export function SchedulePage({ embedded = false }: { embedded?: boolean } = {}) {
   const now = new Date()
   const airings = fakeAiringThisWeek(now)
   const todayIdx = (now.getDay() + 6) % 7 // 周日是 0，换算成周一起算
@@ -30,12 +30,8 @@ export function SchedulePage() {
     bucket.sort((x, y) => x.airingAt.localeCompare(y.airingAt))
   }
 
-  return (
-    <main className="lib-shell">
-      <header className="page-head">
-        <h1 className="page-title">放送表</h1>
-      </header>
-
+  const body = (
+    <>
       <FixtureNotice gap="G3" what="播出时间" />
 
       <div className="week">
@@ -71,6 +67,18 @@ export function SchedulePage() {
           </section>
         ))}
       </div>
+    </>
+  )
+
+  // 内嵌进发现页的「放送表」标签时不重复页头，也不再套一层 <main>
+  if (embedded) return body
+
+  return (
+    <main className="lib-shell">
+      <header className="page-head">
+        <h1 className="page-title">放送表</h1>
+      </header>
+      {body}
     </main>
   )
 }

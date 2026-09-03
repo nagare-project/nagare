@@ -19,6 +19,8 @@ export interface FakeMedia {
   watched: number
   score?: number
   genres: string[]
+  /** 简介。hero 轮播用，列表卡不显示 */
+  description?: string
 }
 
 /** 放送表里的一条：某天某时播出某作品的某一集 */
