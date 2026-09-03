@@ -3,25 +3,11 @@
  *
  * ⚠️ 这些类型【只】服务于界面演示。真接口接上后，各页改用 lib/endpoints.ts 里
  * 的真实类型，本目录整个删掉。缺口清单见仓库根的 todos.md。
+ *
+ * 作品卡的形状【不在这里】：那是 components/media/types.ts 的 MediaSummary，
+ * 由组件自己定义。方向是「fixture 去满足组件的契约」，不是反过来 ——
+ * 反过来的话删 fixture 就等于给共享组件重新定型（有测试守着，见 fixtures.test.ts）。
  */
-
-/** 一部作品在列表/网格里的最小投影 */
-export interface FakeMedia {
-  id: number
-  title: string
-  /** 原文标题，副标题位展示 */
-  titleNative?: string
-  year?: number
-  season?: string
-  /** 总集数；未知为 null（剧场版/连载中） */
-  episodes: number | null
-  /** 已看到第几集；未开始为 0 */
-  watched: number
-  score?: number
-  genres: string[]
-  /** 简介。hero 轮播用，列表卡不显示 */
-  description?: string
-}
 
 /** 放送表里的一条：某天某时播出某作品的某一集 */
 export interface FakeAiring {
