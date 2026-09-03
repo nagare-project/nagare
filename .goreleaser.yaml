@@ -140,11 +140,39 @@ nfpms:
 checksum:
   name_template: checksums.txt
   algorithm: sha256
-  # dmg / setup.exe / mpv 构建脚本快照不是 goreleaser 自己的归档，显式纳入校验
+  # dmg / setup.exe / .app.zip / mpv 构建脚本快照不是 goreleaser 自己的归档，显式纳入校验。
+  # 自更新的信任链就架在这份清单上，漏掉哪个产物，哪个产物就没法被校验。
   extra_files:
     - glob: dist/*.dmg
+    - glob: dist/*.app.zip
     - glob: dist/*-setup.exe
     - glob: dist/mpv-sources/*
+
+# 自更新的信任根：用 minisign 签 checksums.txt。
+#
+# 只签这一份而不是逐个产物签：清单里已经有每个产物的 sha256，客户端先验清单签名、
+# 再按清单校验下载的归档，一份签名就覆盖了全部产物（dmg / setup.exe / tar.gz / zip
+# / .app.zip 都在里面）。这也是 CI 侧最简单的形态 —— 只有一次签名操作。
+#
+# 密钥没配置时发布流水线会加 --skip=sign。那样发出去的版本仍然可用，只是客户端
+# 校验不了更新包，会拒绝自更新并提示去下载页（内嵌公钥为空 = 失败关闭）。
+signs:
+  - id: minisign-checksums
+    artifacts: checksum
+    cmd: minisign
+    args:
+      - -S
+      - -s
+      - "{{ .Env.MINISIGN_KEY_FILE }}"
+      - -x
+      - "${signature}"
+      - -c
+      - "nagare {{ .Version }}"
+      - -t
+      - "nagare {{ .Version }} checksums"
+      - -m
+      - "${artifact}"
+    signature: "${artifact}.minisig"
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
@@ -176,6 +204,7 @@ release:
   prerelease: auto # 带 -rc / -beta 之类后缀的 tag 自动标 pre-release
   extra_files:
     - glob: dist/*.dmg
+    - glob: dist/*.app.zip # 自更新用：ad-hoc 签名的 Nagare.app 整包
     - glob: dist/*-setup.exe
     - glob: dist/mpv-sources/* # GPL 合规：Windows 包内 mpv 的构建脚本源码快照
   footer: |

@@ -37,3 +37,42 @@
 .update-banner-ignore {
   font-size: 0.66rem;
 }
+
+/* 一键更新（M4 阶段 B）：更新中的呼吸点 + 「立即更新」按钮 */
+.update-banner-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--hud-accent-hot);
+  box-shadow: 0 0 8px var(--hud-accent-hot);
+  animation: update-banner-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes update-banner-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.update-banner-apply {
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+/* 更新期间顶替「忽略此版本」的说明文字 */
+.update-banner-hint {
+  font-size: 0.66rem;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner-dot {
+    animation: none;
+  }
+}

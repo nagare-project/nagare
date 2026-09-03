@@ -6,9 +6,13 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"log"
 	"net/http"
+	"time"
 
+	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
 )
 
@@ -20,10 +24,76 @@ const maxRequestBytes = 4 << 10
 //	GET  /api/update          当前快照（不联网）
 //	POST /api/update/check    强制联网检查一次
 //	POST /api/update/config   {"enabled": bool} 开关后台检查
+//	POST /api/update/apply    下载 → 验签 → 校验哈希 → 解包 → 替换（阻塞，随后进程重启）
 func (c *Checker) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/update", c.handleGet)
 	mux.HandleFunc("POST /api/update/check", c.handleCheck)
 	mux.HandleFunc("POST /api/update/config", c.handleConfig)
+	mux.HandleFunc("POST /api/update/apply", c.handleApply)
+}
+
+// restartDelay 是「响应写完」到「真的重启」之间的间隔，让响应先送达浏览器
+// —— 界面要靠这个响应里的版本号去轮询 /api/health 判断新版本起来没有。
+const restartDelay = 300 * time.Millisecond
+
+// handleApply 执行一次自更新。
+//
+// 这是个【阻塞】请求：要下载 20–120MB 再验签、校验哈希、解包、替换，几十秒到几分钟
+// 都正常。成功后写响应，再延迟一小会儿触发重启 —— 重启走 main 装配的那条优雅退出
+// 路径（停播放、回写进度、关 HTTP），不是在这里直接 exec。
+func (c *Checker) handleApply(w http.ResponseWriter, r *http.Request) {
+	if c.selfUpdate == nil {
+		httpserver.WriteError(w, http.StatusServiceUnavailable,
+			"这个版本不带一键更新，请到下载页手动更新")
+		return
+	}
+	// 变量名避开内建的 cap：遮蔽内建函数在这种短函数里不显眼，但读起来很别扭。
+	if capability := c.selfUpdate.Capability(); !capability.Supported {
+		// 400 而不是 503：请求本身没毛病，是这个安装方式不支持，
+		// 原因（包管理器装的 / 目录不可写 / 没配公钥）在 Reason 里。
+		httpserver.WriteError(w, http.StatusBadRequest, capability.Reason)
+		return
+	}
+	v := c.View()
+	if !v.Available {
+		httpserver.WriteError(w, http.StatusBadRequest, "当前已经是最新版本")
+		return
+	}
+
+	// 先停播放：Windows 上 mpv 活着时安装目录里的 mpv\ 换不动，整次更新会回滚。
+	// 放在下载【之前】而不是替换之前 —— 下载要几分钟，让用户在这几分钟里继续看
+	// 一集只会让替换阶段撞上一个刚开始播的 mpv。
+	if c.beforeApply != nil {
+		c.beforeApply()
+	}
+
+	// 脱离请求 ctx：用户关掉页面不该把一次装到一半的更新掐断
+	// —— 那正是最容易留下半个版本的时刻。时长由 selfupdate 自己的超时兜底。
+	if err := c.selfUpdate.Apply(context.WithoutCancel(r.Context()), v.Latest); err != nil {
+		httpserver.WriteError(w, applyStatus(err), userMessage(err))
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, map[string]string{"version": v.Latest})
+	log.Printf("update: 已装好 %s，准备重启", v.Latest)
+	if c.onRestart != nil {
+		time.AfterFunc(restartDelay, c.onRestart)
+	}
+}
+
+// applyStatus 把自更新的失败分类映射成状态码。
+func applyStatus(err error) int {
+	var ce *errs.E
+	if !errors.As(err, &ce) {
+		return http.StatusInternalServerError
+	}
+	switch ce.Category {
+	case errs.CategoryNetwork, errs.CategoryUpstream:
+		return http.StatusBadGateway
+	case errs.CategoryInput:
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func (c *Checker) handleGet(w http.ResponseWriter, _ *http.Request) {
