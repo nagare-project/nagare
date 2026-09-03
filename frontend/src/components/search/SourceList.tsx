@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { SourceInfo, SourceOutcome } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import { SourceRow } from './SourceRow'
 import type { SelfCheckState } from './SourceRow'
 import './sources.css'

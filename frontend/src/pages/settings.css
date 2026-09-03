@@ -1,7 +1,7 @@
 /* ============================================================
    设置页样式：页面骨架 · 账号卡 · 键值表 · 表单 · 文件夹管理。
    M4 新增卡片（mpv 安装指引 / 更新 / 退出 / 关于）见 components/settings/cards.css；
-   原子件（.panel / .badge / .hud-button 等 / .result）见 styles/global.css。
+   原子件（.panel / .badge / .btn 等 / .result）见 styles/global.css。
    ============================================================ */
 
 .settings-shell {
@@ -12,30 +12,6 @@
   min-height: 100dvh;
   margin-inline: auto;
   padding: clamp(1.5rem, 4vh, 2.75rem) clamp(1rem, 4vw, 2.5rem) 2.5rem;
-}
-
-.settings-head {
-  display: flex;
-  align-items: baseline;
-  gap: 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--hud-border-dim);
-}
-
-.settings-title {
-  font-size: 1.3rem;
-  font-weight: 300;
-  letter-spacing: 0.02em;
-}
-
-.settings-back {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-}
-
-.settings-search-link {
-  margin-left: auto;
 }
 
 .settings-card {
@@ -55,7 +31,7 @@
 }
 
 .kv-list dt {
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 .kv-list dd {
@@ -98,31 +74,31 @@
   align-items: center;
   gap: 0.15rem 0.9rem;
   padding: 0.45rem 0.65rem;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
-  background: var(--color-surface-sunken);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
 }
 
 .folder-path {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.76rem;
+  font-size: 0.85rem;
 }
 
 .folder-date {
-  font-size: 0.64rem;
-  color: var(--color-text-dim);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
 .folder-error {
   grid-column: 1 / -1;
-  font-size: 0.72rem;
-  color: var(--color-warn);
+  font-size: 0.82rem;
+  color: var(--warn);
 }
 
 /* 账号卡里的已知限制说明：比正文重、比错误轻 —— 它不是失败，是登录前该知道的事实。 */
 .account-note {
-  margin: 0 0 var(--space-3, 0.75rem);
+  margin: 0 0 0.75rem;
 }

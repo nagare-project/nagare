@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { clearTorrentCache, updateTorrentConfig } from '../../lib/endpoints'
 import type { TorrentSettings } from '../../lib/endpoints'
 import { errorText, formatBytes } from '../../lib/format'
-import { label, mono } from '../../tokens'
+import { label, mono } from '../../theme'
 import './cards.css'
 
 /** 端口校验失败的文案（0 = 交给系统随机分配） */
@@ -100,8 +100,8 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
 
   return (
     <section className="panel settings-card" aria-labelledby="torrent-heading">
-      <h2 id="torrent-heading" className="panel-heading" style={label}>
-        magnet streaming
+      <h2 id="torrent-heading" className="panel-heading">
+        磁力边下边播
       </h2>
 
       {!torrent.enabled && (
@@ -154,11 +154,11 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
 
         <div className="field">
           <label htmlFor="torrent-listen-port" style={label}>
-            listen port
+            监听端口
           </label>
           <input
             id="torrent-listen-port"
-            className="hud-input torrent-port"
+            className="input torrent-port"
             type="text"
             inputMode="numeric"
             value={listenPort}
@@ -175,11 +175,11 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
 
         <div className="field">
           <label htmlFor="torrent-trackers" style={label}>
-            trackers
+            Tracker 列表
           </label>
           <textarea
             id="torrent-trackers"
-            className="hud-input torrent-trackers"
+            className="input torrent-trackers"
             rows={4}
             value={trackersText}
             onChange={(event) => setTrackersText(event.target.value)}
@@ -195,7 +195,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="hud-button hud-button--small" disabled={disabled}>
+          <button type="submit" className="btn btn--sm" disabled={disabled}>
             {state.phase === 'busy' && state.action === 'save' ? '保存中 …' : '保存'}
           </button>
           {dirty && torrent.enabled && (
@@ -219,7 +219,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
       <div className="form-actions">
         <button
           type="button"
-          className="hud-button hud-button--small hud-button--ghost"
+          className="btn btn--sm btn--danger"
           onClick={handleClearCache}
           disabled={disabled}
         >

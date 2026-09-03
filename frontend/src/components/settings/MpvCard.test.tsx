@@ -56,7 +56,7 @@ describe('MpvCard · 未找到', () => {
     mounted.push(m.unmount)
     const { container } = m
     expect(container.querySelector('.kv-list dd')?.textContent).toBe('未找到')
-    expect(container.querySelector('.mpv-alert')?.textContent).toBe(MISSING.hint)
+    expect(container.querySelector('.alert-warn')?.textContent).toBe(MISSING.hint)
     expect(container.querySelector('.mpv-command-text')?.textContent).toBe('brew install mpv')
     expect(container.querySelector('.mpv-install-note')?.textContent).toContain('Homebrew')
     const a = container.querySelector('a.mpv-install-link')
@@ -173,7 +173,7 @@ describe('MpvCard · 已找到', () => {
     expect(text).toContain('/opt/homebrew/bin/mpv')
     expect(text).toContain('PATH 环境变量')
     expect(m.container.querySelector('.mpv-install')).toBeNull()
-    expect(m.container.querySelector('.mpv-alert')).toBeNull()
+    expect(m.container.querySelector('.alert-warn')).toBeNull()
   })
 
   it.each<[MpvInfo['source'], string]>([

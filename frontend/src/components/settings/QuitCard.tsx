@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { shutdownNagare } from '../../lib/endpoints'
 import type { Platform } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
-import { hudPalette } from '../../lib/palette'
-import { label, mono } from '../../tokens'
+import { label, mono } from '../../theme'
 import './cards.css'
 
 export interface QuitCardProps {
@@ -53,8 +52,8 @@ export function QuitCard({ platform, onQuit }: QuitCardProps) {
 
   return (
     <section className="panel settings-card" aria-labelledby="quit-heading">
-      <h2 id="quit-heading" className="panel-heading" style={label}>
-        quit
+      <h2 id="quit-heading" className="panel-heading">
+        退出 nagare
       </h2>
       <p className="page-notice-copy">
         关闭浏览器标签页不会结束 nagare 的后台进程。
@@ -67,7 +66,7 @@ export function QuitCard({ platform, onQuit }: QuitCardProps) {
           <div className="form-actions">
             <button
               type="button"
-              className="hud-button hud-button--small quit-confirm-button"
+              className="btn btn--sm quit-confirm-button"
               onClick={() => void handleConfirm()}
               disabled={busy}
             >
@@ -75,7 +74,7 @@ export function QuitCard({ platform, onQuit }: QuitCardProps) {
             </button>
             <button
               type="button"
-              className="hud-button hud-button--small hud-button--ghost"
+              className="btn btn--sm btn--danger"
               onClick={() => setState({ phase: 'idle' })}
               disabled={busy}
             >
@@ -87,7 +86,7 @@ export function QuitCard({ platform, onQuit }: QuitCardProps) {
         <div className="form-actions">
           <button
             type="button"
-            className="hud-button hud-button--small hud-button--ghost quit-button"
+            className="btn btn--sm btn--danger"
             onClick={() => setState({ phase: 'confirming' })}
           >
             退出 nagare
@@ -110,10 +109,10 @@ export function QuitCard({ platform, onQuit }: QuitCardProps) {
 /** 退出成功后的整页提示：后端已经不在了，页面上再没有任何可用的动作 */
 export function QuitNotice() {
   return (
-    <main className="lib-shell" style={hudPalette}>
+    <main className="lib-shell">
       <div className="page-notice">
         <p className="panel-heading" style={label}>
-          nagare · quit
+          已退出
         </p>
         <h1 className="page-notice-title">nagare 已退出</h1>
         <p className="page-notice-copy">

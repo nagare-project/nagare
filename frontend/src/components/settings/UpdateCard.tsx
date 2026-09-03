@@ -7,7 +7,7 @@ import { errorText, formatDateTime, formatVersion } from '../../lib/format'
 import { CHANNEL_LABEL, UNSUPPORTED_REASON, selfUpdateStatus } from '../../lib/selfUpdateText'
 import type { SelfUpdateStatus } from '../../lib/selfUpdateText'
 import { isHttpUrl } from '../../lib/url'
-import { label, mono } from '../../tokens'
+import { mono } from '../../theme'
 import './cards.css'
 
 export interface UpdateCardProps {
@@ -63,8 +63,8 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
 
   return (
     <section className="panel settings-card" aria-labelledby="update-heading">
-      <h2 id="update-heading" className="panel-heading" style={label}>
-        update
+      <h2 id="update-heading" className="panel-heading">
+        更新
       </h2>
 
       {state.phase === 'loading' && (
@@ -80,7 +80,7 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
           <p>
             <button
               type="button"
-              className="hud-button hud-button--small"
+              className="btn btn--sm"
               onClick={() => void update.reload()}
             >
               重试
@@ -101,7 +101,7 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
               )}
               {state.data.available && isHttpUrl(state.data.url) && (
                 <a
-                  className="hud-link update-download"
+                  className="link update-download"
                   href={state.data.url}
                   target="_blank"
                   rel="noreferrer noopener"
@@ -133,7 +133,7 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
           <div className="form-actions update-actions">
             <button
               type="button"
-              className="hud-button hud-button--small"
+              className="btn btn--sm"
               onClick={() => void handleCheck()}
               disabled={busy}
             >
@@ -223,7 +223,7 @@ function SelfUpdateSection({
         </p>
         {downloadable && (
           <a
-            className="hud-link self-update-link"
+            className="link self-update-link"
             href={view.url}
             target="_blank"
             rel="noreferrer noopener"
@@ -244,7 +244,7 @@ function SelfUpdateSection({
         {selfUpdate.busy && <span className="self-update-dot" aria-hidden="true" />}
         <button
           type="button"
-          className="hud-button hud-button--small"
+          className="btn btn--sm"
           onClick={selfUpdate.start}
           disabled={selfUpdate.busy}
         >
@@ -252,7 +252,7 @@ function SelfUpdateSection({
         </button>
         {failed && downloadable && (
           <a
-            className="hud-link self-update-link"
+            className="link self-update-link"
             href={view.url}
             target="_blank"
             rel="noreferrer noopener"

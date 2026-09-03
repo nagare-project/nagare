@@ -1,36 +1,92 @@
 /* ============================================================
-   nagare 全局样式 — 共享底座（M1）
-   点缀色（--hud-* / --progress-*）由 lib/palette.ts 经 tokens.ts
-   生成，注入各页面根元素；本文件只放底色、reset 与跨页复用的
-   原子件（按钮 / 输入框 / 徽标 / 面板 / 结果行）与跨页共用的顶栏。
-   页面与 feature 专属样式见 components/library/library.css、
-   components/search/*.css 与 pages/settings.css。
+   nagare 全局样式 —— 设计底座
+
+   设计语言参照 seanime：内容优先、chrome 退让的媒体库应用外观。
+   三条规则贯穿全站，改任何样式前先读一遍：
+
+   1. 描边是【发丝白】rgba(255,255,255,.1)，不是灰色填充。
+      深色底上灰边会显脏，白色低透明才干净。
+   2. 暗底上的状态色，文字取【浅档】、底色取【深档 @ 10%】。
+      直接把 #ef4444 这类中间档拿来当文字会刺眼且糊。
+   3. 层级靠【明度】区分，不靠品牌色。导航当前项也是提亮 + 一层
+      白底纹，不是染成紫色 —— 品牌色留给真正需要被点的东西。
+
+   本文件只放：token、reset、应用外壳（侧栏）、跨页复用的原子件。
+   页面与 feature 专属样式见各自的 .css。
    ============================================================ */
 
 :root {
-  /* 底色与 src/tokens.ts 的层级表对齐：
-     --color-surface = oklchToken('trench', HUE.s07) = oklch(14% 0.04 195) */
-  --color-surface: oklch(14% 0.04 195);
-  --color-surface-raised: oklch(17.5% 0.042 195 / 0.85);
-  --color-surface-sunken: oklch(14% 0.04 195 / 0.6);
-  --color-text: rgba(235, 235, 245, 0.86);
-  --color-text-dim: rgba(235, 235, 245, 0.45);
-  --color-text-faint: rgba(235, 235, 245, 0.28);
+  /* ---- 表面：三层近黑 ----
+     差值刻意压得很小（7 → 11 → 16），层级靠边框而不是靠底色对比拉开。
+     拉大差值会让卡片"浮"起来，与内容优先的取向相反。 */
+  --bg: #070707;
+  --paper: #0b0b0b;
+  --paper-raised: #101010;
+  --sunken: #050505;
+  /* 半透明档：底部固定条与模态遮罩要透出下层再做 backdrop-filter，
+     不透明的 --bg 用不了。写在这里而不是各文件自己配，是为了
+     三处（正在播放条 / 磁力状态条 / 选集遮罩）永远是同一个黑。 */
+  --bg-blur: rgba(7, 7, 7, 0.88);
+  --scrim: rgba(0, 0, 0, 0.72);
 
-  /* 语义色：错误红 / 警示琥珀不在 tokens 的章节 HUE 表里，
-     沿用同一套 L/C 档位（readout 档 72% / 0.14）换 hue 生成，保持明度秩序一致 */
-  --color-err: oklch(72% 0.14 25);
-  --color-err-border: oklch(72% 0.14 25 / 0.45);
-  --color-warn: oklch(72% 0.14 55);
-  --color-warn-border: oklch(72% 0.14 55 / 0.45);
-  --color-warn-wash: oklch(72% 0.14 55 / 0.07);
+  /* ---- 描边 ---- */
+  --border: rgba(255, 255, 255, 0.1);
+  --border-dim: rgba(255, 255, 255, 0.06);
 
+  /* ---- 文字三档 ---- */
+  --fg: rgb(209, 209, 209);
+  --fg-muted: rgba(255, 255, 255, 0.42);
+  --fg-subtle: rgba(255, 255, 255, 0.26);
+
+  /* ---- 底纹：hover 与"当前项" ---- */
+  --subtle: rgba(255, 255, 255, 0.06);
+  --subtle-hover: rgba(255, 255, 255, 0.09);
+
+  /* ---- 品牌：靛紫 ----
+     --brand 是【文字档】，--brand-solid 是【填充档】。两者不可互换：
+     用 solid 当文字色在近黑底上对比度不足，用 brand 当填充底则太亮。 */
+  --brand: #c7c2ff;
+  --brand-hot: #e4e1ff;
+  --brand-solid: #6152df;
+  --brand-wash: rgba(97, 82, 223, 0.16);
+  --brand-line: rgba(159, 146, 255, 0.32);
+
+  /* ---- 状态色：一律「浅档文字 + 深档底纹」 ---- */
+  --ok: #86efac;
+  --ok-wash: rgba(34, 197, 94, 0.1);
+  --ok-line: rgba(34, 197, 94, 0.4);
+
+  --warn: #fdba74;
+  --warn-wash: rgba(249, 115, 22, 0.1);
+  --warn-line: rgba(249, 115, 22, 0.4);
+
+  --err: #fca5a5;
+  --err-wash: rgba(239, 68, 68, 0.1);
+  --err-line: rgba(239, 68, 68, 0.4);
+
+  /* ---- 观看进度条 ----
+     用中性白而不是品牌紫：进度条会压在剧集缩略图/标题上，
+     彩色会与内容抢注意力，而它只是一个"看到哪了"的参考。 */
+  --progress-fill: rgba(255, 255, 255, 0.72);
+  --progress-track: rgba(255, 255, 255, 0.1);
+
+  /* ---- 圆角 ---- */
+  --radius-sm: 0.375rem;
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  /* ---- 排版 ----
+     中文字面在英文字体里会回退，所以中文字体必须排在系统 UI 字体之后、
+     兜底 sans-serif 之前，顺序不能动。 */
   --font-ui:
-    -apple-system, 'SF Pro Display', 'PingFang SC', 'Hiragino Sans GB',
-    'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
 
-  --duration-fast: 150ms;
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 140ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 侧栏宽度：内容区靠它偏移，只在这里定义一次 */
+  --rail-w: 4.5rem;
 }
 
 /* ---------- 基础 reset ---------- */
@@ -44,280 +100,395 @@
 
 html {
   color-scheme: dark;
+  /* 整体放大一档。写 110% 而不是 17.6px：百分比是相对【用户浏览器设置】的，
+     把默认字号调大过的用户（视力需要）不会被我们的固定值抹掉。
+     全站尺寸都用 rem，所以改这一行，字与间距会一起等比放大。 */
+  font-size: 110%;
 }
 
 body {
   min-height: 100dvh;
-  background-color: var(--color-surface);
-  /* 顶部一层极淡的青色辉光，给纯色底加一点大气层 */
-  background-image: radial-gradient(
-    120% 60% at 50% -10%,
-    oklch(46% 0.06 195 / 0.14),
-    transparent 60%
-  );
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  color: var(--color-text);
+  background-color: var(--bg);
+  color: var(--fg);
   font-family: var(--font-ui);
-  font-size: 16px;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
   min-height: 100dvh;
 }
 
-/* ---------- 面板（HUD 取景框） ---------- */
+/* ---------- 应用外壳：固定左侧图标栏 + 内容区 ---------- */
 
-.panel {
-  position: relative;
-  border: 1px solid var(--hud-border-dim);
-  border-top-color: var(--hud-border);
-  background: var(--color-surface-raised);
+.app-rail {
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: var(--rail-w);
+  height: 100dvh;
+  padding: 0.85rem 0.6rem;
+  border-right: 1px solid var(--border-dim);
+  background: var(--bg);
 }
 
-/* 左上角一小截加亮描边，HUD 取景框的意思 */
-.panel::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-top: 2px solid var(--hud-accent);
-  border-left: 2px solid var(--hud-accent);
-  pointer-events: none;
+/* 品牌记号：一个字，不做图形 logo —— 侧栏只有 4.5rem 宽，
+   任何图形缩到这个尺寸都会糊，而「流」这个字缩小后依然可辨。 */
+.app-rail-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--brand-wash);
+  color: var(--brand);
+  font-size: 1.05rem;
+  font-weight: 500;
+  user-select: none;
+}
+
+.app-rail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.5rem 0.25rem;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
+}
+
+.app-rail-item:hover {
+  color: var(--fg);
+  background: var(--subtle);
+}
+
+/* 当前项不染品牌色 —— 提亮 + 一层白底纹就够，见文件头规则 3 */
+.app-rail-item[aria-current='page'] {
+  color: var(--fg);
+  background: var(--subtle);
+}
+
+.app-rail-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+.app-rail-glyph {
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+/* 内容区：给侧栏让出宽度 */
+.app-main {
+  min-height: 100dvh;
+  padding-left: var(--rail-w);
+}
+
+/* 窄屏（竖屏平板 / 手机）：侧栏转成顶部横条 */
+@media (max-width: 640px) {
+  .app-rail {
+    flex-direction: row;
+    width: 100%;
+    height: auto;
+    padding: 0.4rem 0.6rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-dim);
+  }
+
+  .app-rail-mark {
+    width: 2rem;
+    height: 2rem;
+    margin-bottom: 0;
+  }
+
+  .app-rail-item {
+    flex-direction: row;
+    gap: 0.4rem;
+    width: auto;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  .app-rail-glyph {
+    font-size: 1rem;
+  }
+
+  .app-main {
+    padding-top: 3.1rem;
+    padding-left: 0;
+  }
+}
+
+/* ---------- 卡片 ---------- */
+
+.panel {
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
 }
 
 .panel-heading {
-  color: var(--hud-accent);
+  color: var(--fg);
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-/* ---------- 按钮 ---------- */
+/* ---------- 按钮 ----------
+   三档意图 × 两档尺寸。默认档是【次要】（透明底 + 发丝边）：
+   界面上大部分按钮都不是主动作，把默认设成主动作会让每一屏都在喊。 */
 
-.hud-button {
-  padding: 0.7rem 1.6rem;
-  border: 1px solid var(--hud-accent);
-  border-radius: 2px;
+.btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2.25rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   background: transparent;
-  color: var(--hud-accent);
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.06em;
+  color: var(--fg);
+  font-family: inherit;
   font-size: 0.85rem;
+  font-weight: 500;
+  /* 这个类会挂在 <a> 上（路由链接按钮），必须显式压掉浏览器给链接的下划线 */
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--duration-fast) var(--ease-out-expo),
-    border-color var(--duration-fast) var(--ease-out-expo),
-    color var(--duration-fast) var(--ease-out-expo),
-    transform var(--duration-fast) var(--ease-out-expo);
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
 }
 
-.hud-button:hover:not(:disabled) {
-  background-color: var(--hud-flash);
-  border-color: var(--hud-accent-hot);
-  color: var(--hud-accent-hot);
+.btn:hover:not(:disabled) {
+  background: var(--subtle);
 }
 
-.hud-button:active:not(:disabled) {
-  transform: translateY(1px);
+.btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
-.hud-button:focus-visible {
-  outline: 2px solid var(--hud-accent-hot);
-  outline-offset: 3px;
-}
-
-.hud-button:disabled {
-  opacity: 0.55;
+.btn:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 
-/* 紧凑档：顶栏 / 行内 / 播放条里的动作 */
-.hud-button--small {
-  padding: 0.35rem 0.85rem;
-  font-size: 0.72rem;
+/* 主动作：一屏至多一个 */
+.btn--primary {
+  border-color: var(--brand-line);
+  background: var(--brand-solid);
+  color: #fff;
 }
 
-/* 弱化档：次要动作（删除 / 退出登录），默认收敛为暗边框 */
-.hud-button--ghost {
-  border-color: var(--hud-border-dim);
-  color: var(--color-text-dim);
+.btn--primary:hover:not(:disabled) {
+  background: #6f61e6;
 }
 
-.hud-button--ghost:hover:not(:disabled) {
-  border-color: var(--color-err-border);
-  background-color: transparent;
-  color: var(--color-err);
+/* 危险动作（删除源 / 退出登录 / 退出程序）：
+   平时收敛成普通次要按钮，hover 才转红 —— 红色常驻会让用户不敢碰旁边的东西 */
+.btn--danger {
+  border-color: var(--border-dim);
+  color: var(--fg-muted);
+}
+
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--err-line);
+  background: var(--err-wash);
+  color: var(--err);
+}
+
+.btn--sm {
+  height: 1.85rem;
+  padding: 0 0.65rem;
+  font-size: 0.86rem;
 }
 
 /* ---------- 文本输入 ---------- */
 
-.hud-input {
+.input {
   width: 100%;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
-  background: var(--color-surface-sunken);
-  color: var(--color-text);
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.02em;
-  font-size: 0.82rem;
-  transition: border-color var(--duration-fast) var(--ease-out-expo);
+  height: 2.25rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--sunken);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
 }
 
-.hud-input::placeholder {
-  color: var(--color-text-faint);
+.input::placeholder {
+  color: var(--fg-subtle);
 }
 
-.hud-input:focus-visible {
-  outline: 2px solid var(--hud-accent-hot);
-  outline-offset: 1px;
-  border-color: var(--hud-accent);
+.input:focus-visible {
+  outline: none;
+  border-color: var(--brand-line);
+  box-shadow: 0 0 0 1px var(--brand-line);
 }
 
 /* ---------- 徽标 ---------- */
 
 .badge {
-  display: inline-block;
-  padding: 0.1em 0.5em;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
-  color: var(--color-text-dim);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.58rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  line-height: 1.6;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 1.35rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--subtle);
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .badge--accent {
-  border-color: var(--hud-border);
-  color: var(--hud-accent);
-}
-
-.badge--amber {
-  border-color: var(--hud-amber-border);
-  color: var(--hud-amber);
+  border-color: var(--brand-line);
+  background: var(--brand-wash);
+  color: var(--brand);
 }
 
 .badge--warn {
-  border-color: var(--color-warn-border);
-  color: var(--color-warn);
+  border-color: var(--warn-line);
+  background: var(--warn-wash);
+  color: var(--warn);
 }
 
-/* ---------- 开关（磁力源启用 / 自动检查更新共用） ---------- */
+/* ---------- 开关 ---------- */
 
 .switch {
   position: relative;
   flex: none;
-  width: 2.1rem;
-  height: 1.15rem;
+  width: 2.2rem;
+  height: 1.25rem;
   padding: 0;
-  border: 1px solid var(--hud-border-dim);
+  border: 1px solid var(--border);
   border-radius: 1rem;
-  background: var(--color-surface-sunken);
+  background: var(--sunken);
   cursor: pointer;
   transition:
-    border-color var(--duration-fast) var(--ease-out-expo),
-    background-color var(--duration-fast) var(--ease-out-expo);
+    border-color var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
 }
 
 .switch[aria-checked='true'] {
-  border-color: var(--hud-accent);
-  background: var(--hud-flash);
+  border-color: var(--brand-line);
+  background: var(--brand-solid);
 }
 
 .switch-knob {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: calc(1.15rem - 6px);
-  height: calc(1.15rem - 6px);
+  width: calc(1.25rem - 6px);
+  height: calc(1.25rem - 6px);
   border-radius: 50%;
-  background: var(--color-text-dim);
+  background: var(--fg-muted);
   transition:
-    transform var(--duration-fast) var(--ease-out-expo),
-    background-color var(--duration-fast) var(--ease-out-expo);
+    transform var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
 }
 
 .switch[aria-checked='true'] .switch-knob {
   transform: translateX(0.95rem);
-  background: var(--hud-accent-hot);
-  box-shadow: 0 0 6px var(--hud-accent-hot);
+  background: #fff;
 }
 
 .switch:focus-visible {
-  outline: 2px solid var(--hud-accent-hot);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
 .switch:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
 }
 
 /* ---------- 链接 ---------- */
 
-.hud-link {
-  color: var(--hud-accent);
+.link {
+  color: var(--brand);
   text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition:
-    color var(--duration-fast) var(--ease-out-expo),
-    border-color var(--duration-fast) var(--ease-out-expo);
+  transition: color var(--duration-fast) var(--ease);
 }
 
-.hud-link:hover {
-  color: var(--hud-accent-hot);
-  border-bottom-color: var(--hud-accent-hot);
+.link:hover {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
-.hud-link:focus-visible {
-  outline: 2px solid var(--hud-accent-hot);
-  outline-offset: 3px;
+.link:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 /* ---------- 结果 / 状态行 ---------- */
 
 .result {
   min-height: 1.6em; /* 常驻占位：结果出现/消失时不推挤布局 */
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
 .result--dim {
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 .result--ok {
-  color: var(--hud-accent-hot);
+  color: var(--ok);
 }
 
 .result--warn {
-  color: var(--color-warn);
+  color: var(--warn);
 }
 
 .result--err {
-  color: var(--color-err);
+  color: var(--err);
 }
 
 /* ---------- 警示提示条（mpv 缺失 / 磁力引擎起不来） ---------- */
 
-/* 三个页面共用同一条警示样式。.mpv-alert 是 M1 起的历史名字，保留为别名，
-   新代码一律用语义化的 .alert-warn。 */
-.alert-warn,
-.mpv-alert {
-  padding: 0.65rem 0.9rem;
-  border: 1px solid var(--color-warn-border);
-  border-left: 3px solid var(--color-warn);
-  background: var(--color-warn-wash);
-  color: var(--color-warn);
-  font-size: 0.82rem;
+.alert-warn {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius);
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 0.85rem;
 }
 
-.alert-warn-link,
-.mpv-alert-link {
+.alert-warn-link {
   white-space: nowrap;
 }
 
@@ -331,13 +502,13 @@ body {
 }
 
 .page-notice-title {
-  font-size: 1.1rem;
-  font-weight: 500;
   margin-bottom: 0.6rem;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .page-notice-copy {
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
   font-size: 0.88rem;
 }
 
@@ -345,48 +516,32 @@ body {
   margin-top: 1.4rem;
 }
 
-/* ---------- 顶栏（媒体库页 / 搜索页共用） ---------- */
+/* ---------- 页面标题 ---------- */
 
-.topbar {
+.page-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.9rem 1.25rem;
+  align-items: center;
+  gap: 0.75rem 1.1rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--hud-border-dim);
+  border-bottom: 1px solid var(--border-dim);
 }
 
-.topbar-brand {
-  display: flex;
-  align-items: baseline;
-  gap: 0.55em;
-  font-size: 1.55rem;
-  font-weight: 200;
+.page-title {
+  font-size: 1.35rem;
+  font-weight: 600;
   letter-spacing: -0.01em;
-  line-height: 1.1;
+  line-height: 1.2;
 }
 
-.topbar-kana {
-  font-size: 0.55rem;
-  font-weight: 300;
-  letter-spacing: 0.35em;
-  color: var(--color-text-dim);
-}
-
-.topbar-spacer {
+.page-head-spacer {
   flex: 1;
 }
 
-.topbar-actions {
+.page-head-actions {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-}
-
-.topbar-link {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  gap: 0.6rem;
 }
 
 /* ---------- 无障碍工具 ---------- */
@@ -410,21 +565,18 @@ body {
 .colophon {
   margin-top: auto;
   padding-top: 2rem;
-  border-top: 1px solid var(--hud-border-dim);
+  border-top: 1px solid var(--border-dim);
 }
 
 /* ---------- 偏好适配 ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .hud-button,
-  .hud-input,
-  .hud-link,
+  .btn,
+  .input,
+  .link,
   .switch,
-  .switch-knob {
+  .switch-knob,
+  .app-rail-item {
     transition: none;
-  }
-
-  .hud-button:active:not(:disabled) {
-    transform: none;
   }
 }

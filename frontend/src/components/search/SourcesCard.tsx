@@ -1,5 +1,5 @@
 import type { UseSourcesResult } from '../../hooks/useSources'
-import { label, mono } from '../../tokens'
+import { label, mono } from '../../theme'
 import { RulesConfigForm } from './RulesConfigForm'
 import { SourceList } from './SourceList'
 import './sources.css'
@@ -17,8 +17,8 @@ export function SourcesCard({ sources }: SourcesCardProps) {
 
   return (
     <section className="panel settings-card" aria-labelledby="sources-heading">
-      <h2 id="sources-heading" className="panel-heading" style={label}>
-        magnet sources
+      <h2 id="sources-heading" className="panel-heading">
+        磁力源
       </h2>
       <p className="page-notice-copy">
         nagare 不内置任何磁力源。规则由你自己提供：一个规则仓库的 HTTPS 地址，或本机目录；
@@ -38,7 +38,7 @@ export function SourcesCard({ sources }: SourcesCardProps) {
           <p>
             <button
               type="button"
-              className="hud-button hud-button--small"
+              className="btn btn--sm"
               onClick={() => void sources.reload()}
             >
               重试
@@ -56,7 +56,7 @@ export function SourcesCard({ sources }: SourcesCardProps) {
           />
           <RulesErrors errors={state.data.rules.errors} />
           <h3 className="source-list-heading" style={label}>
-            loaded rules · {state.data.sources.length}
+            已加载规则 · {state.data.sources.length}
           </h3>
           <SourceList
             sources={state.data.sources}

@@ -1,6 +1,6 @@
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
 import type { LibraryItem } from '../../lib/endpoints'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import './library.css'
 
 /** kind 为这个值时不出徽标（正片是常态，不值得占视觉） */
@@ -41,7 +41,7 @@ export function EpisodeRow({ item, onPlay, isActive = false, isPending = false }
         ) : (
           <span className="ep-name">{fileName}</span>
         )}
-        {kindBadge !== null && <span className="badge badge--amber">{kindBadge}</span>}
+        {kindBadge !== null && <span className="badge badge--warn">{kindBadge}</span>}
       </span>
 
       <span className="ep-res" style={mono}>

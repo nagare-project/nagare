@@ -33,7 +33,7 @@ export function SearchForm({
     <form className="search-form" role="search" onSubmit={handleSubmit}>
       <input
         ref={inputRef}
-        className="hud-input search-input"
+        className="input search-input"
         type="search"
         name="q"
         value={value}
@@ -45,7 +45,7 @@ export function SearchForm({
         autoComplete="off"
         enterKeyHint="search"
       />
-      <button type="submit" className="hud-button hud-button--small">
+      <button type="submit" className="btn btn--sm btn--primary">
         {busy ? '搜索中 …' : '搜索'}
       </button>
     </form>

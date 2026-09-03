@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ReloadResult, RulesConfigPatch, RulesInfo, SyncResult } from '../../lib/endpoints'
 import { errorText, formatClock } from '../../lib/format'
-import { label, mono } from '../../tokens'
+import { label, mono } from '../../theme'
 import './sources.css'
 
 export interface RulesConfigFormProps {
@@ -89,11 +89,11 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
     <form className="rules-form" onSubmit={handleSave}>
       <div className="field">
         <label htmlFor="rules-remote-url" style={label}>
-          remote url
+          规则仓库地址
         </label>
         <input
           id="rules-remote-url"
-          className="hud-input"
+          className="input"
           type="url"
           value={remoteUrl}
           onChange={(event) => setRemoteUrl(event.target.value)}
@@ -105,11 +105,11 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
       </div>
       <div className="field">
         <label htmlFor="rules-local-dir" style={label}>
-          local dir
+          本地规则目录
         </label>
         <input
           id="rules-local-dir"
-          className="hud-input"
+          className="input"
           type="text"
           value={localDir}
           onChange={(event) => setLocalDir(event.target.value)}
@@ -120,12 +120,12 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
         />
       </div>
       <div className="form-actions">
-        <button type="submit" className="hud-button hud-button--small" disabled={busy}>
+        <button type="submit" className="btn btn--sm" disabled={busy}>
           {state.phase === 'busy' && state.action === 'save' ? '保存中 …' : '保存'}
         </button>
         <button
           type="button"
-          className="hud-button hud-button--small"
+          className="btn btn--sm"
           onClick={handleSync}
           disabled={!canSync}
           title={rules.remoteUrl === '' ? '先保存规则仓库地址' : undefined}
@@ -134,7 +134,7 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
         </button>
         <button
           type="button"
-          className="hud-button hud-button--small hud-button--ghost"
+          className="btn btn--sm btn--danger"
           onClick={handleReload}
           disabled={busy}
         >

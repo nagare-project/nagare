@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { TorrentFile } from '../../lib/endpoints'
 import { formatBytes, formatEpisode } from '../../lib/format'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import './torrent.css'
 
 /** 弹窗内可聚焦元素的选择器（Tab 循环用） */
@@ -133,7 +133,7 @@ export function EpisodePicker({
         <div className="form-actions ep-actions">
           <button
             type="button"
-            className="hud-button hud-button--small hud-button--ghost"
+            className="btn btn--sm btn--danger"
             onClick={onCancel}
           >
             取消

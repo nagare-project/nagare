@@ -1,6 +1,6 @@
 import type { SettingsData } from '../../lib/endpoints'
 import { formatVersion } from '../../lib/format'
-import { label, mono } from '../../tokens'
+import { mono } from '../../theme'
 import './cards.css'
 
 export interface AboutCardProps {
@@ -21,8 +21,8 @@ const PLATFORM_LABEL: Record<SettingsData['platform'], string> = {
 export function AboutCard({ settings }: AboutCardProps) {
   return (
     <section className="panel settings-card" aria-labelledby="about-heading">
-      <h2 id="about-heading" className="panel-heading" style={label}>
-        about
+      <h2 id="about-heading" className="panel-heading">
+        关于
       </h2>
       <dl className="kv-list">
         <dt>版本</dt>

@@ -1,7 +1,7 @@
 /* ============================================================
    媒体库 feature 样式：mpv 状态 · 空态 · 簇卡片 · 剧集行 · 添加表单。
-   正在播放条见 now-playing.css；顶栏（.topbar*，与搜索页共用）与原子件
-   （.panel / .badge / .hud-button 等）见 styles/global.css。
+   正在播放条见 now-playing.css；顶栏（.page-head*，与搜索页共用）与原子件
+   （.panel / .badge / .btn 等）见 styles/global.css。
    ============================================================ */
 
 /* ---------- 页面骨架 ---------- */
@@ -28,32 +28,27 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
+  font-size: 0.84rem;
+  color: var(--fg-muted);
 }
 
 .mpv-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--color-text-faint);
+  background: var(--fg-subtle);
 }
 
 .mpv-dot--ok {
-  background: var(--hud-accent-hot);
-  box-shadow: 0 0 6px var(--hud-accent-hot);
+  background: var(--ok);
 }
 
 .mpv-dot--missing {
-  background: var(--color-err);
-  box-shadow: 0 0 6px var(--color-err);
+  background: var(--err);
 }
 
 /* mpv 缺失提示条（设置页的 mpv 卡也用它） */
-/* .mpv-alert / .mpv-alert-link 已提升到 styles/global.css（库页 / 设置页 / 搜索页共用），
+/* .alert-warn / .alert-warn-link 已提升到 styles/global.css（库页 / 设置页 / 搜索页共用），
    新代码用那边的语义名 .alert-warn。 */
 
 /* 顶栏下的状态行（扫描结果 / 播放错误 / 上次扫描时间） */
@@ -63,7 +58,7 @@
   justify-content: flex-end;
   gap: 0.7rem;
   min-height: 1.3em;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
 }
 
 /* 状态行里的恢复动作（播放失败且 mpv 缺失 → 去设置） */
@@ -73,43 +68,117 @@
 
 /* ---------- 空态引导 ---------- */
 
-.lib-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  margin: auto;
-  padding: 3rem 0 4rem;
-  max-width: 30rem;
+/* ---------- 首次运行引导屏 ---------- */
+
+.onboard {
   width: 100%;
+  max-width: 34rem;
+  margin: auto;
+  padding: 2.5rem 0 4rem;
   text-align: center;
 }
 
-.lib-empty-kana {
-  font-size: 2.6rem;
-  font-weight: 200;
-  letter-spacing: 0.3em;
-  margin-left: 0.3em; /* 视觉补偿字符间距造成的右移 */
-  color: var(--hud-accent);
-  opacity: 0.85;
+.onboard-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-lg);
+  background: var(--brand-wash);
+  color: var(--brand);
+  font-size: 1.35rem;
+  user-select: none;
 }
 
-.lib-empty-title {
-  margin-top: 0.7rem;
-  font-size: 1.15rem;
-  font-weight: 400;
+.onboard-title {
+  margin-top: 0.9rem;
+  font-size: 1.35rem;
+  font-weight: 600;
 }
 
-.lib-empty-copy {
-  color: var(--color-text-dim);
-  font-size: 0.85rem;
-  max-width: 26rem;
+.onboard-lede {
+  margin: 0.5rem auto 0;
+  max-width: 30rem;
+  color: var(--fg-muted);
+  font-size: 0.88rem;
 }
 
-.lib-empty-form {
-  width: 100%;
-  margin-top: 1.5rem;
+.onboard-lede strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.onboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 2rem 0 0;
+  padding: 0;
+  list-style: none;
   text-align: left;
+}
+
+.onboard-step {
+  display: flex;
+  gap: 0.8rem;
+  padding: 0.95rem 1.1rem;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+}
+
+/* 状态点：与 mpv 芯片同一套语汇（平色，不发光） */
+.onboard-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 0.55rem;
+  border-radius: 50%;
+}
+
+.onboard-dot--done {
+  background: var(--ok);
+}
+
+.onboard-dot--todo {
+  background: var(--fg-subtle);
+}
+
+.onboard-dot--required {
+  background: var(--warn);
+}
+
+.onboard-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboard-step-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.onboard-step-name {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.onboard-step-desc {
+  margin-top: 0.15rem;
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+}
+
+/* 卡片内的动作（按钮 / 链接按钮）与说明之间留一档 */
+.onboard-body > .btn,
+.onboard-body > a.btn {
+  margin-top: 0.7rem;
+}
+
+.onboard-form {
+  margin-top: 0.75rem;
 }
 
 /* ---------- 簇卡片 ---------- */
@@ -141,8 +210,8 @@
 
 .cluster-count {
   margin-left: auto;
-  font-size: 0.68rem;
-  color: var(--color-text-dim);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
@@ -173,26 +242,26 @@
   padding: 0.18rem 0.5rem 0.18rem 0.4rem;
   border-left: 2px solid transparent;
   font-size: 0.8rem;
-  transition: background-color var(--duration-fast) var(--ease-out-expo);
+  transition: background-color var(--duration-fast) var(--ease);
 }
 
 .ep-row:hover {
-  background: var(--hud-flash);
-  border-left-color: var(--hud-border);
+  background: var(--brand-wash);
+  border-left-color: var(--border);
 }
 
 .ep-row--active {
-  background: var(--hud-flash);
-  border-left-color: var(--hud-accent-hot);
+  background: var(--brand-wash);
+  border-left-color: var(--brand-hot);
 }
 
 .ep-num {
-  font-size: 0.78rem;
-  color: var(--hud-accent);
+  font-size: 0.86rem;
+  color: var(--brand);
 }
 
 .ep-num--none {
-  color: var(--color-text-faint);
+  color: var(--fg-subtle);
 }
 
 /* 主列 = 文件名或引导线 + kind 徽标，放在同一格里保证右侧元数据列对齐 */
@@ -208,22 +277,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.76rem;
-  color: var(--color-text);
+  font-size: 0.85rem;
+  color: var(--fg);
 }
 
 /* 有集号时主列用虚线引导线补位（目录页的意思），把编号和右侧元数据连起来 */
 .ep-leader {
   flex: 1;
   height: 0;
-  border-bottom: 1px dashed var(--hud-border-dim);
+  border-bottom: 1px dashed var(--border-dim);
   opacity: 0.7;
 }
 
 .ep-res,
 .ep-size {
-  font-size: 0.66rem;
-  color: var(--color-text-dim);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
@@ -262,39 +331,39 @@
 .ep-pct {
   min-width: 2.4em;
   text-align: right;
-  font-size: 0.62rem;
-  color: var(--color-text-dim);
+  font-size: 0.84rem;
+  color: var(--fg-muted);
 }
 
 .ep-done {
-  font-size: 0.78rem;
-  color: var(--hud-accent-hot);
+  font-size: 0.86rem;
+  color: var(--brand-hot);
 }
 
 .ep-play {
   width: 2rem;
   height: 1.55rem;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--hud-accent);
-  font-size: 0.66rem;
+  color: var(--brand);
+  font-size: 0.8rem;
   line-height: 1;
   cursor: pointer;
   transition:
-    background-color var(--duration-fast) var(--ease-out-expo),
-    border-color var(--duration-fast) var(--ease-out-expo),
-    color var(--duration-fast) var(--ease-out-expo);
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
 }
 
 .ep-play:hover:not(:disabled) {
-  background: var(--hud-flash);
-  border-color: var(--hud-accent-hot);
-  color: var(--hud-accent-hot);
+  background: var(--brand-wash);
+  border-color: var(--brand-hot);
+  color: var(--brand-hot);
 }
 
 .ep-play:focus-visible {
-  outline: 2px solid var(--hud-accent-hot);
+  outline: 2px solid var(--brand-hot);
   outline-offset: 2px;
 }
 
@@ -316,7 +385,7 @@
   gap: 0.6rem;
 }
 
-.add-folder-row .hud-input {
+.add-folder-row .input {
   flex: 1;
 }
 

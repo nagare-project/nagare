@@ -12,8 +12,8 @@
   align-items: center;
   gap: 0.9rem 1.1rem;
   padding: 0.7rem clamp(1rem, 4vw, 2rem) 0.8rem;
-  border-top: 1px solid var(--hud-border);
-  background: oklch(14% 0.04 195 / 0.88);
+  border-top: 1px solid var(--border);
+  background: var(--bg-blur);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -40,13 +40,12 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--hud-accent-hot);
-  box-shadow: 0 0 8px var(--hud-accent-hot);
+  background: var(--brand-hot);
   animation: np-pulse 2s ease-in-out infinite;
 }
 
 .np-pulse--paused {
-  background: var(--color-text-dim);
+  background: var(--fg-muted);
   box-shadow: none;
   animation: none;
 }
@@ -78,8 +77,8 @@
 
 .np-time {
   flex: none;
-  font-size: 0.74rem;
-  color: var(--hud-accent);
+  font-size: 0.84rem;
+  color: var(--brand);
 }
 
 .np-actions {
