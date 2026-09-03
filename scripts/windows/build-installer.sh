@@ -25,7 +25,9 @@ numeric=$(printf '%s' "$version" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' || true)
 [ -n "$numeric" ] || numeric="0.0.0"
 
 stage=$(mktemp -d)
-trap 'rm -rf "$stage"' EXIT
+# trap 里要显式保住退出码：bash 3.2（macOS runner 自带的就是它）在 EXIT trap
+# 跑完之后会用 trap 的退出码顶掉脚本自己的 —— 脚本失败了 CI 却是绿的。
+trap 'ec=$?; rm -rf "$stage"; exit "$ec"' EXIT
 cp "$exe" "$stage/nagare.exe"
 # 许可证页用 RichEdit 显示，CRLF 才能正确换行
 sed 's/$/\r/' "$root/LICENSE" > "$stage/LICENSE.txt"

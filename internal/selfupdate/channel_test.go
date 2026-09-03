@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -153,4 +154,38 @@ func TestCapabilityRejectsUnsupportedPlatform(t *testing.T) {
 	capability := u.Capability()
 	require.False(t, capability.Supported)
 	require.Contains(t, capability.Reason, "riscv64")
+}
+
+// 包管理器装的必须判成 ChannelPackage —— 自更新覆盖掉它们的文件会让包管理器的
+// 版本记账错位（brew 下次 upgrade 会拿自己记的旧版本盖回去，Scoop 则留下 .old 残留）。
+//
+// Homebrew cask 这条尤其要紧：它装的就是 /Applications/Nagare.app，只看「是不是 .app」
+// 会把它判成可整包替换。所以包管理器判定必须排在 app bundle 判定【之前】。
+func TestClassifyDetectsPackageManagers(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		goos string
+	}{
+		{"Homebrew cask（Apple Silicon）", "/opt/homebrew/Caskroom/nagare/0.2.0/Nagare.app/Contents/MacOS/nagare", "darwin"},
+		{"Homebrew cask（Intel）", "/usr/local/Caskroom/nagare/0.2.0/Nagare.app/Contents/MacOS/nagare", "darwin"},
+		{"Scoop（默认根）", `C:\Users\Foo\scoop\apps\nagare\current\nagare.exe`, "windows"},
+		{"Scoop（大小写不同的盘符与用户名）", `D:\USERS\Bar\Scoop\Apps\nagare\current\nagare.exe`, "windows"},
+		{"Scoop（自定义全局根）", `C:\ProgramData\scoop\apps\nagare\current\nagare.exe`, "windows"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := classify(c.path, c.goos)
+			assert.Equal(t, ChannelPackage, got.channel,
+				"包管理器装的不能自更新，否则会覆盖掉它管理的文件")
+		})
+	}
+}
+
+// 反向：手动装在 /Applications 的 .app 仍然要能自更新 —— 那是 dmg 拖进去的，
+// 没有任何包管理器在管它。把这条一起钉住，防止上面的判定收得太宽。
+func TestClassifyKeepsManualAppBundleUpdatable(t *testing.T) {
+	got := classify("/Applications/Nagare.app/Contents/MacOS/nagare", "darwin")
+	assert.Equal(t, ChannelAppBundle, got.channel)
+	assert.Equal(t, "/Applications/Nagare.app", got.target)
 }

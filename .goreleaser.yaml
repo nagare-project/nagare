@@ -5,8 +5,17 @@
 # 前端构建不在这里做：release workflow 先 bun run build，before hook 只检查 web/ 就位。
 # 本机验证：goreleaser check && goreleaser release --snapshot --clean --skip=publish
 #
-# 阶段 B 再考虑的可选渠道（本文件刻意不配）：brews / scoops / winget / aurs。
-# 它们各自需要独立的 tap / bucket / 清单仓库与推送 token，等 Release 形态稳定后再接。
+# 可选分发渠道：scoops（Windows，见文件末尾）已接。其余（winget / aurs）各自需要独立的
+# 清单仓库与推送 token，等 Release 形态稳定后再接。
+#
+# ⚠️ Homebrew cask（macOS）**已接，但刻意不在这个文件里**：
+# goreleaser v2.18.0 的 homebrew_casks 只能从 `archives:` 产出的归档里挑源，而
+# Nagare.app 所在的 dmg / .app.zip 是 macOS post hook 生成、经 release.extra_files 挂上去的，
+# 它根本看不见；url.template 能改地址但 sha256 仍取自它挑中的那个归档（指向 dmg 会配上
+# tar.gz 的哈希，brew 每次校验都失败），而且它的 cask 模板里没有 app 这一段，
+# 只生成得出 `binary "nagare"`（裸二进制，没有 .app、没有菜单栏）。
+# 三条实测记录与替代实现见 scripts/release/publish-homebrew-cask.sh 的文件头，
+# cask 本身在 packaging/homebrew/Casks/nagare.rb。
 version: 2
 
 project_name: nagare
@@ -212,3 +221,50 @@ release:
     安装步骤（macOS「仍要打开」/ Windows「仍要运行」、mpv 依赖、校验方法）见
     [README「安装」](https://github.com/nagare-project/nagare#安装)。
     Windows 包内置的 mpv 及其许可证信息见 `THIRD_PARTY_NOTICES.md`。
+
+# Scoop（Windows 可选渠道）：发版时把 manifest 推到 nagare-project/scoop-nagare。
+#
+# 用便携版 zip 而不是 NSIS 安装包：Scoop 的模型就是「解压到自己的目录」，不跑安装程序。
+# 这也正好对上 Go 侧的内置 mpv 探测 —— zip 里 mpv\ 与 nagare.exe 的相对位置解压后不变
+# （见 internal/mpv/detect.go 的 executableDir 候选）。
+#
+# ⚠️ 推送的是【另一个仓库】，Actions 默认的 GITHUB_TOKEN 只能写当前仓库，所以要 PAT。
+# 没配 TAP_GITHUB_TOKEN 时由 release.yml 加 --skip=scoop 整条跳过，理由与 minisign 那块
+# 一样：一个可选分发渠道缺 token，不该让整次发布失败。这里不用 skip_upload 表达
+# 「没 token 就不推」是因为 skip_upload 只控制推送这一步，token 模板仍会被求值。
+#
+# ⚠️ GoReleaser v2.18.0 的 scoop 字段集里没有 checkver / autoupdate（实测确认），
+# 它生成的是一份完整 manifest 并整份覆盖 bucket/nagare.json —— packaging/scoop/ 下那份
+# bootstrap manifest 里的这两段会在第一次成功推送后消失。取舍见 docs/releasing.md。
+scoops:
+  - name: nagare
+    ids: [windows] # 只取 windows 归档（便携版 zip），不碰 setup.exe
+    repository:
+      owner: nagare-project
+      name: scoop-nagare
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: https://github.com/nagare-project/nagare
+    description: 本地动漫播放 agent：本地文件与磁力边下边播共用一个 mpv 播放引擎，浏览器就是遥控器
+    license: AGPL-3.0
+    commit_msg_template: "chore: nagare {{ .Tag }}"
+    # 开始菜单快捷方式：nagare 是 GUI 程序（-H=windowsgui），双击后只出托盘图标，
+    # 没有快捷方式的话用户只剩 shim 一条路径，找不到「怎么启动」。
+    shortcuts:
+      - ["nagare.exe", "nagare"]
+    # 不配 persist：配置、state.json、日志、磁力缓存全在 %AppData%\nagare，
+    # 不在 Scoop 的应用目录里 —— 升级与卸载本来就碰不到（persist 是给把数据
+    # 写在安装目录里的程序用的）。也不配 depends：mpv 已经在 zip 里。
+    #
+    # post_install 是唯一能在 scoop install 之后说话的地方（scoop 的 notes 字段
+    # goreleaser 不支持），零证书的代价必须在这里讲清楚。用单引号包 PowerShell 字符串，
+    # 避免 $ 展开；这几行与 packaging/scoop/bucket/nagare.json 里的必须逐字一致。
+    post_install:
+      - "Write-Host 'nagare 没有代码签名：首次运行时 SmartScreen 可能拦一次，点「更多信息」→「仍要运行」。' -ForegroundColor Yellow"
+      - "Write-Host 'mpv 已内置（安装目录下的 mpv\\），不用另装。'"
+      - "Write-Host '配置、日志、观看进度与磁力缓存在 %AppData%\\nagare，升级与卸载都不会动它。'"
+      - "Write-Host '启动后只出托盘图标，界面在浏览器里自动打开。'"
+    # auto：版本号带 -rc / -beta 之类后缀（即 release.prerelease 判定的预发布）时不推 bucket。
+    # 预发布推上去等于把 scoop install nagare 的所有人一起带上 rc。
+    skip_upload: "auto"

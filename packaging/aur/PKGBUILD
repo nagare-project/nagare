@@ -1,0 +1,107 @@
+# Maintainer: 尚无 AUR 维护者 —— 认领后把这一行换成 "Maintainer: 名字 <邮箱>"。
+#             首行写 Maintainer 是 AUR 的通行惯例（服务端不强制，但用户会照这行找人），
+#             也是「这个包有具名的人负责」这件事在文件里的唯一体现。
+
+# nagare-bin：用 GitHub Releases 上的官方预编译产物打包，不从源码构建。
+#
+# 为什么是 -bin 而不是从源码构建：
+#   从源码构建要在 makepkg 的干净环境里先用 bun 构建前端、再用 Go 编译并 go:embed 进去，
+#   makedepends 至少是 go + bun，而且两次依赖解析都要联网（Go 模块 + npm 包）——
+#   AUR 的构建约定里这属于「大而不可复现」。官方 Release 反过来是可校验的：
+#   checksums.txt 有每个产物的 sha256，checksums.txt.minisig 用内嵌公钥的 minisign 签过名。
+#   拿现成产物意味着用户装到的字节 == 上游发布的字节，中间没有第二条构建链会漂移。
+#
+# 打包前请先按 packaging/aur/README.md 验签 checksums.txt，再填下面的 sha256。
+
+pkgname=nagare-bin
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="Local anime playback agent: local files and magnet streaming via mpv"
+arch=('x86_64' 'aarch64')
+url="https://github.com/nagare-project/nagare"
+
+# SPDX 标识符，不是旧的 licenses 包名（旧写法是 'AGPL3'）。Arch 从 RFC 0016 起改用 SPDX，
+# namcap >= 3.5.0（2024-01 起）会对未知标识符直接报 error，而 /usr/share/licenses/common/
+# 那套旧目录已经在 2024-01 删掉了——写回 'AGPL3' 会挂在 namcap 上。
+#
+# 用 -only 而不是 -or-later：仓库里只有 AGPL-3.0 全文，没有「或任何更新版本」那句授权，
+# 打包元数据宁可少断言。上游哪天补上 or-later 的声明，这里再改成 AGPL-3.0-or-later。
+# 两个标识符都被 licenses 包收录（/usr/share/licenses/spdx/），属于「common」，
+# 所以随便挑哪个都不会触发 namcap 的 license-file-missing。
+license=('AGPL-3.0-only')
+
+# mpv 是运行时硬依赖：nagare 自己不解码，Linux 包也不捆绑 mpv（与官方 deb/rpm 的
+# Depends: mpv 一致）。二进制是 CGO_ENABLED=0 静态链接的，除此之外没有库依赖。
+#
+# hicolor-icon-theme：往 /usr/share/icons/hicolor/ 里装图标的包必须依赖它——
+# 那套目录层级归它所有，缺了 namcap 直接报 E（实测 v0.2.0 上验过）。
+depends=('mpv' 'hicolor-icon-theme')
+
+# xdg-open 只用在「启动后自动打开浏览器」这一步。没有它服务照样起，
+# 只是要用户自己去开 127.0.0.1:<端口>，所以是 optdepends 不是 depends。
+optdepends=('xdg-utils: 启动后自动打开浏览器')
+
+# 带版本的 provides：将来若有人做从源码构建的 nagare 包，依赖 nagare>=x.y.z 也能被满足。
+provides=("nagare=$pkgver")
+conflicts=('nagare')
+
+# !strip：source 里就是官方产物本身，已经用 -s -w 构建过（file 报 "stripped"）。
+#         再 strip 一遍没有任何收益，却会改动用户刚刚按 checksums.txt 校验过的那串字节。
+# !debug：本包不编译任何东西，debug 符号无从产生；与 !strip 一起显式声明，
+#         makepkg 就不会去尝试拆分出一个空的 nagare-bin-debug 包。
+options=('!strip' '!debug')
+
+_repo="https://github.com/nagare-project/nagare"
+_raw="https://raw.githubusercontent.com/nagare-project/nagare"
+
+# 架构无关的两个附件：.desktop 与图标不在 Release 归档里（它们只被打进官方 deb/rpm），
+# 所以按 tag 直接从仓库取，与该版本的源码严格对应。
+#
+# 为什么用 "名字::URL" 重命名：makepkg 的 SRCDEST 是跨包共享的下载缓存，文件按远端
+# 文件名落盘。不带版本号的话，下一个版本的 nagare.desktop 会被缓存里的旧同名文件顶掉，
+# 而 sha256 校验随即失败——症状看起来像「上游改了文件」，其实是本地缓存。
+source=("nagare-$pkgver.desktop::$_raw/v$pkgver/packaging/linux/nagare.desktop"
+        "nagare-$pkgver-256.png::$_raw/v$pkgver/packaging/icon/nagare-256.png")
+
+source_x86_64=("nagare-$pkgver-x86_64.tar.gz::$_repo/releases/download/v$pkgver/nagare-${pkgver}_Linux_x86_64.tar.gz")
+
+# ⚠️ 上游归档名里这个架构叫 arm64（GoReleaser 按 GOARCH 命名），而 AUR 的 $CARCH 叫
+#    aarch64。两边名字不一样，照抄 x86_64 那行改架构名会 404。
+source_aarch64=("nagare-$pkgver-aarch64.tar.gz::$_repo/releases/download/v$pkgver/nagare-${pkgver}_Linux_arm64.tar.gz")
+
+# ⚠️⚠️ 下面四个 sha256 全是占位符（64 个 0），照现状构建必然在校验阶段失败——这是有意的：
+#      占位符会响亮地失败，而 'SKIP' 会静默地放行任何字节。
+#      发版时怎么填见 packaging/aur/README.md「每次发版」一节：
+#        - 两个 Release 归档：从 minisign 验过签的 checksums.txt 里抄，别只信 updpkgsums
+#        - 两个仓库附件（desktop / png）：updpkgsums 或手动 sha256sum
+#      数组顺序必须与对应的 source 数组逐项对齐。
+sha256sums=('0000000000000000000000000000000000000000000000000000000000000000'
+            '0000000000000000000000000000000000000000000000000000000000000000')
+sha256sums_x86_64=('0000000000000000000000000000000000000000000000000000000000000000')
+sha256sums_aarch64=('0000000000000000000000000000000000000000000000000000000000000000')
+
+# 三个归档都把文件平铺在归档根（GoReleaser 未开 wrap_in_directory），解压后
+# $srcdir 里直接就是 nagare / LICENSE / README.md / THIRD_PARTY_NOTICES.md。
+# 每次构建只会下载当前架构那一个归档，所以不会互相覆盖。
+package() {
+  install -Dm755 "$srcdir/nagare" "$pkgdir/usr/bin/nagare"
+
+  # 装进这两个标准位置就够了：Arch 上 desktop-file-utils 与 gtk-update-icon-cache
+  # 各自带了 pacman hook，会在装/卸时自动刷新 desktop 数据库和图标缓存。
+  # 不需要像 deb/rpm 那样写 postinst 脚本，本包也就不带 .install。
+  install -Dm644 "$srcdir/nagare-$pkgver.desktop" \
+    "$pkgdir/usr/share/applications/nagare.desktop"
+  install -Dm644 "$srcdir/nagare-$pkgver-256.png" \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/nagare.png"
+
+  # AGPL-3.0-only 是 licenses 包收录的 common 标识符，按 Arch 的规矩可以不装这份文件。
+  # 仍然装，是因为 AGPL §4 要求分发者把许可证正文随程序一起交给接收者——
+  # 34KB 换一个不用争论的合规姿势，划算。
+  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+  # 文档目录用 $pkgname（= nagare-bin）而不是 nagare：Arch 的惯例是按包名分目录，
+  # namcap 也按这个查。与官方 deb/rpm 的 /usr/share/doc/nagare/ 不同是有意为之。
+  install -Dm644 "$srcdir/THIRD_PARTY_NOTICES.md" \
+    "$pkgdir/usr/share/doc/$pkgname/THIRD_PARTY_NOTICES.md"
+  install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

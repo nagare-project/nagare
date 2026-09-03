@@ -11,7 +11,9 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 icon_dir="$root/packaging/icon"
 svg="$icon_dir/nagare.svg"
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+# trap 里要显式保住退出码：bash 3.2（macOS runner 自带的就是它）在 EXIT trap
+# 跑完之后会用 trap 的退出码顶掉脚本自己的 —— 脚本失败了 CI 却是绿的。
+trap 'ec=$?; rm -rf "$work"; exit "$ec"' EXIT
 
 for tool in qlmanage iconutil python3; do
   command -v "$tool" >/dev/null || { echo "缺少 $tool（本脚本只能在 macOS 上运行）" >&2; exit 1; }
