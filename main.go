@@ -59,6 +59,8 @@ type flags struct {
 	noBrowser bool // 启动时不自动开浏览器
 	noTray    bool // headless：brew services / Linux 服务，不占主线程放托盘
 	update    bool // 装上最新版本后退出（无界面场景：systemd / brew services / 纯终端）
+	// validateRules 是规则作者与规则仓库 CI 用的：校验一个目录里的规则并退出。
+	validateRules string
 }
 
 // cliUpdateTimeout 是 -update 的总时限。Windows 包内置 mpv 有 120MB，
@@ -113,10 +115,19 @@ func main() {
 	flag.BoolVar(&f.noBrowser, "no-browser", false, "启动时不自动打开浏览器")
 	flag.BoolVar(&f.noTray, "no-tray", false, "不显示菜单栏/托盘图标（headless：brew services、Linux 服务）")
 	flag.BoolVar(&f.update, "update", false, "下载并安装最新版本后退出（无界面场景用；不自动重启）")
+	flag.StringVar(&f.validateRules, "validate-rules", "", "校验目录里的磁力源规则并退出（规则作者与规则仓库 CI 用）")
 	showVersion := flag.Bool("version", false, "打印版本号并退出")
 	flag.Parse()
 	if *showVersion {
 		fmt.Println(version)
+		return
+	}
+	// 校验规则不需要配置、状态、端口，什么都不用装配，直接跑完退出。
+	if f.validateRules != "" {
+		if err := validateRuleDir(f.validateRules); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		return
 	}
 	if err := start(f); err != nil {
@@ -167,6 +178,35 @@ func start(f flags) error {
 		return err
 	}
 	return run(cfg, configDir, svc, webFS, f, apiOnly)
+}
+
+// validateRuleDir 校验一个目录里的全部规则，把每条错误逐行打出来。
+//
+// 存在的理由：规则的权威校验器是引擎自己（internal/rules），而它是 internal 包，
+// 独立的规则仓库 import 不了。手写一份 JSON Schema 放在那边必然与引擎漂移 ——
+// 漂移的方向还特别糟：schema 说合法、引擎加载失败，规则作者查不出原因。
+// 把校验做成一个开关，规则仓库的 CI 直接跑这个二进制，校验器与引擎永远是同一份代码。
+func validateRuleDir(dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("打不开规则目录 %s：%w", dir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s 不是目录", dir)
+	}
+
+	loaded, loadErrs := rules.LoadDir(dir)
+	for _, e := range loadErrs {
+		fmt.Fprintf(os.Stderr, "  ✗ %v\n", e)
+	}
+	for _, r := range loaded {
+		fmt.Printf("  ✓ %s（%s）\n", r.ID, r.Name)
+	}
+	if len(loadErrs) > 0 {
+		return fmt.Errorf("%d 条规则有问题，%d 条通过", len(loadErrs), len(loaded))
+	}
+	fmt.Printf("%d 条规则全部通过校验\n", len(loaded))
+	return nil
 }
 
 // runCLIUpdate 是无界面场景的一次性更新：查最新版本 → 装上 → 退出。
