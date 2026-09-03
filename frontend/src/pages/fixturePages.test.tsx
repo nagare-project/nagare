@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount } from '../test/harness'
 import { DiscoverPage } from './DiscoverPage'
 import { ListsPage } from './ListsPage'
@@ -147,6 +147,76 @@ describe('扫描记录 / 自动下载', () => {
     const before = sw?.getAttribute('aria-checked')
     await act(async () => sw?.click())
     expect(container.querySelector('.switch')?.getAttribute('aria-checked')).not.toBe(before)
+    await unmount()
+  })
+})
+
+describe('扩展 / Debrid', () => {
+  it('扩展页：讲清规则与插件的区别，并挂上真实的源管理', async () => {
+    // 这一页【不是】假数据：nagare 的规则系统是真的，只是之前埋在设置页里。
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const data = {
+          sources: [],
+          rules: {
+            remoteUrl: '',
+            localDir: '',
+            dir: '',
+            loaded: 0,
+            errors: [],
+            lastLoadedAt: null,
+            lastSyncAt: null,
+          },
+        }
+        return new Response(JSON.stringify({ success: true, data }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
+    const { ExtensionsPage } = await import('./ExtensionsPage')
+    const { container, unmount } = await mount(<ExtensionsPage />)
+
+    expect(container.querySelector('.page-title')?.textContent).toBe('扩展')
+    // 从 seanime 过来的人会以为这里能装 JS 插件；这段对照必须在
+    const intro = container.querySelector('.ext-intro')?.textContent ?? ''
+    expect(intro).toContain('声明式')
+    expect(intro).toContain('没有代码执行')
+    // 真实的源管理组件挂上了
+    expect(container.querySelector('[aria-labelledby="sources-heading"]')).not.toBeNull()
+    // 不该有假数据横幅 —— 它用的是真接口
+    expect(container.querySelector('.alert-warn')).toBeNull()
+    await unmount()
+    vi.unstubAllGlobals()
+  })
+
+  it('Debrid：说清没后端，且保存不会假装成功', async () => {
+    const { DebridPage } = await import('./DebridPage')
+    const { container, unmount } = await mount(<DebridPage />)
+
+    const notice = container.querySelector('.alert-warn')?.textContent ?? ''
+    expect(notice).toContain('后端没有对接')
+
+    const input = container.querySelector<HTMLInputElement>('#debrid-key')
+    // 密钥是凭证，必须遮蔽
+    expect(input?.type).toBe('password')
+
+    const btn = container.querySelector<HTMLButtonElement>('.btn')
+    expect(btn?.disabled).toBe(true) // 空值不给点
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set
+      setter?.call(input, 'k-123')
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => container.querySelector<HTMLButtonElement>('.btn')?.click())
+
+    // 点了「保存」之后要如实说没保存，而不是给一个绿色的「已保存」
+    expect(container.querySelector('.result--warn')?.textContent).toContain('没有保存')
     await unmount()
   })
 })

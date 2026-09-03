@@ -3,7 +3,9 @@ import type { RouterHistory } from '@tanstack/react-router'
 import { RootLayout } from './components/RootLayout'
 import { AnimePage } from './pages/AnimePage'
 import { AutoDownloaderPage } from './pages/AutoDownloaderPage'
+import { DebridPage } from './pages/DebridPage'
 import { DiscoverPage } from './pages/DiscoverPage'
+import { ExtensionsPage } from './pages/ExtensionsPage'
 import { ListsPage } from './pages/ListsPage'
 import { ScanSummariesPage } from './pages/ScanSummariesPage'
 import { SchedulePage } from './pages/SchedulePage'
@@ -48,6 +50,15 @@ const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sch
 const torrentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/torrents', component: TorrentsPage })
 const scanRoute = createRoute({ getParentRoute: () => rootRoute, path: '/scan-summaries', component: ScanSummariesPage })
 const autoDlRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auto-downloader', component: AutoDownloaderPage })
+
+/**
+ * `/extensions` 扩展：nagare 的声明式规则系统提成一等页面（真数据）。
+ * 设置页那份保留 —— 改配置的人会去设置里找。
+ */
+const extensionsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extensions', component: ExtensionsPage })
+
+/** `/debrid`：界面预览，后端未对接（缺口 G7，见 todos.md） */
+const debridRoute = createRoute({ getParentRoute: () => rootRoute, path: '/debrid', component: DebridPage })
 
 /**
  * `/watch/$fileId` 浏览器内播放。决议 A5 原本不做，用户 2026-09-03 要求接上。
@@ -101,6 +112,8 @@ const routeTree = rootRoute.addChildren([
   torrentsRoute,
   scanRoute,
   autoDlRoute,
+  extensionsRoute,
+  debridRoute,
   watchRoute,
   searchRoute,
   settingsRoute,

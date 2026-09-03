@@ -22,6 +22,8 @@ interface RailItem {
     | '/torrents'
     | '/scan-summaries'
     | '/auto-downloader'
+    | '/extensions'
+    | '/debrid'
     | '/settings'
   glyph: string
   label: string
@@ -37,6 +39,8 @@ const ITEMS: readonly RailItem[] = [
   { to: '/torrents', glyph: '⇅', label: '任务' },
   { to: '/scan-summaries', glyph: '◱', label: '扫描' },
   { to: '/auto-downloader', glyph: '⟳', label: '订阅' },
+  { to: '/extensions', glyph: '⊞', label: '扩展' },
+  { to: '/debrid', glyph: '☁', label: 'Debrid' },
   { to: '/settings', glyph: '⚙', label: '设置' },
 ]
 
