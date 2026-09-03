@@ -358,9 +358,7 @@
   font-size: 0.9rem;
 }
 
-/* ---------- 扫描记录 ---------- */
-
-.scan-list,
+/* 自动下载的规则列表（原来与已删除的扫描记录页共用这条声明） */
 .rule-list {
   display: flex;
   flex-direction: column;
@@ -368,58 +366,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.scan {
-  padding: 1rem 1.15rem 1.1rem;
-}
-
-.scan-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.3rem 0.9rem;
-}
-
-.scan-folder {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.scan-at {
-  color: var(--fg-muted);
-  font-size: 0.82rem;
-}
-
-.scan-stats {
-  margin-top: 0.2rem;
-  color: var(--fg-muted);
-  font-size: 0.86rem;
-}
-
-/* 解析失败的文件：用警示色，因为它们是【静默丢失】的那部分 */
-.scan-unresolved {
-  margin-top: 0.7rem;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--warn-line);
-  border-radius: var(--radius);
-  background: var(--warn-wash);
-  font-size: 0.84rem;
-}
-
-.scan-unresolved-head {
-  color: var(--warn);
-}
-
-.scan-unresolved ul {
-  margin: 0.35rem 0 0;
-  padding-left: 1.1rem;
-  color: var(--fg-muted);
 }
 
 /* ---------- 自动下载规则 ---------- */

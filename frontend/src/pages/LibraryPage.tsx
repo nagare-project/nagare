@@ -4,6 +4,7 @@ import { ContinueSection } from '../components/library/ContinueSection'
 import { PosterGrid } from '../components/library/PosterGrid'
 import { GettingStarted } from '../components/library/GettingStarted'
 import { NowPlayingBar } from '../components/library/NowPlayingBar'
+import { ScanDrops } from '../components/library/ScanDrops'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { usePlayerStatus } from '../hooks/usePlayerStatus'
@@ -155,6 +156,12 @@ export function LibraryPage() {
         )}
       </p>
 
+      {/* 有内容时挂在这里；一部作品都没有时改由空态摊开（见 LibraryBody），
+          否则同一条信息会在一屏里出现两次 */}
+      {library.state.phase === 'ready' && library.state.data.clusters.length > 0 && (
+        <ScanDrops folders={library.state.data.folders} />
+      )}
+
       <LibraryBody
         state={library.state}
         settingsState={settings.state}
@@ -262,12 +269,22 @@ function LibraryBody({
   }
 
   if (clusters.length === 0) {
+    // 一个都没扫到时，「为什么」就是这一页的全部内容 —— 所以默认展开。
+    // 顶上那份此时不渲染（见页面里的 clusters.length > 0 判断）。
+    const dropped = folders.reduce((n, f) => n + (f.dropped?.total ?? 0), 0)
     return (
       <div className="page-notice">
         <h2 className="page-notice-title">没有发现视频文件</h2>
         <p className="page-notice-copy">
-          已添加 {folders.length} 个文件夹，但里面没有扫描到视频。检查路径是否正确，或到「设置」里调整文件夹后重新扫描。
+          {dropped > 0
+            ? `已添加 ${folders.length} 个文件夹，扫描到的 ${dropped} 项都被跳过了。`
+            : `已添加 ${folders.length} 个文件夹，但里面没有扫描到视频。检查路径是否正确，或到「设置」里调整文件夹后重新扫描。`}
         </p>
+        {dropped > 0 && (
+          <div className="page-notice-detail">
+            <ScanDrops folders={folders} open />
+          </div>
+        )}
       </div>
     )
   }

@@ -7,7 +7,6 @@ import { DebridPage } from './pages/DebridPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ExtensionsPage } from './pages/ExtensionsPage'
 import { ListsPage } from './pages/ListsPage'
-import { ScanSummariesPage } from './pages/ScanSummariesPage'
 import { SchedulePage } from './pages/SchedulePage'
 import { TorrentsPage } from './pages/TorrentsPage'
 import { WatchPage } from './pages/WatchPage'
@@ -48,7 +47,6 @@ const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sch
 
 /** `/torrents` 磁力任务：走真实的 /api/torrent/status，没有假数据 */
 const torrentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/torrents', component: TorrentsPage })
-const scanRoute = createRoute({ getParentRoute: () => rootRoute, path: '/scan-summaries', component: ScanSummariesPage })
 const autoDlRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auto-downloader', component: AutoDownloaderPage })
 
 /**
@@ -110,7 +108,6 @@ const routeTree = rootRoute.addChildren([
   discoverRoute,
   scheduleRoute,
   torrentsRoute,
-  scanRoute,
   autoDlRoute,
   extensionsRoute,
   debridRoute,

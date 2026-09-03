@@ -865,3 +865,110 @@
     transform: none;
   }
 }
+
+/* ---------- 扫描丢弃 ---------- */
+
+/* 用警示色而不是错误色：跳过不是故障，是一条用户可以处理的信息。
+   什么都没跳过时组件整个不渲染，所以这里不必考虑「空的样子」。 */
+.drops {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius);
+  background: var(--warn-wash);
+  font-size: 0.85rem;
+}
+
+.drops-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  color: var(--warn);
+  cursor: pointer;
+  list-style: none; /* Firefox */
+}
+
+/* Safari 的默认三角是 ::-webkit-details-marker，list-style 管不到它 */
+.drops-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 自绘展开箭头：跟随 open 状态旋转，比原生三角在深色底上清楚 */
+.drops-summary::before {
+  content: '▸';
+  /* 跟随 summary 的警示色但压暗：它是这一行唯一「还能展开」的信号，
+     用 --fg-subtle 在警示底色上几乎看不见（实机截图里确认过） */
+  color: currentcolor;
+  opacity: 0.55;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.drops[open] > .drops-summary::before {
+  transform: rotate(90deg);
+}
+
+.drops-summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.drops-count {
+  font-weight: 600;
+}
+
+/* 收起时也要看得见原因 —— 「3 项没有进库」不说明任何事 */
+.drops-why {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.drops-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin: 0.85rem 0 0.2rem;
+  padding: 0;
+  list-style: none;
+}
+
+/* 每组一条左侧细线：展开后几组原因才读得开，否则是一坨等宽的文字 */
+.drops-group {
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--warn-line);
+}
+
+.drops-group-head {
+  color: var(--fg);
+}
+
+.drops-group-head strong {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* 恢复动作是这整块东西存在的理由，所以给它正文色而不是次要色 */
+.drops-recovery {
+  margin-top: 0.25rem;
+  color: var(--fg);
+}
+
+.drops-paths {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drops-path {
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.drops-path--more {
+  color: var(--fg-subtle);
+}

@@ -20,7 +20,6 @@ interface RailItem {
     | '/schedule'
     | '/search'
     | '/torrents'
-    | '/scan-summaries'
     | '/auto-downloader'
     | '/extensions'
     | '/debrid'
@@ -37,7 +36,6 @@ const ITEMS: readonly RailItem[] = [
   { to: '/schedule', glyph: '▦', label: '放送' },
   { to: '/search', glyph: '⌕', label: '搜索' },
   { to: '/torrents', glyph: '⇅', label: '任务' },
-  { to: '/scan-summaries', glyph: '◱', label: '扫描' },
   { to: '/auto-downloader', glyph: '⟳', label: '订阅' },
   { to: '/extensions', glyph: '⊞', label: '扩展' },
   { to: '/debrid', glyph: '☁', label: 'Debrid' },

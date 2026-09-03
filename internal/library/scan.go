@@ -59,6 +59,15 @@ func isNoiseName(name string) bool {
 	return ok
 }
 
+// ScanResult 是一次扫描的完整产物：进库的东西，和没进库的东西。
+//
+// Dropped 与 Files 同等重要。只返回 Files 的话，「我那一集怎么不在库里」
+// 在界面上就永远无解——用户看得到的只有一个短了几条的列表。
+type ScanResult struct {
+	Files   []ScannedFile
+	Dropped DropSummary
+}
+
 // ScanDir 枚举 root 下的视频与字幕文件：
 //   - 跳过 ._* / .DS_Store / Thumbs.db / desktop.ini
 //   - 视频小于 1MB 跳过
@@ -66,58 +75,77 @@ func isNoiseName(name string) bool {
 //     内部恰有一个同扩展名的大文件 → 以目录路径产出该文件；多个 → 当普通目录递归
 //   - 深度上限 3；relPath 统一 NFC（macOS 文件系统给的是 NFD，CJK 必须归一）
 //
+// 被跳过的东西按原因汇总进 ScanResult.Dropped（噪声名与非媒体扩展名除外，
+// 理由见 drops.go）。
+//
 // 条目按目录项字典序遍历（os.ReadDir 保证），产出确定性。
-func ScanDir(root string) ([]ScannedFile, error) {
+func ScanDir(root string) (ScanResult, error) {
 	info, err := os.Stat(root)
 	if err != nil {
-		return nil, fmt.Errorf("访问目录 %s: %w", root, err)
+		return ScanResult{}, fmt.Errorf("访问目录 %s: %w", root, err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("%s 不是目录", root)
+		return ScanResult{}, fmt.Errorf("%s 不是目录", root)
 	}
 	var out []ScannedFile
 	// 根目录读失败是硬错误（整个库目录没了/没权限）；子目录读失败只跳过该子树。
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return nil, fmt.Errorf("读取目录 %s: %w", root, err)
+		return ScanResult{}, fmt.Errorf("读取目录 %s: %w", root, err)
 	}
-	walkEntries(root, "", 0, entries, &out)
-	return out, nil
+	drops := newDropCollector()
+	walkEntries(root, "", 0, entries, &out, drops)
+	return ScanResult{Files: out, Dropped: drops.summary()}, nil
 }
 
 // walkScan 递归子目录：读失败只跳过该子树并记日志，不毁掉整次扫描
 // （与下面单文件 stat 失败的处理一致——一个坏子目录不该让整个库目录空掉）。
-func walkScan(dir, prefix string, depth int, out *[]ScannedFile) {
+//
+// drops 与 out 一样按指针往下传：丢弃发生在递归的每一层，收集器只穿到
+// walkEntries 会漏掉这个函数里的两条早退。
+func walkScan(dir, prefix string, depth int, out *[]ScannedFile, drops *dropCollector) {
+	// 防御性上限。调用方已经只在 depth < maxScanDepth 时才递归，所以正常走不到
+	// （深度丢弃实际发生在 walkEntries 末尾那个 else）。真走到了说明有人加了一条
+	// 绕过那道闸的递归路径——那时也要记一笔，别让新路径变成新的静默丢弃。
 	if depth > maxScanDepth {
+		drops.add(DropTooDeep, prefix)
 		return
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		log.Printf("library: 跳过无法读取的子目录 %s：%v", dir, err)
+		drops.add(DropUnreadableDir, prefix)
 		return
 	}
-	walkEntries(dir, prefix, depth, entries, out)
+	walkEntries(dir, prefix, depth, entries, out, drops)
 }
 
 // walkEntries 处理一个已读出的目录项列表（根与子目录共用）。
-func walkEntries(dir, prefix string, depth int, entries []os.DirEntry, out *[]ScannedFile) {
+func walkEntries(dir, prefix string, depth int, entries []os.DirEntry, out *[]ScannedFile, drops *dropCollector) {
 	for _, entry := range entries {
 		name := entry.Name()
 		if isNoiseName(name) {
 			continue
 		}
-		// 跳过符号链接：恶意压缩包可放一个指向 ~/.ssh/id_rsa 的 .ass 软链，
-		// 播放时 mpv 会顺着链接打开目标当字幕渲染。字幕没有 1MB 下限兜底，
-		// 只能在扫描处一刀切掉（正规发布包内部不用软链）。
-		if entry.Type()&fs.ModeSymlink != 0 {
-			continue
-		}
+		// relPath 统一 NFC：macOS 文件系统给的是 NFD，CJK 必须归一，
+		// 否则同一部番的目录名会因编码形态不同而分裂成两个组。
 		entryRel := name
 		if prefix != "" {
 			entryRel = prefix + "/" + name
 		}
 		entryRel = norm.NFC.String(entryRel)
 		entryAbs := filepath.Join(dir, name)
+
+		// 跳过符号链接：恶意压缩包可放一个指向 ~/.ssh/id_rsa 的 .ass 软链，
+		// 播放时 mpv 会顺着链接打开目标当字幕渲染。字幕没有 1MB 下限兜底，
+		// 只能在扫描处一刀切掉（正规发布包内部不用软链）。
+		//
+		// 不按扩展名筛选要不要记这一笔：不跟随就意味着不知道它指向文件还是目录，
+		// 而「指向目录」正是一条软链吃掉整季的那种情况。
+		if entry.Type()&fs.ModeSymlink != 0 {
+			drops.add(DropSymlink, entryRel)
+			continue
+		}
 
 		if !entry.IsDir() {
 			ext := fileExt(name)
@@ -129,9 +157,11 @@ func walkEntries(dir, prefix string, depth int, entries []os.DirEntry, out *[]Sc
 			fi, err := entry.Info()
 			if err != nil {
 				// 单个文件 stat 失败（竞态删除等）不该毁掉整次扫描，跳过即可。
+				drops.add(DropStatFailed, entryRel)
 				continue
 			}
 			if isVid && fi.Size() < minVideoSize {
+				drops.add(DropTooSmall, entryRel)
 				continue
 			}
 			kind := "video"
@@ -150,7 +180,12 @@ func walkEntries(dir, prefix string, depth int, entries []os.DirEntry, out *[]Sc
 
 		// 目录：先看 ExFAT 包目录（目录名本身带视频扩展名）。
 		if _, isVidDir := scanVideoExts[fileExt(name)]; isVidDir && depth <= 1 {
-			if picked := pickLargestSameExt(entryAbs, fileExt(name)); picked != nil {
+			// 包内被跳过的条目先记在一个局部收集器里，只有这个包【被采纳】
+			// 才并进正式结果：没采纳会走下面的普通递归把每个条目重新判断一遍，
+			// 那时再记就是重复计数。
+			inner := newDropCollector()
+			if picked := pickLargestSameExt(entryAbs, entryRel, fileExt(name), inner); picked != nil {
+				drops.merge(inner)
 				*out = append(*out, ScannedFile{
 					RelPath: entryRel, // 以包目录的路径示人，内部真实文件走 AbsPath
 					AbsPath: picked.abs,
@@ -164,8 +199,13 @@ func walkEntries(dir, prefix string, depth int, entries []os.DirEntry, out *[]Sc
 		}
 
 		if depth < maxScanDepth {
-			walkScan(entryAbs, entryRel, depth+1, out)
+			walkScan(entryAbs, entryRel, depth+1, out, drops)
+			continue
 		}
+		// 深度上限。丢的是一整棵子树而不是一个文件，所以按【目录】计一笔，
+		// 界面文案也按目录说。这一条才是深度丢弃的真实发生点——
+		// walkScan 开头那个 depth > maxScanDepth 有这道闸在前面，永远走不到。
+		drops.add(DropTooDeep, entryRel)
 	}
 }
 
@@ -176,21 +216,34 @@ type pickedBundle struct {
 }
 
 // pickLargestSameExt：包目录内恰有一个 ≥1MB 的同扩展名子文件时返回之，否则 nil。
-func pickLargestSameExt(dirAbs, targetExt string) *pickedBundle {
+//
+// dirRel 是包目录相对库根的路径，只用来给 drops 里的样本拼路径。
+// 目录本身读不了时直接返回 nil：调用方会退回普通递归，walkScan 会在那里
+// 再读一次同一个目录、失败并记 unreadable-dir，这里记等于记两遍。
+func pickLargestSameExt(dirAbs, dirRel, targetExt string, drops *dropCollector) *pickedBundle {
 	entries, err := os.ReadDir(dirAbs)
 	if err != nil {
 		return nil
 	}
 	var candidates []pickedBundle
 	for _, e := range entries {
-		if e.IsDir() || e.Type()&fs.ModeSymlink != 0 || isNoiseName(e.Name()) || fileExt(e.Name()) != targetExt {
+		if e.IsDir() || isNoiseName(e.Name()) || fileExt(e.Name()) != targetExt {
 			continue
 		}
-		if e.Type()&os.ModeSymlink != 0 {
-			continue // 与主扫描同一条软链红线
+		rel := norm.NFC.String(dirRel + "/" + e.Name())
+		// 与主扫描同一条软链红线（原先这两行判断写了两遍，
+		// fs.ModeSymlink 与 os.ModeSymlink 是同一个常量）。
+		if e.Type()&fs.ModeSymlink != 0 {
+			drops.add(DropSymlink, rel)
+			continue
 		}
 		fi, err := e.Info()
-		if err != nil || fi.Size() < minVideoSize {
+		if err != nil {
+			drops.add(DropStatFailed, rel)
+			continue
+		}
+		if fi.Size() < minVideoSize {
+			drops.add(DropTooSmall, rel)
 			continue
 		}
 		candidates = append(candidates, pickedBundle{

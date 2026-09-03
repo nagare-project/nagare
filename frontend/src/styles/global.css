@@ -595,3 +595,10 @@ body {
     transition: none;
   }
 }
+
+/* 全页提示里的展开细节（空库时的扫描丢弃）：提示本身居中，
+   细节里是路径，左对齐才读得下去 */
+.page-notice-detail {
+  margin-top: 1.2rem;
+  text-align: left;
+}

@@ -43,3 +43,9 @@ config.local.*
 
 # 调研用的浅克隆（seanime / animeko 等），不进仓库
 scratchpad/
+
+# 内部工程文档：评审记录、方案推演、自我更正。与 CLAUDE.md 同一性质 ——
+# 里面写的是判断依据和踩过的坑，不是给使用者看的说明。
+# docs/ 下其余文件是公开文档（releasing.md / rules-format.md 都被外部引用），
+# 所以这里逐个列，不整目录忽略。
+docs/scan-drops.md

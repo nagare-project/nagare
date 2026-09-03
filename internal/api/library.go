@@ -85,12 +85,58 @@ type ViewContinue struct {
 	UpdatedAt    int64   `json:"updatedAt"`
 }
 
+// ViewDropGroup 是「本次扫描按同一个原因跳过了哪些东西」的投影。
+//
+// Reason 是稳定码（前端分组/测试断言用），Message 与 Recovery 是给用户看的。
+// 两者都给，因为只给中文的话前端只能拿中文串当键。
+type ViewDropGroup struct {
+	Reason   string `json:"reason"`
+	Count    int    `json:"count"`
+	Message  string `json:"message"`
+	Recovery string `json:"recovery"`
+	// Samples 是完整路径（已拼上库目录），最多几条。给的是完整路径而不是
+	// 相对路径：多个库目录的丢弃会在界面上合并显示，相对路径那时是有歧义的。
+	Samples []string `json:"samples"`
+}
+
+// ViewDrops 是一次扫描丢掉的全部东西。
+type ViewDrops struct {
+	Total  int             `json:"total"`
+	Groups []ViewDropGroup `json:"groups"`
+}
+
 // ViewFolder 是库目录投影；Error 非空表示该目录本次扫描失败（部分降级，CQ3）。
+//
+// Dropped 是「这次扫描跳过了什么」。nil 表示一个都没跳过——那是常态，
+// 界面在这种时候【不出】任何提示：每次扫描都吓用户一跳是另一种病。
 type ViewFolder struct {
-	ID      string `json:"id"`
-	Path    string `json:"path"`
-	AddedAt int64  `json:"addedAt"`
-	Error   string `json:"error,omitempty"`
+	ID      string     `json:"id"`
+	Path    string     `json:"path"`
+	AddedAt int64      `json:"addedAt"`
+	Error   string     `json:"error,omitempty"`
+	Dropped *ViewDrops `json:"dropped,omitempty"`
+}
+
+// toViewDrops 把扫描层的丢弃汇总翻成视图，样本路径拼上库目录变成完整路径。
+func toViewDrops(root string, s library.DropSummary) *ViewDrops {
+	if s.Total == 0 {
+		return nil
+	}
+	groups := make([]ViewDropGroup, 0, len(s.Groups))
+	for _, g := range s.Groups {
+		samples := make([]string, 0, len(g.Samples))
+		for _, rel := range g.Samples {
+			samples = append(samples, filepath.Join(root, filepath.FromSlash(rel)))
+		}
+		groups = append(groups, ViewDropGroup{
+			Reason:   string(g.Reason),
+			Count:    g.Count,
+			Message:  g.UserMsg,
+			Recovery: g.Recovery,
+			Samples:  samples,
+		})
+	}
+	return &ViewDrops{Total: s.Total, Groups: groups}
 }
 
 // LibraryView 是 GET /api/library 的完整数据。
@@ -184,15 +230,16 @@ func (s *LibraryService) Rescan() Stats {
 	)
 	for _, f := range folders {
 		fv := ViewFolder{ID: f.ID, Path: f.Path, AddedAt: f.AddedAt}
-		scanned, err := library.ScanDir(f.Path)
+		res, err := library.ScanDir(f.Path)
 		if err != nil {
 			fv.Error = fmt.Sprintf("扫描失败：%v", err)
 			fviews = append(fviews, fv)
 			continue
 		}
+		fv.Dropped = toViewDrops(f.Path, res.Dropped)
 		var srcs []library.SourceFile
 		var subFiles []library.ScannedFile
-		for _, sf := range scanned {
+		for _, sf := range res.Files {
 			if sf.Kind == "video" {
 				srcs = append(srcs, library.SourceFile{
 					RelPath: sf.RelPath, AbsPath: sf.AbsPath, Size: sf.Size, MTimeMs: sf.MTimeMs,
