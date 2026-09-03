@@ -148,6 +148,23 @@ export interface PlayData {
   danmaku: DanmakuStatus
 }
 
+/**
+ * 上一次「看完标记回写 animego 账号」失败的留痕。
+ *
+ * 只在失败时出现。它【不随播放结束消失】：失败发生在 mpv 已经退出之后，
+ * 挂在会话上等于永远没人看得见 —— 用户以为这一集记上了，
+ * 下次打开网站才发现没有，那时已经不知道是哪一集丢的。
+ */
+export interface SyncFailure {
+  state: 'failed'
+  title?: string
+  episode?: number
+  reason?: string
+  /** 用户能做的一步动作 */
+  recovery?: string
+  at?: number
+}
+
 /** 正在播放时的完整状态 */
 export interface PlayingStatus {
   playing: true
@@ -157,10 +174,11 @@ export interface PlayingStatus {
   duration: number
   paused: boolean
   danmaku: DanmakuStatus
+  sync?: SyncFailure
 }
 
 /** GET /api/player/status 的 data 载荷（判别联合：以 playing 收窄） */
-export type PlayerStatus = PlayingStatus | { playing: false }
+export type PlayerStatus = PlayingStatus | { playing: false; sync?: SyncFailure }
 
 // ---------- 设置 ----------
 

@@ -602,3 +602,10 @@ body {
   margin-top: 1.2rem;
   text-align: left;
 }
+
+/* 警示条里的恢复动作：另起一行，与原因分开读 */
+.alert-warn-recovery {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--fg);
+}

@@ -11,6 +11,7 @@ import { usePlayerStatus } from '../hooks/usePlayerStatus'
 import { useSettings } from '../hooks/useSettings'
 import { pausePlayer, playFile, stopPlayer } from '../lib/endpoints'
 import type { LibraryState } from '../hooks/useLibrary'
+import type { PlayerStatus } from '../lib/endpoints'
 import type { SettingsState } from '../hooks/useSettings'
 import { errorText, formatClock } from '../lib/format'
 import { mono } from '../theme'
@@ -141,6 +142,7 @@ export function LibraryPage() {
       </header>
 
       <MpvAlert state={settings.state} />
+      <SyncAlert status={player.status} />
 
       <p
         className={statusLine === null ? 'result lib-status' : `result lib-status result--${statusLine.tone}`}
@@ -212,6 +214,34 @@ function MpvAlert({ state }: { state: SettingsState }) {
       <Link to={INSTALL_MPV_LINK.to} className="link alert-warn-link">
         {INSTALL_MPV_LINK.label}
       </Link>
+    </p>
+  )
+}
+
+/**
+ * 「这一集没记到你的账号」。
+ *
+ * 为什么值得一条常驻横幅：回写失败发生在 mpv 已经退出【之后】，
+ * 那条路径上界面不会有任何变化 —— 用户以为记上了，下次打开网站
+ * 才发现还停在上一集，而那时已经不知道是哪一集丢的。
+ *
+ * 不做「知道了」按钮：它描述的不是一条过时的通知，而是一个仍然成立的事实
+ *（那一集确实还没同步）。回写成功后后端自己会把它清掉，横幅随之消失。
+ */
+function SyncAlert({ status }: { status: PlayerStatus | null }) {
+  const sync = status?.sync
+  if (sync === undefined) return null
+  const what =
+    sync.title !== undefined && sync.title !== ''
+      ? `「${sync.title}${sync.episode !== undefined && sync.episode > 0 ? ` 第${sync.episode}集` : ''}」`
+      : '刚看完的这一集'
+  return (
+    <p className="alert-warn" role="status">
+      {what}看完了，但没能记到你的 animego 账号
+      {sync.reason !== undefined && sync.reason !== '' ? `：${sync.reason}` : '。'}
+      {sync.recovery !== undefined && sync.recovery !== '' && (
+        <span className="alert-warn-recovery">→ {sync.recovery}</span>
+      )}
     </p>
   )
 }

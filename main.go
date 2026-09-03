@@ -295,30 +295,38 @@ func rotateToken(cfg *config.Config, format string) error {
 	return nil
 }
 
-// newAnimegoClient 还原已保存的会话，并返回一个把新会话落盘的回调。
+// newAnimegoClient 还原已保存的会话，并挂上「会话一变就落盘」的回调。
 //
 // access token 15 分钟、refresh cookie 单次有效：任意一次鉴权调用都可能把两者
 // 换成新的，不及时落盘就等于用户下次启动要重新登录。
-func newAnimegoClient(st *store.Store) (*animego.Client, func()) {
-	client := animego.New(animego.Options{UserAgent: "nagare/" + version})
-	if sess := st.AnimegoSession(); sess.AccessToken != "" || sess.RefreshCookie != "" {
-		client.RestoreSession(animego.Session{
-			AccessToken:   sess.AccessToken,
-			RefreshCookie: sess.RefreshCookie,
-		})
-	}
-	persist := func() {
-		cur := client.Session()
+//
+// 落盘由客户端【主动通知】而不是由各调用点记得来取。后者漏过一次：
+// 播放开始时的 match 会触发 401 刷新并轮换 cookie，而用户看一半停掉时
+// 那条路径不落盘 —— 轮换后的 cookie 从没写进磁盘，下次启动静默掉线。
+func newAnimegoClient(st *store.Store) *animego.Client {
+	persist := func(cur animego.Session) {
 		prev := st.AnimegoSession()
 		if cur.AccessToken == prev.AccessToken && cur.RefreshCookie == prev.RefreshCookie {
 			return
 		}
 		prev.AccessToken, prev.RefreshCookie = cur.AccessToken, cur.RefreshCookie
 		if err := st.SetAnimegoSession(prev); err != nil {
+			// 这里失败只能记日志：它跑在刷新链路里，没有用户面前的上下文。
+			// 后果是下次启动要重新登录，界面上的登录态会如实反映。
 			log.Printf("持久化 animego 会话失败：%v", err)
 		}
 	}
-	return client, persist
+	client := animego.New(animego.Options{
+		UserAgent:       "nagare/" + version,
+		OnSessionChange: persist,
+	})
+	if sess := st.AnimegoSession(); sess.AccessToken != "" || sess.RefreshCookie != "" {
+		client.RestoreSession(animego.Session{
+			AccessToken:   sess.AccessToken,
+			RefreshCookie: sess.RefreshCookie,
+		})
+	}
+	return client
 }
 
 // buildServices 组装状态、mpv 探测、animego 客户端、播放编排、媒体库与磁力源规则。
@@ -343,7 +351,7 @@ func buildServices(configDir string) (*services, error) {
 		log.Printf("mpv %s（%s，来源：%s）", info.Version, info.Path, info.Source)
 	}
 
-	client, persistSession := newAnimegoClient(st)
+	client := newAnimegoClient(st)
 
 	// 磁力引擎：起不来不阻断启动（本地库与播放照常），磁力端点整体降级。
 	streamBase := &streamBaseHolder{}
@@ -354,11 +362,10 @@ func buildServices(configDir string) (*services, error) {
 	}
 
 	mgr := player.New(player.Options{
-		Store:          st,
-		Client:         client,
-		MPV:            mpvRT,
-		RuntimeDir:     runtimeDir,
-		PersistSession: persistSession,
+		Store:      st,
+		Client:     client,
+		MPV:        mpvRT,
+		RuntimeDir: runtimeDir,
 		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
 		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
 		OnSessionEnd: func() {

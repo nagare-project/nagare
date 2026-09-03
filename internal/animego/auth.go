@@ -80,7 +80,12 @@ func (c *Client) Login(ctx context.Context, email, password string) (User, error
 }
 
 // RestoreSession 恢复此前存盘的会话（比如进程重启后从 config 读回）。
-func (c *Client) RestoreSession(s Session) { c.setSession(s) }
+// 刻意【不】触发 OnSessionChange：这是把盘上的东西读回内存，不是新状态。
+func (c *Client) RestoreSession(s Session) {
+	c.sessionMu.Lock()
+	c.session = s
+	c.sessionMu.Unlock()
+}
 
 // Session 返回当前会话快照。登录/刷新后内容可能已变化，调用方负责存盘。
 func (c *Client) Session() Session {
@@ -95,11 +100,23 @@ func (c *Client) LoggedIn() bool {
 	return s.AccessToken != "" || s.RefreshCookie != ""
 }
 
-// setSession 整体覆盖会话。
+// setSession 整体覆盖会话，变了就通知调用方落盘。
 func (c *Client) setSession(s Session) {
 	c.sessionMu.Lock()
+	changed := c.session != s
 	c.session = s
 	c.sessionMu.Unlock()
+	if changed {
+		c.notifySession(s)
+	}
+}
+
+// notifySession 在【锁外】把新会话交给调用方持久化。
+// 必须锁外：回调若回头调 Session() 就会自锁死（sync.Mutex 不可重入）。
+func (c *Client) notifySession(s Session) {
+	if c.onSessionChange != nil {
+		c.onSessionChange(s)
+	}
 }
 
 // refreshSession 在鉴权请求撞上 401 后刷新 access token，返回可用的新 token。
@@ -160,7 +177,13 @@ func (c *Client) doRefresh(ctx context.Context, op, cookie string) (string, erro
 	if rotated := refreshCookieFrom(res.header); rotated != "" {
 		c.session.RefreshCookie = rotated
 	}
+	updated := c.session
 	c.sessionMu.Unlock()
+	// 刷新总是换掉 access token，必然是新状态 —— 不比较直接通知。
+	// 这里落盘发生在 refreshMu 之内，排队的 401 会多等一次小文件写；
+	// 换来的是「轮换后的 cookie 一定在磁盘上」，这笔交易划算：
+	// 丢一次轮换＝用户下次启动静默掉线，多等几毫秒＝没人察觉。
+	c.notifySession(updated)
 	return env.Data.AccessToken, nil
 }
 

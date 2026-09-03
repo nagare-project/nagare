@@ -276,6 +276,14 @@ func (m *Manager) finalize(sess *session, endedByEOF bool) {
 		_ = os.Remove(sess.assTarget)
 	}
 
+	m.syncWatched(sess)
+}
+
+// syncWatched 把「这一集看完了」回写 animego 账号。
+//
+// 单独一个函数而不是塞在 finalize 里：它是 finalize 四件事中唯一会
+// 走网络、也是唯一会失败给用户看的一件，值得能被单独测（测它不需要 mpv）。
+func (m *Manager) syncWatched(sess *session) {
 	p, ok := m.opts.Store.Progress(sess.item.FileID)
 	if !ok || !p.Completed || p.Synced {
 		return
@@ -291,14 +299,26 @@ func (m *Manager) finalize(sess *session, endedByEOF bool) {
 	if err == nil {
 		err = m.opts.Client.MarkWatched(ctx, b.AnilistID, b.Episode)
 	}
-	// 无论成败都持久化会话：401 自动刷新可能已轮换 refresh cookie。
-	if m.opts.PersistSession != nil {
-		m.opts.PersistSession()
-	}
 	if err != nil {
-		log.Printf("player: 回写看完标记失败（下次退出时重试）：%v", err)
+		// 只记日志是不够的：这条失败发生在 mpv 已经退出之后，用户面前
+		// 什么都不会变 —— 他以为这一集记上了，下次打开网站才发现没有，
+		// 而那时已经不知道是哪一集丢的。挂进 Status 让界面说出来。
+		reason, recovery := classifySyncErr(err)
+		m.setSyncFailure(&SyncInfo{
+			State:    "failed",
+			Title:    b.Title,
+			Episode:  b.Episode,
+			Reason:   reason,
+			Recovery: recovery,
+			At:       time.Now().UnixMilli(),
+		})
+		// 措辞不再写「下次退出时重试」——那是过度承诺。重试只发生在
+		// 重看【这一集】并再次看完时（上面那个 p.Synced 判断只在那一集的会话里跑）。
+		log.Printf("player: 回写看完标记失败（重看这一集看完时会再试）：%v", err)
 		return
 	}
+	// 成功就把上一次的失败留痕清掉，横幅跟着消失，不用用户手动关。
+	m.setSyncFailure(nil)
 	p.Synced = true
 	if err := m.opts.Store.SetProgress(sess.item.FileID, p); err != nil {
 		log.Printf("player: 记录同步状态失败：%v", err)

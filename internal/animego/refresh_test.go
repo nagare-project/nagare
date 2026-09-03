@@ -171,3 +171,136 @@ func TestConcurrent401RefreshesOnlyOnce(t *testing.T) {
 		assert.True(t, strings.HasPrefix(m.Auth, "Bearer "), "鉴权头缺失: %+v", m)
 	}
 }
+
+// ---------- 会话变更通知（OnSessionChange） ----------
+
+// sessionSpy 记录客户端主动交出来的每一次会话。
+type sessionSpy struct {
+	mu   sync.Mutex
+	seen []animego.Session
+}
+
+func (s *sessionSpy) record(sess animego.Session) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.seen = append(s.seen, sess)
+}
+
+func (s *sessionSpy) last() (animego.Session, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.seen) == 0 {
+		return animego.Session{}, false
+	}
+	return s.seen[len(s.seen)-1], true
+}
+
+func (s *sessionSpy) count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.seen)
+}
+
+func newSpyClient(t *testing.T, spy *sessionSpy, h http.HandlerFunc) *animego.Client {
+	t.Helper()
+	return animego.New(animego.Options{
+		BaseURL:         newRecordingServer(t, nil, h),
+		UserAgent:       "nagare/test",
+		OnSessionChange: spy.record,
+	})
+}
+
+// 轮换后的 cookie 必须【由客户端主动交出来】，不能等调用方想起来去取。
+//
+// 这条守的是一次真实的静默掉线：播放开始时的 match 撞 401 → 刷新 → cookie 轮换，
+// 用户看一半停掉 → 收尾路径提前 return → 轮换后的 cookie 从没落盘 →
+// 下次启动拿着已作废的旧 cookie，界面显示已登录，每个请求都失败。
+func TestSessionChangeFiresOnRotation(t *testing.T) {
+	spy := &sessionSpy{}
+	b := &refreshBackend{goodToken: "at-new", goodCookie: "rt-old", newCookie: "rt-new"}
+	c := newSpyClient(t, spy, b.handler())
+	c.RestoreSession(animego.Session{AccessToken: "at-expired", RefreshCookie: "rt-old"})
+
+	// RestoreSession 是把盘上的读回内存，不该触发落盘
+	assert.Equal(t, 0, spy.count(), "RestoreSession 不该触发 OnSessionChange")
+
+	require.NoError(t, c.EnsureSubscription(context.Background(), 123))
+
+	got, ok := spy.last()
+	require.True(t, ok, "刷新轮换了 cookie，客户端却一次都没通知")
+	assert.Equal(t, "at-new", got.AccessToken)
+	assert.Equal(t, "rt-new", got.RefreshCookie, "交出来的必须是轮换后的新 cookie")
+	// 通知里的内容与客户端内存态一致 —— 落盘的和在用的不能是两个东西
+	assert.Equal(t, c.Session(), got)
+}
+
+// 服务端没轮换 cookie 时，access token 换了照样要落盘（15 分钟的那个也值钱）。
+func TestSessionChangeFiresWhenOnlyTokenRotates(t *testing.T) {
+	spy := &sessionSpy{}
+	b := &refreshBackend{goodToken: "at-new", goodCookie: "rt-old"} // newCookie 空 = 不轮换
+	c := newSpyClient(t, spy, b.handler())
+	c.RestoreSession(animego.Session{AccessToken: "at-expired", RefreshCookie: "rt-old"})
+
+	require.NoError(t, c.EnsureSubscription(context.Background(), 123))
+
+	got, ok := spy.last()
+	require.True(t, ok)
+	assert.Equal(t, "at-new", got.AccessToken)
+	assert.Equal(t, "rt-old", got.RefreshCookie, "没轮换就保留旧 cookie")
+}
+
+// refresh token 本身失效时会话被清空 —— 那也是一次变更，必须落盘。
+// 不落盘的话下次启动又拿着这份已经作废的东西去试，界面还显示已登录。
+func TestSessionChangeFiresWhenRefreshTokenDies(t *testing.T) {
+	spy := &sessionSpy{}
+	b := &refreshBackend{goodToken: "at-new", goodCookie: "rt-old", failRefresh: true}
+	c := newSpyClient(t, spy, b.handler())
+	c.RestoreSession(animego.Session{AccessToken: "at-expired", RefreshCookie: "rt-old"})
+
+	err := c.EnsureSubscription(context.Background(), 123)
+	require.Error(t, err)
+
+	got, ok := spy.last()
+	require.True(t, ok, "会话被清空却没有通知")
+	assert.Equal(t, animego.Session{}, got)
+	assert.False(t, c.LoggedIn())
+}
+
+// 并发 401 只刷新一次，所以也只该通知一次 —— 每次通知都是一次磁盘写。
+func TestSessionChangeFiresOncePerRefresh(t *testing.T) {
+	spy := &sessionSpy{}
+	b := &refreshBackend{goodToken: "at-new", goodCookie: "rt-old", newCookie: "rt-new"}
+	c := newSpyClient(t, spy, b.handler())
+	c.RestoreSession(animego.Session{AccessToken: "at-expired", RefreshCookie: "rt-old"})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = c.EnsureSubscription(context.Background(), 123)
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, 1, spy.count(), "singleflight 只刷新一次，就该只落盘一次")
+}
+
+// 回调在锁外跑：实现里回头调 Session() 不能死锁。
+// 这不是假想 —— 「拿到通知后去客户端确认一下当前状态」是很自然的写法。
+func TestSessionChangeCallbackMayCallSession(t *testing.T) {
+	b := &refreshBackend{goodToken: "at-new", goodCookie: "rt-old", newCookie: "rt-new"}
+	var c *animego.Client
+	var reentered animego.Session
+	c = animego.New(animego.Options{
+		BaseURL:   newRecordingServer(t, nil, b.handler()),
+		UserAgent: "nagare/test",
+		OnSessionChange: func(animego.Session) {
+			reentered = c.Session() // 自锁的话这里直接卡死，测试超时
+		},
+	})
+	c.RestoreSession(animego.Session{AccessToken: "at-expired", RefreshCookie: "rt-old"})
+
+	require.NoError(t, c.EnsureSubscription(context.Background(), 123))
+	assert.Equal(t, "rt-new", reentered.RefreshCookie)
+}
