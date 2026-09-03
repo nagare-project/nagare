@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ClusterCard } from '../components/library/ClusterCard'
 import { ContinueSection } from '../components/library/ContinueSection'
+import { PosterGrid } from '../components/library/PosterGrid'
 import { GettingStarted } from '../components/library/GettingStarted'
 import { NowPlayingBar } from '../components/library/NowPlayingBar'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
@@ -280,17 +280,7 @@ function LibraryBody({
         activeFileId={activeFileId}
         pendingFileId={pendingFileId}
       />
-      <section className="cluster-list" aria-label="媒体库">
-        {clusters.map((cluster) => (
-          <ClusterCard
-            key={cluster.clusterKey}
-            cluster={cluster}
-            onPlay={onPlay}
-            activeFileId={activeFileId}
-            pendingFileId={pendingFileId}
-          />
-        ))}
-      </section>
+      <PosterGrid clusters={clusters} />
     </>
   )
 }

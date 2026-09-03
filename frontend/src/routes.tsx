@@ -1,6 +1,10 @@
 import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 import { RootLayout } from './components/RootLayout'
+import { AnimePage } from './pages/AnimePage'
+import { DiscoverPage } from './pages/DiscoverPage'
+import { ListsPage } from './pages/ListsPage'
+import { SchedulePage } from './pages/SchedulePage'
 import { LibraryPage } from './pages/LibraryPage'
 import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -16,6 +20,25 @@ const indexRoute = createRoute({
   path: '/',
   component: LibraryPage,
 })
+
+/**
+ * `/anime/$clusterKey` 单部作品页：媒体库改成海报网格之后，剧集列表的落脚处。
+ * clusterKey 会随重新扫描变化（文件增删导致重新归簇），所以页面必须处理
+ * 「找不到这个 key」—— 那是正常的失效，不是错误。
+ */
+const animeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/anime/$clusterKey',
+  component: AnimePage,
+})
+
+/**
+ * 元数据三页（对齐 seanime）。它们现在吃 lib/fixtures 的假数据 ——
+ * 后端缺口逐条记在仓库根的 todos.md，接通后删 fixture、改这三个组件的数据源。
+ */
+const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists', component: ListsPage })
+const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: DiscoverPage })
+const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
 
 /** `/search` 的 query 形状：q 缺省或空白时省略，地址栏保持干净 */
 export interface SearchRouteParams {
@@ -54,7 +77,15 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, searchRoute, settingsRoute])
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  animeRoute,
+  listsRoute,
+  discoverRoute,
+  scheduleRoute,
+  searchRoute,
+  settingsRoute,
+])
 
 /**
  * 路由工厂：应用用默认的 browser history；测试可注入 memory history，
