@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { act } from 'react'
+import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '../test/harness'
 import { DiscoverPage } from './DiscoverPage'
@@ -14,6 +17,12 @@ import { FAKE_LISTS } from '../lib/fixtures/library'
  * 挂着那条假数据横幅。哪天有人接了真接口忘了摘横幅，或者反过来
  * 把横幅删了却还在用 fixture，这几条会红。
  */
+
+/**
+ * 页面模块表。用 import.meta.glob 而不是拼出来的 `import(\`./${x}\`)`：
+ * 后者 Vite 静态分析不了（会告警），能不能加载全看运行时凑巧。
+ */
+const PAGE_MODULES = import.meta.glob('./*.tsx') as Record<string, () => Promise<unknown>>
 
 describe('假数据页面', () => {
   it('我的列表：默认「在看」档，标签可切换', async () => {
@@ -90,17 +99,42 @@ describe('假数据页面', () => {
     await unmount()
   })
 
-  it('每一页都挂着假数据横幅，不许把假数据伪装成真的', async () => {
-    for (const [name, Page] of [
-      ['我的列表', ListsPage],
-      ['发现', DiscoverPage],
-      ['放送表', SchedulePage],
-    ] as const) {
+  /**
+   * 名单是【从 import 里推出来的】，不是手写的。
+   *
+   * 手写名单的失效方式很具体：有人新建一个吃 fixture 的页面，忘了加横幅，
+   * 也忘了往这个名单里加一行 —— 于是一屏编出来的数字被当成真的发出去，
+   * 而 379 个测试全绿。改成从文件系统推导之后，新页面自动进入这条断言。
+   */
+  it('每个吃假数据的页面都必须挂着横幅，不许把假数据伪装成真的', async () => {
+    // 不能用 import.meta.url：jsdom 环境下它是相对文档 base 解析的，
+    // 得到 /src/pages 这种假路径。vitest 的 cwd 就是 frontend/。
+    const pagesDir = join(process.cwd(), 'src/pages')
+    const fixturePages = readdirSync(pagesDir)
+      .filter((f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx'))
+      .filter((f) => readFileSync(join(pagesDir, f), 'utf8').includes('lib/fixtures'))
+      .sort()
+
+    // 扫描器活着才算数：路径变了会让这条静默地变成「零个页面、零个问题」
+    expect(fixturePages.length).toBeGreaterThan(2)
+
+    for (const file of fixturePages) {
+      const name = file.replace(/\.tsx$/, '')
+      const load = PAGE_MODULES[`./${file}`]
+      expect(load, `${file} 不在 import.meta.glob 的范围里`).toBeTypeOf('function')
+      const mod = (await load!()) as Record<string, unknown>
+      // 按【文件名】取导出，不是「第一个函数导出」：ListsPage 同时导出
+      // ListsPage 与 FixtureNotice，取第一个就成了看导出顺序的运气。
+      const Page = mod[name] as () => ReactElement
+      expect(Page, `${file} 没有同名导出`).toBeTypeOf('function')
       const { container, unmount } = await mount(<Page />)
       const notice = container.querySelector('.alert-warn')
-      expect(notice, `${name} 缺少假数据横幅`).not.toBeNull()
-      expect(notice?.textContent).toContain('假数据')
-      expect(notice?.textContent).toContain('todos.md')
+      expect(notice, `${file} 吃 fixture 却没有横幅`).not.toBeNull()
+      const text = notice?.textContent ?? ''
+      // 「假数据」或更重的措辞（自动下载页说的是「功能尚未实现」），
+      // 外加一条能让人查到缺口的线索
+      expect(text, `${file} 的横幅没说清这是假的`).toMatch(/假数据|尚未实现/)
+      expect(text, `${file} 的横幅没指向缺口清单`).toContain('todos.md')
       await unmount()
     }
   })

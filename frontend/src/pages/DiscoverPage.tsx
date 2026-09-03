@@ -8,7 +8,7 @@ import { Tab as TabButton, Tabs } from '../components/ui'
 import { FixtureNotice } from './ListsPage'
 import { SchedulePage } from './SchedulePage'
 import { FAKE_DISCOVER, FAKE_FEATURED } from '../lib/fixtures/library'
-import type { FakeMedia } from '../lib/fixtures/types'
+import type { MediaSummary } from '../components/media/types'
 import '../components/library/library.css'
 import '../components/media/media.css'
 
@@ -62,7 +62,7 @@ export function DiscoverPage() {
   )
 }
 
-function Section({ title, sub, items }: { title: string; sub?: string; items: FakeMedia[] }) {
+function Section({ title, sub, items }: { title: string; sub?: string; items: MediaSummary[] }) {
   if (items.length === 0) return null
   return (
     <CarouselRow title={title} subtitle={sub}>

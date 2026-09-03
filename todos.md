@@ -211,3 +211,22 @@ Debrid 是把种子在服务商那边下好、再给你一条 HTTP 直链的**�
 - 每个吃假数据的 hook 顶部注释写明：`// FIXME(G3): 假数据，真接口见 todos.md`
 - 接上真接口时删掉 fixture 文件，本文件对应条目打勾
 - **假数据不得进生产判断逻辑** —— 只喂给界面，不参与任何决策分支
+- **组件定契约，fixture 去满足它** —— `src/components/` 下不得 import
+  `lib/fixtures/`。这条爬过一次：`FakeMedia` 曾是 `MediaCard` 与 `DiscoverHero`
+  的 prop 类型，那意味着接真接口时「删 fixture 目录」等于给两个共享组件重新定型。
+  现在作品卡的形状是 `components/media/types.ts` 的 `MediaSummary`。
+  有测试守着（`lib/fixtures/fixtures.test.ts`）
+- **吃 fixture 的页面必须挂横幅**，且这份名单是从 import 推出来的不是手写的
+  （`pages/fixturePages.test.tsx`）—— 新建一个吃 fixture 的页面会自动进入断言
+
+### ⚠️ 断言什么、不断言什么
+
+吃 fixture 的页面测试**可以**断言组件自身的行为（标签键盘导航、类型标签最多三个、
+评分为 0 不出徽标、页面里没有 iframe）—— 真接口来了这些照样该成立。
+
+**不可以**断言关于后端行为的判断。这条是有代价换来的：曾经有一条测试断言界面上
+必须出现「N 个文件解析不出集号，已跳过」，而那句话是错的（`BuildItems` 根本没跳过
+它们）。测试钉住了一个猜想，猜想就在重构里活了下来。
+
+判据是一句话：**真后端接上以后，这条断言还是我们想要它成立的吗？**
+是 → 留着；不是 → 它钉的是猜想，删掉。

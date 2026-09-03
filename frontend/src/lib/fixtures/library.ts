@@ -1,12 +1,13 @@
 // FIXME(G1/G2/G3): 假数据。真接口缺口见仓库根 todos.md。
-import type { FakeAiring, FakeMedia } from './types'
+import type { MediaSummary } from '../../components/media/types'
+import type { FakeAiring } from './types'
 
 /**
  * 一份共用的作品样本。各页从这里切片，而不是各写一份 ——
  * 同一部番在「我的列表」和「发现」里必须是同一个标题同一个封面，
  * 否则演示时一眼看穿是拼的。
  */
-const SHOWS: readonly FakeMedia[] = [
+const SHOWS: readonly MediaSummary[] = [
   { id: 154587, title: '葬送的芙莉莲', titleNative: '葬送のフリーレン', year: 2023, season: '秋', episodes: 28, watched: 12, score: 92, genres: ['奇幻', '冒险', '剧情'], description: '打倒魔王之后，勇者一行人各奔东西。身为精灵的魔法使芙莉莲，用漫长的寿命重新丈量那段短暂的旅程，以及人类留下的东西。' },
   { id: 162804, title: '药屋少女的呢喃', titleNative: '薬屋のひとりごと', year: 2023, season: '秋', episodes: 24, watched: 24, score: 87, genres: ['悬疑', '剧情', '历史'], description: '在花街长大的药师少女猫猫，被卖进后宫当下女。她凭着对毒与药的执念，一头撞进宫廷深处那些没人想说破的事。' },
   { id: 140960, title: '孤独摇滚！', titleNative: 'ぼっち・ざ・ろっく！', year: 2022, season: '秋', episodes: 12, watched: 12, score: 88, genres: ['音乐', '喜剧', '日常'], description: '一个连搭话都费劲的吉他少女，被硬拽进了乐队。社恐没治好，但台上那几分钟是真的。' },
@@ -33,7 +34,7 @@ export const LIST_STATUS_LABEL: Record<ListStatus, string> = {
 }
 
 /** 状态 → 作品。按 id 分派，保证每次渲染一致（不要随机）。 */
-export const FAKE_LISTS: Record<ListStatus, FakeMedia[]> = {
+export const FAKE_LISTS: Record<ListStatus, MediaSummary[]> = {
   watching: SHOWS.filter((s) => s.watched > 0 && (s.episodes === null || s.watched < s.episodes)),
   completed: SHOWS.filter((s) => s.episodes !== null && s.watched === s.episodes),
   planning: SHOWS.filter((s) => s.watched === 0 && s.id % 2 === 0),
@@ -53,10 +54,10 @@ export const FAKE_DISCOVER = {
   missedSequels: [SHOWS[6]!, SHOWS[5]!, SHOWS[8]!],
   upcoming: [SHOWS[11]!, SHOWS[7]!, SHOWS[8]!, SHOWS[9]!],
   movies: [SHOWS[3]!],
-} satisfies Record<string, FakeMedia[]>
+} satisfies Record<string, MediaSummary[]>
 
 /** hero 轮播的候选：有简介的那几部（没简介的 hero 是空的，不好看） */
-export const FAKE_FEATURED: FakeMedia[] = SHOWS.filter((s) => s.description !== undefined)
+export const FAKE_FEATURED: MediaSummary[] = SHOWS.filter((s) => s.description !== undefined)
 
 /** 本周放送。日期按「本周一起算」生成，所以页面每天看都合理。 */
 export function fakeAiringThisWeek(now = new Date()): FakeAiring[] {

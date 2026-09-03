@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { placeholderArt } from '../../lib/fixtures/placeholder'
-import type { FakeMedia } from '../../lib/fixtures/types'
+import { placeholderArt } from '../../lib/placeholderArt'
+import type { MediaSummary } from './types'
 
 /**
  * 作品海报卡（发现 / 我的列表 / 放送表共用）。
@@ -21,7 +21,7 @@ import type { FakeMedia } from '../../lib/fixtures/types'
  * 浮层画在海报框【内部】而不是往外弹：发现页的板块是横向滚动容器，
  * 弹出去会被 overflow 裁掉。
  */
-export function MediaCard({ media, footer }: { media: FakeMedia; footer?: ReactNode }) {
+export function MediaCard({ media, footer }: { media: MediaSummary; footer?: ReactNode }) {
   const { title, titleNative, episodes, watched, score, genres, description } = media
   const pct = episodes !== null && episodes > 0 ? Math.min(100, (watched / episodes) * 100) : 0
 
@@ -73,7 +73,7 @@ export function MediaCard({ media, footer }: { media: FakeMedia; footer?: ReactN
 }
 
 /** 默认的第二行：优先显示「看到哪了」，没看过才显示年份与总集数 */
-function DefaultMeta({ media }: { media: FakeMedia }) {
+function DefaultMeta({ media }: { media: MediaSummary }) {
   const { year, season, episodes, watched } = media
   const when = year !== undefined ? `${year} 年${season ?? ''}` : ''
   if (watched > 0 && episodes !== null) return <>{`${watched} / ${episodes} 集`}</>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { placeholderArt } from '../../lib/fixtures/placeholder'
-import type { FakeMedia } from '../../lib/fixtures/types'
+import { placeholderArt } from '../../lib/placeholderArt'
+import type { MediaSummary } from './types'
 
 /**
  * 发现页顶部的轮播横幅（对齐 seanime 的 DiscoverPageHeader）。
@@ -15,7 +15,7 @@ import type { FakeMedia } from '../../lib/fixtures/types'
 /** 自动轮播间隔。太快会打断阅读简介，太慢又看不出它会动。 */
 const ROTATE_MS = 7000
 
-export function DiscoverHero({ items }: { items: FakeMedia[] }) {
+export function DiscoverHero({ items }: { items: MediaSummary[] }) {
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
 
