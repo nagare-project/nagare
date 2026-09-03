@@ -1,6 +1,6 @@
 import type { SourceInfo, SourceOutcome } from '../../lib/endpoints'
 import { isHttpUrl } from '../../lib/url'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import { SourceStateChip } from './SourceStateChip'
 import './sources.css'
 
@@ -61,7 +61,7 @@ export function SourceRow({ source, check, toggling, onToggle, onSelfCheck }: So
         </button>
         <button
           type="button"
-          className="hud-button hud-button--small hud-button--ghost"
+          className="btn btn--sm btn--danger"
           onClick={onSelfCheck}
           disabled={!hasSelfTest || checking}
           title={hasSelfTest ? '用规则自带的关键词探活' : '该规则未提供自检关键词'}
@@ -88,7 +88,7 @@ function HomepageLink({ homepage, name }: { homepage: string; name: string }) {
   }
   return (
     <a
-      className="hud-link source-home"
+      className="link source-home"
       href={homepage}
       target="_blank"
       rel="noopener noreferrer"

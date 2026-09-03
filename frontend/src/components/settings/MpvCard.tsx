@@ -4,7 +4,7 @@ import { redetectMpv } from '../../lib/endpoints'
 import type { MpvInfo, MpvInstallGuide, MpvSource } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { isHttpUrl } from '../../lib/url'
-import { label, mono } from '../../tokens'
+import { label, mono } from '../../theme'
 import './cards.css'
 
 /** 「已复制」提示停留多久后恢复按钮文案 */
@@ -63,8 +63,8 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
 
   return (
     <section className="panel settings-card" aria-labelledby="mpv-heading">
-      <h2 id="mpv-heading" className="panel-heading" style={label}>
-        mpv runtime
+      <h2 id="mpv-heading" className="panel-heading">
+        播放器 mpv
       </h2>
 
       {mpv.found ? (
@@ -84,7 +84,7 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
             <dt>状态</dt>
             <dd className="result--err">未找到</dd>
           </dl>
-          <p className="mpv-alert" role="alert">
+          <p className="alert-warn" role="alert">
             {mpv.hint ?? '未检测到 mpv，请先安装 mpv。'}
           </p>
           {mpv.install !== undefined && <InstallGuide install={mpv.install} />}
@@ -94,7 +94,7 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
       <div className="form-actions">
         <button
           type="button"
-          className="hud-button hud-button--small"
+          className="btn btn--sm"
           onClick={() => void handleDetect()}
           disabled={busy}
         >
@@ -142,7 +142,7 @@ function InstallGuide({ install }: { install: MpvInstallGuide }) {
   return (
     <div className="mpv-install">
       <h3 className="mpv-install-heading" style={label}>
-        install
+        安装方法
       </h3>
       {install.note !== '' && <p className="mpv-install-note">{install.note}</p>}
       {hasCommand && (
@@ -154,8 +154,8 @@ function InstallGuide({ install }: { install: MpvInstallGuide }) {
             type="button"
             className={
               copyState === 'failed'
-                ? 'hud-button hud-button--small mpv-copy mpv-copy--failed'
-                : 'hud-button hud-button--small mpv-copy'
+                ? 'btn btn--sm mpv-copy mpv-copy--failed'
+                : 'btn btn--sm mpv-copy'
             }
             onClick={() => void handleCopy()}
             aria-label="复制安装命令"
@@ -169,7 +169,7 @@ function InstallGuide({ install }: { install: MpvInstallGuide }) {
       )}
       {hasUrl && (
         <a
-          className="hud-link mpv-install-link"
+          className="link mpv-install-link"
           href={install.url}
           target="_blank"
           rel="noreferrer noopener"

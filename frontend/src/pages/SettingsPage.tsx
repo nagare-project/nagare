@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from '@tanstack/react-router'
 import { AddFolderForm } from '../components/library/AddFolderForm'
 import { SourcesCard } from '../components/search/SourcesCard'
 import { AboutCard } from '../components/settings/AboutCard'
@@ -18,8 +17,7 @@ import { animegoLogin, animegoLogout } from '../lib/endpoints'
 import type { AnimegoInfo } from '../lib/endpoints'
 import type { LibraryState } from '../hooks/useLibrary'
 import { errorText, formatDate } from '../lib/format'
-import { hudPalette } from '../lib/palette'
-import { label, mono } from '../tokens'
+import { label, mono } from '../theme'
 import './settings.css'
 
 /**
@@ -47,15 +45,9 @@ export function SettingsPage() {
   }
 
   return (
-    <main className="settings-shell" style={hudPalette}>
-      <header className="settings-head">
-        <Link to="/" className="hud-link settings-back">
-          ← 返回媒体库
-        </Link>
-        <h1 className="settings-title">设置</h1>
-        <Link to="/search" className="hud-link settings-back settings-search-link">
-          搜索 →
-        </Link>
+    <main className="settings-shell">
+      <header className="page-head">
+        <h1 className="page-title">设置</h1>
       </header>
 
       {settings.state.phase === 'loading' && (
@@ -71,7 +63,7 @@ export function SettingsPage() {
           <p>
             <button
               type="button"
-              className="hud-button hud-button--small"
+              className="btn btn--sm"
               onClick={() => void settings.reload()}
             >
               重试
@@ -107,8 +99,8 @@ export function SettingsPage() {
 
       <footer className="colophon" style={label}>
         {settings.state.phase === 'ready'
-          ? `nagare v${settings.state.data.version} · M4 · packaging`
-          : 'nagare · M4 · packaging'}
+          ? `nagare v${settings.state.data.version}`
+          : 'nagare'}
       </footer>
     </main>
   )
@@ -163,8 +155,8 @@ function AccountCard({
 
   return (
     <section className="panel settings-card" aria-labelledby="account-heading">
-      <h2 id="account-heading" className="panel-heading" style={label}>
-        animego account
+      <h2 id="account-heading" className="panel-heading">
+        animego 账号
       </h2>
       <p className="page-notice-copy">
         登录后可拉取弹幕并回写观看进度（仅元数据 · 弹幕 · 进度三条已认证链路）。
@@ -190,7 +182,7 @@ function AccountCard({
           <div className="form-actions">
             <button
               type="button"
-              className="hud-button hud-button--small hud-button--ghost"
+              className="btn btn--sm btn--danger"
               onClick={() => void handleLogout()}
               disabled={busy}
             >
@@ -202,11 +194,11 @@ function AccountCard({
         <form className="account-form" onSubmit={(event) => void handleLogin(event)}>
           <div className="field">
             <label htmlFor="animego-email" style={label}>
-              email
+              邮箱
             </label>
             <input
               id="animego-email"
-              className="hud-input"
+              className="input"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -217,11 +209,11 @@ function AccountCard({
           </div>
           <div className="field">
             <label htmlFor="animego-password" style={label}>
-              password
+              密码
             </label>
             <input
               id="animego-password"
-              className="hud-input"
+              className="input"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -230,7 +222,7 @@ function AccountCard({
             />
           </div>
           <div className="form-actions">
-            <button type="submit" className="hud-button hud-button--small" disabled={busy}>
+            <button type="submit" className="btn btn--sm" disabled={busy}>
               {busy ? '登录中 …' : '登录'}
             </button>
             <span className="result result--dim" style={mono}>
@@ -282,7 +274,7 @@ function FoldersCard({
 
   return (
     <section className="panel settings-card" aria-labelledby="folders-heading">
-      <h2 id="folders-heading" className="panel-heading" style={label}>
+      <h2 id="folders-heading" className="panel-heading">
         library folders
       </h2>
 
@@ -297,7 +289,7 @@ function FoldersCard({
             {state.message}
           </p>
           <p>
-            <button type="button" className="hud-button hud-button--small" onClick={onRetry}>
+            <button type="button" className="btn btn--sm" onClick={onRetry}>
               重试
             </button>
           </p>
@@ -321,7 +313,7 @@ function FoldersCard({
                   </span>
                   <button
                     type="button"
-                    className="hud-button hud-button--small hud-button--ghost"
+                    className="btn btn--sm btn--danger"
                     onClick={() => void handleRemove(folder.id)}
                     disabled={removingId !== null}
                     aria-label={`删除文件夹 ${folder.path}`}

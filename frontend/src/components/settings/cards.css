@@ -1,7 +1,7 @@
 /* ============================================================
    设置页 M4 新增卡片样式：mpv 安装指引 · 更新 · 退出 · 关于。
    .settings-card / .kv-list / .form-actions 来自 pages/settings.css（这些卡只在设置页渲染）；
-   .mpv-alert / .alert-warn 来自 styles/global.css（三个页面共用同一条警示样式）；
+   .alert-warn / .alert-warn 来自 styles/global.css（三个页面共用同一条警示样式）；
    .switch 与其它原子件见 styles/global.css。
    ============================================================ */
 
@@ -12,9 +12,9 @@
   flex-direction: column;
   gap: 0.55rem;
   padding: 0.85rem 0.9rem 0.95rem;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
-  background: var(--color-surface-sunken);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
 }
 
 .mpv-install-heading {
@@ -23,7 +23,7 @@
 
 .mpv-install-note {
   font-size: 0.82rem;
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 /* 等宽命令块 + 复制按钮 */
@@ -37,10 +37,10 @@
   flex: 1;
   min-width: 0;
   padding: 0.5rem 0.7rem;
-  border: 1px solid var(--hud-border);
-  border-radius: 2px;
-  background: var(--color-surface);
-  color: var(--hud-accent-hot);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--brand-hot);
   font-size: 0.82rem;
   overflow-x: auto;
   white-space: pre;
@@ -53,17 +53,17 @@
 }
 
 .mpv-copy--failed {
-  border-color: var(--color-err-border);
-  color: var(--color-err);
+  border-color: var(--err-line);
+  color: var(--err);
 }
 
 .mpv-install-link {
   align-self: flex-start;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .mpv-detect-hint {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
 }
 
 /* ---------- 更新 ---------- */
@@ -75,7 +75,7 @@
 
 .update-download {
   margin-left: 0.8em;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .update-error {
@@ -99,7 +99,7 @@
 }
 
 .update-note {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 /* ---------- 一键更新（M4 阶段 B） ---------- */
@@ -109,9 +109,9 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.8rem 0.9rem 0.9rem;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
-  background: var(--color-surface-sunken);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
 }
 
 /* 不支持自更新时的原因框，用与 mpv 缺失同一条警示样式（.alert-warn 来自 global.css） */
@@ -125,18 +125,18 @@
 }
 
 .self-update-link {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .self-update-note {
-  font-size: 0.75rem;
+  font-size: 0.84rem;
   line-height: 1.6;
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 /* 要被替换的路径可能很长，允许自己滚，别把卡片撑破 */
 .self-update-target {
-  color: var(--hud-accent);
+  color: var(--brand);
   overflow-wrap: anywhere;
 }
 
@@ -155,8 +155,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--hud-accent-hot);
-  box-shadow: 0 0 8px var(--hud-accent-hot);
+  background: var(--brand-hot);
   animation: self-update-pulse 1.4s ease-in-out infinite;
 }
 
@@ -183,10 +182,10 @@
   flex-direction: column;
   gap: 0.65rem;
   padding: 0.75rem 0.9rem 0.85rem;
-  border: 1px solid var(--color-warn-border);
-  border-left: 3px solid var(--color-warn);
-  border-radius: 2px;
-  background: var(--color-warn-wash);
+  border: 1px solid var(--warn-line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-wash);
 }
 
 .quit-confirm-copy {
@@ -194,14 +193,14 @@
 }
 
 .quit-confirm-button {
-  border-color: var(--color-err-border);
-  color: var(--color-err);
+  border-color: var(--err-line);
+  color: var(--err);
 }
 
 .quit-confirm-button:hover:not(:disabled) {
-  border-color: var(--color-err);
+  border-color: var(--err);
   background-color: transparent;
-  color: var(--color-err);
+  color: var(--err);
 }
 
 /* ---------- 磁力（M3） ---------- */
@@ -237,20 +236,20 @@
 }
 
 .torrent-toggle-note {
-  font-size: 0.75rem;
+  font-size: 0.84rem;
   line-height: 1.55;
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 .torrent-toggle-note b {
   font-weight: 500;
-  color: var(--color-text);
+  color: var(--fg);
 }
 
 .torrent-note {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   line-height: 1.55;
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 /* 端口是个短数字，不需要撑满整行 */
@@ -265,18 +264,18 @@
 }
 
 .torrent-dirty {
-  font-size: 0.74rem;
+  font-size: 0.84rem;
 }
 
 /* 重启才生效：比普通结果行更显眼，用警示框 */
 .torrent-restart {
   padding: 0.55rem 0.75rem;
-  border: 1px solid var(--color-warn-border);
-  border-left: 3px solid var(--color-warn);
-  border-radius: 2px;
-  background: var(--color-warn-wash);
-  color: var(--color-warn);
-  font-size: 0.78rem;
+  border: 1px solid var(--warn-line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 0.86rem;
 }
 
 .torrent-restart b {
@@ -284,6 +283,6 @@
 }
 
 .torrent-cache-note {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   line-height: 1.5;
 }

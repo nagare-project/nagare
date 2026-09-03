@@ -1,6 +1,6 @@
 import type { DanmakuStatus, PlayingStatus } from '../../lib/endpoints'
 import { formatDuration, progressPercent } from '../../lib/format'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import './now-playing.css'
 
 export interface NowPlayingBarProps {
@@ -42,7 +42,7 @@ export function NowPlayingBar({ status, busy, onTogglePause, onStop }: NowPlayin
       <div className="np-actions">
         <button
           type="button"
-          className="hud-button hud-button--small"
+          className="btn btn--sm"
           onClick={() => onTogglePause(!paused)}
           disabled={busy}
         >
@@ -50,7 +50,7 @@ export function NowPlayingBar({ status, busy, onTogglePause, onStop }: NowPlayin
         </button>
         <button
           type="button"
-          className="hud-button hud-button--small hud-button--ghost"
+          className="btn btn--sm btn--danger"
           onClick={onStop}
           disabled={busy}
         >

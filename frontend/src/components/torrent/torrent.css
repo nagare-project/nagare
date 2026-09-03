@@ -1,9 +1,9 @@
 /* ============================================================
    磁力边下边播 feature 样式（M3）：底部状态条 · 选集弹窗。
-   原子件（.panel / .hud-button / .result / .badge）见 styles/global.css；
+   原子件（.panel / .btn / .result / .badge）见 styles/global.css；
    设置页的磁力卡片复用 pages/settings.css 的 .settings-card / .field / .form-actions，
    其专属样式在 components/settings/cards.css。
-   颜色一律走 lib/palette.ts 注入的 --hud-* 与 global.css 的语义色变量。
+   颜色一律走 global.css :root 的语义色变量，本文件不自定义颜色。
    ============================================================ */
 
 /* ---------- 底部状态条 ---------- */
@@ -18,16 +18,14 @@
   align-items: center;
   gap: 0.6rem 1.1rem;
   padding: 0.7rem clamp(1rem, 4vw, 2rem) 0.8rem;
-  border-top: 1px solid var(--hud-border);
-  /* 与 now-playing.css 同一手法：底色要带透明度配合 backdrop-filter，
-     而 --color-surface 是不透明的，所以在这里把 trench 档（14% 0.04 / HUE.s07）写开 */
-  background: oklch(14% 0.04 195 / 0.9);
+  border-top: 1px solid var(--border);
+  background: var(--bg-blur);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
 
 .tsb-bar--error {
-  border-top-color: var(--color-err-border);
+  border-top-color: var(--err-line);
 }
 
 /* 顶缘 2px 起播缓冲进度线（与正在播放条同一语言，播放开始后就撤掉） */
@@ -53,8 +51,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--hud-accent-hot);
-  box-shadow: 0 0 8px var(--hud-accent-hot);
+  background: var(--brand-hot);
   animation: tsb-pulse 1.4s ease-in-out infinite;
 }
 
@@ -63,7 +60,7 @@
 }
 
 .tsb-dot--error {
-  background: var(--color-err);
+  background: var(--err);
   box-shadow: none;
   animation: none;
 }
@@ -87,7 +84,7 @@
 }
 
 .tsb-phase {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -96,8 +93,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.72rem;
-  color: var(--color-text-dim);
+  font-size: 0.82rem;
+  color: var(--fg-muted);
 }
 
 /* 分享者 / 速度读数 */
@@ -106,17 +103,17 @@
   flex: none;
   align-items: baseline;
   gap: 0.45em;
-  font-size: 0.72rem;
-  color: var(--hud-accent);
+  font-size: 0.82rem;
+  color: var(--brand);
 }
 
 /* peers=0：整块转警示色，这是「换一条资源」的判断依据，不能弱化 */
 .tsb-readout--nopeers {
-  color: var(--color-warn);
+  color: var(--warn);
 }
 
 .tsb-seeders {
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 .tsb-sep {
@@ -132,7 +129,7 @@
 /* peers 长期为 0 的显式警告，占满一整行 */
 .tsb-alert {
   flex-basis: 100%;
-  font-size: 0.74rem;
+  font-size: 0.84rem;
   line-height: 1.5;
 }
 
@@ -153,8 +150,7 @@
   align-items: center;
   justify-content: center;
   padding: clamp(1rem, 5vh, 3rem) 1rem;
-  /* 遮罩要比页面底色更暗才压得住，取 trench 档再降一级明度与彩度 */
-  background: oklch(10% 0.02 195 / 0.72);
+  background: var(--scrim);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
@@ -176,15 +172,15 @@
 
 .ep-desc {
   font-size: 0.82rem;
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 .ep-source {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.7rem;
-  color: var(--color-text-faint);
+  font-size: 0.82rem;
+  color: var(--fg-subtle);
 }
 
 .ep-list {
@@ -205,32 +201,32 @@
   gap: 0.9rem;
   width: 100%;
   padding: 0.5rem 0.7rem;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
-  background: var(--color-surface-sunken);
-  color: var(--color-text);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  color: var(--fg);
   font-family: inherit;
   font-size: 0.8rem;
   text-align: left;
   cursor: pointer;
   transition:
-    border-color var(--duration-fast) var(--ease-out-expo),
-    background-color var(--duration-fast) var(--ease-out-expo);
+    border-color var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
 }
 
 .ep-item:hover {
-  border-color: var(--hud-border);
-  background: var(--hud-flash);
+  border-color: var(--border);
+  background: var(--brand-wash);
 }
 
 .ep-item:focus-visible {
-  outline: 2px solid var(--hud-accent-hot);
+  outline: 2px solid var(--brand-hot);
   outline-offset: 2px;
 }
 
 .ep-ep {
-  font-size: 0.74rem;
-  color: var(--hud-accent);
+  font-size: 0.84rem;
+  color: var(--brand);
 }
 
 .ep-name {
@@ -239,8 +235,8 @@
 }
 
 .ep-size {
-  font-size: 0.7rem;
-  color: var(--color-text-dim);
+  font-size: 0.82rem;
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
@@ -250,7 +246,7 @@
 }
 
 .ep-hint {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
 }
 
 @media (max-width: 560px) {

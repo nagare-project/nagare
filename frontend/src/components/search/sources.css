@@ -19,8 +19,8 @@
 .rules-action-errors {
   margin: 0;
   padding-left: 1.1rem;
-  font-size: 0.7rem;
-  color: var(--color-warn);
+  font-size: 0.82rem;
+  color: var(--warn);
 }
 
 .rules-action-errors li {
@@ -49,9 +49,9 @@
   align-items: center;
   gap: 0.3rem 0.9rem;
   padding: 0.5rem 0.7rem;
-  border: 1px solid var(--hud-border-dim);
-  border-radius: 2px;
-  background: var(--color-surface-sunken);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
 }
 
 .source-row--disabled .source-main,
@@ -72,18 +72,18 @@
 }
 
 .source-id {
-  font-size: 0.64rem;
-  color: var(--color-text-dim);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
 }
 
 .source-home {
-  font-size: 0.7rem;
+  font-size: 0.82rem;
   white-space: nowrap;
 }
 
 .source-home-text {
-  font-size: 0.64rem;
-  color: var(--color-text-faint);
+  font-size: 0.8rem;
+  color: var(--fg-subtle);
   overflow-wrap: anywhere;
 }
 
@@ -94,8 +94,8 @@
 }
 
 .source-priority {
-  font-size: 0.64rem;
-  color: var(--color-text-dim);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
@@ -113,11 +113,11 @@
   align-items: center;
   gap: 0.6rem;
   min-height: 1.2em;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
 }
 
 .source-check-reason {
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
 }
 
 /* ---------- 窄屏适配 ---------- */

@@ -1,5 +1,5 @@
 import type { SourceOutcome } from '../../lib/endpoints'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import { describeOutcome, isSourceEnabled } from './sourceState'
 import './search.css'
 

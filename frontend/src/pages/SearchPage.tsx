@@ -16,8 +16,7 @@ import { useTorrentPlay } from '../hooks/useTorrentPlay'
 import type { TorrentPlayState } from '../hooks/useTorrentPlay'
 import type { SearchItem, SourceOutcome } from '../lib/endpoints'
 import { errorText } from '../lib/format'
-import { hudPalette } from '../lib/palette'
-import { label, mono } from '../tokens'
+import { mono } from '../theme'
 import '../components/search/search.css'
 
 /** 状态行的一条消息 */
@@ -122,33 +121,15 @@ export function SearchPage() {
   return (
     <main
       className={hasBar ? 'search-shell search-shell--with-bar' : 'search-shell'}
-      style={hudPalette}
     >
-      <header className="topbar">
-        <h1 className="topbar-brand">
-          nagare
-          <span className="topbar-kana" aria-hidden="true">
-            流れ
-          </span>
-        </h1>
-        <span className="topbar-section" style={label}>
-          magnet search
-        </span>
-        <span className="topbar-spacer" />
-        <nav className="topbar-actions" aria-label="页面导航">
-          <Link to="/" className="hud-link topbar-link">
-            媒体库
-          </Link>
-          <Link to="/settings" className="hud-link topbar-link">
-            设置
-          </Link>
-        </nav>
+      <header className="page-head">
+        <h1 className="page-title">搜索</h1>
       </header>
 
       {play.engineDown && (
         <p className="alert-warn" role="alert">
           磁力引擎启动失败，边下边播不可用（搜索与复制磁力不受影响）。{' '}
-          <Link to="/settings" className="hud-link alert-warn-link">
+          <Link to="/settings" className="link alert-warn-link">
             去设置查看原因 →
           </Link>
         </p>

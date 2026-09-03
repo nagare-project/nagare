@@ -151,10 +151,10 @@ describe('LibraryPage（整页冒烟）', () => {
     // 没有新版本：不出提示条
     expect(document.querySelector('.update-banner')).toBeNull()
 
-    // 顶栏与 mpv 状态点
-    expect(container.querySelector('.topbar-brand')?.textContent).toContain('nagare')
+    // 页头与 mpv 状态点
+    expect(container.querySelector('.page-title')?.textContent).toContain('媒体库')
     expect(container.querySelector('.mpv-dot--ok')).not.toBeNull()
-    expect(container.querySelector('.mpv-alert')).toBeNull()
+    expect(container.querySelector('.alert-warn')).toBeNull()
 
     // 簇卡片：标题 + 季徽标 + 集数；置信度 0.93 不出「低置信」
     expect(container.textContent).toContain('葬送的芙莉莲')
@@ -176,15 +176,28 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFetch(MPV_MISSING)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     expect(container.querySelector('.mpv-dot--missing')).not.toBeNull()
-    const alert = container.querySelector('.mpv-alert')
+    const alert = container.querySelector('.alert-warn')
     expect(alert?.textContent).toContain('未检测到 mpv')
     expect(alert?.querySelector('a')?.getAttribute('href')).toBe('/settings')
     expect(alert?.querySelector('a')?.textContent).toContain('去设置安装 mpv')
     await unmount()
   })
 
-  it('库为空时显示添加文件夹引导', async () => {
+  /** 库为空 + 未配规则仓库：最"空"的首次运行状态 */
+  function stubFirstRun(): void {
     const empty: LibraryData = { folders: [], clusters: [], scannedAt: null }
+    const noSources = {
+      sources: [],
+      rules: {
+        remoteUrl: '',
+        localDir: '',
+        dir: '',
+        loaded: 0,
+        errors: [],
+        lastLoadedAt: null,
+        lastSyncAt: null,
+      },
+    }
     const impl = async (input: RequestInfo | URL): Promise<Response> => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       const path = new URL(url, 'http://127.0.0.1').pathname
@@ -193,20 +206,46 @@ describe('LibraryPage（整页冒烟）', () => {
           ? empty
           : path === '/api/settings'
             ? SETTINGS
-            : path === '/api/update'
-              ? UPDATE
-              : PLAYER
+            : path === '/api/sources'
+              ? noSources
+              : path === '/api/update'
+                ? UPDATE
+                : PLAYER
       return new Response(JSON.stringify({ success: true, data }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
     }
     vi.stubGlobal('fetch', vi.fn(impl))
+  }
+
+  it('库为空时显示引导屏，四个准备项齐全', async () => {
+    stubFirstRun()
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    expect(container.querySelector('.lib-empty')).not.toBeNull()
-    expect(container.textContent).toContain('把动漫文件夹交给 nagare')
+    expect(container.querySelector('.onboard')).not.toBeNull()
+    // 四项：mpv / 本地文件夹 / 磁力搜索 / 账号
+    expect(container.querySelectorAll('.onboard-step')).toHaveLength(4)
+    // 添加文件夹的表单仍然内联在这里，不必点进另一个页面
     expect(container.querySelector('input[name="path"]')).not.toBeNull()
+    // mpv 已装 → 绿点；其余三项都是待办
+    expect(container.querySelectorAll('.onboard-dot--done')).toHaveLength(1)
+    await unmount()
+  })
+
+  it('引导屏必须给出不需要本地文件夹的出路', async () => {
+    // 这是这个页面存在的理由：磁力那条路与本地文件夹互相独立，
+    // 旧空态只有一个「交出文件夹」表单，等于把可选项摆成了唯一入口。
+    stubFirstRun()
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    expect(container.textContent).toContain('两条路互相独立')
+    const hrefs = [...container.querySelectorAll('.onboard a')].map((a) => a.getAttribute('href'))
+    // 未配规则仓库时先去设置填地址；配好之后那颗按钮指向 /search（见组件）
+    expect(hrefs).toContain('/settings')
+    // 必需项只有 mpv：其余三张卡都标「可选」
+    const tags = [...container.querySelectorAll('.onboard-step .badge')].map((b) => b.textContent)
+    expect(tags).toEqual(['必需', '可选', '可选', '可选'])
     await unmount()
   })
 })

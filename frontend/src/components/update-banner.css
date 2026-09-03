@@ -4,8 +4,8 @@
    ============================================================ */
 
 .update-banner {
-  border-bottom: 1px solid var(--hud-border);
-  background: var(--hud-flash);
+  border-bottom: 1px solid var(--border);
+  background: var(--brand-wash);
 }
 
 .update-banner-inner {
@@ -20,7 +20,7 @@
 }
 
 .update-banner-tag {
-  color: var(--hud-accent);
+  color: var(--brand);
 }
 
 .update-banner-text {
@@ -29,13 +29,11 @@
 }
 
 .update-banner-link {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.74rem;
-  letter-spacing: 0.06em;
+  font-size: 0.82rem;
 }
 
 .update-banner-ignore {
-  font-size: 0.66rem;
+  font-size: 0.86rem;
 }
 
 /* 一键更新（M4 阶段 B）：更新中的呼吸点 + 「立即更新」按钮 */
@@ -44,8 +42,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--hud-accent-hot);
-  box-shadow: 0 0 8px var(--hud-accent-hot);
+  background: var(--brand-hot);
   animation: update-banner-pulse 1.4s ease-in-out infinite;
 }
 
@@ -60,14 +57,14 @@
 }
 
 .update-banner-apply {
-  font-size: 0.66rem;
+  font-size: 0.86rem;
   white-space: nowrap;
 }
 
 /* 更新期间顶替「忽略此版本」的说明文字 */
 .update-banner-hint {
-  font-size: 0.66rem;
-  color: var(--color-text-dim);
+  font-size: 0.86rem;
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 

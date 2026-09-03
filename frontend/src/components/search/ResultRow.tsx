@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { copyText } from '../../lib/clipboard'
 import type { SearchItem } from '../../lib/endpoints'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import './search.css'
 
 /** 「已复制」提示停留多久后恢复按钮文案 */
@@ -98,8 +98,8 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
 
   const copyClass =
     copyState === 'failed'
-      ? 'hud-button hud-button--small res-copy res-copy--failed'
-      : 'hud-button hud-button--small res-copy'
+      ? 'btn btn--sm res-copy res-copy--failed'
+      : 'btn btn--sm res-copy'
 
   const stage = playStage(item.magnet, play)
   const hint = PLAY_HINT[stage]
@@ -149,8 +149,8 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
             type="button"
             className={
               stage === 'active'
-                ? 'hud-button hud-button--small res-play res-play--active'
-                : 'hud-button hud-button--small res-play'
+                ? 'btn btn--sm res-play res-play--active'
+                : 'btn btn--sm res-play'
             }
             onClick={(event) => play.onPlay(item, event.currentTarget)}
             disabled={stage !== 'idle'}

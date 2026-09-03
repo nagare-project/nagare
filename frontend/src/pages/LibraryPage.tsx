@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AddFolderForm } from '../components/library/AddFolderForm'
 import { ClusterCard } from '../components/library/ClusterCard'
+import { GettingStarted } from '../components/library/GettingStarted'
 import { NowPlayingBar } from '../components/library/NowPlayingBar'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
@@ -11,8 +11,7 @@ import { pausePlayer, playFile, stopPlayer } from '../lib/endpoints'
 import type { LibraryState } from '../hooks/useLibrary'
 import type { SettingsState } from '../hooks/useSettings'
 import { errorText, formatClock } from '../lib/format'
-import { hudPalette } from '../lib/palette'
-import { label, mono } from '../tokens'
+import { mono } from '../theme'
 import '../components/library/library.css'
 
 /** 顶栏状态行的一条消息；link 是附带的恢复动作（目前只有「去设置安装 mpv」） */
@@ -122,32 +121,20 @@ export function LibraryPage() {
   return (
     <main
       className={playing !== null ? 'lib-shell lib-shell--with-bar' : 'lib-shell'}
-      style={hudPalette}
     >
-      <header className="topbar">
-        <h1 className="topbar-brand">
-          nagare
-          <span className="topbar-kana" aria-hidden="true">
-            流れ
-          </span>
-        </h1>
+      <header className="page-head">
+        <h1 className="page-title">媒体库</h1>
         <MpvChip state={settings.state} />
-        <span className="topbar-spacer" />
-        <div className="topbar-actions">
+        <span className="page-head-spacer" />
+        <div className="page-head-actions">
           <button
             type="button"
-            className="hud-button hud-button--small"
+            className="btn btn--sm"
             onClick={() => void handleRescan()}
             disabled={!canRescan}
           >
             {rescanBusy ? '扫描中 …' : '重新扫描'}
           </button>
-          <Link to="/search" className="hud-link topbar-link">
-            搜索
-          </Link>
-          <Link to="/settings" className="hud-link topbar-link">
-            设置
-          </Link>
         </div>
       </header>
 
@@ -161,7 +148,7 @@ export function LibraryPage() {
       >
         {statusLine?.text}
         {statusLine?.link !== undefined && (
-          <Link to={statusLine.link.to} className="hud-link lib-status-link">
+          <Link to={statusLine.link.to} className="link lib-status-link">
             {statusLine.link.label}
           </Link>
         )}
@@ -169,6 +156,7 @@ export function LibraryPage() {
 
       <LibraryBody
         state={library.state}
+        settingsState={settings.state}
         onRetry={() => void library.reload()}
         onAdd={library.addFolder}
         onPlay={(fileId) => void handlePlay(fileId)}
@@ -211,9 +199,9 @@ function MpvChip({ state }: { state: SettingsState }) {
 function MpvAlert({ state }: { state: SettingsState }) {
   if (state.phase !== 'ready' || state.data.mpv.found) return null
   return (
-    <p className="mpv-alert" role="alert">
+    <p className="alert-warn" role="alert">
       未检测到 mpv，无法播放。{state.data.mpv.hint ?? '请先安装 mpv。'}{' '}
-      <Link to={INSTALL_MPV_LINK.to} className="hud-link mpv-alert-link">
+      <Link to={INSTALL_MPV_LINK.to} className="link alert-warn-link">
         {INSTALL_MPV_LINK.label}
       </Link>
     </p>
@@ -222,6 +210,8 @@ function MpvAlert({ state }: { state: SettingsState }) {
 
 interface LibraryBodyProps {
   state: LibraryState
+  /** 引导屏要据此显示 mpv 与账号的就绪状态 */
+  settingsState: SettingsState
   onRetry: () => void
   onAdd: ReturnType<typeof useLibrary>['addFolder']
   onPlay: (fileId: string) => void
@@ -230,7 +220,15 @@ interface LibraryBodyProps {
 }
 
 /** 主体三态：loading / error / ready（ready 内再分空态、无视频、簇列表） */
-function LibraryBody({ state, onRetry, onAdd, onPlay, activeFileId, pendingFileId }: LibraryBodyProps) {
+function LibraryBody({
+  state,
+  settingsState,
+  onRetry,
+  onAdd,
+  onPlay,
+  activeFileId,
+  pendingFileId,
+}: LibraryBodyProps) {
   if (state.phase === 'loading') {
     return (
       <p className="result result--dim" style={mono}>
@@ -245,7 +243,7 @@ function LibraryBody({ state, onRetry, onAdd, onPlay, activeFileId, pendingFileI
         <h2 className="page-notice-title">读取媒体库失败</h2>
         <p className="page-notice-copy result--err">{state.message}</p>
         <p className="page-notice-actions">
-          <button type="button" className="hud-button hud-button--small" onClick={onRetry}>
+          <button type="button" className="btn btn--sm" onClick={onRetry}>
             重试
           </button>
         </p>
@@ -258,23 +256,8 @@ function LibraryBody({ state, onRetry, onAdd, onPlay, activeFileId, pendingFileI
   const { folders, clusters } = state.data
 
   if (folders.length === 0) {
-    return (
-      <section className="lib-empty" aria-labelledby="empty-heading">
-        <p style={label}>first run · add folder</p>
-        <p className="lib-empty-kana" aria-hidden="true">
-          流れ
-        </p>
-        <h2 id="empty-heading" className="lib-empty-title">
-          把动漫文件夹交给 nagare
-        </h2>
-        <p className="lib-empty-copy">
-          输入存放动漫的文件夹绝对路径，扫描后即可直接用 mpv 播放，弹幕与观看进度自动同步。
-        </p>
-        <div className="lib-empty-form">
-          <AddFolderForm onAdd={onAdd} autoFocus />
-        </div>
-      </section>
-    )
+    // 首次运行：不把「添加文件夹」摆成唯一入口（磁力那条路不需要它）
+    return <GettingStarted settings={settingsState} onAdd={onAdd} />
   }
 
   if (clusters.length === 0) {

@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import type { SearchResult, SourceOutcome, SourcesData } from '../../lib/endpoints'
 import type { SearchState } from '../../hooks/useMagnetSearch'
 import type { SourcesState } from '../../hooks/useSources'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import type { PlayControl } from './ResultRow'
 import { ResultTable } from './ResultTable'
 import { SourceStatusBar } from './SourceStatusBar'
@@ -95,7 +95,7 @@ function RetryNotice({ title, message, onRetry }: { title: string; message: stri
       <h2 className="page-notice-title">{title}</h2>
       <p className="page-notice-copy result--err">{message}</p>
       <p className="page-notice-actions">
-        <button type="button" className="hud-button hud-button--small" onClick={onRetry}>
+        <button type="button" className="btn btn--sm" onClick={onRetry}>
           重试
         </button>
       </p>
@@ -130,7 +130,7 @@ function NoSourcesNotice({ data }: { data: SourcesData }) {
         </div>
       )}
       <p className="page-notice-actions">
-        <Link to="/settings" className="hud-button hud-button--small search-empty-link">
+        <Link to="/settings" className="btn btn--sm search-empty-link">
           去设置添加规则来源
         </Link>
       </p>

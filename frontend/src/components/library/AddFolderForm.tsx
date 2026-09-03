@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { AddFolderData } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import './library.css'
 
 /** macOS 惯例的示例路径（M1 验收平台），提示「要绝对路径」 */
@@ -54,7 +54,7 @@ export function AddFolderForm({ onAdd, autoFocus = false }: AddFolderFormProps) 
     <form className="add-folder" onSubmit={(event) => void handleSubmit(event)}>
       <div className="add-folder-row">
         <input
-          className="hud-input"
+          className="input"
           type="text"
           name="path"
           value={path}
@@ -68,7 +68,7 @@ export function AddFolderForm({ onAdd, autoFocus = false }: AddFolderFormProps) 
         />
         <button
           type="submit"
-          className="hud-button hud-button--small"
+          className="btn btn--sm btn--primary"
           disabled={state.phase === 'busy'}
         >
           {state.phase === 'busy' ? '扫描中 …' : '添加'}

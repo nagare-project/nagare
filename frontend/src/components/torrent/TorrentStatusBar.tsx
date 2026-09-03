@@ -1,7 +1,7 @@
 import type { TorrentPlayState } from '../../hooks/useTorrentPlay'
 import type { TorrentPhase, TorrentStatus } from '../../lib/endpoints'
 import { formatRate, ratioPercent } from '../../lib/format'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import './torrent.css'
 
 /**
@@ -63,12 +63,12 @@ export function TorrentStatusBar({
           </p>
         </div>
         <div className="tsb-actions">
-          <button type="button" className="hud-button hud-button--small" onClick={onRetry}>
+          <button type="button" className="btn btn--sm" onClick={onRetry}>
             重试
           </button>
           <button
             type="button"
-            className="hud-button hud-button--small hud-button--ghost"
+            className="btn btn--sm btn--danger"
             onClick={onCancel}
           >
             关闭
@@ -125,7 +125,7 @@ export function TorrentStatusBar({
       <div className="tsb-actions">
         <button
           type="button"
-          className="hud-button hud-button--small hud-button--ghost"
+          className="btn btn--sm btn--danger"
           onClick={onCancel}
         >
           {streaming ? '停止' : '取消'}
@@ -205,20 +205,20 @@ function PeerReadout({
   const noPeers = status.peers === 0
   return (
     <span className={noPeers ? 'tsb-readout tsb-readout--nopeers' : 'tsb-readout'} style={mono}>
-      <span className="tsb-peers">
+      <span>
         分享者 {status.peers}
         <span className="tsb-seeders">（做种 {status.seeders}）</span>
       </span>
       <span className="tsb-sep" aria-hidden="true">
         ·
       </span>
-      <span className="tsb-rate">↓ {formatRate(status.downRate)}</span>
+      <span>↓ {formatRate(status.downRate)}</span>
       {streaming && (
         <>
           <span className="tsb-sep" aria-hidden="true">
             ·
           </span>
-          <span className="tsb-progress">已下载 {progressPct}%</span>
+          <span>已下载 {progressPct}%</span>
         </>
       )}
     </span>

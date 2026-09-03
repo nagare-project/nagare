@@ -1,6 +1,6 @@
 /* ============================================================
    磁力搜索 feature 样式（M2）：页面骨架 · 搜索框 · 源状态 chip · 结果表 · 规则错误块 · 空态。
-   顶栏（.topbar*）与原子件（.panel / .badge / .hud-button 等）见 styles/global.css；
+   顶栏（.page-head*）与原子件（.panel / .badge / .btn 等）见 styles/global.css；
    设置页的磁力源区块见 sources.css。
    ============================================================ */
 
@@ -16,10 +16,6 @@
   padding: clamp(1.5rem, 4vh, 2.75rem) clamp(1rem, 4vw, 2.5rem) 3rem;
 }
 
-.topbar-section {
-  align-self: center;
-}
-
 /* 底部固定的磁力状态条会盖住页尾，播放流程进行中时给它让出高度
    （与库页 .lib-shell--with-bar 同一手法；状态条本体样式在 components/torrent/torrent.css） */
 .search-shell--with-bar {
@@ -33,7 +29,7 @@
   gap: 0.6rem;
 }
 
-.search-form .hud-input {
+.search-form .input {
   flex: 1;
   font-size: 0.9rem;
 }
@@ -54,7 +50,7 @@
   display: flex;
   justify-content: flex-end;
   min-height: 1.3em;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
 }
 
 /* ---------- 源状态条与 chip ---------- */
@@ -74,12 +70,12 @@
   align-items: center;
   gap: 0.45em;
   padding: 0.22rem 0.6rem 0.22rem 0.5rem;
-  border: 1px solid var(--src-border, var(--hud-border-dim));
-  border-radius: 2px;
+  border: 1px solid var(--src-border, var(--border-dim));
+  border-radius: var(--radius-sm);
   background: var(--src-wash, transparent);
-  color: var(--src-color, var(--color-text-dim));
+  color: var(--src-color, var(--fg-muted));
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   line-height: 1.4;
   cursor: default;
 }
@@ -87,16 +83,16 @@
 button.src-chip {
   cursor: pointer;
   transition:
-    background-color var(--duration-fast) var(--ease-out-expo),
-    border-color var(--duration-fast) var(--ease-out-expo);
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
 }
 
 button.src-chip:hover:not(:disabled) {
-  background: var(--hud-flash);
+  background: var(--brand-wash);
 }
 
 button.src-chip:focus-visible {
-  outline: 2px solid var(--hud-accent-hot);
+  outline: 2px solid var(--brand-hot);
   outline-offset: 2px;
 }
 
@@ -115,11 +111,11 @@ button.src-chip:disabled {
   z-index: 5;
   max-width: 24rem;
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--hud-border);
-  border-radius: 2px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.68rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.8rem;
   line-height: 1.5;
   white-space: pre-line;
   text-align: left;
@@ -134,7 +130,7 @@ button.src-chip:disabled {
 }
 
 .src-chip-name {
-  color: var(--color-text);
+  color: var(--fg);
 }
 
 .src-chip-sep {
@@ -142,44 +138,43 @@ button.src-chip:disabled {
 }
 
 .src-chip-state {
-  font-size: 0.62rem;
+  font-size: 0.8rem;
 }
 
 /* 五态分级：ok 青 · zero 灰 · dead 红 · failed 橙 · disabled 暗 */
 .src-chip--ok {
-  --src-color: var(--hud-accent);
-  --src-border: var(--hud-border);
+  --src-color: var(--brand);
+  --src-border: var(--border);
 }
 
 .src-chip--ok .src-chip-dot {
-  box-shadow: 0 0 5px var(--hud-accent);
 }
 
 .src-chip--zero {
-  --src-color: var(--color-text-dim);
-  --src-border: var(--hud-border-dim);
+  --src-color: var(--fg-muted);
+  --src-border: var(--border-dim);
 }
 
 .src-chip--dead {
-  --src-color: var(--color-err);
-  --src-border: var(--color-err-border);
-  --src-wash: oklch(72% 0.14 25 / 0.08);
+  --src-color: var(--err);
+  --src-border: var(--err-line);
+  --src-wash: var(--err-wash);
 }
 
 .src-chip--failed {
-  --src-color: var(--color-warn);
-  --src-border: var(--color-warn-border);
-  --src-wash: var(--color-warn-wash);
+  --src-color: var(--warn);
+  --src-border: var(--warn-line);
+  --src-wash: var(--warn-wash);
 }
 
 .src-chip--disabled {
-  --src-color: var(--color-text-faint);
-  --src-border: var(--hud-border-dim);
+  --src-color: var(--fg-subtle);
+  --src-border: var(--border-dim);
   border-style: dashed;
 }
 
 .src-chip--disabled .src-chip-name {
-  color: var(--color-text-faint);
+  color: var(--fg-subtle);
 }
 
 /* ---------- 结果区 ---------- */
@@ -193,7 +188,7 @@ button.src-chip:disabled {
 /* 重搜在途：旧结果压暗但不撤掉 */
 .search-results--stale {
   opacity: 0.55;
-  transition: opacity var(--duration-fast) var(--ease-out-expo);
+  transition: opacity var(--duration-fast) var(--ease);
 }
 
 .res-wrap {
@@ -203,34 +198,31 @@ button.src-chip:disabled {
 .res-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .res-table th {
   padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid var(--hud-border);
+  border-bottom: 1px solid var(--border);
   text-align: left;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.82rem;
   font-weight: 400;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
 .res-table td {
   padding: 0.32rem 0.5rem;
-  border-bottom: 1px solid var(--hud-border-dim);
+  border-bottom: 1px solid var(--border-dim);
   vertical-align: top;
 }
 
 .res-row {
-  transition: background-color var(--duration-fast) var(--ease-out-expo);
+  transition: background-color var(--duration-fast) var(--ease);
 }
 
 .res-row:hover {
-  background: var(--hud-flash);
+  background: var(--brand-wash);
 }
 
 /* 标题可换行；其余列不换行、靠 mono 数字对齐 */
@@ -249,8 +241,8 @@ td.res-size,
 td.res-seeders {
   text-align: right;
   white-space: nowrap;
-  font-size: 0.72rem;
-  color: var(--color-text-dim);
+  font-size: 0.82rem;
+  color: var(--fg-muted);
 }
 
 th.res-size,
@@ -263,14 +255,14 @@ td.res-fansub {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.74rem;
-  color: var(--color-text-dim);
+  font-size: 0.84rem;
+  color: var(--fg-muted);
 }
 
 td.res-date {
   white-space: nowrap;
-  font-size: 0.68rem;
-  color: var(--color-text-dim);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
 }
 
 td.res-source {
@@ -281,7 +273,7 @@ td.res-actions {
   white-space: nowrap;
 }
 
-td.res-actions .hud-button + .res-play-wrap {
+td.res-actions .btn + .res-play-wrap {
   margin-left: 0.4rem;
 }
 
@@ -290,8 +282,8 @@ td.res-actions .hud-button + .res-play-wrap {
 }
 
 .res-copy--failed {
-  border-color: var(--color-err-border);
-  color: var(--color-err);
+  border-color: var(--err-line);
+  color: var(--err);
 }
 
 .res-play-wrap {
@@ -304,8 +296,8 @@ td.res-actions .hud-button + .res-play-wrap {
 
 /* 正在边下边播的那一行：按钮虽禁用，仍要一眼看出是它 */
 .res-play--active {
-  border-color: var(--hud-accent-hot);
-  color: var(--hud-accent-hot);
+  border-color: var(--brand-hot);
+  color: var(--brand-hot);
   opacity: 1;
 }
 
@@ -317,10 +309,10 @@ td.res-actions .hud-button + .res-play-wrap {
 /* 规则加载错误块：规则文件坏了要让人看见 */
 .rules-errors {
   padding: 0.6rem 0.8rem;
-  border: 1px solid var(--color-err-border);
-  border-left: 3px solid var(--color-err);
-  background: oklch(72% 0.14 25 / 0.06);
-  font-size: 0.78rem;
+  border: 1px solid var(--err-line);
+  border-left: 3px solid var(--err);
+  background: var(--err-wash);
+  font-size: 0.86rem;
 }
 
 .rules-errors ul {
@@ -330,8 +322,8 @@ td.res-actions .hud-button + .res-play-wrap {
 
 .rules-errors li {
   overflow-wrap: anywhere;
-  font-size: 0.7rem;
-  color: var(--color-text-dim);
+  font-size: 0.82rem;
+  color: var(--fg-muted);
 }
 
 /* ---------- 空态 ---------- */

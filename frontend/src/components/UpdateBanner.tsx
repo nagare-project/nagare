@@ -3,10 +3,9 @@ import { isSettledPhase } from '../hooks/useSelfUpdate'
 import type { UseSelfUpdateResult } from '../hooks/useSelfUpdate'
 import type { UpdateView } from '../lib/endpoints'
 import { formatVersion } from '../lib/format'
-import { hudPalette } from '../lib/palette'
 import { selfUpdateStatus } from '../lib/selfUpdateText'
 import { isHttpUrl } from '../lib/url'
-import { label } from '../tokens'
+import { label } from '../theme'
 import './update-banner.css'
 
 /** 「忽略此版本」记在 localStorage 里的键；值是被忽略的 latest 原文 */
@@ -44,7 +43,7 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
   }
 
   return (
-    <aside className="update-banner" style={hudPalette} role="status" aria-live="polite">
+    <aside className="update-banner" role="status" aria-live="polite">
       <div className="update-banner-inner">
         <span className="update-banner-tag" style={label}>
           update
@@ -70,7 +69,7 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
         </span>
         {isHttpUrl(view.url) && (
           <a
-            className="hud-link update-banner-link"
+            className="link update-banner-link"
             href={view.url}
             target="_blank"
             rel="noreferrer noopener"
@@ -81,7 +80,7 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
         {view.selfUpdate.supported && !settled && (
           <button
             type="button"
-            className="hud-button hud-button--small update-banner-apply"
+            className="btn btn--sm update-banner-apply"
             onClick={selfUpdate.start}
             disabled={selfUpdate.busy}
           >
@@ -95,7 +94,7 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
         ) : (
           <button
             type="button"
-            className="hud-button hud-button--small hud-button--ghost update-banner-ignore"
+            className="btn btn--sm btn--danger update-banner-ignore"
             onClick={handleIgnore}
           >
             忽略此版本

@@ -1,5 +1,5 @@
 import type { SearchItem } from '../../lib/endpoints'
-import { mono } from '../../tokens'
+import { mono } from '../../theme'
 import { ResultRow } from './ResultRow'
 import type { PlayControl } from './ResultRow'
 import './search.css'

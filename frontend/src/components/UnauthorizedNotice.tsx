@@ -1,5 +1,4 @@
-import { hudPalette } from '../lib/palette'
-import { label } from '../tokens'
+import { label } from '../theme'
 
 /**
  * 无有效 token 时的全页提示（媒体库页与设置页共用）。
@@ -7,7 +6,7 @@ import { label } from '../tokens'
  */
 export function UnauthorizedNotice() {
   return (
-    <main className="lib-shell" style={hudPalette}>
+    <main className="lib-shell">
       <div className="page-notice">
         <p className="panel-heading" style={label}>
           unauthorized

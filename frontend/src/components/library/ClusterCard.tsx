@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import type { LibraryCluster } from '../../lib/endpoints'
-import { label, mono } from '../../tokens'
+import { label, mono } from '../../theme'
 import { EpisodeRow } from './EpisodeRow'
 import './library.css'
 

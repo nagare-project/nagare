@@ -40,3 +40,6 @@ config.local.*
 .env.*
 !.env.example
 .gstack/
+
+# 调研用的浅克隆（seanime / animeko 等），不进仓库
+scratchpad/
