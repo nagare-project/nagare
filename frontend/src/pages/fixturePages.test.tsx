@@ -73,3 +73,48 @@ describe('假数据页面', () => {
     }
   })
 })
+
+describe('扫描记录 / 自动下载', () => {
+  it('扫描记录：列出每次扫描，解析失败的文件必须可见', async () => {
+    const { ScanSummariesPage } = await import('./ScanSummariesPage')
+    const { container, unmount } = await mount(<ScanSummariesPage />)
+    expect(container.querySelectorAll('.scan').length).toBeGreaterThan(1)
+    // 解析不出集号的文件会被静默跳过，用户唯一能察觉的方式就是这一段。
+    // 它消失了 = 又变回静默失败，所以钉住。
+    const unresolved = container.querySelector('.scan-unresolved')
+    expect(unresolved).not.toBeNull()
+    expect(unresolved?.textContent).toContain('解析不出集号')
+    await unmount()
+  })
+
+  it('自动下载：措辞必须说清「点了也不会下载」，而不是只说数据是假的', async () => {
+    const { AutoDownloaderPage } = await import('./AutoDownloaderPage')
+    const { container, unmount } = await mount(<AutoDownloaderPage />)
+    const notice = container.querySelector('.alert-warn')?.textContent ?? ''
+    expect(notice).toContain('功能尚未实现')
+    expect(notice).toContain('不会下载任何东西')
+    await unmount()
+  })
+
+  it('自动下载：不预填任何可用的订阅地址（红线 1）', async () => {
+    const { AutoDownloaderPage } = await import('./AutoDownloaderPage')
+    const { container, unmount } = await mount(<AutoDownloaderPage />)
+    const feeds = [...container.querySelectorAll('.rule-feed')].map((e) => e.textContent ?? '')
+    expect(feeds.length).toBeGreaterThan(0)
+    for (const f of feeds) {
+      // 占位尖括号必须在：一个真能用的 RSS 地址等于官方分发源
+      expect(f, `订阅地址不该是可用地址：${f}`).toContain('<')
+    }
+    await unmount()
+  })
+
+  it('自动下载：开关可切换（纯本地状态，不发请求）', async () => {
+    const { AutoDownloaderPage } = await import('./AutoDownloaderPage')
+    const { container, unmount } = await mount(<AutoDownloaderPage />)
+    const sw = container.querySelector<HTMLButtonElement>('.switch')
+    const before = sw?.getAttribute('aria-checked')
+    await act(async () => sw?.click())
+    expect(container.querySelector('.switch')?.getAttribute('aria-checked')).not.toBe(before)
+    await unmount()
+  })
+})

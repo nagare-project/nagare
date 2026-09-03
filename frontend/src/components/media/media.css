@@ -219,3 +219,162 @@
     transition: none;
   }
 }
+
+/* ---------- 磁力任务 ---------- */
+
+.torrent-task {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.1rem 1.2rem 1.25rem;
+}
+
+.torrent-task-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.torrent-task-head .panel-heading {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.torrent-file {
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.torrent-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--progress-track);
+}
+
+.torrent-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--progress-fill);
+  transition: width var(--duration-fast) linear;
+}
+
+.torrent-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.torrent-stat dt {
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+.torrent-stat dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* ---------- 扫描记录 ---------- */
+
+.scan-list,
+.rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scan {
+  padding: 1rem 1.15rem 1.1rem;
+}
+
+.scan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.9rem;
+}
+
+.scan-folder {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scan-at {
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+}
+
+.scan-stats {
+  margin-top: 0.2rem;
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+}
+
+/* 解析失败的文件：用警示色，因为它们是【静默丢失】的那部分 */
+.scan-unresolved {
+  margin-top: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius);
+  background: var(--warn-wash);
+  font-size: 0.84rem;
+}
+
+.scan-unresolved-head {
+  color: var(--warn);
+}
+
+.scan-unresolved ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--fg-muted);
+}
+
+/* ---------- 自动下载规则 ---------- */
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.15rem 1rem;
+}
+
+.rule-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rule-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.rule-feed {
+  color: var(--fg-subtle);
+  font-size: 0.82rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rule-meta {
+  margin-top: 0.15rem;
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+}

@@ -13,7 +13,16 @@ import { Link } from '@tanstack/react-router'
  */
 
 interface RailItem {
-  to: '/' | '/lists' | '/discover' | '/schedule' | '/search' | '/settings'
+  to:
+    | '/'
+    | '/lists'
+    | '/discover'
+    | '/schedule'
+    | '/search'
+    | '/torrents'
+    | '/scan-summaries'
+    | '/auto-downloader'
+    | '/settings'
   glyph: string
   label: string
 }
@@ -25,6 +34,9 @@ const ITEMS: readonly RailItem[] = [
   { to: '/discover', glyph: '◎', label: '发现' },
   { to: '/schedule', glyph: '▦', label: '放送' },
   { to: '/search', glyph: '⌕', label: '搜索' },
+  { to: '/torrents', glyph: '⇅', label: '任务' },
+  { to: '/scan-summaries', glyph: '◱', label: '扫描' },
+  { to: '/auto-downloader', glyph: '⟳', label: '订阅' },
   { to: '/settings', glyph: '⚙', label: '设置' },
 ]
 

@@ -41,12 +41,12 @@
 |---|---|---|---|---|
 | 1 | 首页 | `/` | ✅ 继续观看 + 海报网格 | 已有 |
 | 2 | 作品详情 | `/anime/$clusterKey` | ✅ 横幅 + 剧集列表 | 已有 |
-| 3 | 我的列表 | `/lists` | ⬜ 待建 | ❌ 假数据 |
-| 4 | 发现 | `/discover` | ⬜ 待建 | ❌ 假数据 |
-| 5 | 放送表 | `/schedule` | ⬜ 待建 | ❌ 假数据 |
-| 6 | 磁力任务 | `/torrents` | ⬜ 待建 | ⚠️ 部分 |
-| 7 | 扫描记录 | `/scan-summaries` | ⬜ 待建 | ❌ 假数据 |
-| 8 | 自动下载 | `/auto-downloader` | ⬜ 待建 | ❌ 假数据 |
+| 3 | 我的列表 | `/lists` | ✅ 建好 | ❌ 假数据 |
+| 4 | 发现 | `/discover` | ✅ 建好 | ❌ 假数据 |
+| 5 | 放送表 | `/schedule` | ✅ 建好 | ❌ 假数据 |
+| 6 | 磁力任务 | `/torrents` | ✅ 建好 | ✅ **真数据** |
+| 7 | 扫描记录 | `/scan-summaries` | ✅ 建好 | ❌ 假数据 |
+| 8 | 自动下载 | `/auto-downloader` | ⚠️ 仅界面预览 | ❌ 无后端 |
 | 9 | 搜索 | `/search` | ✅ 磁力搜索 | 已有 |
 | 10 | 设置 | `/settings` | ✅ | 已有 |
 | — | 漫画 | — | 🚫 用户明确排除 | — |
@@ -65,7 +65,7 @@ seanime 的五档：Watching / Planning / Completed / Paused / Dropped，
 - **要的接口**：`GET /api/lists` → 按状态分组的作品清单（标题、封面、进度 x/y）
 - **animego 侧**：现在只有「进度高水位写入」（`MarkWatched`），**没有读收藏列表的接口**
 - **缺口**：需要在 animego 加一个读接口，或用本地 `store.Progress` 反推
-- 假数据：`frontend/src/lib/fixtures/lists.ts`
+- 假数据：`frontend/src/lib/fixtures/library.ts` 的 `FAKE_LISTS`
 
 ### G2 · 发现 `/discover`
 
@@ -75,7 +75,7 @@ seanime 是 Trending / Popular / Upcoming / 本季新番，全部来自 AniList�
 - **animego 侧**：未知是否有榜单接口，需要查
 - ⚠️ **注意边界**：这是元数据（读），在允许的三条连线内。但**不得**在这里出现
   「按 anilistId 要磁力」的入口 —— 那是红线 2
-- 假数据：`frontend/src/lib/fixtures/discover.ts`
+- 假数据：`frontend/src/lib/fixtures/library.ts` 的 `FAKE_DISCOVER`
 
 ### G3 · 放送表 `/schedule`
 
@@ -83,18 +83,19 @@ seanime 是 Trending / Popular / Upcoming / 本季新番，全部来自 AniList�
 
 - **要的接口**：`GET /api/schedule?week=` → 每天的作品 + 集号 + 播出时间
 - **animego 侧**：需要查有没有放送表数据
-- 假数据：`frontend/src/lib/fixtures/schedule.ts`
+- 假数据：`frontend/src/lib/fixtures/library.ts` 的 `fakeAiringThisWeek()`
 
-### G4 · 磁力任务 `/torrents`
+### ✅ G4 · 磁力任务 `/torrents` —— 不是缺口，已用真接口
 
-seanime 列出活跃种子（下载中/做种/暂停）。
+原以为要假数据，核过之后发现 `GET /api/torrent/status` 给的就是完整真实状态，
+所以这一页**零假数据**。
 
-- **nagare 现状**：`internal/torrentstream` 只维护【当前这一个】播放会话，
-  没有「任务列表」这个概念 —— 决议 M3-4 是「停播即删分片」，本来就不留任务
-- **缺口**：要么加一个真实的多任务列表（与 M3-4 冲突，要重新决议），
-  要么这一页只显示当前会话
-- **建议**：只显示当前会话 + 历史记录，不引入常驻下载队列
-- 假数据：`frontend/src/lib/fixtures/torrents.ts`
+与 seanime 的差别不是没做完，是架构不同：它列的是常驻下载队列，
+而 nagare 按 **M3-4「停播即删分片、启动与退出各清空一次」** 压根不存在任务列表，
+最多只可能有一条 —— 正在播的那个。空态里把这条原因写给用户了，
+免得从 seanime 过来的人以为功能缺了一块。
+
+要做成队列＝推翻 M3-4，那是要重新决议的事，不该由一个界面顺手决定。
 
 ### G5 · 扫描记录 `/scan-summaries`
 
@@ -103,16 +104,18 @@ seanime 列出活跃种子（下载中/做种/暂停）。
 - **nagare 现状**：`Rescan()` 只返回 `{videos, clusters}` 计数，**不留历史**
 - **要的接口**：`GET /api/scan-summaries` → 历次扫描的详细结果
 - **缺口**：需要在扫描时把结果落盘（`store` 加一张表）
-- 假数据：`frontend/src/lib/fixtures/scanSummaries.ts`
+- 假数据：`frontend/src/lib/fixtures/scans.ts` 的 `FAKE_SCANS`
 
-### G6 · 自动下载 `/auto-downloader`
+### G6 · 自动下载 `/auto-downloader` —— ⚠️ 只有界面，背后什么都没有
 
-seanime 按 RSS + 规则自动下载新集。
-
-- **nagare 现状**：完全没有。规则引擎（`internal/rules`）是**搜索**用的，不是订阅用的
-- **缺口**：整套订阅 + 定时轮询 + 自动下载，是一个完整的里程碑级功能
-- ⚠️ 这条要先过红线 1：源仍必须由用户提供，不得预填任何订阅地址
-- 假数据：`frontend/src/lib/fixtures/autoDownloader.ts`
+- **nagare 现状**：完全没有。`internal/rules` 是**搜索**用的规则引擎，不是订阅器
+- **缺口**：订阅 + 定时轮询 + 自动下载，是一个完整的里程碑级功能
+- ⚠️ 这一页的提示语措辞比别的重：别的假数据页至少形状是真的（列表就是列表），
+  而这一页**点「启用」永远不会有任何东西被下载**。说成「假数据」会让人
+  以为只是数字不准
+- ⚠️ 红线 1：示例地址写成 `<你自己的规则源>` 占位，**不预填任何可用 RSS** ——
+  预填等于官方分发源
+- 假数据：`frontend/src/lib/fixtures/scans.ts` 的 `FAKE_RULES`
 
 ---
 
