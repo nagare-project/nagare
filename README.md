@@ -12,7 +12,8 @@
 - **Go 单二进制**：React UI 通过 `go:embed` 内嵌，启动后在浏览器打开 `127.0.0.1:<port>` 使用
 - **两条内容来源，一个播放引擎**：本地文件、磁力边下边播（磁力链接由用户提供），解码统一交给 mpv
 - **弹幕**：转成 ASS 字幕轨喂给 mpv（对白主轨 + 弹幕副轨，本地文件与磁力一视同仁）
-- **通用本地播放器**：本体零内置内容源；声明式源规则住在独立的社区仓库 nagare-rules（后续建立）
+- **通用本地播放器**：本体零内置内容源；规则由你自己提供，格式规范与工具见
+  [nagare-rules](https://github.com/nagare-project/nagare-rules)（那个仓库同样不收录任何源）
 
 ## 它不做什么
 
@@ -166,11 +167,18 @@ cd frontend && bun run test
 nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供规则：
 
 1. 打开设置页，在「磁力源」里填规则仓库的 HTTPS 地址（或一个本机目录），点「同步规则」
-2. 规则文件的格式与仓库布局见 [docs/rules-format.md](docs/rules-format.md)
+2. 规则文件的格式与仓库布局见 [docs/rules-format.md](docs/rules-format.md)；
+   模板、校验脚本与「怎么搭自己的规则仓库」见
+   [nagare-rules](https://github.com/nagare-project/nagare-rules)
 3. 搜索页会对每个源单独标注状态；「源异常」表示规则解不出上游内容（多半是站点改版），
    可在设置页用规则自带的关键词做自检
 
 规则只能声明「请求什么、怎么解」，不能执行代码；每条规则加载前都会经过格式校验。
+写规则时可以先自己校验一遍，用的是与运行时同一套逻辑：
+
+```bash
+nagare -validate-rules <规则目录>
+```
 
 ## 磁力边下边播
 
