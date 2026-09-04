@@ -1,4 +1,4 @@
-// FIXME(G1/G2/G3): 假数据。真接口缺口见仓库根 todos.md。
+// FIXME(G1/G2/G3): 假数据，真接口尚未接通。
 import type { MediaSummary } from '../../components/media/types'
 import type { FakeAiring } from './types'
 

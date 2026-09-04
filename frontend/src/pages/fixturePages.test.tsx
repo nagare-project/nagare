@@ -132,9 +132,10 @@ describe('假数据页面', () => {
       expect(notice, `${file} 吃 fixture 却没有横幅`).not.toBeNull()
       const text = notice?.textContent ?? ''
       // 「假数据」或更重的措辞（自动下载页说的是「功能尚未实现」），
-      // 外加一条能让人查到缺口的线索
+      // 外加缺口编号 —— 用户报问题时报得出「G2 那一页」比描述半天强。
+      // 不断言指向任何文档：缺口清单是内部文件，公开仓库里没有。
       expect(text, `${file} 的横幅没说清这是假的`).toMatch(/假数据|尚未实现/)
-      expect(text, `${file} 的横幅没指向缺口清单`).toContain('todos.md')
+      expect(text, `${file} 的横幅没带缺口编号`).toMatch(/G\d/)
       await unmount()
     }
   })

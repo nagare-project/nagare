@@ -9,7 +9,7 @@ import '../components/media/media.css'
  * `/schedule` 放送表：本周每天播出的新集。
  *
  * FIXME(G3): 假数据（日期按本周一现算，所以哪天打开都合理）。
- * 真数据需要一个放送表接口，animego 侧是否有待查。缺口见 todos.md。
+ * 真数据需要一个放送表接口，animego 侧是否有待查（缺口 G3）。
  */
 
 const DAY_LABEL = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
