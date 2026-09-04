@@ -1,84 +1,39 @@
+import { useMemo, useState } from 'react'
 import { FixtureNotice } from './ListsPage'
-import { fakeAiringThisWeek } from '../lib/fixtures/library'
-import type { FakeAiring } from '../lib/fixtures/types'
-import { mono } from '../theme'
+import { fakeSchedule } from '../lib/fixtures/schedule'
+import { ScheduleCalendar } from '../components/schedule/ScheduleCalendar'
+import { ScheduleEpisodeStrip } from '../components/schedule/ScheduleEpisodeStrip'
+import { ScheduleAgenda } from '../components/schedule/ScheduleEventList'
+import { calendarDays, shiftMonth } from '../components/schedule/calendar'
 import '../components/library/library.css'
 import '../components/media/media.css'
+import '../components/schedule/schedule.css'
 
-/**
- * `/schedule` 放送表：本周每天播出的新集。
- *
- * FIXME(G3): 假数据（日期按本周一现算，所以哪天打开都合理）。
- * 真数据需要一个放送表接口，animego 侧是否有待查（缺口 G3）。
- */
-
-const DAY_LABEL = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-
+/** FIXME(G3)：复刻展示和交互，日期、缺集仍为演示数据，真实放送接口待接入。 */
 export function SchedulePage({ embedded = false }: { embedded?: boolean } = {}) {
-  const now = new Date()
-  const airings = fakeAiringThisWeek(now)
-  const todayIdx = (now.getDay() + 6) % 7 // 周日是 0，换算成周一起算
+  const [now] = useState(() => new Date())
+  const { events, missing, upcoming } = useMemo(() => fakeSchedule(now), [now])
 
-  // 按「周几」分桶。注意用本地时间取 day —— airingAt 是 ISO（含时区），
-  // 直接切字符串会在跨时区/跨零点时错一天。
-  const byDay: FakeAiring[][] = [[], [], [], [], [], [], []]
-  for (const a of airings) {
-    const d = new Date(a.airingAt)
-    byDay[(d.getDay() + 6) % 7]!.push(a)
+  // seanime 的 Discover 标签是近期播出列表；独立 Schedule 才是月历。
+  if (embedded) {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14)
+    const uniqueDays = new Map(calendarDays(now, 1, events, now)
+      .concat(calendarDays(shiftMonth(now, 1), 1, events, now)).map(day => [day.key, day]))
+    const days = [...uniqueDays.values()].filter(day => day.date >= start && day.date < end)
+    return <><FixtureNotice gap="G3" what="播出时间" /><section className="discover-schedule">
+      <h2>放送时间表</h2><ScheduleAgenda days={days} indicateWatched={false} discover />
+    </section></>
   }
-  for (const bucket of byDay) {
-    bucket.sort((x, y) => x.airingAt.localeCompare(y.airingAt))
-  }
 
-  const body = (
-    <>
-      <FixtureNotice gap="G3" what="播出时间" />
-
-      <div className="week">
-        {DAY_LABEL.map((label, i) => (
-          <section
-            key={label}
-            className={i === todayIdx ? 'day day--today' : 'day'}
-            aria-label={label}
-          >
-            <h2 className="day-head">
-              {label}
-              {i === todayIdx && <span className="badge badge--accent">今天</span>}
-            </h2>
-            {byDay[i]!.length === 0 ? (
-              <p className="day-empty">—</p>
-            ) : (
-              <ul className="day-list">
-                {byDay[i]!.map((a) => (
-                  <li key={a.id} className="airing">
-                    <span className="airing-time" style={mono}>
-                      {new Date(a.airingAt).toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })}
-                    </span>
-                    <span className="airing-title">{a.title}</span>
-                    <span className="airing-ep">第 {a.episode} 集</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ))}
-      </div>
-    </>
-  )
-
-  // 内嵌进发现页的「放送表」标签时不重复页头，也不再套一层 <main>
-  if (embedded) return body
-
-  return (
-    <main className="lib-shell">
-      <header className="page-head">
-        <h1 className="page-title">放送表</h1>
-      </header>
-      {body}
-    </main>
-  )
+  return <main className="lib-shell schedule-shell">
+    <h1 className="visually-hidden">放送表</h1>
+    <FixtureNotice gap="G3" what="播出时间和缺集" />
+    <ScheduleEpisodeStrip title="媒体库缺集" items={missing} missing now={now} />
+    <section className="schedule-release" aria-label="放送日历">
+      <header className="schedule-section-heading"><div><h2>放送日程</h2><p>根据演示追番列表 · 时间以本机时区显示</p></div></header>
+      <ScheduleCalendar events={events} now={now} />
+    </section>
+    <ScheduleEpisodeStrip title="即将播出的剧集" items={upcoming} now={now} />
+  </main>
 }

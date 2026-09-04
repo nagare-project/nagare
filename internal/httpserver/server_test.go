@@ -162,6 +162,9 @@ func TestSecurityHeadersPresent(t *testing.T) {
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, "DENY", rec.Header().Get("X-Frame-Options"))
 	assert.Equal(t, contentSecurityPolicy, rec.Header().Get("Content-Security-Policy"))
+	assert.Contains(t, contentSecurityPolicy, "frame-src https://www.youtube-nocookie.com;")
+	assert.Contains(t, contentSecurityPolicy, "script-src 'self';")
+	assert.Contains(t, contentSecurityPolicy, "connect-src 'self';")
 	assert.NotEmpty(t, rec.Header().Get("Permissions-Policy"))
 }
 

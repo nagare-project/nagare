@@ -1,3 +1,6 @@
+@import './artwork.css';
+@import './entry.css';
+
 /* ============================================================
    媒体库 feature 样式：mpv 状态 · 空态 · 簇卡片 · 剧集行 · 添加表单。
    正在播放条见 now-playing.css；顶栏（.page-head*，与搜索页共用）与原子件
@@ -9,11 +12,12 @@
 .lib-shell {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  max-width: 64rem;
-  min-height: 100dvh;
+  gap: 24px;
+  width: 100%;
+  max-width: 1800px;
+  min-height: calc(100dvh - 80px);
   margin-inline: auto;
-  padding: clamp(1.5rem, 4vh, 2.75rem) clamp(1rem, 4vw, 2.5rem) 3rem;
+  padding: 16px var(--page-gutter) 48px;
 }
 
 /* 播放条出现时给底部让位，避免最后几行被固定条盖住 */
@@ -250,6 +254,10 @@
   border-left-color: var(--border);
 }
 
+.ep-row:has(.ep-browser) {
+  grid-template-columns: 2.9rem minmax(0, 1fr) auto auto auto auto auto;
+}
+
 .ep-row--active {
   background: var(--brand-wash);
   border-left-color: var(--brand-hot);
@@ -264,7 +272,7 @@
   color: var(--fg-subtle);
 }
 
-/* 主列 = 文件名或引导线 + kind 徽标，放在同一格里保证右侧元数据列对齐 */
+/* 文件名与 kind 徽标放在同一格里，保证右侧元数据列对齐。 */
 .ep-main {
   display: flex;
   align-items: center;
@@ -279,14 +287,6 @@
   white-space: nowrap;
   font-size: 0.85rem;
   color: var(--fg);
-}
-
-/* 有集号时主列用虚线引导线补位（目录页的意思），把编号和右侧元数据连起来 */
-.ep-leader {
-  flex: 1;
-  height: 0;
-  border-bottom: 1px dashed var(--border-dim);
-  opacity: 0.7;
 }
 
 .ep-res,
@@ -324,6 +324,7 @@
 }
 
 .ep-pbar-fill {
+  display: block;
   height: 100%;
   background: var(--progress-fill);
 }
@@ -341,6 +342,9 @@
 }
 
 .ep-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 2rem;
   height: 1.55rem;
   border: 1px solid var(--border-dim);
@@ -396,6 +400,10 @@
     grid-template-columns: 2.9rem minmax(0, 1fr) auto auto;
   }
 
+  .ep-row:has(.ep-browser) {
+    grid-template-columns: 2.9rem minmax(0, 1fr) auto auto auto;
+  }
+
   /* 窄屏收起分辨率与体积列，保留集号/名称/进度/播放 */
   .ep-res,
   .ep-size {
@@ -416,453 +424,6 @@
   .ep-row,
   .ep-play {
     transition: none;
-  }
-}
-
-/* ---------- 继续观看（首屏横幅 + 横向卡片行） ---------- */
-
-.cont {
-  position: relative;
-  /* 横幅要顶到内容区左右边缘之外去（页面外壳有 padding），
-     负 margin 是让它满幅的唯一办法，而满幅正是它的全部意义。 */
-  margin: 0 calc(-1 * clamp(1rem, 4vw, 2.5rem));
-  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 1.75rem;
-}
-
-.cont-backdrop {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.cont-backdrop img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  /* 海报是竖版，铺成横幅必然只能看到中间一条 —— 所以干脆放大 + 重模糊，
-     只取它的色调当氛围。不模糊的话裁出来的那条既没信息又抢注意力。 */
-  transform: scale(1.6);
-  filter: blur(38px) saturate(1.25);
-  opacity: 0.42;
-}
-
-/* 底部渐隐到页面底色，避免横幅和下方内容之间出现一条硬边 */
-.cont-backdrop::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(7, 7, 7, 0.45) 0%, rgba(7, 7, 7, 0.8) 55%, var(--bg) 100%);
-}
-
-.cont-head,
-.cont-row {
-  position: relative;
-  z-index: 1;
-}
-
-.cont-kicker {
-  color: var(--fg-muted);
-  font-size: 0.86rem;
-  font-weight: 500;
-}
-
-.cont-lead-title {
-  margin-top: 0.1rem;
-  font-size: 1.6rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-}
-
-.cont-row {
-  display: flex;
-  gap: 0.9rem;
-  margin: 1.1rem 0 0;
-  padding: 0 0 0.35rem;
-  list-style: none;
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.cont-card {
-  flex: 0 0 clamp(15rem, 26vw, 19rem);
-  min-width: 0;
-}
-
-.cont-card-hit {
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.cont-card-hit:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.cont-card-hit:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 3px;
-  border-radius: var(--radius-lg);
-}
-
-.cont-thumb {
-  position: relative;
-  display: block;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-lg);
-  background: var(--paper);
-}
-
-.cont-thumb img {
-  width: 100%;
-  height: 100%;
-  /* 竖版海报裁成 16:9：重心偏上 —— 海报的脸通常在上半部分，
-     居中裁会正好把它切掉。 */
-  object-fit: cover;
-  object-position: center 22%;
-  transition: transform var(--duration-fast) var(--ease);
-}
-
-.cont-card-hit:hover .cont-thumb img {
-  transform: scale(1.04);
-}
-
-/* 无图版式：不放破图，放一个安静的品牌记号 */
-.cont-thumb-blank {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: var(--fg-subtle);
-  font-size: 1.5rem;
-}
-
-.cont-play {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 0.9rem;
-  transform: translate(-50%, -50%) scale(0.9);
-  opacity: 0;
-  transition:
-    opacity var(--duration-fast) var(--ease),
-    transform var(--duration-fast) var(--ease);
-}
-
-.cont-card-hit:hover .cont-play,
-.cont-card-hit:focus-visible .cont-play {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-.cont-bar {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: var(--progress-track);
-}
-
-.cont-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--progress-fill);
-}
-
-.cont-card-title {
-  margin-top: 0.55rem;
-  font-size: 0.92rem;
-  font-weight: 500;
-  /* 集标题可能很长，压成一行 —— 卡片高度必须一致，否则一行卡片会参差不齐 */
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.cont-card-meta {
-  color: var(--fg-muted);
-  font-size: 0.82rem;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.cont-card--active .cont-thumb {
-  border-color: var(--brand-line);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cont-thumb img,
-  .cont-play {
-    transition: none;
-  }
-
-  .cont-card-hit:hover .cont-thumb img {
-    transform: none;
-  }
-}
-
-/* ---------- 作品簇的小海报 ---------- */
-
-.cluster-cover {
-  flex: none;
-  display: block;
-  width: 2.4rem;
-  height: 3.2rem;
-  overflow: hidden;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  background: var(--paper-raised);
-}
-
-.cluster-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.cluster-cover--blank {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--fg-subtle);
-  font-size: 0.95rem;
-  user-select: none;
-}
-
-/* ---------- 海报网格 ----------
-   断点表与卡片比例照 seanime 量出来的实测值：2 列起步，
-   768/1080/1320/1750 各加一列，间距 1rem，海报 3:4。 */
-
-.poster-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-@media (min-width: 768px) {
-  .poster-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1080px) {
-  .poster-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1320px) {
-  .poster-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1750px) {
-  .poster-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
-.poster {
-  min-width: 0; /* 让长标题能省略，而不是把网格列撑开 */
-}
-
-.poster-hit {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-}
-
-.poster-hit:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 3px;
-  border-radius: var(--radius);
-}
-
-.poster-art {
-  position: relative;
-  display: block;
-  /* 3:4 —— 动漫海报的通用比例，用它意味着封面不必裁切 */
-  aspect-ratio: 3 / 4;
-  overflow: hidden;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius);
-  background: var(--paper);
-}
-
-.poster-art img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  transition: transform 200ms ease-out;
-}
-
-.poster-hit:hover .poster-art img,
-.poster-hit:focus-visible .poster-art img {
-  transform: scale(1.1);
-}
-
-/* 无图版式保持同一比例占位，网格不会因为缺图而参差 */
-.poster-art-blank {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: var(--fg-subtle);
-  font-size: 2rem;
-  user-select: none;
-}
-
-.poster-flag {
-  position: absolute;
-  top: 0.4rem;
-  left: 0.4rem;
-}
-
-.poster-title {
-  margin-top: 0.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  line-height: 1.3;
-  /* 两行截断：卡片高度要一致，否则一行网格会参差不齐 */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.poster-meta {
-  color: var(--fg-muted);
-  font-size: 0.86rem;
-}
-
-/* ---------- 单部作品页 ---------- */
-
-.anime-shell {
-  gap: 1.25rem;
-}
-
-.anime-hero {
-  position: relative;
-  /* 顶到内容区边缘之外：横幅满幅才成立 */
-  margin: 0 calc(-1 * clamp(1rem, 4vw, 2.5rem));
-  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 1.75rem;
-}
-
-.anime-hero-bg {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.anime-hero-bg img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  /* 竖版海报铺成横幅只能看到中间一条，所以放大重模糊，只取色调当氛围 */
-  transform: scale(1.6);
-  filter: blur(44px) saturate(1.25);
-  opacity: 0.4;
-}
-
-.anime-hero-bg::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(7, 7, 7, 0.5) 0%, rgba(7, 7, 7, 0.82) 55%, var(--bg) 100%);
-}
-
-.anime-hero-body {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: flex-end;
-  gap: 1.25rem;
-}
-
-.anime-hero-art {
-  flex: none;
-  display: block;
-  width: clamp(6rem, 14vw, 9rem);
-  aspect-ratio: 3 / 4;
-  overflow: hidden;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius);
-  background: var(--paper);
-}
-
-.anime-hero-art img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.anime-hero-text {
-  min-width: 0;
-}
-
-.anime-back {
-  font-size: 0.86rem;
-}
-
-.anime-title {
-  margin-top: 0.35rem;
-  font-size: clamp(1.4rem, 3.5vw, 2rem);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-
-.anime-meta {
-  color: var(--fg-muted);
-  font-size: 0.9rem;
-}
-
-.anime-group + .anime-group {
-  margin-top: 1.25rem;
-}
-
-.anime-group-label {
-  margin-bottom: 0.4rem;
-  color: var(--fg-muted);
-  font-size: 0.86rem;
-  font-weight: 500;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .poster-art img {
-    transition: none;
-  }
-
-  .poster-hit:hover .poster-art img,
-  .poster-hit:focus-visible .poster-art img {
-    transform: none;
   }
 }
 
@@ -971,4 +532,21 @@
 
 .drops-path--more {
   color: var(--fg-subtle);
+}
+
+/* 引导页沿用 seanime 的居中标题与分组设置卡，宽屏展开为两列。 */
+.onboard { max-width: 850px; padding: 28px 0 48px; margin-block: 0; }
+.onboard-mark { background: transparent; font-size: 38px; width: 64px; height: 64px; }
+.onboard-title { font-size: 32px; font-weight: 600; letter-spacing: -.035em; }
+.onboard-lede { max-width: 600px; font-size: 14px; line-height: 1.7; }
+.onboard-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 32px; }
+.onboard-step { padding: 24px; border-color: var(--border); }
+.onboard-step-name { font-size: 16px; font-weight: 600; }
+.onboard-step-desc { margin-top: 8px; line-height: 1.7; }
+.onboard-form { margin-top: 16px; }
+.onboard-form .add-folder-row { flex-wrap: wrap; }
+.onboard-form .add-folder-row .input { flex-basis: 100%; }
+@media (max-width: 700px) {
+  .onboard-list { grid-template-columns: minmax(0, 1fr); }
+  .onboard-title { font-size: 26px; }
 }

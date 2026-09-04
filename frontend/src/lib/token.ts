@@ -1,4 +1,4 @@
-/** sessionStorage 中保存 token 的键名 */
+/** 同源浏览器存储中保存 token 的键名 */
 export const TOKEN_STORAGE_KEY = 'nagare_token'
 
 /** 启动链接携带 token 的 query 参数名 */
@@ -7,7 +7,7 @@ export const TOKEN_QUERY_PARAM = 'token'
 /**
  * 后端 token 的固定形状：128 位随机数的 32 个小写十六进制字符。
  * 形状校验挡住的不是"猜对 token"（不可能），而是垃圾值毒化会话：
- * 比如 ?token=abc%0D%0Adef 解码后带控制字符，一旦存进 sessionStorage，
+ * 比如 ?token=abc%0D%0Adef 解码后带控制字符，一旦存进浏览器存储，
  * 之后每次 Headers.set 都会同步抛错，这个标签页的所有 API 调用全部报废。
  */
 const TOKEN_PATTERN = /^[0-9a-f]{32}$/
@@ -20,7 +20,7 @@ export function isValidToken(candidate: string | null): candidate is string {
 /**
  * 从 query string 中解析 token 参数。
  *
- * 纯函数：不碰任何浏览器全局（window / sessionStorage），
+ * 纯函数：不碰任何浏览器全局，
  * 因此可以在 vitest 的 node 环境里直接单测。
  * 接受带或不带前导 "?" 的输入；参数缺失、为空串或不符合
  * 32 位小写 hex 形状时一律返回 null。
@@ -31,13 +31,13 @@ export function parseTokenFromSearch(search: string): string | null {
 }
 
 /**
- * 获取当前会话的 API token。
+ * 获取当前本机服务的 API token。
  *
  * 后端启动时会自动打开 `http://127.0.0.1:<port>/?token=<32位hex>`，约定如下：
- * 1. URL 里带合法 token → 存入 sessionStorage 并返回该值；
- * 2. URL 里没有 → 回读 sessionStorage（同一标签页里刷新后仍然可用）；
- *    存的值形状不对（旧版本残留/外部写入）就清掉，当作没有；
- * 3. 两处都没有 → 返回 null，由调用方提示用户通过启动链接重新访问。
+ * 1. 启动 URL 的合法 token 优先，保存到 localStorage，让新标签页和重开浏览器可用；
+ * 2. 回读同源 localStorage，优先于旧标签页里的 sessionStorage，避免凭证更新后用旧值；
+ * 3. 兼容旧版 sessionStorage 并自动迁移。存储被禁用时仍保留当前页面的内存凭证；
+ * 4. 都没有 → 返回 null，由调用方提示用户通过启动链接重新访问。
  *
  * 只要地址栏出现过 token 参数——无论值合不合法——都会用 replaceState 抹掉
  * （防止截图、浏览历史、复制分享链接把 token 泄露出去）。
@@ -49,16 +49,50 @@ export function acquireToken(): string | null {
     scrubTokenFromAddressBar()
   }
   if (fromUrl !== null) {
-    window.sessionStorage.setItem(TOKEN_STORAGE_KEY, fromUrl)
-    return fromUrl
+    return rememberToken(fromUrl)
   }
 
-  const stored = window.sessionStorage.getItem(TOKEN_STORAGE_KEY)
-  if (stored !== null && !isValidToken(stored)) {
-    window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
-    return null
+  // 存储写入失败时，新启动凭证仍须优先于无法覆盖的旧存储值。
+  if (volatileToken !== null) return volatileToken
+  const shared = readStoredToken('localStorage')
+  if (shared !== null) {
+    saveStoredToken('sessionStorage', shared)
+    return shared
   }
-  return stored
+  const legacy = readStoredToken('sessionStorage')
+  return legacy !== null ? rememberToken(legacy) : null
+}
+
+type TokenStorage = 'localStorage' | 'sessionStorage'
+let volatileToken: string | null = null
+
+function readStoredToken(name: TokenStorage): string | null {
+  try {
+    const storage = window[name]
+    const value = storage.getItem(TOKEN_STORAGE_KEY)
+    if (isValidToken(value)) return value
+    if (value !== null) storage.removeItem(TOKEN_STORAGE_KEY)
+  } catch {
+    // 浏览器禁用存储时，继续尝试另一种存储或当前页面的内存凭证。
+  }
+  return null
+}
+
+function saveStoredToken(name: TokenStorage, token: string): boolean {
+  try {
+    const storage = window[name]
+    if (storage.getItem(TOKEN_STORAGE_KEY) !== token) storage.setItem(TOKEN_STORAGE_KEY, token)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function rememberToken(token: string): string {
+  const shared = saveStoredToken('localStorage', token)
+  saveStoredToken('sessionStorage', token)
+  volatileToken = shared ? null : token
+  return token
 }
 
 /**

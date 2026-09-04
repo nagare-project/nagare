@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { placeholderArt } from '../../lib/placeholderArt'
+import { MediaArtwork } from './MediaArtwork'
+import { MediaPreview } from './MediaPreview'
 import type { MediaSummary } from './types'
 
 /**
@@ -28,11 +29,8 @@ export function MediaCard({ media, footer }: { media: MediaSummary; footer?: Rea
   return (
     <li className="poster">
       <div className="poster-hit">
-        <span className="poster-art" style={{ background: placeholderArt(title) }}>
-          {/* 假封面：确定性渐变 + 首字，不引外部图（CSP img-src 'self'） */}
-          <span className="poster-art-mark" aria-hidden="true">
-            {title.slice(0, 1)}
-          </span>
+        <MediaPreview media={media} className="poster-art media-art-button">
+          <MediaArtwork src={media.cover} title={title} />
 
           {description !== undefined && (
             <span className="poster-over">
@@ -45,7 +43,7 @@ export function MediaCard({ media, footer }: { media: MediaSummary; footer?: Rea
               <span className="poster-bar-fill" style={{ width: `${pct}%` }} />
             </span>
           )}
-        </span>
+        </MediaPreview>
 
         <p className="poster-title">{title}</p>
         <p className="poster-meta">{footer ?? <DefaultMeta media={media} />}</p>

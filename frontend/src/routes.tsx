@@ -1,10 +1,9 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 import { RootLayout } from './components/RootLayout'
 import { AnimePage } from './pages/AnimePage'
 import { AutoDownloaderPage } from './pages/AutoDownloaderPage'
 import { DebridPage } from './pages/DebridPage'
-import { DiscoverPage } from './pages/DiscoverPage'
 import { ExtensionsPage } from './pages/ExtensionsPage'
 import { ListsPage } from './pages/ListsPage'
 import { SchedulePage } from './pages/SchedulePage'
@@ -37,12 +36,10 @@ const animeRoute = createRoute({
   component: AnimePage,
 })
 
-/**
- * 元数据三页（对齐 seanime）。它们现在吃 lib/fixtures 的假数据 ——
- * 缺口编号见各页顶部的 FIXME(Gn)；接通后删 fixture、改这三个组件的数据源。
- */
+/** 元数据目录与账号收藏。 */
 const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists', component: ListsPage })
-const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: DiscoverPage })
+const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: lazyRouteComponent(() => import('./pages/DiscoverPage'), 'DiscoverPage') })
+const entryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/entry', validateSearch: (search: Record<string, unknown>) => ({ id: Number.isSafeInteger(Number(search.id)) && Number(search.id) > 0 ? Number(search.id) : 0 }), component: lazyRouteComponent(() => import('./pages/EntryPage'), 'EntryPage') })
 const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
 
 /** `/torrents` 磁力任务：走真实的 /api/torrent/status，没有假数据 */
@@ -106,6 +103,7 @@ const routeTree = rootRoute.addChildren([
   animeRoute,
   listsRoute,
   discoverRoute,
+  entryRoute,
   scheduleRoute,
   torrentsRoute,
   autoDlRoute,

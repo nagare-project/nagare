@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
 import type { LibraryItem } from '../../lib/endpoints'
 import { mono } from '../../theme'
+import { Icon } from '../ui/Icon'
 import './library.css'
 
 /** kind 为这个值时不出徽标（正片是常态，不值得占视觉） */
@@ -19,7 +20,7 @@ export interface EpisodeRowProps {
 
 /**
  * 媒体库里的一行：集号（或文件名）· kind 徽标 · 分辨率 · 体积 · 进度 · 播放。
- * 紧凑目录风：有集号时主列画虚线引导线，把编号与右侧元数据连起来。
+ * 文件名保留在主列，窄屏截断显示，全名可通过行 title 查看。
  */
 export function EpisodeRow({ item, onPlay, isActive = false, isPending = false }: EpisodeRowProps) {
   const { episode, fileName, kind, resolution, sizeBytes, progress, fileId } = item
@@ -37,11 +38,7 @@ export function EpisodeRow({ item, onPlay, isActive = false, isPending = false }
       </span>
 
       <span className="ep-main">
-        {episode !== null ? (
-          <span className="ep-leader" aria-hidden="true" />
-        ) : (
-          <span className="ep-name">{fileName}</span>
-        )}
+        <span className="ep-name">{fileName}</span>
         {kindBadge !== null && <span className="badge badge--warn">{kindBadge}</span>}
       </span>
 
@@ -64,7 +61,7 @@ export function EpisodeRow({ item, onPlay, isActive = false, isPending = false }
           aria-label={`在浏览器里播放 ${episode !== null ? `第${formatEpisode(episode)}集` : fileName}`}
           title="在浏览器里播（无弹幕/字幕）"
         >
-          ⧉
+          <Icon name="monitor" size={16} />
         </Link>
       )}
 
@@ -75,7 +72,7 @@ export function EpisodeRow({ item, onPlay, isActive = false, isPending = false }
         onClick={() => onPlay(fileId)}
         disabled={isPending}
       >
-        {'▶︎'}
+        <Icon name="play" size={16} />
       </button>
     </li>
   )

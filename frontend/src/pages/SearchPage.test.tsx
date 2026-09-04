@@ -158,7 +158,7 @@ describe('SearchPage（空态）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
     expect(container.textContent).toContain('还没有规则来源')
     expect(container.textContent).toContain('nagare 不内置任何磁力源')
-    expect(container.querySelector('a.search-empty-link')?.getAttribute('href')).toBe('/settings')
+    expect(container.querySelector('a.search-empty-link')?.getAttribute('href')).toBe('/settings#sources')
     expect(container.querySelector('.rules-errors')?.textContent).toContain('broken.yaml: 缺少 name 字段')
     // 引导文案不得出现任何具体站点
     expect(container.textContent).not.toMatch(/https?:\/\//)

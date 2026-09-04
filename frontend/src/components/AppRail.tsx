@@ -1,61 +1,78 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useLocation } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
+import { Icon } from './ui/Icon'
+import type { IconName } from './ui/Icon'
+import '../styles/navigation.css'
 
-/**
- * 左侧图标导航栏 —— 全站唯一的导航入口。
- *
- * 改这个之前先知道为什么是这个形状：
- * 之前三个页面各自在顶栏里重复渲染「品牌 + 去别的页面的链接」，改一处要动三处，
- * 而且「当前在哪一页」没有任何视觉表达（当前页的链接和别的长得一样）。
- * 收成侧栏之后，导航只有一份，`aria-current` 由路由自动给出。
- *
- * 窄屏下 CSS 把它翻成顶部横条（见 global.css 的 max-width: 640px 段），
- * 结构不变 —— 不为窄屏另写一套 DOM，那会让两套导航的可达性各错一半。
- */
+const ITEMS = [
+  { to: '/', icon: 'home', label: '媒体库' },
+  { to: '/schedule', icon: 'calendar', label: '放送表' },
+  { to: '/lists', icon: 'lists', label: '我的列表' },
+  { to: '/discover', icon: 'compass', label: '发现' },
+  { to: '/search', icon: 'search', label: '搜索' },
+  { to: '/torrents', icon: 'download', label: '磁力任务' },
+  { to: '/auto-downloader', icon: 'rss', label: '自动下载' },
+  { to: '/debrid', icon: 'server', label: 'Debrid' },
+] as const
 
-interface RailItem {
-  to:
-    | '/'
-    | '/lists'
-    | '/discover'
-    | '/schedule'
-    | '/search'
-    | '/torrents'
-    | '/auto-downloader'
-    | '/extensions'
-    | '/debrid'
-    | '/settings'
-  glyph: string
-  label: string
+/** 桌面端 80px 图标栏；窄屏用原生 dialog 抽屉提供焦点圈定与 Escape 关闭。 */
+export function AppRail() {
+  const pathname = useLocation({ select: (s) => s.pathname })
+  const drawer = useRef<HTMLDialogElement>(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => { if (drawer.current?.open) drawer.current.close(); setOpen(false) }, [pathname])
+
+  function toggleDrawer() {
+    if (drawer.current?.open) drawer.current.close()
+    else drawer.current?.showModal()
+    setOpen(drawer.current?.open ?? false)
+  }
+
+  function navigation(mobile: boolean) {
+    return <>
+      <Link to="/" className="app-rail-brand" aria-label="nagare 媒体库">
+        <span className="app-rail-mark" aria-hidden="true">流</span>
+        {mobile && <span className="app-brand-name">nagare</span>}
+      </Link>
+      <div className="app-rail-links">
+        {ITEMS.map((item) => <RailLink key={item.to} {...item} mobile={mobile} />)}
+      </div>
+      <div className="app-rail-footer">
+        <RailLink to="/extensions" icon="extension" label="扩展" mobile={mobile} />
+        <RailLink to="/settings" icon="settings" label="设置" mobile={mobile} />
+        <Link to="/settings" hash="account" className="app-rail-account" aria-label="账号设置" title="账号设置">
+          <Icon name="user" size={20} />{mobile && <span>账号</span>}
+        </Link>
+      </div>
+    </>
+  }
+
+  return <>
+    <nav className="app-rail" aria-label="主导航">{navigation(false)}</nav>
+    <header className="app-topbar">
+      <button type="button" className="icon-button app-menu-button" aria-label="打开导航"
+        aria-expanded={open} onClick={toggleDrawer}><Icon name="menu" /></button>
+      <nav className="app-top-links" aria-label="页面导航">
+        {ITEMS.slice(0, 4).map(({ to, label }) => <Link key={to} to={to} activeOptions={{ exact: true }}>{label}</Link>)}
+      </nav>
+      <Link to="/search" className="icon-button app-top-search" aria-label="搜索资源"><Icon name="search" size={20} /></Link>
+    </header>
+    <dialog className="app-drawer" ref={drawer} aria-label="导航菜单" onClose={() => setOpen(false)}
+      onClick={(e) => { if (e.target === drawer.current) { drawer.current.close(); setOpen(false) } }}>
+      <nav className="app-drawer-content" aria-label="移动导航" onClick={(event) => {
+        if ((event.target as Element).closest('a')) { drawer.current?.close(); setOpen(false) }
+      }}>
+        <button type="button" className="icon-button app-drawer-close" onClick={toggleDrawer} aria-label="关闭导航"><Icon name="close" /></button>
+        {navigation(true)}
+      </nav>
+    </dialog>
+  </>
 }
 
-/** 图标用字符不用 SVG：入口不多，字符在 4.5rem 宽下也够清楚，还省一套图标库 */
-const ITEMS: readonly RailItem[] = [
-  { to: '/', glyph: '▤', label: '媒体库' },
-  { to: '/lists', glyph: '☰', label: '我的' },
-  { to: '/discover', glyph: '◎', label: '发现' },
-  { to: '/schedule', glyph: '▦', label: '放送' },
-  { to: '/search', glyph: '⌕', label: '搜索' },
-  { to: '/torrents', glyph: '⇅', label: '任务' },
-  { to: '/auto-downloader', glyph: '⟳', label: '订阅' },
-  { to: '/extensions', glyph: '⊞', label: '扩展' },
-  { to: '/debrid', glyph: '☁', label: 'Debrid' },
-  { to: '/settings', glyph: '⚙', label: '设置' },
-]
-
-export function AppRail() {
-  return (
-    <nav className="app-rail" aria-label="主导航">
-      <span className="app-rail-mark" aria-hidden="true">
-        流
-      </span>
-      {ITEMS.map((item) => (
-        <Link key={item.to} to={item.to} className="app-rail-item">
-          <span className="app-rail-glyph" aria-hidden="true">
-            {item.glyph}
-          </span>
-          {item.label}
-        </Link>
-      ))}
-    </nav>
-  )
+function RailLink({ to, icon, label, mobile }: { to: typeof ITEMS[number]['to'] | '/settings' | '/extensions'; icon: IconName; label: string; mobile: boolean }) {
+  return <Link to={to} className="app-rail-item" activeOptions={{ exact: to === '/' }} aria-label={label}>
+    <Icon name={icon} />
+    <span className={mobile ? 'app-rail-label' : 'app-rail-tooltip'}>{label}</span>
+  </Link>
 }

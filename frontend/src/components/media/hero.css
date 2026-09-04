@@ -1,0 +1,46 @@
+/* 位置与时序来自 seanime 的 DiscoverPageHeader。 */
+.hero { position: relative; height: 448px; flex: none; }
+.hero-bg { position: absolute; top: -80px; left: -80px; right: 0; height: 560px; overflow: hidden; pointer-events: none; }
+.hero-bg > img { width: 100%; height: 100%; object-fit: cover; object-position: center; transition: transform 1s, opacity 1s; }
+.hero--transitioning .hero-bg > img { transform: scale(1.01) translateX(-2px); }
+.hero-bg:has(.hero-trailer--playing) > img { opacity: 0; }
+.hero-transition-shade { position: absolute; inset: 0; z-index: 2; background: var(--bg); opacity: 0; transition: opacity 1s; }
+.hero--transitioning .hero-transition-shade { opacity: .7; }
+.hero-gradient-top, .hero-gradient-left, .hero-gradient-rail, .hero-gradient-bottom { position: absolute; z-index: 2; pointer-events: none; }
+.hero-gradient-top { inset: 0 0 auto; height: 160px; opacity: .5; background: linear-gradient(var(--bg), transparent); }
+.hero-gradient-left { inset: 0 auto 0 0; width: min(100%, 1280px); opacity: .7; background: linear-gradient(90deg, var(--bg) 20%, transparent); }
+.hero-gradient-rail { inset: 0 auto 0 0; width: 160px; opacity: .7; background: linear-gradient(90deg, var(--bg), transparent); }
+.hero-gradient-bottom { inset: auto 0 0; height: 320px; background: linear-gradient(0deg, var(--bg) 10%, transparent); }
+.hero-trailer { position: absolute; inset: 0; opacity: 0; transition: opacity .5s; overflow: hidden; pointer-events: none; }
+.hero-trailer--playing { opacity: 1; }
+.hero-trailer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; transform: scale(1.8); pointer-events: none; }
+.hero-trailer-notice { position: absolute; right: 24px; bottom: 36px; z-index: 3; color: var(--fg-muted); font-size: 12px; }
+.hero-stage { position: absolute; top: 6px; left: 8px; height: 320px; max-width: calc(100% - 16px); }
+.hero-body { position: relative; z-index: 3; display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 24px; padding: 24px 12px 24px 24px; overflow: hidden; }
+.hero-art { position: relative; flex: none; display: block; width: 180px; height: 280px; overflow: hidden; border-radius: 8px; background: #15131d; box-shadow: 0 4px 6px #0002; }
+.hero-art img { width: 100%; height: 100%; object-fit: cover; transition: opacity 1s; }
+.hero--transitioning .hero-art img { opacity: .3; }
+.hero-text { min-width: 0; max-width: 512px; }
+.hero-title { max-width: 448px; padding-bottom: 4px; color: white; font-size: 30px; font-weight: 700; line-height: 32px; text-wrap: pretty; text-shadow: 0 1px 10px #0003; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.hero-native { margin-top: 6px; color: var(--fg-muted); font-size: 13px; }
+.hero-genres { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; color: #cacaca; font-size: 14px; font-weight: 600; }
+.hero-genres > span { padding-inline: 4px; }
+.hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 8px; color: var(--fg); font-size: 16px; line-height: 24px; }
+.hero-score { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
+.hero-score svg { color: #86efac; }
+.hero-desc { height: 77px; margin-top: 8px; margin-bottom: 16px; max-width: 512px; overflow-y: auto; scrollbar-width: thin; color: #aaa; font-size: 14px; line-height: 1.5; }
+.hero-preview { border-radius: 999px; height: 32px; padding-inline: 16px; border-color: #ffffff40; font-size: 14px; }
+.hero-dots { position: absolute; top: 0; left: 40px; z-index: 4; display: flex; align-items: center; gap: 8px; height: 6px; }
+.hero-dot { position: relative; width: 12px; height: 6px; padding: 0; border: 0; border-radius: 3px; background: #ffffff30; cursor: pointer; transition: width .3s, background-color .3s; }
+.hero-dot::before { content: ''; position: absolute; inset: -9px -3px; }
+.hero-dot:hover { background: #d1d5db; }
+.hero-dot--on { width: 24px; background: var(--fg-muted); }
+.hero-dot:focus-visible, .hero-pause:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
+.hero-pause { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; color: var(--fg-muted); border: 0; border-radius: 4px; background: transparent; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.hero-dots:hover .hero-pause, .hero-pause:focus-visible, .hero-pause[aria-pressed=true] { opacity: 1; }
+@media (min-width: 1536px) { .hero-trailer iframe { transform: scale(2.5); } }
+@media (max-width: 1023px) { .hero { height: 0; } .hero-bg, .hero-stage, .hero-dots { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg > img, .hero-transition-shade, .hero-dot, .hero-trailer, .hero-pause, .hero-art img { transition: none; }
+  .hero--transitioning .hero-bg > img { transform: none; }
+}

@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Link, useLocation } from '@tanstack/react-router'
+import { Icon } from '../components/ui/Icon'
+import type { IconName } from '../components/ui/Icon'
 import type { FormEvent } from 'react'
 import { AddFolderForm } from '../components/library/AddFolderForm'
 import { SourcesCard } from '../components/search/SourcesCard'
@@ -20,88 +23,83 @@ import { errorText, formatDate } from '../lib/format'
 import { label, mono } from '../theme'
 import './settings.css'
 
-/**
- * `/settings`：animego 账号 · mpv · 磁力 · 更新 · 磁力源 · 库文件夹 · 关于 · 退出。
- * 设置 / 库 / 源三份数据独立加载，任一返回 401 都切到 token 提示页；
- * 更新状态来自根布局（与顶部提示条同一份）。退出成功后整页换成 QuitNotice。
- */
+const SETTINGS_GROUPS: ReadonlyArray<ReadonlyArray<{ id: string; label: string; icon: IconName }>> = [
+  [{ id: 'app', label: '应用', icon: 'settings' }, { id: 'account', label: '账号', icon: 'user' }, { id: 'folders', label: '本地媒体库', icon: 'folder' }],
+  [{ id: 'player', label: '媒体播放器', icon: 'monitor' }, { id: 'torrent', label: '磁力播放', icon: 'download' }, { id: 'sources', label: '源规则', icon: 'extension' }],
+  [{ id: 'update', label: '更新', icon: 'refresh' }, { id: 'about', label: '关于', icon: 'info' }],
+]
+
+/** 分区写入 URL，安装引导与文件夹入口可直达；切换时保留未提交的表单。 */
 export function SettingsPage() {
   const settings = useSettings()
   const library = useLibrary()
   const sources = useSources()
   const update = useUpdateContext()
   const selfUpdate = useSelfUpdateContext()
+  const hash = useLocation({ select: (location) => location.hash })
+  const section = SETTINGS_GROUPS.flat().find((item) => item.id === hash) ?? SETTINGS_GROUPS[0]![0]!
   const [hasQuit, setHasQuit] = useState(false)
 
-  if (hasQuit) {
-    return <QuitNotice />
-  }
-  if (
-    settings.state.phase === 'unauthorized' ||
-    library.state.phase === 'unauthorized' ||
-    sources.state.phase === 'unauthorized'
-  ) {
-    return <UnauthorizedNotice />
-  }
+  if (hasQuit) return <QuitNotice />
+  if ([settings.state.phase, library.state.phase, sources.state.phase].includes('unauthorized')) return <UnauthorizedNotice />
 
   return (
     <main className="settings-shell">
-      <header className="page-head">
+      <aside className="settings-nav">
         <h1 className="page-title">设置</h1>
-      </header>
-
-      {settings.state.phase === 'loading' && (
-        <p className="result result--dim" style={mono} role="status">
-          正在读取设置 …
-        </p>
-      )}
-      {settings.state.phase === 'error' && (
-        <section className="panel settings-card">
-          <p className="result result--err" style={mono}>
-            {settings.state.message}
-          </p>
-          <p>
-            <button
-              type="button"
-              className="btn btn--sm"
-              onClick={() => void settings.reload()}
-            >
-              重试
-            </button>
-          </p>
-        </section>
-      )}
-      {settings.state.phase === 'ready' && (
-        <>
-          <AccountCard animego={settings.state.data.animego} onReload={settings.reload} />
-          <MpvCard mpv={settings.state.data.mpv} onReload={settings.reload} />
-          <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />
-        </>
-      )}
-
-      <UpdateCard update={update} selfUpdate={selfUpdate} />
-
-      <SourcesCard sources={sources} />
-
-      <FoldersCard
-        state={library.state}
-        onAdd={library.addFolder}
-        onRemove={library.removeFolder}
-        onRetry={() => void library.reload()}
-      />
-
-      {settings.state.phase === 'ready' && <AboutCard settings={settings.state.data} />}
-
-      <QuitCard
-        platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined}
-        onQuit={() => setHasQuit(true)}
-      />
-
-      <footer className="colophon" style={label}>
-        {settings.state.phase === 'ready'
-          ? `nagare v${settings.state.data.version}`
-          : 'nagare'}
-      </footer>
+        <nav aria-label="设置分类">
+          {SETTINGS_GROUPS.map((group, i) => (
+            <div className="settings-nav-group" key={i}>
+              {group.map(({ id, label, icon }) => (
+                <Link key={id} to="/settings" hash={id} className="settings-nav-item"
+                  aria-current={section.id === id ? 'page' : undefined} activeOptions={{ includeHash: true }}>
+                  <Icon name={icon} size={18} />{label}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <p className="settings-version">nagare{settings.state.phase === 'ready' ? ` v${settings.state.data.version}` : ''}</p>
+      </aside>
+      <div className="settings-content">
+        <header className="settings-section-head">
+          <Icon name={section.icon} size={26} /><h2>{section.label}</h2>
+        </header>
+        {settings.state.phase === 'loading' && <p className="result result--dim" role="status">正在读取设置 …</p>}
+        {settings.state.phase === 'error' && <section className="panel settings-card">
+          <p className="result result--err" role="alert">{settings.state.message}</p>
+          <button type="button" className="btn" onClick={() => void settings.reload()}>重试</button>
+        </section>}
+        <div className="settings-section" hidden={section.id !== 'app'}>
+          <section className="panel settings-card">
+            <h3 className="panel-heading">开始使用 nagare</h3>
+            <p className="page-notice-copy">管理本地动漫，或通过磁力边下边播。播放、弹幕与观看进度都在这里。</p>
+            <div className="settings-shortcuts">
+              <Link to="/settings" hash="folders" className="settings-shortcut"><Icon name="folder" /><span>添加媒体文件夹<small>扫描本机与外接硬盘</small></span><Icon name="right" size={18} /></Link>
+              <Link to="/settings" hash="player" className="settings-shortcut"><Icon name="monitor" /><span>配置播放器<small>检测与安装 mpv</small></span><Icon name="right" size={18} /></Link>
+              <Link to="/settings" hash="account" className="settings-shortcut"><Icon name="user" /><span>连接账号<small>弹幕与观看进度同步</small></span><Icon name="right" size={18} /></Link>
+            </div>
+          </section>
+          <QuitCard platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined} onQuit={() => setHasQuit(true)} />
+        </div>
+        <div className="settings-section" hidden={section.id !== 'account'}>
+          {settings.state.phase === 'ready' && <AccountCard animego={settings.state.data.animego} onReload={settings.reload} />}
+        </div>
+        <div className="settings-section" hidden={section.id !== 'player'}>
+          {settings.state.phase === 'ready' && <MpvCard mpv={settings.state.data.mpv} onReload={settings.reload} />}
+        </div>
+        <div className="settings-section" hidden={section.id !== 'torrent'}>
+          {settings.state.phase === 'ready' && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
+        </div>
+        <div className="settings-section" hidden={section.id !== 'update'}><UpdateCard update={update} selfUpdate={selfUpdate} /></div>
+        <div className="settings-section" hidden={section.id !== 'sources'}><SourcesCard sources={sources} /></div>
+        <div className="settings-section" hidden={section.id !== 'folders'}>
+          <FoldersCard state={library.state} onAdd={library.addFolder} onRemove={library.removeFolder} onRetry={() => void library.reload()} />
+        </div>
+        <div className="settings-section" hidden={section.id !== 'about'}>
+          {settings.state.phase === 'ready' && <AboutCard settings={settings.state.data} />}
+        </div>
+      </div>
     </main>
   )
 }
@@ -129,6 +127,7 @@ function AccountCard({
     setError(null)
     try {
       await animegoLogin(email.trim(), password)
+      window.dispatchEvent(new Event('nagare:account-changed'))
       setPassword('')
       await onReload()
     } catch (err) {
@@ -144,6 +143,7 @@ function AccountCard({
     setError(null)
     try {
       await animegoLogout()
+      window.dispatchEvent(new Event('nagare:account-changed'))
       await onReload()
     } catch (err) {
       console.error('animego 退出登录失败', err)
@@ -159,7 +159,7 @@ function AccountCard({
         animego 账号
       </h2>
       <p className="page-notice-copy">
-        登录后可拉取弹幕并回写观看进度（仅元数据 · 弹幕 · 进度三条已认证链路）。
+        登录后获取弹幕，并把看完的集数同步到账号。
       </p>
       {/* 已知限制，必须在登录【之前】就说：服务端的刷新凭证是「一个账号一份」而不是
           「一个登录一份」，所以 nagare 与网站不能同时保持登录，十几分钟内必然互相挤掉。
@@ -275,7 +275,7 @@ function FoldersCard({
   return (
     <section className="panel settings-card" aria-labelledby="folders-heading">
       <h2 id="folders-heading" className="panel-heading">
-        library folders
+        媒体文件夹
       </h2>
 
       {state.phase === 'loading' && (

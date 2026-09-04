@@ -130,7 +130,7 @@ function NoSourcesNotice({ data }: { data: SourcesData }) {
         </div>
       )}
       <p className="page-notice-actions">
-        <Link to="/settings" className="btn btn--sm search-empty-link">
+        <Link to="/settings" hash="sources" className="btn btn--sm search-empty-link">
           去设置添加规则来源
         </Link>
       </p>

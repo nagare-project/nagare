@@ -1,0 +1,40 @@
+.media-detail-title { max-width: 50vw; color: white; font-size: 32px; font-weight: 700; line-height: 36px; letter-spacing: -.025em; text-wrap: pretty; }
+.media-detail-status { color: var(--brand); font-size: 16px; font-weight: 600; }
+.media-detail-studio { color: var(--fg); }
+.media-preview-genres a { color: inherit; text-decoration: none; }
+.media-preview-genres a:hover { color: white; }
+.media-detail-rankings { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; color: var(--fg-muted); font-weight: 600; }
+.media-detail-rankings span { display: inline-flex; align-items: center; gap: 8px; }
+.media-detail-rankings svg { color: #fde68a; }
+.media-detail-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin-top: 16px; padding: 0; border: 0; background: transparent; color: var(--fg-muted); font: inherit; font-size: 14px; line-height: 20px; text-align: left; cursor: pointer; transition: color .5s; }
+.media-detail-description:hover { color: var(--fg); }
+.media-description-dialog { position: fixed; inset: 0; margin: auto; width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--fg); text-align: left; }
+.media-description-dialog::backdrop { background: #0009; }
+.media-description-dialog .icon-button { position: absolute; right: 8px; top: 8px; }
+.media-description-dialog h2 { margin: 0 24px 16px 0; font-size: 20px; }
+.media-description-dialog p { white-space: pre-line; line-height: 1.7; }
+.media-relations { margin-top: 32px; }
+.media-relations section + section { margin-top: 24px; }
+.media-relations h2 { color: var(--fg); font-size: 30px; line-height: 36px; font-weight: 700; margin-bottom: 16px; }
+.media-detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 16px; list-style: none; padding: 0; margin: 0; }
+.media-detail-grid .discover-card-title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 20px; }
+.media-detail-grid .discover-card-season { margin-top: 7px; line-height: 20px; }
+.media-relation-badge { position: absolute; top: 0; right: 0; padding: 6px 16px; color: white; background: #070707e6; font-size: 16px; font-weight: 600; border-bottom-left-radius: 8px; }
+.media-character-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; gap: 16px; margin: 0; padding: 0; }
+.media-character-grid li { display: flex; min-width: 0; gap: 8px; height: 96px; background: var(--paper); border-radius: 8px; overflow: hidden; }
+.media-character-grid img { width: 64px; height: 96px; object-fit: cover; }
+.media-character-grid li > div { display: flex; flex: 1; flex-direction: column; padding-block: 12px; justify-content: space-between; }
+.media-character-grid strong { font-size: 12px; font-weight: 500; }
+.media-character-grid span { font-size: 11px; color: var(--fg-muted); }
+.media-character-actor { text-align: right; }
+.media-anilist-link { font-size: 20px; font-weight: 900; gap: 0; }
+.media-anilist-link span { font-size: 12px; margin-left: -3px; align-self: flex-end; margin-bottom: 7px; }
+.media-detail-loading { height: 360px; border-radius: 8px; background: var(--paper-raised); animation: detail-pulse 1s ease-in-out infinite alternate; }
+@keyframes detail-pulse { to { opacity: .4; } }
+@media (min-width: 1536px) { .media-detail-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 1023px) { .media-detail-title { max-width: none; font-size: 26px; line-height: 32px; } .media-detail-rankings { justify-content: center; } .media-detail-description { text-align: center; } .media-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .media-character-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .media-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .media-character-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .media-detail-loading { animation: none; } }
+@media (min-width: 1320px) { .media-detail-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (min-width: 1024px) and (max-width: 1079px) { .media-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 640px) and (max-width: 767px) { .media-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

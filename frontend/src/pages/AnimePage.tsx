@@ -1,5 +1,6 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
+import { Icon } from '../components/ui/Icon'
 import { EpisodeRow } from '../components/library/EpisodeRow'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
@@ -90,10 +91,13 @@ export function AnimePage() {
   }
 
   const playing = player.status?.playing === true ? player.status : null
+  const episodes = cluster.groups.flatMap((group) => group.items)
+  const next = episodes.find((item) => item.progress && item.progress.positionSec > 0 && !item.progress.completed)
+    ?? episodes.find((item) => !item.progress?.completed) ?? episodes[0]
 
   return (
     <main className="lib-shell anime-shell">
-      <AnimeHero cluster={cluster} />
+      <AnimeHero cluster={cluster} onPlay={next ? () => void handlePlay(next.fileId) : undefined} pending={pendingFileId !== null} resume={!!next?.progress?.positionSec && !next.progress.completed} />
 
       {error !== null && (
         <p className="result result--err" style={mono} role="status" aria-live="polite">
@@ -103,9 +107,7 @@ export function AnimePage() {
 
       {cluster.groups.map((group) => (
         <section key={group.groupKey} className="anime-group">
-          {shouldShowGroupLabel(group.label, cluster.title, cluster.groups.length) && (
-            <h2 className="anime-group-label">{group.label}</h2>
-          )}
+<h2 className="anime-group-label">{shouldShowGroupLabel(group.label, cluster.title, cluster.groups.length) ? group.label : '剧集'} <span className="section-count">{group.items.length}</span></h2>
           <ul className="ep-list">
             {group.items.map((item) => (
               <EpisodeRow
@@ -124,7 +126,7 @@ export function AnimePage() {
 }
 
 /** 顶部横幅：封面模糊铺底 + 清晰海报 + 标题与元信息 */
-function AnimeHero({ cluster }: { cluster: LibraryCluster }) {
+function AnimeHero({ cluster, onPlay, pending, resume }: { cluster: LibraryCluster; onPlay?: () => void; pending: boolean; resume: boolean }) {
   const [failed, setFailed] = useState(false)
   const { title, season, episodeCount, cover } = cluster
   const hasCover = cover !== undefined && !failed
@@ -148,13 +150,18 @@ function AnimeHero({ cluster }: { cluster: LibraryCluster }) {
         </span>
         <div className="anime-hero-text">
           <Link to="/" className="link anime-back">
-            ← 媒体库
+            <Icon name="left" size={16} />媒体库
           </Link>
           <h1 className="anime-title">{title}</h1>
           <p className="anime-meta">
             {season !== null ? `第 ${season} 季 · ` : ''}
             {episodeCount} 集
           </p>
+          <div className="anime-hero-actions">
+            <button className="btn btn--primary" type="button" disabled={!onPlay || pending} onClick={onPlay}>
+              <Icon name="play" size={18} />{pending ? '正在启动…' : resume ? '继续观看' : '开始观看'}
+            </button>
+          </div>
         </div>
       </div>
     </header>

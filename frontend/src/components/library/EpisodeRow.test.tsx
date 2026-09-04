@@ -30,10 +30,10 @@ async function mountRow(item: LibraryItem, onPlay: (fileId: string) => void = ()
 }
 
 describe('EpisodeRow', () => {
-  it('有集号：补零显示集号，不渲染文件名（全名挂在行 title 上）', async () => {
+  it('有集号：补零显示集号，主列与行 title 保留文件名', async () => {
     const { container, unmount } = await mountRow(makeItem({ episode: 3 }))
     expect(container.querySelector('.ep-num')?.textContent).toBe('03')
-    expect(container.querySelector('.ep-name')).toBeNull()
+    expect(container.querySelector('.ep-name')?.textContent).toBe(FILE_NAME)
     expect(container.querySelector('.ep-row')?.getAttribute('title')).toBe(FILE_NAME)
     await unmount()
   })

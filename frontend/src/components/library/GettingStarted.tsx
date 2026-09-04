@@ -63,7 +63,7 @@ export function GettingStarted({ settings, onAdd }: Props) {
           }
         >
           {mpv !== null && !mpv.found && (
-            <Link to="/settings" className="btn btn--sm btn--primary">
+            <Link to="/settings" hash="player" className="btn btn--sm btn--primary">
               去安装
             </Link>
           )}
@@ -90,7 +90,7 @@ export function GettingStarted({ settings, onAdd }: Props) {
               : 'nagare 不内置任何搜索源。要用磁力搜索，得先自己填一个规则仓库地址。'
           }
         >
-          <Link to={magnetReady ? '/search' : '/settings'} className="btn btn--sm">
+          <Link to={magnetReady ? '/search' : '/settings'} hash={magnetReady ? '' : 'sources'} className="btn btn--sm">
             {magnetReady ? '去搜索' : '配置规则仓库'}
           </Link>
         </Step>
@@ -106,7 +106,7 @@ export function GettingStarted({ settings, onAdd }: Props) {
           }
         >
           {!loggedIn && (
-            <Link to="/settings" className="btn btn--sm">
+            <Link to="/settings" hash="account" className="btn btn--sm">
               去登录
             </Link>
           )}

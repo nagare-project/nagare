@@ -27,13 +27,15 @@ func checkHost(port int, next http.Handler) http.Handler {
 	})
 }
 
-// contentSecurityPolicy 收紧同源执行边界。token 放在 sessionStorage 里，
+// contentSecurityPolicy 收紧同源执行边界。token 放在同源浏览器存储里，
 // 一旦前端将来渲染外部字符串（种子名/弹幕）时出了 XSS，脚本就能拿走 token
 // —— CSP 是那种场景下的最后一道闸，必须趁界面还小的时候立好。
 // style 需要 'unsafe-inline'：React 内联 style 属性依赖它；脚本不放行内联。
+// Discover 预告片只允许 YouTube 隐私增强嵌入；顶层脚本与 API 连接仍只允许同源。
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
 	"style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; " +
 	"media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; " +
+	"frame-src https://www.youtube-nocookie.com; " +
 	"frame-ancestors 'none'"
 
 // securityHeaders 给所有响应补上基础安全头。

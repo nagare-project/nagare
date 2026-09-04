@@ -129,7 +129,7 @@ export function SearchPage() {
       {play.engineDown && (
         <p className="alert-warn" role="alert">
           磁力引擎启动失败，边下边播不可用（搜索与复制磁力不受影响）。{' '}
-          <Link to="/settings" className="link alert-warn-link">
+          <Link to="/settings" hash="torrent" className="link alert-warn-link">
             去设置查看原因 →
           </Link>
         </p>

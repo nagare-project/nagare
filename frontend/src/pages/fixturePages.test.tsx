@@ -8,7 +8,18 @@ import { mount } from '../test/harness'
 import { DiscoverPage } from './DiscoverPage'
 import { ListsPage } from './ListsPage'
 import { SchedulePage } from './SchedulePage'
+import { MediaCard } from '../components/media/MediaCard'
 import { FAKE_LISTS } from '../lib/fixtures/library'
+import { DISCOVER_EXIT_MS } from '../components/media/useDiscoverCarousel'
+
+// jsdom 没有布局；这一组只验证页面内容，拖拽与分页在浏览器验收。
+vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
+
+vi.mock('../lib/catalog', async importOriginal => {
+  const original = await importOriginal<typeof import('../lib/catalog')>()
+  const { FAKE_DISCOVER } = await import('../lib/fixtures/library')
+  return { ...original, fetchDiscover: vi.fn(async () => FAKE_DISCOVER) }
+})
 
 /**
  * 三个吃假数据的页面（我的列表 / 发现 / 放送表）。
@@ -25,22 +36,12 @@ import { FAKE_LISTS } from '../lib/fixtures/library'
 const PAGE_MODULES = import.meta.glob('./*.tsx') as Record<string, () => Promise<unknown>>
 
 describe('假数据页面', () => {
-  it('我的列表：默认「在看」档，标签可切换', async () => {
+  it('我的列表：未登录时提供账号入口，不展示演示收藏', async () => {
     const { container, unmount } = await mount(<ListsPage />)
     expect(container.querySelector('.page-title')?.textContent).toBe('我的列表')
-
-    const tabs = [...container.querySelectorAll('.tab')]
-    expect(tabs.map((t) => t.textContent?.replace(/\d+$/, ''))).toEqual([
-      '在看', '想看', '看完', '搁置', '弃番',
-    ])
-    expect(container.querySelector('.tab--on')?.textContent).toContain('在看')
-    expect(container.querySelectorAll('.poster')).toHaveLength(FAKE_LISTS.watching.length)
-
-    // 切到「弃番」：这一档是空的，要出空态而不是空白
-    const dropped = tabs[4]!
-    await act(async () => (dropped as HTMLButtonElement).click())
+    expect(container.textContent).toContain('登录 animego 账号')
     expect(container.querySelectorAll('.poster')).toHaveLength(0)
-    expect(container.textContent).toContain('这一档还没有作品')
+    expect(container.querySelector('a')?.href).toContain('/settings#account')
     await unmount()
   })
 
@@ -57,45 +58,49 @@ describe('假数据页面', () => {
     await unmount()
   })
 
-  it('发现：hero 轮播可点圆点切换，且不含预告片 iframe', async () => {
+  it('发现：hero 切换等待退场，未悬停时不加载预告片', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
     const hero = container.querySelector('.hero')
     expect(hero).not.toBeNull()
     expect(hero?.querySelector('.hero-title')?.textContent).not.toBe('')
 
-    // CSP 没开 frame-src：seanime 那里嵌 YouTube 预告片，我们刻意不做。
-    // 哪天有人加了 iframe，这条会红。
+    // 用户悬停前不请求外部预告片。
     expect(container.querySelector('iframe')).toBeNull()
 
     const dots = [...container.querySelectorAll<HTMLButtonElement>('.hero-dot')]
     expect(dots.length).toBeGreaterThan(1)
     const first = hero?.querySelector('.hero-title')?.textContent
-    await act(async () => dots[1]!.click())
+    await act(async () => dots.find(dot => dot.getAttribute('aria-label') !== first)!.click())
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, DISCOVER_EXIT_MS + 50)) })
     expect(container.querySelector('.hero-title')?.textContent).not.toBe(first)
     await unmount()
   })
 
-  it('发现：切到「放送表」标签复用同一个周历，不重复页头', async () => {
+  it('发现：放送表标签展示近期日程，不重复独立月历', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
-    expect(container.querySelector('.week')).toBeNull()
+    expect(container.querySelector('.discover-schedule')).toBeNull()
     const scheduleTab = [...container.querySelectorAll<HTMLButtonElement>('.tab')].find(
       (t) => t.textContent === '放送表',
     )
     await act(async () => scheduleTab?.click())
-    expect(container.querySelectorAll('.day')).toHaveLength(7)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 450)) })
+    expect(container.querySelectorAll('.schedule-agenda-day').length).toBeGreaterThan(1)
+    expect(container.querySelector('.schedule-calendar')).toBeNull()
     // 内嵌时不该冒出第二个 <h1>
     expect(container.querySelectorAll('.page-title')).toHaveLength(0)
     await unmount()
   })
 
-  it('放送表：七天都在，今天有标记', async () => {
+  it('放送表：月历按整周排列，今天有标记', async () => {
     const { container, unmount } = await mount(<SchedulePage />)
-    expect(container.querySelectorAll('.day')).toHaveLength(7)
+    const count = container.querySelectorAll('.calendar-day').length
+    expect(count % 7).toBe(0)
+    expect(count).toBeGreaterThanOrEqual(28)
     // 「今天」有且只有一个 —— 多于一个说明周几的换算错了
-    expect(container.querySelectorAll('.day--today')).toHaveLength(1)
-    expect(container.querySelector('.day--today')?.textContent).toContain('今天')
+    expect(container.querySelectorAll('.calendar-day--today')).toHaveLength(1)
+    expect(container.querySelector('[aria-current="date"]')).not.toBeNull()
     // 至少排了几场
-    expect(container.querySelectorAll('.airing').length).toBeGreaterThan(3)
+    expect(container.querySelectorAll('.calendar-event').length).toBeGreaterThan(3)
     await unmount()
   })
 
@@ -116,7 +121,7 @@ describe('假数据页面', () => {
       .sort()
 
     // 扫描器活着才算数：路径变了会让这条静默地变成「零个页面、零个问题」
-    expect(fixturePages.length).toBeGreaterThan(2)
+    expect(fixturePages).toEqual(['AutoDownloaderPage.tsx', 'SchedulePage.tsx'])
 
     for (const file of fixturePages) {
       const name = file.replace(/\.tsx$/, '')
@@ -183,7 +188,7 @@ describe('作品卡的信息分层', () => {
   it('重要信息常驻可见，只有简介收进 hover 浮层', async () => {
     // 这条守的是一条无障碍规则：hover 在触屏上根本不存在，所以评分、
     // 年份、集数、类型这些不能只在浮层里。哪天有人把它们挪进浮层，这里会红。
-    const { container, unmount } = await mount(<ListsPage />)
+    const { container, unmount } = await mount(<ul>{FAKE_LISTS.watching.map(media => <MediaCard key={media.id} media={media} />)}</ul>)
     const card = container.querySelector('.poster')
 
     expect(card?.querySelector('.poster-score')?.textContent).toBe('92')
@@ -196,7 +201,7 @@ describe('作品卡的信息分层', () => {
   })
 
   it('简介留在 DOM 里，只是视觉上默认收起（读屏拿得到）', async () => {
-    const { container, unmount } = await mount(<ListsPage />)
+    const { container, unmount } = await mount(<ul>{FAKE_LISTS.watching.map(media => <MediaCard key={media.id} media={media} />)}</ul>)
     const over = container.querySelector('.poster-over-desc')
     expect(over).not.toBeNull()
     expect(over?.textContent).not.toBe('')
@@ -206,7 +211,7 @@ describe('作品卡的信息分层', () => {
   })
 
   it('类型标签最多三个，多了会把卡片撑得高矮不一', async () => {
-    const { container, unmount } = await mount(<ListsPage />)
+    const { container, unmount } = await mount(<ul>{FAKE_LISTS.watching.map(media => <MediaCard key={media.id} media={media} />)}</ul>)
     for (const card of container.querySelectorAll('.poster')) {
       expect(card.querySelectorAll('.poster-genre').length).toBeLessThanOrEqual(3)
     }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ContinueSection } from '../components/library/ContinueSection'
-import { PosterGrid } from '../components/library/PosterGrid'
+import { LibraryCollection } from '../components/library/LibraryCollection'
+import { Icon } from '../components/ui/Icon'
 import { GettingStarted } from '../components/library/GettingStarted'
 import { NowPlayingBar } from '../components/library/NowPlayingBar'
 import { ScanDrops } from '../components/library/ScanDrops'
@@ -130,13 +131,14 @@ export function LibraryPage() {
         <MpvChip state={settings.state} />
         <span className="page-head-spacer" />
         <div className="page-head-actions">
+          <Link to="/settings" hash="folders" className="icon-button" aria-label="管理文件夹" title="管理文件夹"><Icon name="folder" /></Link>
           <button
             type="button"
             className="btn btn--sm"
             onClick={() => void handleRescan()}
             disabled={!canRescan}
           >
-            {rescanBusy ? '扫描中 …' : '重新扫描'}
+            <Icon name="refresh" size={16} />{rescanBusy ? '扫描中 …' : '重新扫描'}
           </button>
         </div>
       </header>
@@ -152,7 +154,7 @@ export function LibraryPage() {
       >
         {statusLine?.text}
         {statusLine?.link !== undefined && (
-          <Link to={statusLine.link.to} className="link lib-status-link">
+          <Link to={statusLine.link.to} hash="player" className="link lib-status-link">
             {statusLine.link.label}
           </Link>
         )}
@@ -211,7 +213,7 @@ function MpvAlert({ state }: { state: SettingsState }) {
   return (
     <p className="alert-warn" role="alert">
       未检测到 mpv，无法播放。{state.data.mpv.hint ?? '请先安装 mpv。'}{' '}
-      <Link to={INSTALL_MPV_LINK.to} className="link alert-warn-link">
+      <Link to={INSTALL_MPV_LINK.to} hash="player" className="link alert-warn-link">
         {INSTALL_MPV_LINK.label}
       </Link>
     </p>
@@ -327,7 +329,7 @@ function LibraryBody({
         activeFileId={activeFileId}
         pendingFileId={pendingFileId}
       />
-      <PosterGrid clusters={clusters} />
+      <LibraryCollection clusters={clusters} />
     </>
   )
 }
