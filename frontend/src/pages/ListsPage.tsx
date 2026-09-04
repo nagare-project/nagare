@@ -10,7 +10,7 @@ import '../components/media/media.css'
  * `/lists` 我的列表：按观看状态分档的作品网格。
  *
  * FIXME(G1): 现在吃的是假数据。真数据要一个「读收藏列表」的接口，
- * 而 animego 侧目前只有【写】进度（MarkWatched），没有读。缺口见 todos.md。
+ * 而 animego 侧目前只有【写】进度（MarkWatched），没有读。
  */
 
 const ORDER: readonly ListStatus[] = ['watching', 'planning', 'completed', 'paused', 'dropped']
@@ -56,12 +56,15 @@ export function ListsPage() {
 /**
  * 假数据横幅。存在的理由：演示界面时必须一眼看得出哪些数字是真的。
  * 不写这一条，截图发出去别人会当成功能已经做好了。
+ *
+ * gap 是缺口编号（G1…G7），与代码里的 FIXME(Gn) 对得上。
+ * 不在这里指向任何文档：缺口清单是内部文件，公开仓库里没有 ——
+ * 给用户一个他打不开的链接比不给更糟。
  */
 export function FixtureNotice({ gap, what }: { gap: string; what: string }) {
   return (
     <p className="alert-warn" role="status">
-      本页的{what}是<strong>假数据</strong>，用于界面演示。真接口尚未接通（缺口 {gap}，见仓库根
-      todos.md）。
+      本页的{what}是<strong>假数据</strong>，用于界面演示，真接口尚未接通（缺口 {gap}）。
     </p>
   )
 }

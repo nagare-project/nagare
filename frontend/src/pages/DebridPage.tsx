@@ -12,7 +12,7 @@ import '../components/media/media.css'
  * ⚠️ 接之前要想清楚一件事，它不是技术问题：调研里「真正的杀伤在分发渠道与
  * 中间服务」那一条，举的例子正是 Real-Debrid 掐掉第三方客户端的 API。
  * 把播放链路挂到一个可以单方面掐断的第三方上，与 nagare「本地优先、
- * 断网也能看本地文件」的取向是相反的。缺口与利弊见仓库根 todos.md。
+ * 断网也能看本地文件」的取向是相反的。
  */
 export function DebridPage() {
   const [key, setKey] = useState('')
@@ -26,7 +26,7 @@ export function DebridPage() {
 
       <p className="alert-warn" role="status">
         <strong>这一页只是界面预览，后端没有对接。</strong>
-        填了密钥也不会生效。缺口 G7，见仓库根 todos.md。
+        填了密钥也不会生效（缺口 G7）。
       </p>
 
       <section className="panel settings-card">

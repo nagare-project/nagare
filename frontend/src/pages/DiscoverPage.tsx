@@ -20,7 +20,7 @@ import '../components/media/media.css'
  *
  * FIXME(G2): 全部是假数据。真数据是元数据（读），在允许的三条连线内 ——
  * 但这一页【绝不能】出现「按 anilistId 要磁力」的入口，那是红线 2。
- * 缺口见仓库根 todos.md。
+ * 缺口 G2。
  */
 
 type Tab = 'anime' | 'schedule'

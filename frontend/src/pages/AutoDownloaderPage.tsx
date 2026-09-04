@@ -10,7 +10,7 @@ import '../components/media/media.css'
  *
  * FIXME(G6): 这一页是【界面预览】，背后什么都没有 —— nagare 没有订阅、
  * 没有定时轮询、没有自动下载。`internal/rules` 是【搜索】用的规则引擎，
- * 不是订阅器。整套东西是一个里程碑级功能，缺口见 todos.md。
+ * 不是订阅器。整套东西是一个里程碑级功能。
  *
  * 提示语措辞刻意比别的页面重：其他假数据页至少形状是真的（列表就是列表），
  * 而这一页点「启用」之后【永远不会有任何东西被下载】。说成「假数据」
@@ -35,7 +35,7 @@ export function AutoDownloaderPage() {
       <p className="alert-warn" role="status">
         <strong>这一页只是界面预览，功能尚未实现。</strong>
         nagare 目前没有订阅、没有定时轮询，
-        <strong>点「启用」不会下载任何东西</strong>。缺口 G6，见仓库根 todos.md。
+        <strong>点「启用」不会下载任何东西</strong>（缺口 G6）。
       </p>
 
       <ul className="rule-list">

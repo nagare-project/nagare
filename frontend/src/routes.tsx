@@ -39,7 +39,7 @@ const animeRoute = createRoute({
 
 /**
  * 元数据三页（对齐 seanime）。它们现在吃 lib/fixtures 的假数据 ——
- * 后端缺口逐条记在仓库根的 todos.md，接通后删 fixture、改这三个组件的数据源。
+ * 缺口编号见各页顶部的 FIXME(Gn)；接通后删 fixture、改这三个组件的数据源。
  */
 const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists', component: ListsPage })
 const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: DiscoverPage })
@@ -55,7 +55,7 @@ const autoDlRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auto-
  */
 const extensionsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extensions', component: ExtensionsPage })
 
-/** `/debrid`：界面预览，后端未对接（缺口 G7，见 todos.md） */
+/** `/debrid`：界面预览，后端未对接（缺口 G7） */
 const debridRoute = createRoute({ getParentRoute: () => rootRoute, path: '/debrid', component: DebridPage })
 
 /**
