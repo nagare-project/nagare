@@ -1,3 +1,4 @@
+import { Icon } from '../ui/Icon'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import type { LibraryCluster } from '../../lib/endpoints'
@@ -5,16 +6,7 @@ import type { LibraryCluster } from '../../lib/endpoints'
 /** 归簇置信度低于该值时标「低置信」，提醒用户分组可能不准 */
 export const LOW_CONFIDENCE_THRESHOLD = 0.7
 
-/**
- * 媒体库网格里的一张海报卡。
- *
- * 比例、圆角、hover 幅度都是从运行中的 seanime 量出来的，不是估的：
- * 海报 6/8（3:4）、圆角 .5rem、hover 放大到 1.1、200ms ease-out。
- * 3:4 正是动漫海报的通用比例，用它意味着 animego 给的封面不必裁切。
- *
- * 封面缺失是常态（只有播放过的条目才匹配过、才有图），所以无图版式
- * 不是兜底而是一等公民：它保持同样的比例占位，网格不会因为缺图而参差。
- */
+/** 本地作品卡：3:4 海报与缩放交互，点击进入真实文件的剧集列表。 */
 export function PosterCard({ cluster }: { cluster: LibraryCluster }) {
   const [failed, setFailed] = useState(false)
   const { clusterKey, title, season, episodeCount, confidence, cover } = cluster
@@ -36,6 +28,8 @@ export function PosterCard({ cluster }: { cluster: LibraryCluster }) {
               流
             </span>
           )}
+          <span className="poster-hover-play"><Icon name="play" size={42} /></span>
+          <span className="poster-episodes"><Icon name="folder" size={13} />{episodeCount} 集</span>
           {confidence < LOW_CONFIDENCE_THRESHOLD && (
             <span
               className="badge badge--warn poster-flag"

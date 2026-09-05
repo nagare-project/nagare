@@ -19,13 +19,18 @@ import (
 // 客户端给的是 fileId，不是图片地址 —— 真实地址从本机 store 的匹配结果里查。
 // 这条设计是有意的：它让「让 nagare 去请求任意 URL」这个入口在客户端侧根本不存在。
 type ArtHandler struct {
-	st    *store.Store
-	cache *artcache.Cache
+	st            *store.Store
+	cache         *artcache.Cache
+	catalogSource func(string) (string, bool)
 }
 
 // NewArtHandler 构造封面处理器。
-func NewArtHandler(st *store.Store, cache *artcache.Cache) *ArtHandler {
-	return &ArtHandler{st: st, cache: cache}
+func NewArtHandler(st *store.Store, cache *artcache.Cache, catalogSource ...func(string) (string, bool)) *ArtHandler {
+	h := &ArtHandler{st: st, cache: cache}
+	if len(catalogSource) > 0 {
+		h.catalogSource = catalogSource[0]
+	}
+	return h
 }
 
 func (h *ArtHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +40,9 @@ func (h *ArtHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b, ok := h.st.Binding(fileID)
+	if strings.HasPrefix(fileID, "catalog/") && h.catalogSource != nil {
+		b.CoverURL, ok = h.catalogSource(strings.TrimPrefix(fileID, "catalog/"))
+	}
 	if !ok || b.CoverURL == "" {
 		// 没匹配过、或匹配结果里没有图 —— 都是常态，界面走无图版式。
 		http.NotFound(w, r)

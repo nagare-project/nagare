@@ -70,6 +70,7 @@ const cliUpdateTimeout = 15 * time.Minute
 
 // services 是主进程持有的全部业务对象。
 type services struct {
+	lists   *animego.Client
 	store   *store.Store
 	mpv     *mpv.Runtime
 	auth    api.AnimegoAuth
@@ -407,7 +408,7 @@ func buildServices(configDir string) (*services, error) {
 	}
 
 	return &services{
-		store: st, mpv: mpvRT, auth: client, player: mgr, lib: lib, sources: sources,
+		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, sources: sources,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
 		selfUpdate: su,
 	}, nil
@@ -456,7 +457,8 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	if art, err := artcache.New(filepath.Join(configDir, "cache", "art")); err != nil {
 		log.Printf("封面缓存不可用（界面将不显示封面）：%v", err)
 	} else {
-		srv.SetArtHandler(api.NewArtHandler(svc.store, art))
+		apiHandler.SetCatalogArtPrefix("/art/" + srv.ArtCapability())
+		srv.SetArtHandler(api.NewArtHandler(svc.store, art, apiHandler.CatalogImageSource))
 		svc.lib.SetArtPrefix("/art/" + srv.ArtCapability())
 	}
 
@@ -527,6 +529,7 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc) (
 		Lib:             svc.lib,
 		Player:          svc.player,
 		Auth:            svc.auth,
+		Lists:           svc.lists,
 		AnimegoBaseURL:  animego.DefaultBaseURL,
 		MPV:             svc.mpv,
 		Version:         version,

@@ -1,0 +1,122 @@
+.discover-shell { position: relative; max-width: none; padding: 0 0 48px; gap: 0; }
+.discover-content { position: relative; z-index: 4; padding: 32px; }
+/* 外框 40px；每个标签按文字宽度排布，选中背景沿布局弹簧移动。 */
+.discover-tabs { position: absolute; top: -24px; left: 50%; transform: translateX(-50%); }
+.discover-tabs .tabs { position: relative; flex-wrap: nowrap; gap: 8px; padding: 0; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.discover-tabs .tab { position: relative; isolation: isolate; justify-content: center; height: 38px; padding: 8px 16px; border: 1px solid transparent; border-radius: 999px; font-size: 14px; line-height: 20px; background: transparent; }
+.discover-tabs .tab[aria-selected=true] { font-weight: 600; }
+.discover-tab-pill { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--subtle); }
+.discover-panel > .fixture-notice { margin-bottom: 20px; }
+.discover-row + .discover-row { margin-top: 32px; }
+.discover-row { position: relative; min-width: 0; }
+.discover-row .row-head { min-height: 36px; align-items: center; }
+.discover-row .row-title { font-size: 30px; font-weight: 700; line-height: 36px; letter-spacing: -.025em; }
+.discover-row .row-controls { align-items: center; gap: 0; }
+.row-dot { display: grid; place-items: center; width: 20px; height: 24px; padding: 2.5px; border: 0; background: transparent; cursor: pointer; }
+.row-dot > span { width: 100%; height: 8px; border-radius: 999px; background: #ffffff30; transition: height .3s, background .3s; }
+.row-dot[aria-pressed=true] > span { background: var(--fg-muted); }
+.row-dot:hover > span { height: 12px; background: #e5e7eb; }
+.row-pause { display: grid; place-items: center; height: 24px; width: 24px; padding: 0; background: transparent; border: 0; color: var(--fg-muted); cursor: pointer; opacity: 0; transition: opacity .15s; }
+.row-controls:hover .row-pause, .row-pause:focus-visible, .row-pause[aria-pressed=true] { opacity: 1; }
+/* 筛选条与卡片分别裁切，浮层不会越过页面两侧的 32px 留白。 */
+.discover-genre-strip { position: relative; margin-top: 8px; }
+.discover-genre-scroll { position: relative; overflow-x: auto; scrollbar-width: none; user-select: none; touch-action: pan-x; }
+.discover-genre-scroll::-webkit-scrollbar { display: none; }
+.discover-genres { display: flex; gap: 8px; width: max-content; min-width: 100%; justify-content: center; padding: 16px 20px; }
+.discover-genres button { position: relative; isolation: isolate; flex: none; height: 40px; padding: 0 16px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--fg-muted); font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; transition: color .15s; }
+.discover-genres button:hover { color: var(--fg); }
+.discover-genres button[aria-pressed=true] { color: white; font-weight: 600; }
+.discover-genre-pill { position: absolute; inset: -1px; z-index: -1; border: 1px solid #ffffff10; border-radius: inherit; background: var(--subtle); }
+.discover-genre-arrow { position: absolute; top: 0; bottom: 0; width: 64px; z-index: 2; display: grid; place-items: center; padding: 0; border: 0; color: var(--fg-muted); cursor: pointer; opacity: .9; transition: opacity .6s; }
+.discover-genre-arrow:hover { color: var(--fg); opacity: 1; }
+.discover-genre-arrow:disabled { opacity: 0; pointer-events: none; }
+.discover-genre-arrow--start { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
+.discover-genre-arrow--end { right: 0; background: linear-gradient(270deg, var(--bg), transparent); }
+.discover-row-viewport { overflow: hidden; margin-top: 16px; touch-action: pan-y pinch-zoom; }
+.discover-row[data-filtered] .discover-row-viewport { margin-top: 0; }
+.discover-row-track { display: flex; margin: 0 0 0 -16px; padding: 0 24px; list-style: none; backface-visibility: hidden; }
+.discover-row[data-filtered] .discover-row-track { margin-left: -32px; }
+.discover-row[data-arrows] { padding-bottom: 24px; }
+.discover-row[data-arrows] .row-controls { position: absolute; top: -4px; right: 0; height: 36px; gap: 8px; }
+.discover-row[data-arrows] .row-controls .icon-button { width: 36px; height: 36px; border: 1px solid #9ca3af33; border-radius: 999px; transition: transform .15s, background .15s; }
+.discover-row[data-arrows] .row-controls .icon-button:hover { transform: scale(1.04); }
+.discover-row[data-arrows] .row-controls .icon-button:active { transform: scale(.96); }
+.discover-empty { display: grid; place-items: center; min-width: 100%; height: 441px; color: var(--fg-muted); font-size: 14px; }
+.discover-row-track > .discover-card { flex: 0 0 250px; margin: 32px 8px 0; }
+.discover-card { position: relative; min-width: 0; user-select: none; }
+.discover-card-cover { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; border: 0; padding: 0; border-radius: 8px; background: #171717; cursor: pointer; }
+.discover-card-cover img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(.95); transition: opacity .4s, transform .4s; }
+.discover-card-cover img[data-loaded=true] { opacity: 1; transform: scale(1); }
+.discover-card[data-hovered] .discover-card-cover img { transform: scale(1.1); transition-duration: .2s; }
+.discover-card-title { margin-top: 8px; font-size: 16px; line-height: 24px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.discover-card-season { color: #71717a; font-size: 14px; line-height: 24px; }
+.discover-card-progress { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: #ffffff30; }
+.discover-card-progress > span { display: block; height: 100%; background: var(--brand); }
+.discover-card-count { position: absolute; bottom: 0; left: 0; background: #09090b66; border-radius: 0 8px 0 8px; padding: 2px 6px; color: #ddd; font-size: 16px; font-weight: 600; }
+.discover-card-popup { position: absolute; left: -1.5%; top: -5%; width: 103%; height: 105%; z-index: 5; border: 1px solid #ffffff0d; border-radius: 11.2px; background: #0b0b0b; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.discover-card-popup[data-state=open] { opacity: 1; pointer-events: auto; }
+.discover-card-popup-content { display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 8px; }
+.discover-card-banner { position: relative; display: block; width: 100%; aspect-ratio: 2 / 1; overflow: hidden; border-radius: 8px; border: 0; padding: 0; background: #0b0b0b; cursor: pointer; }
+.discover-card-banner > img { width: 100%; height: 100%; object-fit: cover; }
+.discover-card-banner-gradient { position: absolute; inset: 20% 0 0; background: linear-gradient(transparent, #0b0b0b); pointer-events: none; }
+.discover-card-banner .hero-trailer iframe { top: 50%; left: 50%; width: 100%; height: calc(100% + 120px); transform: translate(-50%, -50%); }
+.discover-card-banner .hero-trailer-notice { bottom: auto; top: 8px; right: 8px; font-size: 11px; }
+.discover-card-popup-title { margin-top: 8px; text-align: center; font-weight: 500; font-size: 16px; line-height: 24px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.discover-card-native { margin-top: 0; font-size: 12px; line-height: 16px; text-align: center; color: #a1a1aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.discover-card-year { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 4px; font-size: 14px; line-height: 20px; color: #a1a1aa; }
+.discover-card-status { margin-top: 8px; font-size: 12px; line-height: 16px; color: #a1a1aa; text-align: center; }
+.discover-card-footer { display: flex; align-items: center; gap: 8px; min-height: 32px; color: #a1a1aa; font-size: 12px; }
+.discover-card-title-link { display: block; width: 100%; padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: center; text-decoration: none; }
+.discover-card-title-link:hover { color: var(--brand-hot); }
+.discover-card-details { width: 32px; height: 32px; border-radius: 999px; background: var(--subtle); color: var(--fg); }
+.discover-card-score { display: inline-flex; gap: 8px; align-items: center; padding: 1px 12px; height: 28px; border: 1px solid var(--border); border-radius: 999px; color: #6ee7b7; font-size: 16px; font-weight: 600; }
+.discover-card-score[data-score=high] { color: #a5b4fc; }
+.discover-card-popup .discover-card-play { margin-top: 8px; }
+.discover-card-cover:focus-visible, .row-dot:focus-visible, .row-pause:focus-visible, .discover-genres button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.discover-row[data-dragging] { cursor: grabbing; }
+@media (max-width: 1023px) {
+  .discover-content { padding-top: 16px; }
+  .discover-tabs { position: static; transform: none; width: fit-content; margin: 0 auto 32px; }
+  .discover-card-popup { display: none; }
+}
+@media (max-width: 767px) {
+  .discover-content { padding-inline: 16px; }
+  .discover-genre-arrow { display: none; }
+  .discover-row-track > .discover-card { flex-basis: 200px; }
+  .discover-row .row-controls--dots { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-dot > span, .row-pause, .discover-genres button, .discover-card-cover img, .discover-card-popup { transition: none; }
+  .discover-card-cover img, .discover-card[data-hovered] .discover-card-cover img { transform: none; }
+}
+.discover-anime-panel { padding-top: 56px; }
+.discover-card-title a, .hero-title a { color: inherit; text-decoration: none; }
+.discover-card-title a:hover { color: var(--brand-hot); }
+.hero-art > a { display: block; width: 100%; height: 100%; }
+.hero-releasing { color: var(--brand); display: inline-flex; align-items: center; gap: 8px; }
+.discover-airing { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom-left-radius: 8px; background: #4c1d95e6; color: white; font-size: 12px; font-weight: 600; }
+.discover-loading-hero { background: linear-gradient(120deg, #1b1525, var(--bg)); }
+.discover-loading-title { height: 36px; width: 180px; border-radius: 8px; background: var(--paper-raised); }
+.discover-loading-cards { display: flex; gap: 16px; margin-top: 48px; overflow: hidden; }
+.discover-loading-cards > div { flex: 0 0 250px; height: 333px; background: var(--paper-raised); border-radius: 8px; animation: detail-pulse 1s ease-in-out infinite alternate; }
+@media (max-width: 1023px) { .discover-anime-panel { padding-top: 0; } }
+@media (prefers-reduced-motion: reduce) { .discover-loading-cards > div { animation: none; } }
+.media-context-menu { position: fixed; z-index: 80; min-width: 200px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: #111; box-shadow: 0 8px 32px #0008; }
+.media-context-menu > a, .media-context-menu > button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font: inherit; text-decoration: none; cursor: pointer; }
+.media-context-menu > :hover, .media-context-menu > :focus-visible { background: var(--subtle); }
+.discover-row-track { align-items: flex-start; }
+.discover-card-title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-wrap: pretty; line-height: 20px; }
+.discover-card-season { margin-top: 7px; line-height: 20px; padding-bottom: 1px; }
+.discover-airing { top: 8px; right: 8px; padding: 6px 12px; border-radius: 999px; background: #7956e6; color: #ede9fe; }
+.discover-recent { position: absolute; top: 0; right: 0; display: flex; flex-direction: column; align-items: flex-end; }
+.discover-recent strong { padding: 6px 5px 6px 12px; background: #070707cc; border-bottom-left-radius: 8px; color: white; font-size: 18px; line-height: 28px; }
+.discover-recent small { color: #a1a1aa; font-size: 16px; }
+.discover-recent time { padding: 4px 5px 4px 8px; border-bottom-left-radius: 8px; background: #525252b3; color: white; font-size: 12px; font-weight: 600; }
+.discover-card-next { margin-top: 8px; text-align: center; font-size: 12px; line-height: 16px; }
+.discover-personal-score { position: absolute; right: 0; bottom: 0; display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-top-left-radius: 8px; color: white; background: #4f46e5cc; font-weight: 700; }
+.hero-meta .hero-score { font-weight: 600; gap: 8px; }
+.hero-score svg { color: inherit; }
+.hero-desc { color: var(--fg); line-height: 20px; }
+@media (max-width: 1023px) { .discover-card-title { font-size: 14px; } }
+
+.discover-airing[data-status=NOT_YET_RELEASED] { background: #3f3f46; color: #e4e4e7; }

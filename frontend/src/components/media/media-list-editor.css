@@ -1,0 +1,15 @@
+.media-list-trigger { width: 32px; height: 32px; border-radius: 999px; background: var(--subtle); color: var(--fg); }
+.media-list-editor { position: fixed; inset: 0; width: min(640px, calc(100% - 32px)); max-width: none; max-height: calc(100dvh - 32px); margin: auto; padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--paper); color: var(--fg); overflow: auto; text-align: left; font: inherit; }
+.media-list-editor::backdrop { background: #0004; }
+.media-list-editor h2 { font-size: 16px; line-height: 24px; text-align: center; padding: 0 24px; margin-bottom: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.media-list-close { position: absolute; right: 8px; top: 8px; }
+.media-list-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.media-list-fields label { display: flex; flex-direction: column; gap: 8px; color: var(--fg); font-size: 14px; font-weight: 500; }
+.media-list-fields input, .media-list-fields select { display: block; width: 100%; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--paper-raised); color: var(--fg); font: inherit; color-scheme: dark; }
+.media-list-fields input:focus, .media-list-fields select:focus { outline: 1px solid var(--brand); }
+.media-list-note { margin-top: 16px; color: var(--fg-muted); font-size: 12px; line-height: 18px; }
+.media-list-editor footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
+.media-list-editor footer > .btn { margin-left: auto; }
+.media-list-delete { display: flex; align-items: center; gap: 8px; }
+.media-list-delete .icon-button { color: var(--err); background: #ef44441a; border-radius: 999px; }
+@media (max-width: 639px) { .media-list-fields { grid-template-columns: 1fr; } }

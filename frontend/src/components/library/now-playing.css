@@ -5,7 +5,7 @@
 
 .np-bar {
   position: fixed;
-  inset-inline: 0;
+  inset-inline: var(--rail-w) 0;
   bottom: 0;
   z-index: 10;
   display: flex;
@@ -106,3 +106,5 @@
     transition: none;
   }
 }
+
+@media (max-width: 1023px) { .np-bar { inset-inline: 0; } }

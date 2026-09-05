@@ -2,6 +2,7 @@
 // 整页冒烟：真实路由 + 真实 apiFetch，只在 fetch 边界打桩。
 // 证明「路由 → 页面 → hooks → 组件」整条装配线能对着契约数据渲染出界面。
 import { RouterProvider } from '@tanstack/react-router'
+import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LibraryData, PlayerStatus, SettingsData, UpdateView } from '../lib/endpoints'
 import { TOKEN_STORAGE_KEY } from '../lib/token'
@@ -140,6 +141,20 @@ afterEach(() => {
 })
 
 describe('LibraryPage（整页冒烟）', () => {
+  it('看完一集、下一集尚未开始的作品仍归入在看', async () => {
+    const library = structuredClone(LIBRARY)
+    library.clusters[0]!.groups[0]!.items[0]!.progress = { positionSec: 1420, durationSec: 1420, completed: true }
+    stubFetch(SETTINGS, library)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const filters = Array.from(container.querySelectorAll<HTMLButtonElement>('.collection-filter'))
+    await act(async () => { filters.find((button) => button.textContent === '在看')!.click() })
+    expect(container.querySelector('.poster-title')?.textContent).toBe('葬送的芙莉莲')
+    await act(async () => { filters.find((button) => button.textContent === '已看完')!.click() })
+    expect(container.querySelector('.poster')).toBeNull()
+    expect(container.querySelector('.collection-empty')?.textContent).toContain('没有符合条件的作品')
+    await unmount()
+  })
+
   it('挂载后渲染顶栏、簇卡片、剧集行与上次扫描时间', async () => {
     const fetchMock = stubFetch()
     const { container, unmount } = await mount(<RouterProvider router={router} />)
@@ -184,7 +199,7 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(container.querySelector('.mpv-dot--missing')).not.toBeNull()
     const alert = container.querySelector('.alert-warn')
     expect(alert?.textContent).toContain('未检测到 mpv')
-    expect(alert?.querySelector('a')?.getAttribute('href')).toBe('/settings')
+    expect(alert?.querySelector('a')?.getAttribute('href')).toBe('/settings#player')
     expect(alert?.querySelector('a')?.textContent).toContain('去设置安装 mpv')
     await unmount()
   })
@@ -383,7 +398,7 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(container.textContent).toContain('两条路互相独立')
     const hrefs = [...container.querySelectorAll('.onboard a')].map((a) => a.getAttribute('href'))
     // 未配规则仓库时先去设置填地址；配好之后那颗按钮指向 /search（见组件）
-    expect(hrefs).toContain('/settings')
+    expect(hrefs).toContain('/settings#sources')
     // 必需项只有 mpv：其余三张卡都标「可选」
     const tags = [...container.querySelectorAll('.onboard-step .badge')].map((b) => b.textContent)
     expect(tags).toEqual(['必需', '可选', '可选', '可选'])

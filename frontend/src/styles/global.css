@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2');
+}
+
 /* ============================================================
    nagare 全局样式 —— 设计底座
 
@@ -35,7 +43,7 @@
 
   /* ---- 文字三档 ---- */
   --fg: rgb(209, 209, 209);
-  --fg-muted: rgba(255, 255, 255, 0.42);
+  --fg-muted: rgba(255, 255, 255, 0.4);
   --fg-subtle: rgba(255, 255, 255, 0.26);
 
   /* ---- 底纹：hover 与"当前项" ---- */
@@ -79,14 +87,15 @@
      中文字面在英文字体里会回退，所以中文字体必须排在系统 UI 字体之后、
      兜底 sans-serif 之前，顺序不能动。 */
   --font-ui:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
 
   --duration-fast: 140ms;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* 侧栏宽度：内容区靠它偏移，只在这里定义一次 */
-  --rail-w: 4.5rem;
+  --rail-w: 80px;
+  --page-gutter: 24px;
 }
 
 /* ---------- 基础 reset ---------- */
@@ -100,10 +109,8 @@
 
 html {
   color-scheme: dark;
-  /* 整体放大一档。写 110% 而不是 17.6px：百分比是相对【用户浏览器设置】的，
-     把默认字号调大过的用户（视力需要）不会被我们的固定值抹掉。
-     全站尺寸都用 rem，所以改这一行，字与间距会一起等比放大。 */
-  font-size: 110%;
+  /* 与 seanime 的 16px 基准保持一致，同时尊重浏览器字号设置。 */
+  font-size: 100%;
 }
 
 body {
@@ -112,132 +119,13 @@ body {
   color: var(--fg);
   font-family: var(--font-ui);
   font-size: 1rem;
-  line-height: 1.65;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 #root {
   min-height: 100dvh;
-}
-
-/* ---------- 应用外壳：固定左侧图标栏 + 内容区 ---------- */
-
-.app-rail {
-  position: fixed;
-  z-index: 40;
-  top: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  width: var(--rail-w);
-  height: 100dvh;
-  padding: 0.85rem 0.6rem;
-  border-right: 1px solid var(--border-dim);
-  background: var(--bg);
-}
-
-/* 品牌记号：一个字，不做图形 logo —— 侧栏只有 4.5rem 宽，
-   任何图形缩到这个尺寸都会糊，而「流」这个字缩小后依然可辨。 */
-.app-rail-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  margin-bottom: 0.5rem;
-  border-radius: var(--radius-lg);
-  background: var(--brand-wash);
-  color: var(--brand);
-  font-size: 1.05rem;
-  font-weight: 500;
-  user-select: none;
-}
-
-.app-rail-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  width: 100%;
-  padding: 0.5rem 0.25rem;
-  border: 0;
-  border-radius: var(--radius-lg);
-  background: transparent;
-  color: var(--fg-muted);
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition:
-    color var(--duration-fast) var(--ease),
-    background-color var(--duration-fast) var(--ease);
-}
-
-.app-rail-item:hover {
-  color: var(--fg);
-  background: var(--subtle);
-}
-
-/* 当前项不染品牌色 —— 提亮 + 一层白底纹就够，见文件头规则 3 */
-.app-rail-item[aria-current='page'] {
-  color: var(--fg);
-  background: var(--subtle);
-}
-
-.app-rail-item:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: -2px;
-}
-
-.app-rail-glyph {
-  font-size: 1.15rem;
-  line-height: 1.2;
-}
-
-/* 内容区：给侧栏让出宽度 */
-.app-main {
-  min-height: 100dvh;
-  padding-left: var(--rail-w);
-}
-
-/* 窄屏（竖屏平板 / 手机）：侧栏转成顶部横条 */
-@media (max-width: 640px) {
-  .app-rail {
-    flex-direction: row;
-    width: 100%;
-    height: auto;
-    padding: 0.4rem 0.6rem;
-    border-right: 0;
-    border-bottom: 1px solid var(--border-dim);
-  }
-
-  .app-rail-mark {
-    width: 2rem;
-    height: 2rem;
-    margin-bottom: 0;
-  }
-
-  .app-rail-item {
-    flex-direction: row;
-    gap: 0.4rem;
-    width: auto;
-    padding: 0.4rem 0.7rem;
-    font-size: 0.8rem;
-  }
-
-  .app-rail-glyph {
-    font-size: 1rem;
-  }
-
-  .app-main {
-    padding-top: 3.1rem;
-    padding-left: 0;
-  }
 }
 
 /* ---------- 卡片 ---------- */
@@ -279,14 +167,14 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  height: 2.25rem;
+  height: 2.5rem;
   padding: 0 0.9rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: transparent;
   color: var(--fg);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
   /* 这个类会挂在 <a> 上（路由链接按钮），必须显式压掉浏览器给链接的下划线 */
   text-decoration: none;
@@ -337,7 +225,7 @@ body {
 }
 
 .btn--sm {
-  height: 1.85rem;
+  height: 2rem;
   padding: 0 0.65rem;
   font-size: 0.86rem;
 }
@@ -346,14 +234,14 @@ body {
 
 .input {
   width: 100%;
-  height: 2.25rem;
+  height: 2.5rem;
   padding: 0 0.7rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--sunken);
+  background: var(--paper-raised);
   color: var(--fg);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   transition:
     border-color var(--duration-fast) var(--ease),
     box-shadow var(--duration-fast) var(--ease);
@@ -500,7 +388,7 @@ body {
   border-radius: var(--radius);
   background: var(--warn-wash);
   color: var(--warn);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
 }
 
 .alert-warn-link {
@@ -538,13 +426,12 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem 1.1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-dim);
+  padding-bottom: 0;
 }
 
 .page-title {
-  font-size: 1.35rem;
-  font-weight: 600;
+  font-size: 1.875rem;
+  font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;
 }
@@ -609,3 +496,10 @@ body {
   margin-top: 0.3rem;
   color: var(--fg);
 }
+
+@media (max-width: 640px) { :root { --page-gutter: 16px; } }
+
+/* 与原版一致，桌面滚动条占 8px，页面宽度不随滚动条出现而漂移。 */
+html::-webkit-scrollbar { width: 8px; height: 8px; }
+html::-webkit-scrollbar-thumb { background: #ffffff29; border-radius: 999px; }
+html::-webkit-scrollbar-track { background: transparent; }

@@ -1,0 +1,21 @@
+.catalog-entry { position: relative; isolation: isolate; max-width: none; display: block; padding: 32px; }
+.catalog-entry-backdrop { position: absolute; z-index: -1; top: -80px; left: -80px; right: 0; height: 560px; opacity: .3; overflow: hidden; pointer-events: none; }
+.catalog-entry-backdrop img { width: 100%; height: 100%; object-fit: cover; }
+.catalog-entry-backdrop::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, var(--bg), transparent 75%), linear-gradient(90deg, #070707b3, transparent 40%); }
+.catalog-entry .media-preview-actions { margin-top: 0; height: 52px; gap: 16px; }
+.catalog-entry > .tabs { margin-top: 4px; border-bottom: 1px solid var(--border); border-radius: 0; }
+.catalog-entry-local { padding: 32px 0 16px; }
+.catalog-entry-local h2 { font-size: 24px; line-height: 32px; font-weight: 700; }
+.catalog-entry-local p { margin-block: 12px; color: var(--fg-muted); }
+.catalog-entry-local .discover-card-play { display: inline-flex; width: auto; padding-inline: 24px; margin: 0 16px 0 0; }
+.catalog-entry-facts { display: flex; flex-wrap: wrap; gap: 24px 40px; margin: 32px 0; }
+.catalog-entry-facts dt { color: var(--fg-muted); font-size: 13px; margin-bottom: 8px; }
+.catalog-entry-facts dd { font-size: 16px; font-weight: 600; }
+@media (max-width: 767px) { .catalog-entry { padding: 24px 16px; } .catalog-entry-backdrop { left: 0; height: 320px; } }
+.catalog-entry .media-preview-info .media-preview-actions { margin-top: 16px; height: 36px; }
+.catalog-entry > .tabs { margin-top: 20px; }
+/* 原版横图是覆盖导航的 480px 固定背景；三层渐变各自控制文字区亮度。 */
+.catalog-entry-backdrop { position: fixed; top: 0; left: -80px; height: 480px; opacity: 1; }
+.catalog-entry-backdrop::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #07070766, transparent 128px), linear-gradient(90deg, #070707f2, transparent 90%), linear-gradient(90deg, #07070780 25%, transparent); }
+.catalog-entry-backdrop::after { inset: 30% 0 0; background: linear-gradient(0deg, var(--bg), transparent); }
+@media (max-width: 1023px) { .catalog-entry-backdrop { left: 0; height: 320px; opacity: .3; } }

@@ -119,5 +119,24 @@ nagare 二进制的第三方组件及其许可证。许可证以各上游源码�
 | react / react-dom | MIT |
 | @tanstack/react-router | MIT |
 | motion | MIT |
+| embla-carousel / embla-carousel-react / embla-carousel-autoplay / embla-carousel-reactive-utils (8.6.0) | MIT |
 
 构建期依赖（Vite、TypeScript、Vitest 等）不进入分发包。
+
+### 界面参考
+
+导航、发现页、媒体库与设置页参照 [5rahim/seanime](https://github.com/5rahim/seanime)
+v3.10.2（修订 `9bdd052`）的 `seanime-web` 组件布局、尺寸和配色，在 nagare 的 React / Vite
+结构中实现。上游使用 GPL-3.0，许可证见其源码树的 LICENSE。
+
+### Inter 字体
+
+随界面提供 Inter Variable 的 Latin WOFF2，来自 `@fontsource-variable/inter@5.2.8`。
+版权归 Inter Project Authors 所有，使用 SIL Open Font License 1.1；完整许可证随文件提供于
+[`frontend/public/fonts/OFL.txt`](frontend/public/fonts/OFL.txt)。字体由本机提供，无第三方字体请求。
+
+### 演示图片
+
+发现、列表与放送页的静态演示封面及横幅来自 AniList 公开媒体元数据中的图片地址。
+图片权利归各自权利人所有，不适用 nagare 的代码许可证；逐项来源见
+[`frontend/public/demo-art/SOURCES.md`](frontend/public/demo-art/SOURCES.md)。

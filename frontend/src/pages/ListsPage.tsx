@@ -1,56 +1,26 @@
 import { useState } from 'react'
-import { MediaCard } from '../components/media/MediaCard'
+import { DiscoverCard } from '../components/media/DiscoverCard'
+import { useCollection } from '../components/media/CollectionContext'
+import { collectionMedia, COLLECTION_LABELS, entryStatus } from '../lib/catalog'
+import type { CollectionStatus } from '../lib/catalog'
 import { Result, Tab, TabCount, Tabs } from '../components/ui'
-import { FAKE_LISTS, LIST_STATUS_LABEL } from '../lib/fixtures/library'
-import type { ListStatus } from '../lib/fixtures/library'
 import '../components/library/library.css'
 import '../components/media/media.css'
+import '../components/media/discover.css'
 
-/**
- * `/lists` 我的列表：按观看状态分档的作品网格。
- *
- * FIXME(G1): 现在吃的是假数据。真数据要一个「读收藏列表」的接口，
- * 而 animego 侧目前只有【写】进度（MarkWatched），没有读。
- */
-
-const ORDER: readonly ListStatus[] = ['watching', 'planning', 'completed', 'paused', 'dropped']
-
+const ORDER: readonly CollectionStatus[] = ['watching', 'plan_to_watch', 'completed', 'paused', 'dropped']
 export function ListsPage() {
-  const [status, setStatus] = useState<ListStatus>('watching')
-  const items = FAKE_LISTS[status]
-
-  return (
-    <main className="lib-shell">
-      <header className="page-head">
-        <h1 className="page-title">我的列表</h1>
-      </header>
-
-      <FixtureNotice gap="G1" what="收藏列表" />
-
-      <Tabs
-        value={status}
-        onChange={(next) => setStatus(next as ListStatus)}
-        label="观看状态"
-      >
-        {ORDER.map((s) => (
-          <Tab key={s} value={s}>
-            {LIST_STATUS_LABEL[s]}
-            <TabCount n={FAKE_LISTS[s].length} />
-          </Tab>
-        ))}
-      </Tabs>
-
-      {items.length === 0 ? (
-        <Result>这一档还没有作品。</Result>
-      ) : (
-        <ul className="poster-grid">
-          {items.map((m) => (
-            <MediaCard key={m.id} media={m} />
-          ))}
-        </ul>
-      )}
-    </main>
-  )
+  const [status, setStatus] = useState<CollectionStatus>('watching')
+  const collection = useCollection()
+  const items = collection.entries.filter(entry => entryStatus(entry) === status)
+  return <main className="lib-shell">
+    <header className="page-head"><h1 className="page-title">我的列表</h1></header>
+    {collection.error && <p className="result result--err" role="alert">{collection.error} <button className="btn" onClick={() => void collection.reload()}>重试</button></p>}
+    {collection.loading ? <Result>正在读取收藏…</Result> : !collection.loggedIn ? <Result>登录 animego 账号后查看收藏。<a className="link" href="/settings#account">登录账号</a></Result> : <>
+      <Tabs value={status} onChange={next => setStatus(next as CollectionStatus)} label="观看状态">{ORDER.map(value => <Tab key={value} value={value}>{COLLECTION_LABELS[value]}<TabCount n={collection.entries.filter(entry => entryStatus(entry) === value).length} /></Tab>)}</Tabs>
+      {!items.length ? <Result>这一档还没有作品。</Result> : <ul className="poster-grid">{items.map(entry => <DiscoverCard key={entry.anilistId} media={collectionMedia(entry)} />)}</ul>}
+    </>}
+  </main>
 }
 
 /**
@@ -63,8 +33,8 @@ export function ListsPage() {
  */
 export function FixtureNotice({ gap, what }: { gap: string; what: string }) {
   return (
-    <p className="alert-warn" role="status">
-      本页的{what}是<strong>假数据</strong>，用于界面演示，真接口尚未接通（缺口 {gap}）。
+    <p className="alert-warn fixture-notice" role="status">
+      本页的{what}是<strong>假数据</strong>，用于界面演示，尚未连接你的账号。<span className="visually-hidden">缺口 {gap}</span>
     </p>
   )
 }

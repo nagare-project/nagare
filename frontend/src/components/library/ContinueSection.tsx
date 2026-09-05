@@ -1,3 +1,4 @@
+import { Icon } from '../ui/Icon'
 import { useState } from 'react'
 import { formatEpisode } from '../../lib/format'
 import type { ContinueItem } from '../../lib/endpoints'
@@ -100,7 +101,7 @@ function ContinueCard({ item, onPlay, isActive, isPending }: CardProps) {
             </span>
           )}
           <span className="cont-play" aria-hidden="true">
-            ▶
+            <Icon name="play" size={23} />
           </span>
           {/* 进度条压在图的下缘：与卡片内容不争空间，又一眼看得出看到哪了 */}
           <span className="cont-bar" aria-hidden="true">

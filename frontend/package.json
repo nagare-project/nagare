@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.32",
+    "embla-carousel-autoplay": "8.6.0",
+    "embla-carousel-react": "8.6.0",
     "motion": "^13.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

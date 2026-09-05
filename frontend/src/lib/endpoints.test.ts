@@ -18,6 +18,7 @@ import {
   updateRulesConfig,
 } from './endpoints'
 import { TOKEN_STORAGE_KEY } from './token'
+import { installLocalStorage } from '../test/storage'
 
 interface Captured {
   url: string
@@ -46,6 +47,7 @@ function stubFetch(data: unknown = {}): { calls: Captured[] } {
 }
 
 beforeEach(() => {
+  installLocalStorage()
   window.sessionStorage.setItem(TOKEN_STORAGE_KEY, '9f86d081884c7d659a2feaa0c55ad015')
 })
 

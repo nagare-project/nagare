@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/catalog"
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/mpv"
@@ -44,6 +45,7 @@ type Deps struct {
 	Lib            *LibraryService
 	Player         PlayerAPI
 	Auth           AnimegoAuth
+	Lists          *animego.Client
 	AnimegoBaseURL string
 	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
 	Version        string
@@ -61,13 +63,17 @@ type Deps struct {
 }
 
 // Handler 汇集全部业务端点。
-type Handler struct{ deps Deps }
+type Handler struct {
+	deps    Deps
+	catalog *catalog.Client
+}
 
 // New 构造 Handler。
-func New(deps Deps) *Handler { return &Handler{deps: deps} }
+func New(deps Deps) *Handler { return &Handler{deps: deps, catalog: catalog.New("", nil)} }
 
 // Register 把业务路由注册进 /api/* 的鉴权链（httpserver.Options.RegisterAPI 的挂载点）。
 func (h *Handler) Register(mux *http.ServeMux) {
+	h.registerCatalog(mux)
 	mux.HandleFunc("GET /api/library", h.getLibrary)
 	mux.HandleFunc("POST /api/library/folders", h.addFolder)
 	mux.HandleFunc("DELETE /api/library/folders/{id}", h.removeFolder)
