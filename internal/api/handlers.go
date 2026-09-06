@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/nagare-project/nagare/internal/animego"
-	"github.com/nagare-project/nagare/internal/catalog"
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/mpv"
@@ -45,7 +44,9 @@ type Deps struct {
 	Lib            *LibraryService
 	Player         PlayerAPI
 	Auth           AnimegoAuth
-	Lists          *animego.Client
+	Lists          ListsBackend
+	Catalog        CatalogReader
+	RemoteArt      *RemoteArt
 	AnimegoBaseURL string
 	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
 	Version        string
@@ -64,12 +65,21 @@ type Deps struct {
 
 // Handler 汇集全部业务端点。
 type Handler struct {
-	deps    Deps
-	catalog *catalog.Client
+	deps      Deps
+	catalog   *DiscoverService
+	lists     *ListsService
+	remoteArt *RemoteArt
 }
 
 // New 构造 Handler。
-func New(deps Deps) *Handler { return &Handler{deps: deps, catalog: catalog.New("", nil)} }
+func New(deps Deps) *Handler {
+	art := deps.RemoteArt
+	if art == nil {
+		art = NewRemoteArt(deps.AnimegoBaseURL, 4096)
+	}
+	catalog := NewDiscoverService(deps.Catalog, art)
+	return &Handler{deps: deps, catalog: catalog, lists: NewListsService(deps.Lists, catalog), remoteArt: art}
+}
 
 // Register 把业务路由注册进 /api/* 的鉴权链（httpserver.Options.RegisterAPI 的挂载点）。
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -118,6 +128,11 @@ func decodeBody(w http.ResponseWriter, r *http.Request, out any) bool {
 
 // writeErr 把分类错误映射成 HTTP 状态码 + 用户可读中文。
 func writeErr(w http.ResponseWriter, err error) {
+	// 浏览器切页、刷新或关闭弹窗会主动取消在途读取。这是正常生命周期，
+	// 连接已经断开，不再写 500，也不把日志刷成“内部错误”。
+	if errors.Is(err, context.Canceled) {
+		return
+	}
 	var ce *errs.E
 	if errors.As(err, &ce) {
 		status := http.StatusInternalServerError
@@ -136,6 +151,23 @@ func writeErr(w http.ResponseWriter, err error) {
 			status = http.StatusInternalServerError
 		}
 		httpserver.WriteError(w, status, ce.UserFacing())
+		return
+	}
+	var partial *animego.ListEditError
+	if errors.As(err, &partial) {
+		status := http.StatusBadGateway
+		var cause *animego.Error
+		if errors.As(partial, &cause) {
+			switch cause.Kind {
+			case animego.ErrRateLimited:
+				status = 429
+			case animego.ErrAuthExpired:
+				status = 401
+			case animego.ErrBadRequest:
+				status = 400
+			}
+		}
+		httpserver.WriteError(w, status, partial.Error())
 		return
 	}
 	var ae *animego.Error
@@ -267,6 +299,8 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
+	h.lists.Invalidate()
+	defer h.lists.Invalidate()
 	user, err := h.deps.Auth.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		writeErr(w, err)
@@ -284,6 +318,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
+	h.lists.Invalidate()
 	h.deps.Auth.RestoreSession(animego.Session{})
 	if err := h.deps.Store.SetAnimegoSession(store.AnimegoSession{}); err != nil {
 		log.Printf("api: 清除 animego 会话失败：%v", err)

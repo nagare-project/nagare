@@ -1,5 +1,5 @@
 {
 		"resources": [
-			{"id": 1, "title": "[SubsPlease] Show", "magnet": "magnet:?xt=abc", "size": 100, "createdAt": "t", "fansub": {"name": ""}}
+			{"id": 1, "title": "[SubsPlease] Show", "magnet": "magnet:?xt=abc", "size": 100000, "createdAt": "t", "fansub": {"name": ""}}
 		]
 	}

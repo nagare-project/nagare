@@ -5,7 +5,7 @@
 				"provider": "dmhy",
 				"title": "[SubsPlease] Show - 01",
 				"magnet": "magnet:?xt=urn:btih:abc",
-				"size": 3460300,
+				"size": 3460300000,
 				"createdAt": "2026-01-01T00:00:00Z",
 				"fansub": {"name": "SubsPlease"}
 			},
@@ -14,7 +14,7 @@
 				"provider": "moe",
 				"title": "[喵萌奶茶屋] Other Show - 02",
 				"magnet": "magnet:?xt=urn:btih:def",
-				"size": 40448,
+				"size": 40448000,
 				"createdAt": "2026-01-02T00:00:00Z",
 				"fansub": null
 			}

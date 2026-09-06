@@ -1,5 +1,5 @@
 import { FAKE_LISTS, FAKE_SHOWS } from './library'
-import type { ScheduleEpisode, ScheduleEvent, ScheduleStatus } from '../../components/schedule/types'
+import type { ScheduleEpisode, ScheduleEvent } from '../../components/schedule/types'
 
 /** FIXME(G3)：放送日期、缺集和即将播出均为演示，不读取或修改用户媒体库。 */
 export function fakeSchedule(now = new Date()) {
@@ -11,14 +11,14 @@ export function fakeSchedule(now = new Date()) {
   const events: ScheduleEvent[] = []
   for (const [index, day, hour] of plan) {
     const media = FAKE_SHOWS[index]!
-    const status = (Object.keys(FAKE_LISTS) as ScheduleStatus[]).find(s => FAKE_LISTS[s]?.some(m => m.id === media.id)) ?? 'planning'
+    const status = (Object.keys(FAKE_LISTS) as (keyof typeof FAKE_LISTS)[]).find(s => FAKE_LISTS[s]?.some(m => m.id === media.id)) ?? 'planning'
     for (let week = 0; week < 11; week++) {
       const date = new Date(start)
       date.setDate(start.getDate() + week * 7 + day)
       date.setHours(hour, index % 2 ? 30 : 0, 0, 0)
       const episode = Math.max(1, Math.min(media.watched - 1, (media.episodes ?? 24) - 10)) + week
       if (media.episodes !== null && episode > media.episodes) continue
-      events.push({ id: `${media.id}-${episode}`, media, episode, airingAt: date.toISOString(), status,
+      events.push({ id: `${media.id}-${episode}`, media, episode, airingAt: date.toISOString(), status: status === 'paused' ? 'dropped' : status,
         watched: episode <= media.watched, finale: episode === media.episodes })
     }
   }

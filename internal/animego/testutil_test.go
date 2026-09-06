@@ -78,7 +78,7 @@ func (rec *recorder) filter(pathPrefix string) []recorded {
 func newTestClient(t *testing.T, rec *recorder, h http.HandlerFunc) *animego.Client {
 	t.Helper()
 	url := newRecordingServer(t, rec, h)
-	return animego.New(animego.Options{BaseURL: url, UserAgent: "nagare/test"})
+	return animego.New(animego.Options{ListRequestInterval: -1, BaseURL: url, UserAgent: "nagare/test"})
 }
 
 // newRecordingServer 与 newTestClient 相同，但返回服务器 URL 而非客户端 ——

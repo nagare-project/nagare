@@ -5,7 +5,7 @@ import { mount } from '../../test/harness'
 import { fetchLibrary, playFile } from '../../lib/endpoints'
 import { MediaPreview } from './MediaPreview'
 
-vi.mock('../../lib/catalog', async importOriginal => ({ ...await importOriginal<typeof import('../../lib/catalog')>(), fetchMedia: vi.fn(async () => media) }))
+vi.mock('../../lib/media', async importOriginal => ({ ...await importOriginal<typeof import('../../lib/media')>(), fetchMedia: vi.fn(async () => media) }))
 vi.mock('../../lib/endpoints', () => ({ fetchLibrary: vi.fn(), playFile: vi.fn() }))
 const media = { id: 1, title: '作品', watched: 0, episodes: 12, genres: ['奇幻'], trailerId: 'dQw4w9WgXcQ' }
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal')

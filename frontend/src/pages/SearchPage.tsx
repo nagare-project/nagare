@@ -3,8 +3,7 @@ import { Link, useNavigate, useSearch as useRouteSearch } from '@tanstack/react-
 import { SearchBody } from '../components/search/SearchBody'
 import { SearchForm } from '../components/search/SearchForm'
 import type { PlayControl } from '../components/search/ResultRow'
-import { EpisodePicker } from '../components/torrent/EpisodePicker'
-import { TorrentStatusBar } from '../components/torrent/TorrentStatusBar'
+import { useTorrentPlayback } from '../components/torrent/TorrentPlayContext'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useMagnetSearch } from '../hooks/useMagnetSearch'
 import type { SearchState } from '../hooks/useMagnetSearch'
@@ -12,7 +11,6 @@ import { useSettings } from '../hooks/useSettings'
 import type { SettingsState } from '../hooks/useSettings'
 import { useSources } from '../hooks/useSources'
 import type { SourcesState } from '../hooks/useSources'
-import { useTorrentPlay } from '../hooks/useTorrentPlay'
 import type { TorrentPlayState } from '../hooks/useTorrentPlay'
 import type { SearchItem, SourceOutcome } from '../lib/endpoints'
 import { errorText } from '../lib/format'
@@ -24,9 +22,6 @@ interface Notice {
   tone: 'dim' | 'ok' | 'err'
   text: string
 }
-
-/** 停止失败时的提示：后端可能还留着种子，给出用户能做的下一步 */
-const STOP_FAILED_SUFFIX = '（后端可能还留着这个种子，可到设置页清空磁力缓存）'
 
 /**
  * `/search?q=` 磁力搜索页（M2 搜索 + M3 边下边播）。
@@ -47,7 +42,7 @@ export function SearchPage() {
   const search = useMagnetSearch(query)
   // 设置只为读 torrent.enabled：引擎起不来时播放按钮要禁用并说明原因
   const settings = useSettings()
-  const torrent = useTorrentPlay()
+  const torrent = useTorrentPlayback()
   const [notice, setNotice] = useState<Notice | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
@@ -76,7 +71,7 @@ export function SearchPage() {
   function handlePlay(item: SearchItem, trigger: HTMLButtonElement): void {
     setNotice(null)
     playTriggerRef.current = trigger
-    torrent.play(item.magnet, item.title)
+    torrent.play({ magnet: item.magnet, title: item.title }, item.title, restoreFocusAfterPicker)
   }
 
   /**
@@ -95,22 +90,10 @@ export function SearchPage() {
     searchInputRef.current?.focus()
   }, [])
 
-  /** 取消 / 停止 / 放弃选集：界面已经回到空闲，停止失败只能靠这行提示让用户知道 */
-  async function handleCancelTorrent(): Promise<void> {
-    try {
-      await torrent.cancel()
-    } catch (err) {
-      console.error('停止磁力播放失败', err)
-      setNotice({ tone: 'err', text: `${errorText(err, '停止失败')}${STOP_FAILED_SUFFIX}` })
-    }
-  }
-
   if (sources.state.phase === 'unauthorized' || search.state.phase === 'unauthorized') {
     return <UnauthorizedNotice />
   }
 
-  // 失败态的状态条同样占着底部，留白按「条是否可见」算，不按 busy 算
-  const hasBar = torrent.state.phase !== 'idle'
   const play: PlayControl = {
     onPlay: handlePlay,
     busy: busyMagnet(torrent.state),
@@ -119,9 +102,7 @@ export function SearchPage() {
   const statusLine = notice ?? pickStatusLine(query, search.state, sources.state)
 
   return (
-    <main
-      className={hasBar ? 'search-shell search-shell--with-bar' : 'search-shell'}
-    >
+    <main className="search-shell">
       <header className="page-head">
         <h1 className="page-title">搜索</h1>
       </header>
@@ -166,23 +147,6 @@ export function SearchPage() {
         play={play}
       />
 
-      <TorrentStatusBar
-        state={torrent.state}
-        status={torrent.status}
-        zeroPeerSeconds={torrent.zeroPeerSeconds}
-        onCancel={() => void handleCancelTorrent()}
-        onRetry={torrent.retry}
-      />
-
-      {torrent.state.phase === 'selecting' && (
-        <EpisodePicker
-          title={torrent.state.title}
-          files={torrent.state.files}
-          onSelect={torrent.selectFile}
-          onCancel={() => void handleCancelTorrent()}
-          restoreFocus={restoreFocusAfterPicker}
-        />
-      )}
     </main>
   )
 }

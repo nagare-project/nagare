@@ -49,7 +49,7 @@ export function ScheduleEpisodeStrip({ title, items, missing = false, now }: { t
   return <section className="schedule-strip" aria-label={title} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}>
     <header className="schedule-section-heading"><div><h2>{missing && <Icon name="lists" size={28} />}{title}</h2>
-      {!missing && <p>根据演示追番列表</p>}</div>
+      {!missing && <p>按本机时区显示近期放送安排</p>}</div>
       {positions.length > 1 && <div className="schedule-strip-dots" aria-label={`${title}翻页`}>
         {positions.map((left, i) => <button type="button" key={left} className={active === i ? 'schedule-strip-dot schedule-strip-dot--on' : 'schedule-strip-dot'} aria-label={`${title}第 ${i + 1} 页`} aria-pressed={active === i}
           onClick={() => row.current?.scrollTo({ left, behavior: reduced ? 'instant' : 'smooth' })} />)}

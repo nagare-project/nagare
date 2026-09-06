@@ -74,6 +74,12 @@ func (f *fakeAuth) RestoreSession(s animego.Session) { f.session = s; f.loggedIn
 func (f *fakeAuth) Session() animego.Session         { return f.session }
 func (f *fakeAuth) LoggedIn() bool                   { return f.loggedIn }
 
+func TestWriteErrIgnoresClientCancellation(t *testing.T) {
+	w := httptest.NewRecorder()
+	writeErr(w, context.Canceled)
+	require.Empty(t, w.Body.String())
+}
+
 type testEnv struct {
 	mux     *http.ServeMux
 	store   *store.Store

@@ -47,5 +47,7 @@ export interface MediaSummary {
   relations?: { type: string; media: MediaSummary }[]
   recommendations?: MediaSummary[]
   characters?: { name: string; image: string; role: string; actor?: string; actorImage?: string }[]
+  /** animego 已知的逐集标题；缺项不代表该集不存在。 */
+  episodeTitles?: { episode: number; title: string }[]
   rankings?: { rank: number; type: string; context: string; year: number; season: string }[]
 }

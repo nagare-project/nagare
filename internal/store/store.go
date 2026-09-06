@@ -64,13 +64,12 @@ type RulesConfig struct {
 
 // Data 是落盘的全部状态。
 type Data struct {
-	Folders   []Folder            `json:"folders"`
-	Hashes    map[string]string   `json:"hashes"`   // fileID → 16MB MD5（懒算缓存）
-	Bindings  map[string]Binding  `json:"bindings"` // fileID → 匹配
-	Progress  map[string]Progress `json:"progress"` // fileID → 进度
-	Animego   AnimegoSession      `json:"animego"`
-	Rules     RulesConfig         `json:"rules"`
-	ListNotes map[string]ListNote `json:"listNotes,omitempty"`
+	Folders  []Folder            `json:"folders"`
+	Hashes   map[string]string   `json:"hashes"`   // fileID → 16MB MD5（懒算缓存）
+	Bindings map[string]Binding  `json:"bindings"` // fileID → 匹配
+	Progress map[string]Progress `json:"progress"` // fileID → 进度
+	Animego  AnimegoSession      `json:"animego"`
+	Rules    RulesConfig         `json:"rules"`
 	// Torrent 存指针：nil = 从未配置过，读取时回落到 DefaultTorrentConfig。
 	Torrent *TorrentConfig `json:"torrent,omitempty"`
 }

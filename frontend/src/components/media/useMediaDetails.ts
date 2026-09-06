@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchMedia } from '../../lib/catalog'
+import { fetchMedia } from '../../lib/media'
 import { errorText } from '../../lib/format'
 import type { MediaSummary } from './types'
 

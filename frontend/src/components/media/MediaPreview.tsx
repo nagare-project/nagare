@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Icon } from '../ui/Icon'
 import { MediaArtwork } from './MediaArtwork'
 import { MediaPlayButton } from './MediaPlayButton'
+import { MediaTorrentButton } from './MediaTorrentButton'
 import type { MediaSummary } from './types'
 import { MediaDetails, MediaRelations, MediaExternalLinks } from './MediaDetails'
 import { useMediaDetails } from './useMediaDetails'
@@ -32,6 +33,7 @@ export function MediaPreview({ media: initialMedia, children, className = 'btn',
         <div className="media-preview-actions">
           <MediaExternalLinks media={media} preview />
           <MediaPlayButton media={media} onOpenChange={() => {}} />
+          <MediaTorrentButton media={media} onOpenChange={() => {}} />
           {media.trailerId && /^[\w-]{11}$/.test(media.trailerId) && <TrailerPreview media={media} />}
         </div>
         {detail.loading && <p className="result" role="status">正在读取作品详情…</p>}

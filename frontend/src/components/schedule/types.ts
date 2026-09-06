@@ -1,7 +1,7 @@
 import type { MediaSummary } from '../media/types'
 
 /** 日历展示契约；由真实接口或演示数据适配，组件不依赖 fixture。 */
-export type ScheduleStatus = 'watching' | 'planning' | 'completed' | 'paused'
+export type ScheduleStatus = 'watching' | 'planning' | 'completed' | 'dropped' | 'untracked'
 export interface ScheduleEvent {
   id: string
   media: MediaSummary

@@ -458,7 +458,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		log.Printf("封面缓存不可用（界面将不显示封面）：%v", err)
 	} else {
 		apiHandler.SetCatalogArtPrefix("/art/" + srv.ArtCapability())
-		srv.SetArtHandler(api.NewArtHandler(svc.store, art, apiHandler.CatalogImageSource))
+		srv.SetArtHandler(api.NewArtHandler(svc.store, art, apiHandler.RemoteArtwork()))
 		svc.lib.SetArtPrefix("/art/" + srv.ArtCapability())
 	}
 
@@ -530,6 +530,8 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc) (
 		Player:          svc.player,
 		Auth:            svc.auth,
 		Lists:           svc.lists,
+		Catalog:         svc.lists,
+		RemoteArt:       api.NewRemoteArt(animego.DefaultBaseURL, 4096),
 		AnimegoBaseURL:  animego.DefaultBaseURL,
 		MPV:             svc.mpv,
 		Version:         version,

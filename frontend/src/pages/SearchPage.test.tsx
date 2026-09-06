@@ -395,7 +395,7 @@ describe('SearchPage（结果与交互）', () => {
     })
     await act(async () => {})
 
-    const status = container.querySelector('.search-status')?.textContent ?? ''
+    const status = container.querySelector('.torrent-global-error')?.textContent ?? ''
     expect(status).toContain('后端没有响应')
     expect(status).toContain('清空磁力缓存')
 

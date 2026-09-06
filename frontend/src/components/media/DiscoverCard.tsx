@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { MediaEntryLink } from './MediaEntryLink'
 import { MediaListEditor } from './MediaListEditor'
 import { useCollection } from './CollectionContext'
-import { COLLECTION_LABELS, entryStatus } from '../../lib/catalog'
+import { COLLECTION_LABELS, entryStatus } from '../../lib/media'
 import { Icon } from '../ui/Icon'
 import { MediaArtwork } from './MediaArtwork'
 import { MediaPreview } from './MediaPreview'
 import { MediaPlayButton } from './MediaPlayButton'
+import { MediaTorrentButton } from './MediaTorrentButton'
+import { useMediaTrailer } from './useMediaTrailer'
 import { DiscoverTrailer } from './DiscoverTrailer'
 import { useDesktopLayout } from './useDesktopLayout'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
@@ -38,6 +40,7 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
   const desktop = useDesktopLayout()
   const reduced = useReducedMotionPreference()
   const open = desktop && (hovered || focused || previewOpen)
+  const trailerId = useMediaTrailer(media, showTrailer && open && !previewOpen && !reduced)
   const subtitle = media.titleEnglish?.toLowerCase() !== media.title.toLowerCase() ? media.titleEnglish : undefined
   const progress = media.episodes && media.watched ? Math.min(100, media.watched / media.episodes * 100) : 0
   const completed = media.episodes !== null && media.watched >= media.episodes
@@ -69,7 +72,7 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
         <div>
           <MediaEntryLink id={media.id} className="discover-card-banner" aria-label={`打开作品 ${media.title}`}>
             <MediaArtwork src={media.banner ?? media.cover} title={media.title} />
-            <DiscoverTrailer videoId={media.trailerId} title={media.title} active={open && hovered && showTrailer && !reduced && !previewOpen} variant="card" />
+            <DiscoverTrailer videoId={trailerId} title={media.title} active={open && hovered && showTrailer && !reduced && !previewOpen} variant="card" />
             <span className="discover-card-banner-gradient" />
             {progress > 0 && !completed && <span className="discover-card-progress"><span style={{ width: `${progress}%` }} /></span>}
             {media.watched > 0 && <span className="discover-card-count">{media.watched} / {media.episodes ?? '—'}</span>}
@@ -78,7 +81,10 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
           <h3 className="discover-card-popup-title"><MediaEntryLink id={media.id} className="discover-card-title-link">{media.title}</MediaEntryLink></h3>
           {subtitle && <p className="discover-card-native">{subtitle}</p>}
           <p className="discover-card-year"><Icon name="calendar" size={14} />{media.season} {media.year}{media.format && media.format !== 'TV' ? ` - ${media.format}` : ''}</p>
-          <MediaPlayButton media={media} onOpenChange={setPreviewOpen} />
+          <div className="discover-card-play-row">
+            <MediaPlayButton media={media} onOpenChange={setPreviewOpen} />
+            <MediaTorrentButton media={media} onOpenChange={setPreviewOpen} />
+          </div>
           {media.nextAiring && <p className="discover-card-next">第 {media.nextAiring.episode} 集 {airingDistance(media.nextAiring.at)}播出</p>}
           {entry && entryStatus(entry) !== 'watching' && <p className="discover-card-status">{COLLECTION_LABELS[entryStatus(entry)]}</p>}
         </div>

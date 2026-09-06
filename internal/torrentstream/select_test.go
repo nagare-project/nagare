@@ -195,3 +195,15 @@ func TestSelectFileSortsSameEpisodeByFileName(t *testing.T) {
 	assert.Equal(t, 1, got.Files[0].Index)
 	assert.Equal(t, 0, got.Files[1].Index)
 }
+
+func TestSingleVideoMustRespectRequestedEpisode(t *testing.T) {
+	for _, filename := range []string{shikanoko05, "Unknown Video.mkv"} {
+		got, err := selectFile(entries(filename), req(7, -1, ""))
+		require.NoError(t, err)
+		require.True(t, got.Need, "不能因只有一个文件而忽略目标集号")
+		require.Len(t, got.Files, 1)
+		chosen, err := selectFile(entries(filename), req(7, 0, ""))
+		require.NoError(t, err)
+		require.False(t, chosen.Need)
+	}
+}

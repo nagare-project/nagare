@@ -41,8 +41,8 @@ export interface UseTorrentPlayResult {
   zeroPeerSeconds: number
   /** 是否有一次磁力播放流程占着后端 —— 其余结果行的播放按钮据此禁用 */
   busy: boolean
-  /** 发起播放；title 只用于界面展示与后端选集提示 */
-  play: (magnet: string, title: string) => void
+  /** 发起播放；媒体入口可把目标集数随完整请求带进来。 */
+  play: (request: TorrentPlayRequest | string, title: string) => void
   /** 用户在选集弹窗里选定文件后，带 fileIndex 重发 */
   selectFile: (fileIndex: number) => void
   /** 失败后重试同一条磁力 */
@@ -92,6 +92,9 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
   }, [state])
 
   const abortRef = useRef<AbortController | null>(null)
+  // 选集与重试必须复用最初的完整请求。只把 magnet/title 放在可见状态里会在
+  // 第二次 POST 时丢掉媒体入口传来的 episodeHint，最终可能选中合集里的错误文件。
+  const requestRef = useRef<TorrentPlayRequest | null>(null)
   const inFlightRef = useRef(false)
   // 会话代次。每次发起播放或取消都 +1，轮询据此丢弃属于旧会话的响应。
   // 没有它会出这样的 bug：取消 A 后立刻播 B，A 那次在途的轮询回来时带着
@@ -131,6 +134,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
         setState({ phase: 'idle' })
         setStatus(null)
         setZeroPeerTicks(0)
+        requestRef.current = null
       }
     } catch (err) {
       if (gen !== genRef.current) return
@@ -159,6 +163,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
     newGeneration()
     const controller = new AbortController()
     abortRef.current = controller
+    requestRef.current = request
 
     setState({ phase: 'starting', magnet: request.magnet, title })
     setStatus(null)
@@ -195,8 +200,8 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
   }, [newGeneration])
 
   const play = useCallback(
-    (magnet: string, title: string) => {
-      run({ magnet, title }, title)
+    (request: TorrentPlayRequest | string, title: string) => {
+      run(typeof request === 'string' ? { magnet: request, title } : request, title)
     },
     [run],
   )
@@ -205,7 +210,9 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
     (fileIndex: number) => {
       const current = stateRef.current
       if (current.phase !== 'selecting') return
-      run({ magnet: current.magnet, title: current.title, fileIndex }, current.title)
+      const request = requestRef.current
+      if (request === null) return
+      run({ ...request, fileIndex }, current.title)
     },
     [run],
   )
@@ -213,7 +220,8 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
   const retry = useCallback(() => {
     const current = stateRef.current
     if (current.phase !== 'error') return
-    run({ magnet: current.magnet, title: current.title }, current.title)
+    const request = requestRef.current
+    if (request !== null) run(request, current.title)
   }, [run])
 
   const cancel = useCallback(async () => {
@@ -224,6 +232,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
     setState({ phase: 'idle' })
     setStatus(null)
     setZeroPeerTicks(0)
+    requestRef.current = null
     if (!wasBusy) return
     // 即使 play 是失败结束的也要 stop：后端可能已经把种子加进来了（缓冲超时那条路径）
     await depsRef.current.stop()

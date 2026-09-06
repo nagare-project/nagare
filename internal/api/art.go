@@ -19,18 +19,14 @@ import (
 // 客户端给的是 fileId，不是图片地址 —— 真实地址从本机 store 的匹配结果里查。
 // 这条设计是有意的：它让「让 nagare 去请求任意 URL」这个入口在客户端侧根本不存在。
 type ArtHandler struct {
-	st            *store.Store
-	cache         *artcache.Cache
-	catalogSource func(string) (string, bool)
+	st     *store.Store
+	cache  *artcache.Cache
+	remote RemoteArtSource
 }
 
 // NewArtHandler 构造封面处理器。
-func NewArtHandler(st *store.Store, cache *artcache.Cache, catalogSource ...func(string) (string, bool)) *ArtHandler {
-	h := &ArtHandler{st: st, cache: cache}
-	if len(catalogSource) > 0 {
-		h.catalogSource = catalogSource[0]
-	}
-	return h
+func NewArtHandler(st *store.Store, cache *artcache.Cache, remote RemoteArtSource) *ArtHandler {
+	return &ArtHandler{st: st, cache: cache, remote: remote}
 }
 
 func (h *ArtHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -39,17 +35,24 @@ func (h *ArtHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	b, ok := h.st.Binding(fileID)
-	if strings.HasPrefix(fileID, "catalog/") && h.catalogSource != nil {
-		b.CoverURL, ok = h.catalogSource(strings.TrimPrefix(fileID, "catalog/"))
+	var source string
+	var ok bool
+	if strings.HasPrefix(fileID, "remote/") {
+		if h.remote != nil {
+			source, ok = h.remote.Source(strings.TrimPrefix(fileID, "remote/"))
+		}
+	} else {
+		b, found := h.st.Binding(fileID)
+		source, ok = b.CoverURL, found
 	}
-	if !ok || b.CoverURL == "" {
+
+	if !ok || source == "" {
 		// 没匹配过、或匹配结果里没有图 —— 都是常态，界面走无图版式。
 		http.NotFound(w, r)
 		return
 	}
 
-	path, err := h.cache.Get(r.Context(), b.CoverURL)
+	path, err := h.cache.Get(r.Context(), source)
 	if err != nil {
 		// 不记录 URL：请求 URL 与上游地址都不进日志（见 middleware.go 的约束），
 		// 这里只说哪个 fileId 失败了。

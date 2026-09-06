@@ -653,3 +653,28 @@ export function clearTorrentCache(): Promise<{ cacheBytes: number }> {
 export function updateTorrentConfig(patch: TorrentConfigPatch): Promise<TorrentConfigData> {
   return requestJson<TorrentConfigData>('/api/torrent/config', 'POST', patch)
 }
+
+// ---------- 目录 · 收藏 · 放送（M6） ----------
+/** API 数据通过 lib/media.ts 适配，组件继续持有自己的契约。 */
+export interface SummaryMediaData {
+  anilistId: number; title: string; titleNative?: string; titleEnglish?: string
+  cover?: string; banner?: string; trailerId?: string; year?: number; season?: string
+  episodes: number | null; score?: number; genres: string[]; description?: string
+  status?: string; format?: string; duration?: number; source?: string; startDate?: string; studios?: string[]
+  nextAiring?: { episode: number; at: number }; recentAiring?: { episode: number; at: number }
+  relations?: { type: string; media: SummaryMediaData }[]; recommendations?: SummaryMediaData[]
+  characters?: { name: string; image: string; role: string; actor?: string; actorImage?: string }[]
+  episodeTitles?: { episode: number; title: string }[]
+}
+export interface DiscoverData { sections: { key: string; title: string; items: SummaryMediaData[]; error?: string }[]; fetchedAt: number }
+export type CollectionStatus = 'watching' | 'plan_to_watch' | 'completed' | 'dropped'
+export interface CollectionEntry { anilistId: number; status: CollectionStatus; currentEpisode: number; score: number | null; media: SummaryMediaData; lastWatchedAt?: number }
+export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] }
+export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
+export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; format?: string; inLibrary: boolean }[]; fetchedAt: number }
+export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
+export const fetchMediaData = (id: number, signal?: AbortSignal) => apiFetch<SummaryMediaData>(`/api/anime/${id}`, { signal })
+export const fetchCollection = () => apiFetch<CollectionData>('/api/lists')
+export const saveCollection = (id: number, data: CollectionEdit) => apiFetch<CollectionEntry>(`/api/lists/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: data.status, currentEpisode: data.progress, score: data.score }) })
+export const deleteCollection = (id: number) => apiFetch(`/api/lists/${id}`, { method: 'DELETE' })
+export const fetchSchedule = (signal?: AbortSignal) => apiFetch<ScheduleData>('/api/schedule', { signal })

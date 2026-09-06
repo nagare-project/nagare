@@ -9,6 +9,7 @@ import { DiscoverTrailer } from './DiscoverTrailer'
 import { useDiscoverCarousel } from './useDiscoverCarousel'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 import { useDesktopLayout } from './useDesktopLayout'
+import { useMediaTrailer } from './useMediaTrailer'
 import type { MediaSummary } from './types'
 
 /** 参照 seanime：12 秒轮播、900ms 退场、封面缩放与分层文字入场。 */
@@ -22,6 +23,7 @@ export function DiscoverHero({ items, showMetadata = true }: { items: MediaSumma
   const reduced = useReducedMotionPreference()
   const { activeIndex, selectedIndex, transitioning, select } = useDiscoverCarousel(Math.min(items.length, 12), paused || hovered || focused || previewOpen || !desktop || !showMetadata, reduced)
 
+  const trailerId = useMediaTrailer(items[activeIndex], desktop && showMetadata && hovered && !previewOpen && !transitioning && !reduced)
   if (!items.length) return null
   const media = items[activeIndex]!
   return (
@@ -33,7 +35,7 @@ export function DiscoverHero({ items, showMetadata = true }: { items: MediaSumma
       onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
       <div className="hero-bg" aria-hidden="true">
         <MediaArtwork src={media.banner ?? media.cover} title={media.title} eager />
-        <DiscoverTrailer key={media.id} videoId={media.trailerId} title={media.title}
+        <DiscoverTrailer key={media.id} videoId={trailerId} title={media.title}
           active={desktop && showMetadata && hovered && !previewOpen && !transitioning && !reduced} />
         <div className="hero-transition-shade" />
         <div className="hero-gradient-top" /><div className="hero-gradient-left" /><div className="hero-gradient-rail" /><div className="hero-gradient-bottom" />
