@@ -1,0 +1,11 @@
+.source-plugin-form { display: grid; gap: 14px; }
+.source-plugin-toggle { display: flex; align-items: start; gap: 12px; }
+.source-plugin-toggle > span:last-child { display: grid; gap: 4px; }
+.source-plugin-toggle strong { font-size: 14px; }
+.source-plugin-toggle small, .source-plugin-note { color: var(--fg-muted); font-size: 12px; line-height: 1.55; }
+.source-plugin-sources { display: grid; gap: 10px; padding-top: 4px; }
+.source-plugin-sources h3 { font-size: 13px; color: var(--fg-muted); }
+.source-plugin-sources ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.source-plugin-sources li { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border: 1px solid var(--border-dim); border-radius: var(--radius-sm); background: var(--sunken); }
+.source-plugin-sources li > span:first-child { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.source-plugin-sources li small { overflow-wrap: anywhere; color: var(--fg-muted); }

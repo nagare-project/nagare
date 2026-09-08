@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { DiscoverCard } from '../components/media/DiscoverCard'
 import { useCollection } from '../components/media/CollectionContext'
-import { collectionMedia, COLLECTION_LABELS, entryStatus } from '../lib/catalog'
-import type { CollectionStatus } from '../lib/catalog'
+import { collectionMedia, COLLECTION_LABELS, entryStatus } from '../lib/media'
+import type { CollectionStatus } from '../lib/media'
 import { Result, Tab, TabCount, Tabs } from '../components/ui'
 import '../components/library/library.css'
 import '../components/media/media.css'
 import '../components/media/discover.css'
 
-const ORDER: readonly CollectionStatus[] = ['watching', 'plan_to_watch', 'completed', 'paused', 'dropped']
+const ORDER: readonly CollectionStatus[] = ['watching', 'plan_to_watch', 'completed', 'dropped']
 export function ListsPage() {
   const [status, setStatus] = useState<CollectionStatus>('watching')
   const collection = useCollection()

@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
 import { CollectionProvider, useCollection } from './CollectionContext'
 import { MediaListEditor } from './MediaListEditor'
-import { fetchCollection, saveCollection } from '../../lib/catalog'
-import type { CollectionData } from '../../lib/catalog'
+import { fetchCollection, saveCollection } from '../../lib/media'
+import type { CollectionData } from '../../lib/media'
 
-vi.mock('../../lib/catalog', async original => ({ ...await original<typeof import('../../lib/catalog')>(), fetchCollection: vi.fn(), saveCollection: vi.fn(), deleteCollection: vi.fn() }))
+vi.mock('../../lib/media', async original => ({ ...await original<typeof import('../../lib/media')>(), fetchCollection: vi.fn(), saveCollection: vi.fn(), deleteCollection: vi.fn() }))
 const empty: CollectionData = { loggedIn: true, entries: [] }
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal')
 const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close')
@@ -31,7 +31,7 @@ describe('账号收藏', () => {
    expect(container.querySelector<HTMLDialogElement>('dialog')!.open).toBe(true)
    expect(progress.value).toBe('4'); expect(container.textContent).toContain('离线')
    expect(saveCollection).toHaveBeenCalledWith(1, expect.objectContaining({ progress: 4, status: 'plan_to_watch', score: null }))
-   vi.mocked(fetchCollection).mockResolvedValue({ loggedIn: true, entries: [{ anilistId: 1, status: 'plan_to_watch', currentEpisode: 4, score: null, titleRomaji: 'Anime', episodes: 12, paused: false, startedAt: '', completedAt: '', repeat: 0 }] })
+   vi.mocked(fetchCollection).mockResolvedValue({ loggedIn: true, entries: [{ anilistId: 1, status: 'plan_to_watch', currentEpisode: 4, score: null, media: { anilistId: 1, title: 'Anime', episodes: 12, genres: [] } }] })
    await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
    expect(container.querySelector<HTMLDialogElement>('dialog')!.open).toBe(false)
    expect(container.querySelector('[data-collection]')?.textContent).toBe('true:1:4')

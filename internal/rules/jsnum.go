@@ -61,7 +61,7 @@ func formatBytes(raw string) string {
 	}
 }
 
-// formatKb：输入单位已是 KB 的数字串（animes.garden 的 size），阈值比 formatBytes 低 1000 倍。
+// formatKb：输入单位已是 KB 的数字串，阈值比 formatBytes 低 1000 倍。
 func formatKb(raw string) string {
 	n, ok := parseIntJSLike(raw)
 	if !ok || n <= 0 {

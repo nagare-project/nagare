@@ -6,7 +6,7 @@
 //
 // 关于限速：animego 全局限速 1 req/s（突发 60），登录端点另有 10 次/15 分钟。
 // M1 的调用量极小（播放前一次 match + 一次弹幕拉取 + 零星进度写），
-// 因此客户端【不实现】限速器；将来若出现批量调用场景，节流在调用方做。
+// 收藏的逐集撤销现在需要批量调用，由 lists.go 在每次请求前节流。
 // 同理，本包不做自动重试 —— 尤其不能拿登录端点练手。
 //
 // 所有失败以 *Error 返回，调用方用 errors.As 取 Kind 决定降级策略（决议 CQ3）：
@@ -40,6 +40,8 @@ const (
 
 // Options 是 New 的配置。零值可用（指向生产环境）。
 type Options struct {
+	// ListRequestInterval 控制批量收藏调用间隔；零值一秒，测试可设负数禁用。
+	ListRequestInterval time.Duration
 	// BaseURL 形如 https://animegoclub.com；空则用 DefaultBaseURL，末尾斜杠会被剥掉。
 	BaseURL string
 	// HTTPClient 可注入自定义客户端（测试/代理）；空则用 defaultTimeout 的默认值。
@@ -55,7 +57,7 @@ type Options struct {
 	// 播放开始时的 match 会触发 401 刷新，而用户看一半停掉时那条路径不落盘，
 	// 轮换后的 cookie 从没写进磁盘，下次启动拿着已作废的旧 cookie）。
 	//
-	// 回调在锁外同步执行，参数是快照 —— 实现里不要回头调 Session()（会自锁），
+	// 回调在会话锁外串行执行，参数是快照；可读取 Session()，但不能再次变更会话，
 	// 也不要做慢活儿：刷新链路上所有等着的 goroutine 都在它后面排队。
 	OnSessionChange func(Session)
 }
@@ -63,12 +65,17 @@ type Options struct {
 // Client 是 animego API 客户端。并发安全：会话状态由锁保护，可被多 goroutine 共用。
 // token 的持久化由调用方负责（登录/刷新后取 Session() 落 config），这里只管内存态。
 type Client struct {
-	baseURL string
-	hc      *http.Client
-	ua      string
+	sessionGeneration   uint64
+	listRateMu          sync.Mutex
+	nextListRequest     time.Time
+	listRequestInterval time.Duration
+	baseURL             string
+	hc                  *http.Client
+	ua                  string
 
 	// sessionMu 保护 session 的读写（短持有，不跨网络请求）。
 	sessionMu sync.Mutex
+	notifyMu  sync.Mutex
 	session   Session
 
 	// refreshMu 串行化 token 刷新（持有期间会发网络请求）：多个 goroutine
@@ -99,11 +106,16 @@ func New(opts Options) *Client {
 	if ua == "" {
 		ua = defaultUserAgent
 	}
+	interval := opts.ListRequestInterval
+	if interval == 0 {
+		interval = time.Second
+	}
 	return &Client{
-		baseURL:         strings.TrimRight(base, "/"),
-		hc:              hc,
-		ua:              ua,
-		onSessionChange: opts.OnSessionChange,
+		listRequestInterval: interval,
+		baseURL:             strings.TrimRight(base, "/"),
+		hc:                  hc,
+		ua:                  ua,
+		onSessionChange:     opts.OnSessionChange,
 	}
 }
 
@@ -156,7 +168,14 @@ func (c *Client) send(ctx context.Context, op, method, path string, body []byte,
 // 返回的 httpResult 不含 401（都被翻译成刷新动作或 ErrAuthExpired），
 // 其余状态码由调用方用 classifyStatus 分类。
 func (c *Client) authedSend(ctx context.Context, op, method, path string, body []byte) (*httpResult, error) {
+	ctx = c.accountContext(ctx)
+	if err := c.checkAccount(ctx); err != nil {
+		return nil, err
+	}
 	s := c.Session()
+	if err := c.checkAccount(ctx); err != nil {
+		return nil, err
+	}
 	if s.AccessToken == "" && s.RefreshCookie == "" {
 		return nil, &Error{Kind: ErrAuthExpired, Op: op, Err: errors.New("尚未登录")}
 	}
@@ -170,7 +189,13 @@ func (c *Client) authedSend(ctx context.Context, op, method, path string, body [
 		token = t
 	}
 
+	if err := c.checkAccount(ctx); err != nil {
+		return nil, err
+	}
 	res, err := c.send(ctx, op, method, path, body, withBearer(token))
+	if accountErr := c.checkAccount(ctx); accountErr != nil {
+		return nil, accountErr
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +208,13 @@ func (c *Client) authedSend(ctx context.Context, op, method, path string, body [
 	if err != nil {
 		return nil, err
 	}
+	if err := c.checkAccount(ctx); err != nil {
+		return nil, err
+	}
 	res, err = c.send(ctx, op, method, path, body, withBearer(token))
+	if accountErr := c.checkAccount(ctx); accountErr != nil {
+		return nil, accountErr
+	}
 	if err != nil {
 		return nil, err
 	}

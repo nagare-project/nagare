@@ -82,8 +82,11 @@ func (c *Client) Login(ctx context.Context, email, password string) (User, error
 // RestoreSession 恢复此前存盘的会话（比如进程重启后从 config 读回）。
 // 刻意【不】触发 OnSessionChange：这是把盘上的东西读回内存，不是新状态。
 func (c *Client) RestoreSession(s Session) {
+	c.notifyMu.Lock()
+	defer c.notifyMu.Unlock()
 	c.sessionMu.Lock()
 	c.session = s
+	c.sessionGeneration++
 	c.sessionMu.Unlock()
 }
 
@@ -105,6 +108,7 @@ func (c *Client) setSession(s Session) {
 	c.sessionMu.Lock()
 	changed := c.session != s
 	c.session = s
+	c.sessionGeneration++
 	c.sessionMu.Unlock()
 	if changed {
 		c.notifySession(s)
@@ -114,6 +118,12 @@ func (c *Client) setSession(s Session) {
 // notifySession 在【锁外】把新会话交给调用方持久化。
 // 必须锁外：回调若回头调 Session() 就会自锁死（sync.Mutex 不可重入）。
 func (c *Client) notifySession(s Session) {
+	c.notifyMu.Lock()
+	defer c.notifyMu.Unlock()
+	// 旧通知不能在较新的登录或退出之后覆盖磁盘会话。
+	if c.Session() != s {
+		return
+	}
 	if c.onSessionChange != nil {
 		c.onSessionChange(s)
 	}
@@ -127,6 +137,9 @@ func (c *Client) refreshSession(ctx context.Context, op, staleToken string) (str
 	c.refreshMu.Lock()
 	defer c.refreshMu.Unlock()
 
+	if err := c.checkAccount(ctx); err != nil {
+		return "", err
+	}
 	cur := c.Session()
 	if cur.AccessToken != "" && cur.AccessToken != staleToken {
 		return cur.AccessToken, nil
@@ -146,9 +159,20 @@ func (c *Client) doRefresh(ctx context.Context, op, cookie string) (string, erro
 	if err != nil {
 		return "", err
 	}
+	if err := c.checkAccount(ctx); err != nil {
+		return "", err
+	}
 	if res.status == http.StatusUnauthorized {
 		// refresh token 本身已失效：清空会话，让 LoggedIn() 如实反映现状。
-		c.setSession(Session{})
+		c.sessionMu.Lock()
+		if epoch, ok := ctx.Value(accountContextKey{}).(uint64); ok && epoch != c.sessionGeneration {
+			c.sessionMu.Unlock()
+			return "", &Error{Kind: ErrAuthExpired, Op: op, Err: errors.New("账号已变更")}
+		}
+		c.session = Session{}
+		c.sessionGeneration++
+		c.sessionMu.Unlock()
+		c.notifySession(Session{})
 		cause := fmt.Errorf("refresh token 已失效（HTTP 401）")
 		if msg := serverMessage(res.body); msg != "" {
 			cause = fmt.Errorf("refresh token 已失效（HTTP 401: %s）", msg)
@@ -173,6 +197,10 @@ func (c *Client) doRefresh(ctx context.Context, op, cookie string) (string, erro
 	}
 
 	c.sessionMu.Lock()
+	if epoch, ok := ctx.Value(accountContextKey{}).(uint64); ok && epoch != c.sessionGeneration {
+		c.sessionMu.Unlock()
+		return "", &Error{Kind: ErrAuthExpired, Op: op, Err: errors.New("账号已变更")}
+	}
 	c.session.AccessToken = env.Data.AccessToken
 	if rotated := refreshCookieFrom(res.header); rotated != "" {
 		c.session.RefreshCookie = rotated

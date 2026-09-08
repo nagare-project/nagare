@@ -14,7 +14,9 @@ import {
   setSourceEnabled,
   setUpdateEnabled,
   shutdownNagare,
+  streamSourceCandidates,
   syncSources,
+  updateSourcePluginConfig,
   updateRulesConfig,
 } from './endpoints'
 import { TOKEN_STORAGE_KEY } from './token'
@@ -122,6 +124,51 @@ describe('sources 端点', () => {
       method: 'POST',
       body: { remoteUrl: 'https://example.invalid/rules' },
     })
+  })
+})
+
+describe('本地来源插件端点', () => {
+  it('保存配置发送显式开关和两个绝对路径', async () => {
+    const view = { config: { enabled: true, executable: '/opt/nagare-source', root: '/srv/sources' }, status: { phase: 'ready' }, sources: [] }
+    const { calls } = stubFetch(view)
+    await expect(updateSourcePluginConfig(view.config)).resolves.toEqual(view)
+    expect(calls[0]).toEqual({
+      url: '/api/source-plugin/config', method: 'POST', body: view.config,
+    })
+  })
+
+  it('候选流按到达顺序逐条交给界面，并要求 done 收尾', async () => {
+    const candidate = {
+      schema: 'nagare-candidate/v1' as const,
+      id: 'first', sourceId: 'web-a', tier: 1, matchConfidence: 0.98,
+      match: { basis: ['title', 'episode'] },
+      transport: { type: 'hls' as const, url: 'https://secret.invalid/play.m3u8' },
+      metadata: { resolution: '1080p' },
+    }
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(`${JSON.stringify({ event: 'candidate', candidate })}\n{"event":"done",`))
+        controller.enqueue(encoder.encode('"queried":1,"succeeded":1,"failed":0,"durationMs":8}\n'))
+        controller.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(stream, { status: 200, headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } })))
+    const events: string[] = []
+    await streamSourceCandidates({
+      schema: 'nagare-resolve-request/v1', subject: { ids: { anilist: '7' }, titles: ['测试'] }, episode: { number: '2' },
+    }, event => events.push(event.event))
+    expect(events).toEqual(['candidate', 'done'])
+  })
+
+  it('候选流没有 done 时明确报错', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      '{"event":"source_error","sourceId":"a","category":"network","message":"timeout","retryable":true}\n',
+      { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } },
+    )))
+    await expect(streamSourceCandidates({
+      schema: 'nagare-resolve-request/v1', subject: { ids: { anilist: '7' }, titles: ['测试'] }, episode: { number: '2' },
+    }, () => {})).rejects.toThrow('候选流未正常完成')
   })
 })
 

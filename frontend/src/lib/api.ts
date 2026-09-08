@@ -43,19 +43,22 @@ export class ApiError extends Error {
  * - 解析统一信封，成功时直接返回 data；
  * - 401 → 抛 ApiAuthError；其余失败 → 抛 ApiError（保留原始错误作 cause）。
  */
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function authenticatedFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = acquireToken()
   const headers = new Headers(init?.headers)
   if (token !== null) {
     headers.set(TOKEN_HEADER, token)
   }
 
-  let response: Response
   try {
-    response = await fetch(path, { ...init, headers })
+    return await fetch(path, { ...init, headers })
   } catch (cause) {
     throw new ApiError('无法连接到 nagare 后端，请确认本地服务已启动', null, { cause })
   }
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await authenticatedFetch(path, init)
 
   // 401 的判定独立于响应体解析：就算 401 带着空/坏 body（比如未来某个
   // 错误路径漏走了统一信封），也必须进 ApiAuthError 分支给出可行动的提示，
@@ -78,6 +81,27 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError('后端响应缺少 data 载荷', response.status)
   }
   return envelope.data
+}
+
+/**
+ * 需要边到边消费的 API 入口。与 apiFetch 共用鉴权和错误分类，
+ * 成功时保留原始 Response，不预先读取响应体。
+ */
+export async function apiStream(path: string, init?: RequestInit): Promise<Response> {
+  const response = await authenticatedFetch(path, init)
+
+  if (response.status === 401) {
+    const envelope = await parseEnvelope<unknown>(response)
+    throw new ApiAuthError(envelope?.error ?? '缺少有效 token')
+  }
+  if (!response.ok) {
+    const envelope = await parseEnvelope<unknown>(response)
+    throw new ApiError(
+      envelope?.error ?? `请求失败（HTTP ${response.status}）`,
+      response.status,
+    )
+  }
+  return response
 }
 
 /**

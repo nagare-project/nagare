@@ -67,3 +67,13 @@ describe('放送日历交互', () => {
     else Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
   })
 })
+
+it('旧日历偏好迁移后仍展示未收藏的真实放送', async () => {
+ localStorage.setItem('nagare-calendar-preferences', JSON.stringify({ statuses: ['watching', 'planning', 'paused'], weekStartsOn: 0 }))
+ const view = await mount(<ScheduleCalendar now={now} events={[{ ...events[0]!, status: 'untracked' }]} />)
+ expect(view.container.querySelectorAll('.calendar-event')).toHaveLength(1)
+ const saved = JSON.parse(localStorage.getItem('nagare-calendar-preferences')!)
+ expect(saved.statuses).toEqual(['watching', 'planning', 'dropped', 'untracked'])
+ expect(saved.version).toBe(2)
+ await view.unmount()
+})

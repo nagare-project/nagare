@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { deleteCollection, fetchCollection, saveCollection } from '../../lib/catalog'
-import type { CollectionData, CollectionEdit } from '../../lib/catalog'
+import { deleteCollection, fetchCollection, saveCollection } from '../../lib/media'
+import type { CollectionData, CollectionEdit } from '../../lib/media'
 import { errorText } from '../../lib/format'
 
 interface CollectionState extends CollectionData {

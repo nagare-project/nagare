@@ -4,21 +4,25 @@ import { Switch } from '../ui'
 import type { CalendarPreferences, ScheduleStatus } from './types'
 
 const STORAGE_KEY = 'nagare-calendar-preferences'
-export const STATUS_LABELS: Record<ScheduleStatus, string> = { watching: '在看', planning: '想看', completed: '看完', paused: '搁置' }
-const DEFAULTS: CalendarPreferences = { weekStartsOn: 1, statuses: ['watching', 'planning', 'completed', 'paused'], indicateWatched: true, disableTransitions: false }
+export const STATUS_LABELS: Record<ScheduleStatus, string> = { watching: '在看', planning: '想看', completed: '看完', dropped: '弃番', untracked: '未收藏' }
+const DEFAULTS: CalendarPreferences = { weekStartsOn: 1, statuses: ['watching', 'planning', 'completed', 'dropped', 'untracked'], indicateWatched: true, disableTransitions: false }
 
 export function useCalendarPreferences() {
   const [preferences, setPreferences] = useState<CalendarPreferences>(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null')
       if (!saved || typeof saved !== 'object') return DEFAULTS
-      return { weekStartsOn: saved.weekStartsOn === 0 ? 0 : 1,
-        statuses: Array.isArray(saved.statuses) ? saved.statuses.filter((s: string) => Object.hasOwn(STATUS_LABELS, s)) : DEFAULTS.statuses,
+      const statuses: ScheduleStatus[] = Array.isArray(saved.statuses)
+        ? [...new Set<ScheduleStatus>(saved.statuses.map((s: string) => s === 'paused' ? 'dropped' : s).filter((s: string) => Object.hasOwn(STATUS_LABELS, s)))]
+        : DEFAULTS.statuses
+      // 旧演示版没有未收藏状态；迁移后不能把匿名用户的真实日程全部滤掉。
+      if (saved.version !== 2 && statuses.length > 0 && !statuses.includes('untracked')) statuses.push('untracked')
+      return { weekStartsOn: saved.weekStartsOn === 0 ? 0 : 1, statuses,
         indicateWatched: typeof saved.indicateWatched === 'boolean' ? saved.indicateWatched : true,
         disableTransitions: saved.disableTransitions === true }
     } catch { return DEFAULTS }
   })
-  useEffect(() => { try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences)) } catch { /* 禁用存储时仍可在本页使用 */ } }, [preferences])
+  useEffect(() => { try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...preferences, version: 2 })) } catch { /* 禁用存储时仍可在本页使用 */ } }, [preferences])
   return [preferences, setPreferences] as const
 }
 

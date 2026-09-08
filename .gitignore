@@ -49,6 +49,7 @@ scratchpad/
 # docs/ 下其余文件是公开文档（releasing.md / rules-format.md 都被外部引用），
 # 所以这里逐个列，不整目录忽略。
 docs/scan-drops.md
+docs/discover-lists-schedule.md
 
 # 界面缺口清单。同上：里面是内部推演（哪条线不做、为什么），
 # 不是对外说明。代码里的 FIXME(Gn) 编号仍然指得到它 —— 对维护者是活的，

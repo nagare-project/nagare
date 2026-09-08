@@ -17,12 +17,6 @@
   padding: 24px var(--page-gutter) 48px;
 }
 
-/* 底部固定的磁力状态条会盖住页尾，播放流程进行中时给它让出高度
-   （与库页 .lib-shell--with-bar 同一手法；状态条本体样式在 components/torrent/torrent.css） */
-.search-shell--with-bar {
-  padding-bottom: 8.5rem;
-}
-
 /* ---------- 搜索框 ---------- */
 
 .search-form {

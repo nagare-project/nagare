@@ -1,4 +1,4 @@
-import { apiFetch } from './api'
+import { ApiError, apiFetch, apiStream } from './api'
 
 /**
  * 后端契约层。
@@ -144,6 +144,8 @@ export interface DanmakuStatus {
 
 /** POST /api/play 的 data 载荷 */
 export interface PlayData {
+	/** 后端为这次媒体会话生成的稳定标识，用于匹配异步播放失败。 */
+  fileId?: string
   title: string
   danmaku: DanmakuStatus
 }
@@ -175,10 +177,17 @@ export interface PlayingStatus {
   paused: boolean
   danmaku: DanmakuStatus
   sync?: SyncFailure
+  playbackFailure?: PlaybackFailure
 }
 
 /** GET /api/player/status 的 data 载荷（判别联合：以 playing 收窄） */
-export type PlayerStatus = PlayingStatus | { playing: false; sync?: SyncFailure }
+export type PlayerStatus = PlayingStatus | { playing: false; sync?: SyncFailure; playbackFailure?: PlaybackFailure }
+
+export interface PlaybackFailure {
+  fileId: string
+  reason: string
+  at: number
+}
 
 // ---------- 设置 ----------
 
@@ -518,6 +527,226 @@ export function updateRulesConfig(patch: RulesConfigPatch): Promise<RulesInfo> {
   return requestJson<RulesInfo>('/api/sources/config', 'POST', patch)
 }
 
+// ---------- 本地来源插件（Plugin API v1） ----------
+
+export interface SourcePluginConfig {
+  enabled: boolean
+  executable: string
+  root: string
+}
+
+export interface SourcePluginManifest {
+  id: string
+  name: string
+  version: string
+  protocolVersions: number[]
+  sourceSchemaVersions: number[]
+  capabilities: string[]
+}
+
+export interface SourcePluginStatus {
+  phase: 'disabled' | 'starting' | 'ready' | 'stopped' | 'failed'
+  url?: string
+  manifest?: SourcePluginManifest
+  error?: string
+  startedAt?: number
+}
+
+export interface PluginSource {
+  id: string
+  name: string
+  kind: string
+  tier: number
+  version: string
+  enabled: boolean
+  status: string
+  capabilities: string[]
+}
+
+export interface SourcePluginView {
+  config: SourcePluginConfig
+  status: SourcePluginStatus
+  sources: PluginSource[]
+  sourcesError?: string
+}
+
+export interface SourceResolveRequest {
+  schema: 'nagare-resolve-request/v1'
+  subject: {
+    ids: Record<string, string>
+    titles: string[]
+    season?: number
+    year?: number
+  }
+  episode: {
+    id?: string
+    number: string
+    absolute?: number
+    airDate?: string
+    title?: string
+  }
+  preferences?: {
+    subtitleLanguages?: string[]
+    maxResolution?: string
+    preferredTransports?: string[]
+  }
+}
+
+export interface SourceCandidate {
+  schema: 'nagare-candidate/v1'
+  id: string
+  sourceId: string
+  tier: number
+  matchConfidence: number
+  match: {
+    basis: string[]
+    subjectTitle?: string
+    episodeNumber?: number
+    evidence?: string
+  }
+  transport: {
+    type: 'hls' | 'http' | 'torrent'
+    url?: string
+    headers?: Record<string, string>
+    expiresAt?: number
+    magnet?: string
+    infoHash?: string
+    torrentUrl?: string
+    fileIndex?: number
+    trackers?: string[]
+  }
+  metadata: {
+    resolution?: string
+    subtitleLanguages?: string[]
+    channel?: string
+    channelTier?: number
+    episode?: number
+    fansub?: string
+    sizeBytes?: number
+    seeders?: number
+    publishedAt?: string
+  }
+}
+
+export type SourcePluginEvent =
+  | { event: 'candidate'; candidate: SourceCandidate }
+  | { event: 'source_error'; sourceId: string; category: string; message: string; retryable: boolean }
+  | { event: 'done'; queried: number; succeeded: number; failed: number; durationMs: number }
+  | { event: 'host_error'; message: string; afterEvents: number }
+
+export function fetchSourcePlugin(signal?: AbortSignal): Promise<SourcePluginView> {
+  return apiFetch<SourcePluginView>('/api/source-plugin', signal === undefined ? undefined : { signal })
+}
+
+export function updateSourcePluginConfig(config: SourcePluginConfig): Promise<SourcePluginView> {
+  return requestJson<SourcePluginView>('/api/source-plugin/config', 'POST', config)
+}
+
+/** 逐行消费候选流；单行上限与后端插件契约同为 1 MiB。 */
+export async function streamSourceCandidates(
+  request: SourceResolveRequest,
+  onEvent: (event: SourcePluginEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await apiStream('/api/source-plugin/candidates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal,
+  })
+  if (!response.headers.get('Content-Type')?.toLowerCase().includes('application/x-ndjson')) {
+    throw new ApiError('来源插件返回了意外的响应格式', response.status)
+  }
+  if (response.body === null) {
+    throw new ApiError('来源插件没有返回候选流', response.status)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let pending = ''
+  let doneSeen = false
+
+  const consume = (line: string): void => {
+    if (line.trim() === '') return
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(line)
+    } catch (cause) {
+      throw new ApiError('来源插件返回了无效的候选事件', response.status, { cause })
+    }
+    const event = parseSourcePluginEvent(parsed)
+    if (event.event === 'host_error') throw new ApiError(event.message, response.status)
+    if (doneSeen) throw new ApiError('来源插件在完成后仍返回了事件', response.status)
+    onEvent(event)
+    if (event.event === 'done') doneSeen = true
+  }
+
+  while (true) {
+    const { value, done } = await reader.read()
+    pending += decoder.decode(value, { stream: !done })
+    if (pending.length > 1024 * 1024 && !pending.includes('\n')) {
+      await reader.cancel()
+      throw new ApiError('来源插件的单条候选事件过大', response.status)
+    }
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+    for (const line of lines) {
+      if (line.length > 1024 * 1024) {
+        await reader.cancel()
+        throw new ApiError('来源插件的单条候选事件过大', response.status)
+      }
+      consume(line)
+    }
+    if (done) break
+  }
+  consume(pending)
+  if (!doneSeen) throw new ApiError('来源插件的候选流未正常完成', response.status)
+}
+
+export function playSourceCandidate(
+  candidate: SourceCandidate,
+  title: string,
+  episode: number,
+): Promise<PlayData> {
+  return requestJson<PlayData>('/api/source-plugin/play', 'POST', { candidate, title, episode })
+}
+
+function parseSourcePluginEvent(value: unknown): SourcePluginEvent {
+  if (!isRecord(value) || typeof value.event !== 'string') {
+    throw new ApiError('来源插件返回了未知事件', 200)
+  }
+  switch (value.event) {
+    case 'candidate':
+      if (!isCandidate(value.candidate)) break
+      return { event: 'candidate', candidate: value.candidate }
+    case 'source_error':
+      if (typeof value.sourceId !== 'string' || typeof value.category !== 'string' ||
+          typeof value.message !== 'string' || typeof value.retryable !== 'boolean') break
+      return { event: 'source_error', sourceId: value.sourceId, category: value.category, message: value.message, retryable: value.retryable }
+    case 'done':
+      if (![value.queried, value.succeeded, value.failed, value.durationMs].every(item => typeof item === 'number')) break
+      return { event: 'done', queried: value.queried as number, succeeded: value.succeeded as number, failed: value.failed as number, durationMs: value.durationMs as number }
+    case 'host_error':
+      if (typeof value.message !== 'string' || typeof value.afterEvents !== 'number') break
+      return { event: 'host_error', message: value.message, afterEvents: value.afterEvents }
+  }
+  throw new ApiError('来源插件返回了格式错误的事件', 200)
+}
+
+function isCandidate(value: unknown): value is SourceCandidate {
+  if (!isRecord(value) || value.schema !== 'nagare-candidate/v1' || typeof value.id !== 'string' ||
+      typeof value.sourceId !== 'string' || typeof value.tier !== 'number' ||
+      typeof value.matchConfidence !== 'number' || !isRecord(value.match) ||
+      !Array.isArray(value.match.basis) || !value.match.basis.every(item => typeof item === 'string') ||
+      !isRecord(value.transport) || !['hls', 'http', 'torrent'].includes(String(value.transport.type)) ||
+      !isRecord(value.metadata)) return false
+  return true
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /** 从 remoteUrl 拉取规则；remoteUrl 为空时后端 400（中文报错原样透出） */
 export function syncSources(): Promise<SyncResult> {
   return requestJson<SyncResult>('/api/sources/sync', 'POST')
@@ -653,3 +882,28 @@ export function clearTorrentCache(): Promise<{ cacheBytes: number }> {
 export function updateTorrentConfig(patch: TorrentConfigPatch): Promise<TorrentConfigData> {
   return requestJson<TorrentConfigData>('/api/torrent/config', 'POST', patch)
 }
+
+// ---------- 目录 · 收藏 · 放送（M6） ----------
+/** API 数据通过 lib/media.ts 适配，组件继续持有自己的契约。 */
+export interface SummaryMediaData {
+  anilistId: number; title: string; titleNative?: string; titleEnglish?: string
+  cover?: string; banner?: string; trailerId?: string; year?: number; season?: string
+  episodes: number | null; score?: number; genres: string[]; description?: string
+  status?: string; format?: string; duration?: number; source?: string; startDate?: string; studios?: string[]
+  nextAiring?: { episode: number; at: number }; recentAiring?: { episode: number; at: number }
+  relations?: { type: string; media: SummaryMediaData }[]; recommendations?: SummaryMediaData[]
+  characters?: { name: string; image: string; role: string; actor?: string; actorImage?: string }[]
+  episodeTitles?: { episode: number; title: string }[]
+}
+export interface DiscoverData { sections: { key: string; title: string; items: SummaryMediaData[]; error?: string }[]; fetchedAt: number }
+export type CollectionStatus = 'watching' | 'plan_to_watch' | 'completed' | 'dropped'
+export interface CollectionEntry { anilistId: number; status: CollectionStatus; currentEpisode: number; score: number | null; media: SummaryMediaData; lastWatchedAt?: number }
+export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] }
+export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
+export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; format?: string; inLibrary: boolean }[]; fetchedAt: number }
+export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
+export const fetchMediaData = (id: number, signal?: AbortSignal) => apiFetch<SummaryMediaData>(`/api/anime/${id}`, { signal })
+export const fetchCollection = () => apiFetch<CollectionData>('/api/lists')
+export const saveCollection = (id: number, data: CollectionEdit) => apiFetch<CollectionEntry>(`/api/lists/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: data.status, currentEpisode: data.progress, score: data.score }) })
+export const deleteCollection = (id: number) => apiFetch(`/api/lists/${id}`, { method: 'DELETE' })
+export const fetchSchedule = (signal?: AbortSignal) => apiFetch<ScheduleData>('/api/schedule', { signal })

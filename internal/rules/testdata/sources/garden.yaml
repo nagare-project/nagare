@@ -12,8 +12,8 @@ items: resources
 fields:
   title: title
   magnet: magnet
-  # garden 的 size 单位是 KB，不是字节
-  size: { path: size, transforms: [format_kb] }
+  # Anime Garden 的公开 API 以字节返回 size。
+  size: { path: size, transforms: [format_bytes] }
   date: createdAt
   fansub:
     any:

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,11 @@ type LaunchOptions struct {
 	Title     string  // 可选：窗口标题
 	StartAt   float64 // 可选：起播秒数（>0 生效），--start=+N
 	SocketDir string  // socket/管道所在目录（调用方给运行时目录；留空用系统临时目录）
+	// HTTPHeaders 只用于当前远程媒体会话，不写入配置文件或日志。
+	HTTPHeaders map[string]string
+	// RedactMediaDiagnostics 禁止捕获 mpv stderr，避免签名 URL 或临时请求头
+	// 被 mpv 原样回显后进入 API 错误或日志。
+	RedactMediaDiagnostics bool
 }
 
 // Launch 启动 mpv 进程并建立 IPC 连接。ctx 只约束启动阶段（等 socket 就绪），
@@ -54,10 +60,15 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Player, error) {
 		return nil, err
 	}
 
-	stderrTail := newBoundedBuffer(stderrTailSize)
+	var stderrTail *boundedBuffer
 	cmd := exec.Command(opts.MPVPath, buildArgs(opts, endpoint)...)
 	cmd.Stdout = io.Discard
-	cmd.Stderr = stderrTail
+	if opts.RedactMediaDiagnostics {
+		cmd.Stderr = io.Discard
+	} else {
+		stderrTail = newBoundedBuffer(stderrTailSize)
+		cmd.Stderr = stderrTail
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("启动 mpv（%s）失败：%w。请用 Detect 重新探测 mpv 安装", opts.MPVPath, err)
 	}
@@ -107,6 +118,16 @@ func buildArgs(opts LaunchOptions, endpoint string) []string {
 	if opts.StartAt > 0 {
 		args = append(args, fmt.Sprintf("--start=+%.3f", opts.StartAt))
 	}
+	if len(opts.HTTPHeaders) > 0 {
+		names := make([]string, 0, len(opts.HTTPHeaders))
+		for name := range opts.HTTPHeaders {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			args = append(args, "--http-header-fields-add="+name+": "+opts.HTTPHeaders[name])
+		}
+	}
 	if opts.MediaPath != "" {
 		args = append(args, "--", opts.MediaPath) // "--" 防御以 "-" 开头的文件名
 	} else {
@@ -128,8 +149,10 @@ func connectWithRetry(ctx context.Context, endpoint string, waitCh <-chan error,
 		select {
 		case werr := <-waitCh:
 			msg := fmt.Sprintf("mpv 启动后立即退出（%v）", werr)
-			if tail := stderrTail.String(); tail != "" {
-				msg += fmt.Sprintf("，stderr：%s", tail)
+			if stderrTail != nil {
+				if tail := stderrTail.String(); tail != "" {
+					msg += fmt.Sprintf("，stderr：%s", tail)
+				}
 			}
 			return nil, fmt.Errorf("%s。请检查 mpv 安装与启动参数", msg)
 		case <-ctx.Done():

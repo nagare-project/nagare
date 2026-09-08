@@ -15,19 +15,29 @@ import { DISCOVER_EXIT_MS } from '../components/media/useDiscoverCarousel'
 // jsdom 没有布局；这一组只验证页面内容，拖拽与分页在浏览器验收。
 vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
 
-vi.mock('../lib/catalog', async importOriginal => {
-  const original = await importOriginal<typeof import('../lib/catalog')>()
+vi.mock('../lib/media', async importOriginal => {
+  const original = await importOriginal<typeof import('../lib/media')>()
   const { FAKE_DISCOVER } = await import('../lib/fixtures/library')
-  return { ...original, fetchDiscover: vi.fn(async () => FAKE_DISCOVER) }
+  return { ...original, fetchDiscover: vi.fn(async () => [
+    { key: 'trending', title: 'animego 上在看最多', items: FAKE_DISCOVER.trending },
+    { key: 'recent', title: '最近已播出', items: FAKE_DISCOVER.recent },
+    { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
+    { key: 'pastSeason', title: '上季作品', items: FAKE_DISCOVER.pastSeason },
+    { key: 'upcoming', title: '本季及下季待播', items: FAKE_DISCOVER.upcoming },
+    { key: 'movies', title: '近期精选剧场版', items: FAKE_DISCOVER.movies },
+  ]) }
 })
 
-/**
- * 三个吃假数据的页面（我的列表 / 发现 / 放送表）。
- *
- * 这里守的重点不是像素，是【不能把假数据伪装成真的】：每一页都必须
- * 挂着那条假数据横幅。哪天有人接了真接口忘了摘横幅，或者反过来
- * 把横幅删了却还在用 fixture，这几条会红。
- */
+vi.mock('../lib/endpoints', async importOriginal => {
+  const original = await importOriginal<typeof import('../lib/endpoints')>()
+  const { fakeSchedule } = await import('../lib/fixtures/schedule')
+  return { ...original, fetchSchedule: vi.fn(async () => ({ fetchedAt: Date.now() / 1000, airings: fakeSchedule().events.map(e => ({
+    anilistId: e.media.id, episode: e.episode, airingAt: Date.parse(e.airingAt) / 1000,
+    title: e.media.title, cover: e.media.cover, format: e.media.format, inLibrary: false,
+  })) })) }
+})
+
+// 生产页面使用真实接口；这里仅用可重复的接口替身验证展示与交互。
 
 /**
  * 页面模块表。用 import.meta.glob 而不是拼出来的 `import(\`./${x}\`)`：
@@ -50,7 +60,7 @@ describe('假数据页面', () => {
     const rows = [...container.querySelectorAll('.row')]
     // 顺序照 seanime 的 anime 标签页；改这里之前先确认那边也改了
     expect(rows.map((r) => r.querySelector('.row-title')?.textContent)).toEqual([
-      '本季热门', '最近更新', '本季新番', '上季作品', '错过的续作', '即将播出', '剧场版',
+      'animego 上在看最多', '最近已播出', '本季新番', '上季作品', '本季及下季待播', '近期精选剧场版',
     ])
     for (const row of rows) {
       expect(row.querySelectorAll('.poster').length).toBeGreaterThan(0)
@@ -72,7 +82,10 @@ describe('假数据页面', () => {
     const first = hero?.querySelector('.hero-title')?.textContent
     await act(async () => dots.find(dot => dot.getAttribute('aria-label') !== first)!.click())
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, DISCOVER_EXIT_MS + 50)) })
-    expect(container.querySelector('.hero-title')?.textContent).not.toBe(first)
+    await vi.waitFor(async () => {
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+      expect(container.querySelector('.hero-title')?.textContent).not.toBe(first)
+    }, { timeout: 3000 })
     await unmount()
   })
 
@@ -101,6 +114,7 @@ describe('假数据页面', () => {
     expect(container.querySelector('[aria-current="date"]')).not.toBeNull()
     // 至少排了几场
     expect(container.querySelectorAll('.calendar-event').length).toBeGreaterThan(3)
+    expect(container.textContent).not.toContain('演示追番列表')
     await unmount()
   })
 
@@ -121,7 +135,7 @@ describe('假数据页面', () => {
       .sort()
 
     // 扫描器活着才算数：路径变了会让这条静默地变成「零个页面、零个问题」
-    expect(fixturePages).toEqual(['AutoDownloaderPage.tsx', 'SchedulePage.tsx'])
+    expect(fixturePages).toEqual(['AutoDownloaderPage.tsx'])
 
     for (const file of fixturePages) {
       const name = file.replace(/\.tsx$/, '')

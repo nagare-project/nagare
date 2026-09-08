@@ -28,7 +28,7 @@ func closedPortURL(t *testing.T) string {
 func TestNetworkRefusedIsUnavailable(t *testing.T) {
 	// 决议 CQ3 的失败模式表：「API 不可达 → 本地库全功能，弹幕标为不可用」。
 	// 前提就是调用方能从错误里认出「不可达」—— 公开与鉴权端点都要覆盖。
-	c := animego.New(animego.Options{BaseURL: closedPortURL(t)})
+	c := animego.New(animego.Options{ListRequestInterval: -1, BaseURL: closedPortURL(t)})
 	c.RestoreSession(animego.Session{AccessToken: "at", RefreshCookie: "rt"})
 	ctx := context.Background()
 
@@ -60,7 +60,7 @@ func TestDefaultUserAgent(t *testing.T) {
 	})
 
 	// 不注入 UserAgent：应回落到兜底 UA。
-	c := animego.New(animego.Options{BaseURL: url})
+	c := animego.New(animego.Options{ListRequestInterval: -1, BaseURL: url})
 	_, err := c.Comments(context.Background(), 1)
 	require.NoError(t, err)
 
@@ -75,7 +75,7 @@ func TestTrailingSlashBaseURL(t *testing.T) {
 		respond(w, http.StatusOK, `{"count":0,"comments":[]}`)
 	})
 
-	c := animego.New(animego.Options{BaseURL: url + "/", UserAgent: "nagare/test"})
+	c := animego.New(animego.Options{ListRequestInterval: -1, BaseURL: url + "/", UserAgent: "nagare/test"})
 	_, err := c.Comments(context.Background(), 1)
 	require.NoError(t, err)
 	assert.Equal(t, "/api/dandanplay/comments/1", rec.all()[0].Path, "末尾斜杠不该产生双斜杠路径")

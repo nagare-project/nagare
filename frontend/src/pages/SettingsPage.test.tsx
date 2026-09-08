@@ -24,6 +24,7 @@ beforeEach(() => {
       '/api/settings': settings,
       '/api/library': { folders: [], clusters: [], continueWatching: [], scannedAt: null },
       '/api/sources': { sources: [], rules: { remoteUrl: '', localDir: '', dir: '', loaded: 0, errors: [], lastLoadedAt: null, lastSyncAt: null } },
+      '/api/source-plugin': { config: { enabled: false, executable: '', root: '' }, status: { phase: 'disabled' }, sources: [] },
       '/api/update': { enabled: false, current: '0.2.0', latest: '', available: false, url: '', checkedAt: null, error: '', selfUpdate: { supported: false, channel: 'unknown' } },
     }
     return new Response(JSON.stringify({ success: true, data: data[path] }), { headers: { 'Content-Type': 'application/json' } })

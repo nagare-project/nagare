@@ -143,6 +143,39 @@ describe('useTorrentPlay · 正常路径', () => {
     await hook.unmount()
   })
 
+  it('媒体入口指定的 episodeHint 在手选文件和失败重试后仍保留', async () => {
+    const deps = makeDeps()
+    deps.start
+      .mockResolvedValueOnce(NEEDS_SELECTION)
+      .mockRejectedValueOnce(new Error('暂时没有分享者'))
+      .mockResolvedValueOnce(PLAYING)
+    const hook = await mountPlay(deps)
+
+    await act(async () => {
+      hook.result.current.play({ magnet: MAGNET, title: TITLE, episodeHint: 7 }, TITLE)
+    })
+    await act(async () => {
+      hook.result.current.selectFile(1)
+    })
+    expect(deps.start).toHaveBeenNthCalledWith(
+      2,
+      { magnet: MAGNET, title: TITLE, episodeHint: 7, fileIndex: 1 },
+      expect.any(AbortSignal),
+    )
+    expect(hook.result.current.state.phase).toBe('error')
+
+    await act(async () => {
+      hook.result.current.retry()
+    })
+    expect(deps.start).toHaveBeenNthCalledWith(
+      3,
+      { magnet: MAGNET, title: TITLE, episodeHint: 7, fileIndex: 1 },
+      expect.any(AbortSignal),
+    )
+
+    await hook.unmount()
+  })
+
   it('播放中后端说会话没了 → 回到空闲并停表', async () => {
     const deps = makeDeps()
     deps.start.mockResolvedValue(PLAYING)

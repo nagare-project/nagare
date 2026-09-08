@@ -86,7 +86,7 @@ func selectFile(entries []fileEntry, req PrepareRequest) (selection, error) {
 			"选中的文件不在这条资源里", "重新打开选集列表再选一次")
 	}
 
-	if len(cands) == 1 {
+	if len(cands) == 1 && episodeHint(req) == 0 {
 		return selection{Index: cands[0].index, Item: cands[0].item}, nil
 	}
 
