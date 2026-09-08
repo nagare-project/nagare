@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/sourceplugin"
 )
 
@@ -100,6 +101,7 @@ func TestSourcePluginCandidatesStreamsValidatedEvents(t *testing.T) {
 	rec := env.do(t, http.MethodPost, "/api/source-plugin/candidates", body)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, "application/x-ndjson; charset=utf-8", rec.Header().Get("Content-Type"))
+	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 	lines := strings.Split(strings.TrimSpace(rec.Body.String()), "\n")
 	require.Len(t, lines, 2)
 	assert.Contains(t, lines[0], `"event":"candidate"`)
@@ -133,6 +135,10 @@ func TestSourcePluginPlayPassesEphemeralURLAndHeadersToPlayer(t *testing.T) {
 }`
 	rec := env.do(t, http.MethodPost, "/api/source-plugin/play", body)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var result player.PlayResult
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &result))
+	assert.NotEmpty(t, result.FileID)
+	assert.NotContains(t, result.FileID, "secret")
 	assert.Equal(t, "https://media.example/3.m3u8?token=secret", env.player.lastPath)
 	assert.Equal(t, "https://source.example/", env.player.lastHeaders["Referer"])
 	assert.NotContains(t, env.player.lastItem.FileID, "secret")

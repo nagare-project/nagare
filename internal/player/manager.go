@@ -97,19 +97,29 @@ type SyncInfo struct {
 
 // PlayResult 是发起播放的即时结果。
 type PlayResult struct {
+	FileID  string      `json:"fileId"`
 	Title   string      `json:"title"`
 	Danmaku DanmakuInfo `json:"danmaku"`
 }
 
+// PlaybackFailure 是最近一次媒体会话的异常终态。FileID 让调用方
+// 只对自己启动的候选执行回退，不会把用户手动停止或正常播完误判为失败。
+type PlaybackFailure struct {
+	FileID string `json:"fileId"`
+	Reason string `json:"reason"`
+	At     int64  `json:"at"`
+}
+
 // Status 是当前播放状态快照。
 type Status struct {
-	Playing  bool         `json:"playing"`
-	FileID   string       `json:"fileId,omitempty"`
-	Title    string       `json:"title,omitempty"`
-	Position float64      `json:"position,omitempty"`
-	Duration float64      `json:"duration,omitempty"`
-	Paused   bool         `json:"paused,omitempty"`
-	Danmaku  *DanmakuInfo `json:"danmaku,omitempty"`
+	Playing         bool             `json:"playing"`
+	FileID          string           `json:"fileId,omitempty"`
+	Title           string           `json:"title,omitempty"`
+	Position        float64          `json:"position,omitempty"`
+	Duration        float64          `json:"duration,omitempty"`
+	Paused          bool             `json:"paused,omitempty"`
+	Danmaku         *DanmakuInfo     `json:"danmaku,omitempty"`
+	PlaybackFailure *PlaybackFailure `json:"playbackFailure,omitempty"`
 	// Sync 是上一次回写账号失败的留痕，成功或从未失败时为 nil。
 	// 它【不随会话结束消失】：失败发生在 mpv 已经退出之后，
 	// 挂在会话上等于永远没人看得见。
@@ -130,6 +140,9 @@ type Manager struct {
 	// lastSync 是上一次回写账号失败的留痕（nil = 没有待处理的失败）。
 	// 归 Manager 而不是 session：失败发生在会话已经结束之后。
 	lastSync *SyncInfo
+	// lastPlaybackFailure 保留最近异常终止的媒体会话，下一次
+	// Play 开始时清空。在线候选回退靠它跨请求观察 mpv 的异步失败。
+	lastPlaybackFailure *PlaybackFailure
 }
 
 // New 构造 Manager。
@@ -161,6 +174,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	// 元数据在这里取一次快照存进会话：整条链路（标题、进度、匹配、看完同步）
 	// 都只认这一份，避免同一会话里前后两次 Item() 拿到不一致的值。
 	item := src.Item()
+	m.setPlaybackFailure(nil)
 
 	// 先起 mpv，再在后台匹配弹幕 —— animego 慢/挂都不能拖住本地播放（CQ3）。
 	// 窗口标题先用文件名派生的本地标题，匹配到官方标题后由后台升级。
@@ -211,7 +225,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	go m.watch(sess)
 	go m.resolveDanmaku(sess)
 
-	return PlayResult{Title: title, Danmaku: loading}, nil
+	return PlayResult{FileID: item.FileID, Title: title, Danmaku: loading}, nil
 }
 
 type httpHeaderSource interface {
@@ -419,23 +433,30 @@ func (m *Manager) Seek(seconds float64) error {
 // Status 返回当前播放状态快照。
 func (m *Manager) Status() Status {
 	m.mu.Lock()
-	sess, syncFailure := m.current, m.lastSync
+	sess, syncFailure, playbackFailure := m.current, m.lastSync, m.lastPlaybackFailure
 	m.mu.Unlock()
 	if sess == nil {
-		return Status{Playing: false, Sync: syncFailure}
+		return Status{Playing: false, Sync: syncFailure, PlaybackFailure: playbackFailure}
 	}
 	st := sess.player.State()
 	dan := sess.danmakuInfo()
 	return Status{
-		Playing:  true,
-		FileID:   sess.item.FileID,
-		Title:    sess.titleSnapshot(),
-		Position: st.TimePos,
-		Duration: st.Duration,
-		Paused:   st.Paused,
-		Danmaku:  &dan,
-		Sync:     syncFailure,
+		Playing:         true,
+		FileID:          sess.item.FileID,
+		Title:           sess.titleSnapshot(),
+		Position:        st.TimePos,
+		Duration:        st.Duration,
+		Paused:          st.Paused,
+		Danmaku:         &dan,
+		Sync:            syncFailure,
+		PlaybackFailure: playbackFailure,
 	}
+}
+
+func (m *Manager) setPlaybackFailure(info *PlaybackFailure) {
+	m.mu.Lock()
+	m.lastPlaybackFailure = info
+	m.mu.Unlock()
 }
 
 // setSyncFailure 记下一次回写失败；nil 表示清掉（成功了，或不再适用）。

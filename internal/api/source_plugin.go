@@ -172,6 +172,7 @@ func (h *Handler) sourcePluginCandidates(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
 	encoder := json.NewEncoder(w)

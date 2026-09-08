@@ -4,6 +4,7 @@ import { SelfUpdateContext, useSelfUpdate } from '../hooks/useSelfUpdate'
 import { UpdateContext, useUpdate } from '../hooks/useUpdate'
 import { UpdateBanner } from './UpdateBanner'
 import { CollectionProvider } from './media/CollectionContext'
+import { SourcePlaybackProvider } from './media/SourcePlaybackContext'
 import { TorrentPlayProvider } from './torrent/TorrentPlayContext'
 
 /**
@@ -20,7 +21,7 @@ export function RootLayout() {
   return (
     <UpdateContext.Provider value={update}>
       <SelfUpdateContext.Provider value={selfUpdate}>
-        <CollectionProvider><TorrentPlayProvider><AppRail />
+        <CollectionProvider><TorrentPlayProvider><SourcePlaybackProvider><AppRail />
           <div className="app-main">
             <UpdateBanner
               view={update.state.phase === 'ready' ? update.state.data : null}
@@ -28,7 +29,7 @@ export function RootLayout() {
             />
             <Outlet />
           </div>
-        </TorrentPlayProvider></CollectionProvider>
+        </SourcePlaybackProvider></TorrentPlayProvider></CollectionProvider>
       </SelfUpdateContext.Provider>
     </UpdateContext.Provider>
   )

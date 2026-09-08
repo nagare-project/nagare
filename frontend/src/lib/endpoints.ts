@@ -144,6 +144,8 @@ export interface DanmakuStatus {
 
 /** POST /api/play 的 data 载荷 */
 export interface PlayData {
+	/** 后端为这次媒体会话生成的稳定标识，用于匹配异步播放失败。 */
+  fileId?: string
   title: string
   danmaku: DanmakuStatus
 }
@@ -175,10 +177,17 @@ export interface PlayingStatus {
   paused: boolean
   danmaku: DanmakuStatus
   sync?: SyncFailure
+  playbackFailure?: PlaybackFailure
 }
 
 /** GET /api/player/status 的 data 载荷（判别联合：以 playing 收窄） */
-export type PlayerStatus = PlayingStatus | { playing: false; sync?: SyncFailure }
+export type PlayerStatus = PlayingStatus | { playing: false; sync?: SyncFailure; playbackFailure?: PlaybackFailure }
+
+export interface PlaybackFailure {
+  fileId: string
+  reason: string
+  at: number
+}
 
 // ---------- 设置 ----------
 
@@ -625,8 +634,8 @@ export type SourcePluginEvent =
   | { event: 'done'; queried: number; succeeded: number; failed: number; durationMs: number }
   | { event: 'host_error'; message: string; afterEvents: number }
 
-export function fetchSourcePlugin(): Promise<SourcePluginView> {
-  return apiFetch<SourcePluginView>('/api/source-plugin')
+export function fetchSourcePlugin(signal?: AbortSignal): Promise<SourcePluginView> {
+  return apiFetch<SourcePluginView>('/api/source-plugin', signal === undefined ? undefined : { signal })
 }
 
 export function updateSourcePluginConfig(config: SourcePluginConfig): Promise<SourcePluginView> {

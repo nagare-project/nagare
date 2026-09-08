@@ -46,7 +46,11 @@ func (f *fakePlayer) Play(_ context.Context, src player.MediaSource, sub string)
 		f.lastPath = src.MPVPath()
 		f.lastHeaders = withHeaders.HTTPHeaders()
 	}
-	return f.playRes, f.playErr
+	result := f.playRes
+	if result.FileID == "" {
+		result.FileID = f.lastItem.FileID
+	}
+	return result, f.playErr
 }
 func (f *fakePlayer) record(op string) {
 	if f.log != nil {

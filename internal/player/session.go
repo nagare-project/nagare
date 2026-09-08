@@ -116,6 +116,7 @@ func (m *Manager) watch(sess *session) {
 
 	var lastFlush time.Time
 	endedByEOF := false
+	endedReason := ""
 
 	for {
 		select {
@@ -130,6 +131,7 @@ func (m *Manager) watch(sess *session) {
 					lastFlush = time.Now()
 				}
 			case mpv.EventEnded:
+				endedReason = ev.Reason
 				if ev.Reason == "eof" {
 					endedByEOF = true
 				}
@@ -144,6 +146,9 @@ func (m *Manager) watch(sess *session) {
 			maybeArrange()
 		case <-sess.player.Done():
 			m.finalize(sess, endedByEOF)
+			if failure := playbackFailureFor(sess.item.FileID, endedReason, sess.player.Err(), time.Now().UnixMilli()); failure != nil {
+				m.setPlaybackFailure(failure)
+			}
 			// mpv 自然退出（播完/用户关窗）时收敛 current，Status 不再误报在播。
 			m.mu.Lock()
 			if m.current == sess {
@@ -158,6 +163,17 @@ func (m *Manager) watch(sess *session) {
 			}
 			return
 		}
+	}
+}
+
+func playbackFailureFor(fileID, endedReason string, playerErr error, at int64) *PlaybackFailure {
+	if endedReason != "error" && playerErr == nil {
+		return nil
+	}
+	return &PlaybackFailure{
+		FileID: fileID,
+		Reason: "媒体加载或播放失败",
+		At:     at,
 	}
 }
 

@@ -45,6 +45,7 @@
 .media-resource-list strong { overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; }
 .media-resource-list span { color: var(--fg-muted); font-size: 11px; }
 .media-resource-list .btn { flex: none; }
+.media-resource-list .media-resource-active { border-color: #34d39955; background: #10b9810a; }
 .media-source-errors { display: grid; gap: 4px; margin: 0; padding: 10px 12px 10px 28px; border-radius: 8px; background: #f59e0b12; color: var(--warning); font-size: 12px; }
 @media (max-width: 640px) { .media-play-body { padding: 32px 20px 24px; } }
 @media (max-width: 520px) { .media-manual-episode { align-items: stretch; flex-direction: column; } .media-resource-list li { align-items: stretch; flex-direction: column; } }

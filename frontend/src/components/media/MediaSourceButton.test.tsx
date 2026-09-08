@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
 import {
   fetchSourcePlugin,
+  fetchPlayerStatus,
   playSourceCandidate,
   streamSourceCandidates,
 } from '../../lib/endpoints'
 import type { SourceCandidate, SourcePluginView } from '../../lib/endpoints'
 import { MediaSourceButton } from './MediaSourceButton'
+import { SourcePlaybackProvider } from './SourcePlaybackContext'
 
 const shared = vi.hoisted(() => ({ play: vi.fn() }))
 vi.mock('../torrent/TorrentPlayContext', () => ({
@@ -16,7 +18,7 @@ vi.mock('../torrent/TorrentPlayContext', () => ({
 }))
 vi.mock('../../lib/endpoints', async original => ({
   ...await original<typeof import('../../lib/endpoints')>(),
-  fetchSourcePlugin: vi.fn(), playSourceCandidate: vi.fn(), streamSourceCandidates: vi.fn(),
+  fetchPlayerStatus: vi.fn(), fetchSourcePlugin: vi.fn(), playSourceCandidate: vi.fn(), streamSourceCandidates: vi.fn(),
 }))
 
 const media = {
@@ -35,15 +37,22 @@ const online: SourceCandidate = {
   transport: { type: 'hls', url: 'https://secret.invalid/play.m3u8', headers: { Cookie: 'private-token' } },
   metadata: { resolution: '1080p', fansub: '字幕组' },
 }
+const alternate: SourceCandidate = {
+  ...online, id: 'online-2', tier: 2,
+  transport: { type: 'http', url: 'https://another-secret.invalid/ep2.mp4' },
+  metadata: { resolution: '720p' },
+}
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal')
 const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close')
 
 beforeEach(() => {
   shared.play.mockReset()
   vi.mocked(fetchSourcePlugin).mockReset().mockResolvedValue(plugin)
-  vi.mocked(playSourceCandidate).mockReset().mockResolvedValue({ title: '测试动画', danmaku: { state: 'none' } })
+  vi.mocked(fetchPlayerStatus).mockReset().mockResolvedValue({ playing: true, fileId: 'remote|online-1', title: '测试动画', position: 1, duration: 100, paused: false, danmaku: { state: 'none' } })
+  vi.mocked(playSourceCandidate).mockReset().mockImplementation(async candidate => ({ fileId: `remote|${candidate.id}`, title: '测试动画', danmaku: { state: 'none' } }))
   vi.mocked(streamSourceCandidates).mockReset().mockImplementation(async (_request, emit) => {
     emit({ event: 'candidate', candidate: online })
+    emit({ event: 'candidate', candidate: alternate })
     emit({ event: 'done', queried: 1, succeeded: 1, failed: 0, durationMs: 8 })
   })
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.open = true } })
@@ -56,8 +65,8 @@ afterEach(() => {
 })
 
 describe('目录作品的本地插件找源', () => {
-  it('选集后显示候选但不泄露 URL/请求头，明确点播放才启动', async () => {
-    const { container, unmount } = await mount(<MediaSourceButton media={media} />)
+  it('选集后高优先级候选立即起播，列表可换源且不泄露 URL/请求头', async () => {
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
     await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
     await act(async () => {})
@@ -71,10 +80,11 @@ describe('目录作品的本地插件找源', () => {
     expect(container.querySelector('.media-resource-list')?.textContent).toContain('1080p')
     expect(container.textContent).not.toContain('secret.invalid')
     expect(container.textContent).not.toContain('private-token')
-    expect(playSourceCandidate).not.toHaveBeenCalled()
-
-    await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button')!.click())
     expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(online, '测试动画', 2)
+
+    const alternateRow = Array.from(container.querySelectorAll<HTMLLIElement>('.media-resource-list li')).find(row => row.textContent?.includes('720p'))!
+    await act(async () => alternateRow.querySelector<HTMLButtonElement>('button')!.click())
+    expect(playSourceCandidate).toHaveBeenLastCalledWith(alternate, '测试动画', 2)
     await unmount()
   })
 
@@ -84,17 +94,44 @@ describe('目录作品的本地插件找源', () => {
       emit({ event: 'candidate', candidate: bt })
       emit({ event: 'done', queried: 1, succeeded: 1, failed: 0, durationMs: 8 })
     })
-    const { container, unmount } = await mount(<MediaSourceButton media={media} />)
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
     await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
     await act(async () => {})
-    await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button')!.click())
-
     expect(shared.play).toHaveBeenCalledWith(
       { magnet: expect.stringContaining('magnet:?xt=urn%3Abtih%3A0123456789abcdef'), title: '测试动画', episodeHint: 2, fileIndex: undefined },
-      '测试动画', expect.any(Function),
+      '测试动画',
     )
     expect(playSourceCandidate).not.toHaveBeenCalled()
+    await unmount()
+  })
+
+  it('首个在线候选立即启动失败时自动尝试下一条', async () => {
+    vi.mocked(playSourceCandidate).mockRejectedValueOnce(new Error('上游拒绝连接'))
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(1, online, '测试动画', 2)
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(2, alternate, '测试动画', 2)
+    expect(container.querySelector('.media-source-errors')?.textContent).toContain('上游拒绝连接')
+    await unmount()
+  })
+
+  it('mpv 启动后异步报播放失败时也会自动换源', async () => {
+    vi.mocked(fetchPlayerStatus)
+      .mockResolvedValueOnce({ playing: false, playbackFailure: { fileId: 'remote|online-1', reason: '媒体加载失败', at: 1 } })
+      .mockResolvedValue({ playing: true, fileId: 'remote|online-2', title: '测试动画', position: 1, duration: 100, paused: false, danmaku: { state: 'none' } })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+    await act(async () => {})
+
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(1, online, '测试动画', 2)
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(2, alternate, '测试动画', 2)
+    expect(container.querySelector('.media-source-errors')?.textContent).toContain('媒体加载失败')
     await unmount()
   })
 })

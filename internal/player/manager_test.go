@@ -239,6 +239,18 @@ func TestProgressUpdate(t *testing.T) {
 	}
 }
 
+func TestPlaybackFailureOnlyMarksAbnormalSessionEnd(t *testing.T) {
+	for _, reason := range []string{"", "eof", "stop", "quit", "redirect"} {
+		assert.Nil(t, playbackFailureFor("remote|a", reason, nil, 123), reason)
+	}
+	failure := playbackFailureFor("remote|a", "error", nil, 123)
+	require.NotNil(t, failure)
+	assert.Equal(t, "remote|a", failure.FileID)
+	assert.Equal(t, int64(123), failure.At)
+	assert.NotEmpty(t, failure.Reason)
+	assert.NotNil(t, playbackFailureFor("remote|b", "", errors.New("mpv died"), 124))
+}
+
 func TestPickTitle(t *testing.T) {
 	ep := 7
 	title := "标题"
