@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { UseSourcePluginResult } from '../../hooks/useSourcePlugin'
+import type { PluginSource } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { label, mono } from '../../theme'
 import './source-plugin.css'
@@ -37,10 +38,11 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
   }
 
   return <section className="panel settings-card" aria-labelledby="source-plugin-heading">
-    <h2 id="source-plugin-heading" className="panel-heading">本地来源插件</h2>
+    <h2 id="source-plugin-heading" className="panel-heading">Nagare Source</h2>
     <p className="page-notice-copy">
-      nagare 不内置在线来源。只有在你明确启用后，才会启动所选的本地插件；
-      作品标题、集号和公开元数据会交给它找源。
+      连接本机安装的 Nagare Source 后，作品页可以统一查找在线与 BT 候选并自动换源。
+      只有在你明确启用后，Nagare 才会启动该进程并交给它作品标题、集号和公开元数据。
+      {' '}<a className="link" href="https://github.com/nagare-project/Nagare_Source" target="_blank" rel="noreferrer">安装说明</a>
     </p>
 
     {plugin.state.phase === 'loading' && <p className="result result--dim" role="status">正在读取插件设置…</p>}
@@ -56,7 +58,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
             aria-label="启用本地来源插件" onClick={() => setEnabled(!enabled)} disabled={busy}>
             <span className="switch-knob" aria-hidden="true" />
           </button>
-          <span><strong>启用本地来源插件</strong><small>关闭时会立即终止插件进程。</small></span>
+          <span><strong>启用 Nagare Source</strong><small>关闭时会立即终止来源进程。</small></span>
         </label>
         <div className="field">
           <label htmlFor="source-plugin-executable" style={label}>插件可执行文件</label>
@@ -65,7 +67,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
             spellCheck={false} autoComplete="off" disabled={busy} required={enabled} />
         </div>
         <div className="field">
-          <label htmlFor="source-plugin-root" style={label}>来源仓库目录</label>
+          <label htmlFor="source-plugin-root" style={label}>Nagare Source 仓库目录</label>
           <input id="source-plugin-root" className="input" value={root}
             onChange={event => setRoot(event.target.value)} placeholder="/absolute/path/to/source-repository"
             spellCheck={false} autoComplete="off" disabled={busy} required={enabled} />
@@ -83,14 +85,33 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
         {view.sources.length === 0 ? <p className="result result--dim">插件尚未公布可用来源。</p> : <ul>
           {view.sources.map(source => <li key={source.id}>
             <span><strong>{source.name}</strong><small style={mono}>{source.id} · v{source.version}</small></span>
-            <span className={source.enabled && source.status === 'ready' ? 'result result--ok' : 'result result--dim'}>
-              {source.enabled ? source.status : '已停用'}
+            <span className={`result ${sourceStatusClass(source)}`}>
+              {sourceStatusLabel(source)}
             </span>
           </li>)}
         </ul>}
       </div>
     </>}
   </section>
+}
+
+function sourceStatusLabel(source: PluginSource): string {
+  if (!source.enabled || source.status === 'disabled') return '已停用'
+  const labels: Record<PluginSource['status'], string> = {
+    healthy: '正常',
+    degraded: '可用（待验证）',
+    unavailable: '不可用',
+    interactive_required: '需要人工验证',
+    disabled: '已停用',
+  }
+  return labels[source.status]
+}
+
+function sourceStatusClass(source: PluginSource): string {
+  if (!source.enabled || source.status === 'disabled') return 'result--dim'
+  if (source.status === 'healthy') return 'result--ok'
+  if (source.status === 'unavailable') return 'result--err'
+  return 'result--warn'
 }
 
 function PluginStatus({ view }: { view: Extract<UseSourcePluginResult['state'], { phase: 'ready' }>['data'] }) {

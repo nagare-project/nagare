@@ -559,7 +559,7 @@ export interface PluginSource {
   tier: number
   version: string
   enabled: boolean
-  status: string
+  status: 'healthy' | 'degraded' | 'unavailable' | 'interactive_required' | 'disabled'
   capabilities: string[]
 }
 
@@ -801,9 +801,8 @@ export interface TorrentStatus {
   error?: string
 }
 
-/** POST /api/torrent/play 的 body */
-export interface TorrentPlayRequest {
-  magnet: string
+/** POST /api/torrent/play 的 body；Plugin API v1 的 BT 候选可以给 magnet 或 .torrent URL。 */
+export type TorrentPlayRequest = ({ magnet: string; torrentUrl?: never } | { magnet?: never; torrentUrl: string }) & {
   title?: string
   /**
    * 合集里定位文件用的集号。**当前搜索页不传**：`SearchItem` 没有集号字段，

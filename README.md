@@ -213,6 +213,13 @@ nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供
 nagare -validate-rules <规则目录>
 ```
 
+## Nagare Source
+
+作品详情页可以通过本机安装的
+[Nagare Source](https://github.com/nagare-project/Nagare_Source) 统一查找在线与 BT 候选。
+Nagare 优先播放可靠的 HTTP/HLS 候选，失败后自动换源，在线候选耗尽时回退到 BT 边下边播。
+安装、设置与安全边界见 [docs/nagare-source.md](docs/nagare-source.md)。
+
 ## 磁力边下边播
 
 搜索结果里点「播放」即可边下边播：等到分享者与起播缓冲之后自动拉起 mpv，弹幕、观看进度、
@@ -242,7 +249,7 @@ nagare -validate-rules <规则目录>
 - **M2 声明式源规则引擎** —— 已完成：磁力源由 YAML 规则描述（只能"发一个 GET + 按路径解字段"，
   无脚本无沙箱），规则从用户指定的仓库同步、校验后加载；本体零内置源。搜索结果区分
   「无结果」与「源异常（规则失效）」；规则格式见 [docs/rules-format.md](docs/rules-format.md)
-- **M3 磁力边下边播** —— 已完成：磁力链接由用户提供，边下边播复用与本地文件同一条播放管线
+- **M3 磁力边下边播** —— 已完成：磁力链接、infohash 和 `.torrent` 地址进入同一条边下边播管线
   （弹幕、进度、看完标记都一样）；自动选集 + 手动兜底、分阶段缓冲状态与实时分享者数、
   停止播放即删分片。实现说明见 [docs/m3-torrent-streaming.md](docs/m3-torrent-streaming.md)
 - **M4 打包与分发** —— macOS dmg（ad-hoc 签名的 universal .app）、Windows 安装包与便携版

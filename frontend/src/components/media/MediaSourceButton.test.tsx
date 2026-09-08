@@ -29,7 +29,7 @@ const media = {
 const plugin: SourcePluginView = {
   config: { enabled: true, executable: '/opt/nagare-source', root: '/srv/sources' },
   status: { phase: 'ready', manifest: { id: 'source', name: 'Nagare Source', version: '0.1.0', protocolVersions: [1], sourceSchemaVersions: [1], capabilities: ['candidates'] } },
-  sources: [{ id: 'web-a', name: '网页源 A', kind: 'web', tier: 1, version: '1', enabled: true, status: 'ready', capabilities: ['hls'] }],
+  sources: [{ id: 'web-a', name: '网页源 A', kind: 'web', tier: 1, version: '1', enabled: true, status: 'healthy', capabilities: ['hls'] }],
 }
 const online: SourceCandidate = {
   schema: 'nagare-candidate/v1', id: 'online-1', sourceId: 'web-a', tier: 1,
@@ -103,6 +103,23 @@ describe('目录作品的本地插件找源', () => {
       '测试动画',
     )
     expect(playSourceCandidate).not.toHaveBeenCalled()
+    await unmount()
+  })
+
+  it('只有 .torrent 地址的 BT 候选也交给全局播放会话', async () => {
+    const bt: SourceCandidate = { ...online, id: 'bt-url', transport: { type: 'torrent', torrentUrl: 'https://tracker.invalid/release.torrent' } }
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: bt })
+      emit({ event: 'done', queried: 1, succeeded: 1, failed: 0, durationMs: 8 })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+    expect(shared.play).toHaveBeenCalledWith(
+      { torrentUrl: 'https://tracker.invalid/release.torrent', title: '测试动画', episodeHint: 2, fileIndex: undefined },
+      '测试动画',
+    )
     await unmount()
   })
 

@@ -12,6 +12,7 @@ import type {
   SourceCandidate,
   SourcePluginView,
   SourceResolveRequest,
+  TorrentPlayRequest,
 } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import type { MediaSummary } from './types'
@@ -136,10 +137,10 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
   }
 
   function startTorrent(session: RuntimeSession, candidate: SourceCandidate): void {
-    const magnet = candidateMagnet(candidate)
+    const locator = candidateTorrentLocator(candidate)
     session.attempted.add(candidate.id)
-    if (magnet === null) {
-      session.sourceErrors.push(`${candidateLabel(candidate, session.plugin?.sources ?? [])}：只提供了当前不支持的种子文件地址`)
+    if (locator === null) {
+      session.sourceErrors.push(`${candidateLabel(candidate, session.plugin?.sources ?? [])}：缺少可用的 BT 入口`)
       session.activeCandidateID = undefined
       publish(session, 'fallback', '无法使用这条 BT 候选，正在尝试下一条')
       chooseNextRef.current(session)
@@ -149,8 +150,11 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     session.activeFileID = undefined
     session.activeCandidateID = candidate.id
     const title = playbackTitle(candidate, session.request)
+    const torrentRequest: TorrentPlayRequest = 'magnet' in locator
+      ? { magnet: locator.magnet, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex }
+      : { torrentUrl: locator.torrentUrl, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex }
     torrentRef.current.play(
-      { magnet, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex },
+      torrentRequest,
       title,
     )
     publish(session, 'playing', `已回退到 ${candidateLabel(candidate, session.plugin?.sources ?? [])}`)
@@ -377,10 +381,12 @@ function sourceErrorText(category: string, fallback: string): string {
   return messages[category] ?? fallback
 }
 
-function candidateMagnet(candidate: SourceCandidate): string | null {
-  if (candidate.transport.magnet) return candidate.transport.magnet
-  if (!candidate.transport.infoHash) return null
+function candidateTorrentLocator(candidate: SourceCandidate): { magnet: string } | { torrentUrl: string } | null {
+  if (candidate.transport.magnet) return { magnet: candidate.transport.magnet }
+  if (!candidate.transport.infoHash) {
+    return candidate.transport.torrentUrl ? { torrentUrl: candidate.transport.torrentUrl } : null
+  }
   const params = new URLSearchParams({ xt: `urn:btih:${candidate.transport.infoHash}` })
   for (const tracker of candidate.transport.trackers ?? []) params.append('tr', tracker)
-  return `magnet:?${params.toString()}`
+  return { magnet: `magnet:?${params.toString()}` }
 }

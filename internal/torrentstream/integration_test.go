@@ -380,6 +380,31 @@ func TestSingleEpisodeEndToEnd(t *testing.T) {
 	})
 }
 
+func TestTorrentURLCandidateUsesDownloadedMetaInfo(t *testing.T) {
+	const fileName = "[Nekomoe kissaten][Some Show][02][1080p][JPSC].mkv"
+
+	seedDir := t.TempDir()
+	cacheDir := filepath.Join(t.TempDir(), "torrent")
+	_, metadata, _ := buildTestTorrent(t, seedDir, "", testFile{name: fileName, size: testEpisodeBytes})
+	seedTorrent := startSeeder(t, seedDir, metadata)
+
+	engine := newIntegrationEngine(t, cacheDir)
+	fetches := 0
+	engine.fetchMetaInfo = func(context.Context, string) (*metainfo.MetaInfo, error) {
+		fetches++
+		return metadata, nil
+	}
+	linkSeeder(t, seedTorrent, engine)
+
+	result, err := engine.Prepare(prepareCtx(t), PrepareRequest{
+		TorrentURL: "https://tracker.example/release.torrent", EpisodeHint: 2, FileIndex: -1,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.Source)
+	assert.Equal(t, 1, fetches)
+	assert.Equal(t, "t:"+metadata.HashInfoBytes().HexString()+"/0", result.Source.Item().FileID)
+}
+
 // ─────────────────────────── 场景 3：合集选集 ───────────────────────────
 
 func TestPackSelection(t *testing.T) {

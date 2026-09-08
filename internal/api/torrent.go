@@ -51,6 +51,7 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Magnet      string `json:"magnet"`
+		TorrentURL  string `json:"torrentUrl"`
 		Title       string `json:"title"`
 		EpisodeHint int    `json:"episodeHint"`
 		// FileIndex 用指针：0 是合法下标，零值分不出「用户选了第 0 个」与「还没选」。
@@ -59,8 +60,8 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	if strings.TrimSpace(req.Magnet) == "" {
-		httpserver.WriteError(w, http.StatusBadRequest, "缺少磁力链接")
+	if (strings.TrimSpace(req.Magnet) == "") == (strings.TrimSpace(req.TorrentURL) == "") {
+		httpserver.WriteError(w, http.StatusBadRequest, "需要提供磁力链接或种子文件地址")
 		return
 	}
 	fileIndex := -1
@@ -74,6 +75,7 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.deps.Torrent.Prepare(r.Context(), torrentstream.PrepareRequest{
 		Magnet:      req.Magnet,
+		TorrentURL:  req.TorrentURL,
 		Title:       req.Title,
 		EpisodeHint: req.EpisodeHint,
 		FileIndex:   fileIndex,

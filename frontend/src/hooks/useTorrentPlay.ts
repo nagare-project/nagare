@@ -165,7 +165,8 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
     abortRef.current = controller
     requestRef.current = request
 
-    setState({ phase: 'starting', magnet: request.magnet, title })
+    const locator = request.magnet ?? request.torrentUrl
+    setState({ phase: 'starting', magnet: locator, title })
     setStatus(null)
     setZeroPeerTicks(0)
 
@@ -174,12 +175,12 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
         const data = await depsRef.current.start(request, controller.signal)
         if (controller.signal.aborted) return
         if (data.needSelection) {
-          setState({ phase: 'selecting', magnet: request.magnet, title, files: data.files })
+          setState({ phase: 'selecting', magnet: locator, title, files: data.files })
           return
         }
         setState({
           phase: 'streaming',
-          magnet: request.magnet,
+          magnet: locator,
           title: data.title,
           danmaku: data.danmaku,
         })
@@ -189,7 +190,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
         console.error('磁力播放失败', err)
         setState({
           phase: 'error',
-          magnet: request.magnet,
+          magnet: locator,
           title,
           message: errorText(err, '播放失败'),
         })
