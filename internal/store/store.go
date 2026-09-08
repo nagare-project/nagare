@@ -62,14 +62,23 @@ type RulesConfig struct {
 	LastSyncAt int64    `json:"lastSyncAt,omitempty"`
 }
 
+// SourcePluginConfig 是用户显式安装的本地来源插件配置。本体只保存用户选择的
+// 绝对路径，不附带可执行文件、来源规则或默认地址。
+type SourcePluginConfig struct {
+	Enabled    bool   `json:"enabled"`
+	Executable string `json:"executable,omitempty"`
+	Root       string `json:"root,omitempty"`
+}
+
 // Data 是落盘的全部状态。
 type Data struct {
-	Folders  []Folder            `json:"folders"`
-	Hashes   map[string]string   `json:"hashes"`   // fileID → 16MB MD5（懒算缓存）
-	Bindings map[string]Binding  `json:"bindings"` // fileID → 匹配
-	Progress map[string]Progress `json:"progress"` // fileID → 进度
-	Animego  AnimegoSession      `json:"animego"`
-	Rules    RulesConfig         `json:"rules"`
+	Folders      []Folder            `json:"folders"`
+	Hashes       map[string]string   `json:"hashes"`   // fileID → 16MB MD5（懒算缓存）
+	Bindings     map[string]Binding  `json:"bindings"` // fileID → 匹配
+	Progress     map[string]Progress `json:"progress"` // fileID → 进度
+	Animego      AnimegoSession      `json:"animego"`
+	Rules        RulesConfig         `json:"rules"`
+	SourcePlugin SourcePluginConfig  `json:"sourcePlugin"`
 	// Torrent 存指针：nil = 从未配置过，读取时回落到 DefaultTorrentConfig。
 	Torrent *TorrentConfig `json:"torrent,omitempty"`
 }
@@ -313,6 +322,21 @@ func (s *Store) UpdateRulesConfig(mutate func(c *RulesConfig)) error {
 	c.Disabled = append([]string(nil), c.Disabled...)
 	mutate(&c)
 	s.data.Rules = c
+	return s.save()
+}
+
+// SourcePluginConfig 读取本地来源插件配置。
+func (s *Store) SourcePluginConfig() SourcePluginConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.SourcePlugin
+}
+
+// SetSourcePluginConfig 保存本地来源插件配置。
+func (s *Store) SetSourcePluginConfig(config SourcePluginConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.SourcePlugin = config
 	return s.save()
 }
 

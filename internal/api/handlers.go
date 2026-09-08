@@ -51,6 +51,7 @@ type Deps struct {
 	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
 	Version        string
 	Sources        *SourcesService
+	SourcePlugin   *SourcePluginService
 	// Torrent 是磁力边下边播引擎；nil 表示引擎启动失败，磁力端点整体降级
 	// （返回 503 并在设置页显示原因），其余功能不受影响。
 	Torrent TorrentAPI
@@ -105,6 +106,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/sources/config", h.sourcesConfig)
 	mux.HandleFunc("POST /api/sources/{id}/enabled", h.sourceEnabled)
 	mux.HandleFunc("POST /api/sources/{id}/selfcheck", h.sourceSelfCheck)
+	mux.HandleFunc("GET /api/source-plugin", h.sourcePluginView)
+	mux.HandleFunc("POST /api/source-plugin/config", h.sourcePluginConfig)
+	mux.HandleFunc("POST /api/source-plugin/candidates", h.sourcePluginCandidates)
+	mux.HandleFunc("POST /api/source-plugin/play", h.sourcePluginPlay)
 	mux.HandleFunc("POST /api/torrent/play", h.torrentPlay)
 	mux.HandleFunc("GET /api/torrent/status", h.torrentStatus)
 	mux.HandleFunc("POST /api/torrent/stop", h.torrentStop)

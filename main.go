@@ -37,6 +37,7 @@ import (
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/rulesync"
 	"github.com/nagare-project/nagare/internal/selfupdate"
+	"github.com/nagare-project/nagare/internal/sourceplugin"
 	"github.com/nagare-project/nagare/internal/store"
 	"github.com/nagare-project/nagare/internal/torrentstream"
 	"github.com/nagare-project/nagare/internal/tray"
@@ -77,6 +78,8 @@ type services struct {
 	player  *player.Manager
 	lib     *api.LibraryService
 	sources *api.SourcesService
+	// sourcePlugin 始终存在；未配置时保持 disabled，不启动任何子进程。
+	sourcePlugin *api.SourcePluginService
 	// torrent 为 nil 表示磁力引擎启动失败：其余功能照常，磁力端点整体返回 503，
 	// 设置页据此显示降级原因（决议 CQ3：降级必须可见）。
 	torrent         *torrentstream.Engine
@@ -407,8 +410,15 @@ func buildServices(configDir string) (*services, error) {
 		}
 	}
 
+	// 统一来源插件同样默认关闭。只有 state.json 中保存了用户显式启用的
+	// 绝对路径才会启动；失败只降级插件，不影响本地库与原有磁力规则。
+	pluginService := api.NewSourcePluginService(st, sourceplugin.NewManager(), version)
+	if err := pluginService.StartConfigured(); err != nil {
+		log.Printf("来源插件未能启动（不影响本地播放）：%v", err)
+	}
+
 	return &services{
-		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, sources: sources,
+		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, sources: sources, sourcePlugin: pluginService,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
 		selfUpdate: su,
 	}, nil
@@ -478,7 +488,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		serveErr <- srv.Serve(ln)
 		cancel() // 服务意外退出时也要让托盘 / 主循环收工
 	}()
-	stopped := teardownOnCancel(ctx, srv, svc.player, svc.torrent)
+	stopped := teardownOnCancel(ctx, srv, svc.player, svc.torrent, svc.sourcePlugin)
 
 	// 带 token 的首启 URL 只交给浏览器与托盘；日志（会落盘）里只打端口，token 到配置文件里取。
 	url := launchURL(port, cfg.Token)
@@ -536,6 +546,7 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc) (
 		MPV:             svc.mpv,
 		Version:         version,
 		Sources:         svc.sources,
+		SourcePlugin:    svc.sourcePlugin,
 		Shutdown:        cancel,
 		DataDir:         configDir,
 		LogPath:         logfile.Path(configDir),
@@ -630,6 +641,7 @@ func teardownOnCancel(
 	srv *httpserver.Server,
 	p *player.Manager,
 	engine *torrentstream.Engine,
+	plugin *api.SourcePluginService,
 ) <-chan struct{} {
 	stopped := make(chan struct{})
 	go func() {
@@ -642,6 +654,9 @@ func teardownOnCancel(
 			log.Printf("关闭 HTTP 服务：%v", err)
 		}
 		p.Stop()
+		if plugin != nil {
+			plugin.Stop()
+		}
 		// 播放停完再关引擎：Stop 会触发会话终结回调，那里还要碰引擎。
 		// 关闭时停做种并清空缓存目录（决议 M3-2 / M3-4：退出即停、退出即清）。
 		if engine != nil {

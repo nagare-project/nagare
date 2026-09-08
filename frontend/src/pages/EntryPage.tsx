@@ -3,6 +3,7 @@ import { useSearch } from '@tanstack/react-router'
 import { MediaDetails, MediaExternalLinks, MediaRelations } from '../components/media/MediaDetails'
 import { MediaArtwork } from '../components/media/MediaArtwork'
 import { MediaPlayButton } from '../components/media/MediaPlayButton'
+import { MediaSourceButton } from '../components/media/MediaSourceButton'
 import { MediaTorrentButton } from '../components/media/MediaTorrentButton'
 import { TrailerPreview } from '../components/media/MediaPreview'
 import { useMediaDetails } from '../components/media/useMediaDetails'
@@ -33,7 +34,7 @@ export function EntryPage() {
       <div className="catalog-entry-backdrop" style={{ opacity: bannerOpacity }} aria-hidden="true"><MediaArtwork src={media.banner ?? media.cover} title={media.title} /></div>
       <MediaDetails media={media} page><div className="media-preview-actions"><MediaExternalLinks media={media} />{media.trailerId && <TrailerPreview media={media} />}</div></MediaDetails>
       <Tabs value={tab} onChange={setTab} label="作品内容"><Tab value="local">本地媒体库</Tab><Tab value="details">作品信息</Tab></Tabs>
-      {tab === 'local' ? <section className="catalog-entry-local"><h2>播放</h2><p>可以从媒体库继续观看，也可以选择集数后用本机规则搜索磁力资源。</p><div className="discover-card-play-row"><MediaPlayButton media={media} onOpenChange={() => {}} /><MediaTorrentButton media={media} /></div><a className="link" href="/">查看媒体库</a></section> : <dl className="catalog-entry-facts">
+      {tab === 'local' ? <section className="catalog-entry-local"><h2>播放</h2><p>可以从媒体库继续观看，从已安装的本地插件在线找源，或用本机规则搜索磁力资源。</p><div className="discover-card-play-row"><MediaPlayButton media={media} onOpenChange={() => {}} /><MediaSourceButton media={media} /><MediaTorrentButton media={media} /></div><a className="link" href="/">查看媒体库</a></section> : <dl className="catalog-entry-facts">
         {Object.entries({ '类型': FORMATS[media.format ?? ''] || media.format, '原作': SOURCES[media.source ?? ''] || media.source, '集数': media.episodes, '单集时长': media.duration ? `${media.duration} 分钟` : undefined, '首播日期': media.startDate, '制作公司': media.studios?.join(' / '), '原名': media.titleNative }).map(([label, value]) => value ? <div key={label}><dt>{label}</dt><dd>{value}</dd></div> : null)}
       </dl>}
       <MediaRelations media={media} />

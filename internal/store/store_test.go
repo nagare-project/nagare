@@ -142,3 +142,13 @@ func TestTorrentConfigTrackersAreCopied(t *testing.T) {
 	got.Trackers[0] = "udp://tampered:9"
 	assert.Equal(t, "udp://a:1", s.TorrentConfig().Trackers[0], "返回的切片必须是副本")
 }
+
+func TestSourcePluginConfigRoundTrip(t *testing.T) {
+	s, path := newStore(t)
+	want := SourcePluginConfig{Enabled: true, Executable: "/opt/nagare-source", Root: "/srv/nagare-sources"}
+	require.NoError(t, s.SetSourcePluginConfig(want))
+
+	reopened, err := Open(path)
+	require.NoError(t, err)
+	assert.Equal(t, want, reopened.SourcePluginConfig())
+}

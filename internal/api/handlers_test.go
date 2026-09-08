@@ -20,17 +20,20 @@ import (
 	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/rulesync"
+	"github.com/nagare-project/nagare/internal/sourceplugin"
 	"github.com/nagare-project/nagare/internal/store"
 )
 
 // fakePlayer 是 PlayerAPI 替身。
 type fakePlayer struct {
-	playRes  player.PlayResult
-	playErr  error
-	lastItem library.Item
-	lastSub  string
-	stopped  bool
-	status   player.Status
+	playRes     player.PlayResult
+	playErr     error
+	lastItem    library.Item
+	lastSub     string
+	lastPath    string
+	lastHeaders map[string]string
+	stopped     bool
+	status      player.Status
 	// log 记调用顺序（可为 nil）。磁力播放里「先停播放器再准备种子」的顺序
 	// 是正确性的一部分，只能靠调用序来断言。
 	log func(string)
@@ -39,6 +42,10 @@ type fakePlayer struct {
 func (f *fakePlayer) Play(_ context.Context, src player.MediaSource, sub string) (player.PlayResult, error) {
 	f.record("player.play")
 	f.lastItem, f.lastSub = src.Item(), sub
+	if withHeaders, ok := src.(interface{ HTTPHeaders() map[string]string }); ok {
+		f.lastPath = src.MPVPath()
+		f.lastHeaders = withHeaders.HTTPHeaders()
+	}
 	return f.playRes, f.playErr
 }
 func (f *fakePlayer) record(op string) {
@@ -87,6 +94,7 @@ type testEnv struct {
 	player  *fakePlayer
 	auth    *fakeAuth
 	sources *SourcesService
+	plugin  *fakeSourcePluginRuntime
 	torrent *fakeTorrent
 	// calls 是跨替身的调用顺序记录。
 	calls *[]string
@@ -122,6 +130,8 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 		return mpv.Info{Path: "/usr/bin/mpv", Version: "0.41.0", Source: mpv.SourcePath}, nil
 	}
 	env.sources = NewSourcesService(st, &rules.Fetcher{}, &rulesync.Syncer{}, filepath.Join(t.TempDir(), "rules"))
+	env.plugin = &fakeSourcePluginRuntime{status: sourceplugin.Status{Phase: "disabled"}}
+	pluginService := NewSourcePluginService(st, env.plugin, "test")
 	calls := []string{}
 	env.calls = &calls
 	record := func(op string) { calls = append(calls, op) }
@@ -135,6 +145,7 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 		MPV:             mpv.NewRuntimeWith(func(e string) (mpv.Info, error) { return env.mpvDetect(e) }, ""),
 		Version:         "test",
 		Sources:         env.sources,
+		SourcePlugin:    pluginService,
 		Shutdown:        func() { env.shutdown <- struct{}{} },
 		DataDir:         "/data/nagare",
 		LogPath:         "/data/nagare/logs/nagare.log",

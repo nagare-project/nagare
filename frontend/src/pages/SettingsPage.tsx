@@ -8,11 +8,13 @@ import { SourcesCard } from '../components/search/SourcesCard'
 import { AboutCard } from '../components/settings/AboutCard'
 import { MpvCard } from '../components/settings/MpvCard'
 import { QuitCard, QuitNotice } from '../components/settings/QuitCard'
+import { SourcePluginCard } from '../components/settings/SourcePluginCard'
 import { TorrentCard } from '../components/settings/TorrentCard'
 import { UpdateCard } from '../components/settings/UpdateCard'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { useSelfUpdateContext } from '../hooks/useSelfUpdate'
+import { useSourcePlugin } from '../hooks/useSourcePlugin'
 import { useSettings } from '../hooks/useSettings'
 import { useSources } from '../hooks/useSources'
 import { useUpdateContext } from '../hooks/useUpdate'
@@ -25,7 +27,7 @@ import './settings.css'
 
 const SETTINGS_GROUPS: ReadonlyArray<ReadonlyArray<{ id: string; label: string; icon: IconName }>> = [
   [{ id: 'app', label: '应用', icon: 'settings' }, { id: 'account', label: '账号', icon: 'user' }, { id: 'folders', label: '本地媒体库', icon: 'folder' }],
-  [{ id: 'player', label: '媒体播放器', icon: 'monitor' }, { id: 'torrent', label: '磁力播放', icon: 'download' }, { id: 'sources', label: '源规则', icon: 'extension' }],
+  [{ id: 'player', label: '媒体播放器', icon: 'monitor' }, { id: 'torrent', label: '磁力播放', icon: 'download' }, { id: 'sources', label: '来源', icon: 'extension' }],
   [{ id: 'update', label: '更新', icon: 'refresh' }, { id: 'about', label: '关于', icon: 'info' }],
 ]
 
@@ -34,6 +36,7 @@ export function SettingsPage() {
   const settings = useSettings()
   const library = useLibrary()
   const sources = useSources()
+  const sourcePlugin = useSourcePlugin()
   const update = useUpdateContext()
   const selfUpdate = useSelfUpdateContext()
   const hash = useLocation({ select: (location) => location.hash })
@@ -41,7 +44,7 @@ export function SettingsPage() {
   const [hasQuit, setHasQuit] = useState(false)
 
   if (hasQuit) return <QuitNotice />
-  if ([settings.state.phase, library.state.phase, sources.state.phase].includes('unauthorized')) return <UnauthorizedNotice />
+  if ([settings.state.phase, library.state.phase, sources.state.phase, sourcePlugin.state.phase].includes('unauthorized')) return <UnauthorizedNotice />
 
   return (
     <main className="settings-shell">
@@ -92,7 +95,7 @@ export function SettingsPage() {
           {settings.state.phase === 'ready' && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'update'}><UpdateCard update={update} selfUpdate={selfUpdate} /></div>
-        <div className="settings-section" hidden={section.id !== 'sources'}><SourcesCard sources={sources} /></div>
+        <div className="settings-section" hidden={section.id !== 'sources'}><SourcePluginCard plugin={sourcePlugin} /><SourcesCard sources={sources} /></div>
         <div className="settings-section" hidden={section.id !== 'folders'}>
           <FoldersCard state={library.state} onAdd={library.addFolder} onRemove={library.removeFolder} onRetry={() => void library.reload()} />
         </div>

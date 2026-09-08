@@ -180,12 +180,14 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 		return PlayResult{}, err
 	}
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{
-		MPVPath:   mpvPath,
-		MediaPath: src.MPVPath(),
-		SubPath:   subPath,
-		Title:     title,
-		StartAt:   startAt,
-		SocketDir: m.opts.RuntimeDir,
+		MPVPath:                mpvPath,
+		MediaPath:              src.MPVPath(),
+		SubPath:                subPath,
+		Title:                  title,
+		StartAt:                startAt,
+		SocketDir:              m.opts.RuntimeDir,
+		HTTPHeaders:            sourceHTTPHeaders(src),
+		RedactMediaDiagnostics: sourceRedactsDiagnostics(src),
 	})
 	if err != nil {
 		return PlayResult{}, errs.Wrap(errs.CategoryPlayback, "player.launch",
@@ -210,6 +212,27 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	go m.resolveDanmaku(sess)
 
 	return PlayResult{Title: title, Danmaku: loading}, nil
+}
+
+type httpHeaderSource interface {
+	HTTPHeaders() map[string]string
+}
+
+type redactedMediaSource interface {
+	RedactMediaDiagnostics() bool
+}
+
+func sourceHTTPHeaders(source MediaSource) map[string]string {
+	withHeaders, ok := source.(httpHeaderSource)
+	if !ok {
+		return nil
+	}
+	return withHeaders.HTTPHeaders()
+}
+
+func sourceRedactsDiagnostics(source MediaSource) bool {
+	redacted, ok := source.(redactedMediaSource)
+	return ok && redacted.RedactMediaDiagnostics()
 }
 
 // danmakuResolveTimeout 是后台弹幕解析的总时限（含懒哈希 + 匹配 + 拉取 + 写盘）。
