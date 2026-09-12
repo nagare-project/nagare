@@ -21,6 +21,15 @@ arch_name() { case "$1" in amd64) echo x86_64;; arm64) echo arm64;; *) echo "未
 version=$(lock_get version)
 archs=("$goarch"); [ "$goos" = darwin ] && archs=(arm64 amd64)
 
+# goreleaser 对同一个 build 的每个目标各跑一次 pre hook，而且是并发的：darwin 的两个
+# arch 会同时进来取同一批归档。用 mkdir 当互斥锁串行化（macOS 没有 flock），
+# 后进来的那个拿到锁时缓存已命中、目录已就位，只是再校验一遍。
+mkdir -p "$root/dist"
+lockdir="$root/dist/.source-plugin.lock"
+for _ in $(seq 1 600); do mkdir "$lockdir" 2>/dev/null && break; sleep 1; done
+[ -d "$lockdir" ] || { echo "等待 fetch-source-plugin 锁超时" >&2; exit 1; }
+trap 'rmdir "$lockdir" 2>/dev/null' EXIT
+
 for arch in "${archs[@]}"; do
   os=$(os_name "$goos"); ar=$(arch_name "$arch")
   dest="$base/${os}_${ar}"
@@ -39,14 +48,15 @@ for arch in "${archs[@]}"; do
   file="$cache/$asset"
   if [ ! -f "$file" ] || [ "$(sha256_of "$file")" != "$want" ]; then
     echo "==> 下载：$url"
-    curl -fL --retry 3 --retry-delay 2 -o "$file.part" "$url"
-    got=$(sha256_of "$file.part")
+    part="$file.part.$$"
+    curl -fL --retry 3 --retry-delay 2 -o "$part" "$url"
+    got=$(sha256_of "$part")
     if [ "$got" != "$want" ]; then
-      rm -f "$file.part"
+      rm -f "$part"
       echo "sha256 校验失败：$asset（期望 $want，实际 $got）" >&2
       exit 1
     fi
-    mv "$file.part" "$file"
+    mv "$part" "$file"
   else
     echo "==> 缓存命中：$asset"
   fi
