@@ -328,6 +328,13 @@ func (s *session) ensureTorrent(ctx context.Context) (*torrent.Torrent, error) {
 			"磁力链接无法解析", "复制完整的 magnet: 链接后重试", err)
 	}
 	s.adopt(tor)
+	// 用户配的 tracker 在【拿 info 之前】就挂上。实测（2026-09-12，Anime Garden 的无 tracker
+	// 磁力）：纯 DHT 找元数据 50–125 秒甚至找不到，带公共 tracker 2.6 秒 —— 这一段正是
+	// 「点了播放却迟迟不起播」的全部。
+	// 私有种子的顾虑在磁力这条路上不成立：private 标记只在 info 里，而磁力本来就要先靠
+	// DHT 公开找 peer 才拿得到 info，多报几个公共 tracker 并没有多暴露什么；passkey 只存在
+	// 于私有站自己的 announce 地址里，我们从不碰它。拿到 info 发现是私有种子照旧中止。
+	applyTrackers(tor, nil, s.engine.trackers())
 
 	timeout := time.NewTimer(metadataTimeout)
 	defer timeout.Stop()
@@ -341,10 +348,6 @@ func (s *session) ensureTorrent(ctx context.Context) (*torrent.Torrent, error) {
 			if isPrivate(info) {
 				return nil, errPrivateTorrent()
 			}
-			// 补 tracker 必须排在拿到 info 之后：private 标记只有 info 里才有，
-			// 而给私有种子补公共 tracker 会泄露 passkey。代价是这一段等待用不上
-			// 用户配的 tracker，这个代价是有意付的。
-			applyTrackers(tor, info, s.engine.trackers())
 			s.noteName(tor.Name())
 			return tor, nil
 		case <-tick.C:

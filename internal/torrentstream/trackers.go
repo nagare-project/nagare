@@ -67,10 +67,10 @@ func isPrivate(info *metainfo.Info) bool {
 
 // trackersFor 决定给这个种子补哪些 tracker。
 //
-// 私有种子返回空：私有站的 announce 地址里带 passkey，把同一个 infohash 报到
-// 公共 tracker 上等于把用户的下载行为暴露给站外，实践中直接导致封号。
-// private 标记只有拿到 info 之后才知道，所以调用点必然排在等元数据之后 ——
-// 代价是 tracker 帮不上「找种子信息」那一段，这个代价是有意付的。
+// 私有种子（.torrent 文件路径，info 一开始就在手上）返回空：私有站的 announce
+// 地址里带 passkey，把同一个 infohash 报到公共 tracker 上等于把用户的下载行为
+// 暴露给站外，实践中直接导致封号。磁力路径传 nil info：那时还不知道是否私有，
+// 但磁力本就要先经 DHT 公开找 peer，补 tracker 不会多暴露什么（见 session.ensureTorrent）。
 func trackersFor(info *metainfo.Info, configured []string) []string {
 	if len(configured) == 0 {
 		return nil

@@ -167,6 +167,10 @@ func newPriorityManager(base windowInput, set prioritySetter, now func() time.Ti
 	}
 	pm.createdAt = now()
 	pm.lastStartup = true
+	// 建好就把启动期窗口（头部 Now、尾部 Next）写下去，不等第一个 reader。
+	// 起播缓冲那一段正是没有任何 reader 的时候（mpv 还没起、弹幕哈希还没读）；
+	// 不先应用，头 8MB 就只能靠运气按默认顺序凑齐 —— 实测要等整个文件下到四成。
+	pm.apply()
 	return pm
 }
 
