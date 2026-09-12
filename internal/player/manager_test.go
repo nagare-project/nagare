@@ -24,6 +24,7 @@ import (
 // fakeClient 是 AnimegoClient 的可编程替身。
 type fakeClient struct {
 	matchRes   animego.MatchResult
+	matchByKw  map[string]animego.MatchResult // 非空时按 Keyword 分派，缺省回落 matchRes
 	matchErr   error
 	matchCalls atomic.Int32
 	matchMu    sync.Mutex
@@ -37,6 +38,9 @@ func (f *fakeClient) Match(_ context.Context, in animego.MatchInput) (animego.Ma
 	f.matchMu.Lock()
 	f.matchIn = append(f.matchIn, in)
 	f.matchMu.Unlock()
+	if r, ok := f.matchByKw[in.Keyword]; ok {
+		return r, f.matchErr
+	}
 	return f.matchRes, f.matchErr
 }
 func (f *fakeClient) Comments(context.Context, int64) ([]danmaku.Comment, error) { return nil, nil }
@@ -122,6 +126,48 @@ func TestEnsureBindingRemoteSourceMatchesByKeyword(t *testing.T) {
 	assert.Empty(t, st.Hash(src.Item().FileID), "空 hash 不该进缓存")
 	_, ok := st.Binding(src.Item().FileID)
 	assert.True(t, ok, "关键词命中的绑定同样要落库")
+}
+
+// 关键词命中了同名的另一部作品（2026 重制版 vs 1994 原作、系列的另一季）：
+// 目录身份已知时必须拒绝，弹幕宁可没有也不能张冠李戴，进度更不能回写到错的作品。
+// 主标题失手后要拿原名再试一次，试成了绑定要落到目录里的那部作品上。
+func TestEnsureBindingRemoteRejectsStrayAnilistAndRetriesAltTitle(t *testing.T) {
+	stray := animego.MatchResult{Matched: true, AnilistID: 435, EpisodeMap: map[int]animego.EpisodeRef{1: {DandanEpisodeID: 4350001}}}
+	right := animego.MatchResult{Matched: true, AnilistID: 178868, EpisodeMap: map[int]animego.EpisodeRef{1: {DandanEpisodeID: 1788680001, Title: "第1话"}}}
+	client := &fakeClient{matchByKw: map[string]animego.MatchResult{"魔法骑士雷阿斯": stray, "魔法騎士レイアース (2026)": right}}
+	m, st, _ := newTestManager(t, client)
+	src := NewRemoteSource(RemoteSourceOptions{
+		SourceID: "web-a", CandidateID: "c1", URL: "https://example.test/ep1.m3u8", Title: "魔法骑士雷阿斯", Episode: 1,
+		AnilistID: 178868, AltTitles: []string{"魔法騎士レイアース (2026)", "魔法骑士雷阿斯", ""},
+	})
+
+	b, dan := m.ensureBinding(context.Background(), src, src.Item())
+	assert.Equal(t, "ok", dan.State)
+	assert.Equal(t, int64(1788680001), b.DandanEpisodeID)
+	assert.Equal(t, 178868, b.AnilistID)
+	require.Len(t, client.matchIn, 2, "主标题命中别的作品后只该再试一个去重后的别名")
+	assert.Equal(t, "魔法騎士レイアース (2026)", client.matchIn[1].Keyword)
+	_, ok := st.Binding(src.Item().FileID)
+	assert.True(t, ok)
+
+	// 所有关键词都只命中别的作品：unmatched，理由说明命中了谁，且不落绑定。
+	onlyStray := &fakeClient{matchRes: stray}
+	m2, st2, _ := newTestManager(t, onlyStray)
+	_, dan2 := m2.ensureBinding(context.Background(), src, src.Item())
+	assert.Equal(t, "unmatched", dan2.State)
+	assert.Contains(t, dan2.Reason, "435")
+	_, ok = st2.Binding(src.Item().FileID)
+	assert.False(t, ok)
+}
+
+// phase1 命中可能不带 anilistId：目录身份已知时绑定要写目录里的 id，进度才回写得到正确作品。
+func TestEnsureBindingRemoteInheritsCatalogAnilistWhenMatchLacksIt(t *testing.T) {
+	client := &fakeClient{matchRes: animego.MatchResult{Matched: true, EpisodeMap: map[int]animego.EpisodeRef{5: {DandanEpisodeID: 5}}}}
+	m, _, _ := newTestManager(t, client)
+	src := NewRemoteSource(RemoteSourceOptions{SourceID: "s", CandidateID: "c", URL: "https://example.test/a.mp4", Title: "t", Episode: 5, AnilistID: 135865})
+	b, dan := m.ensureBinding(context.Background(), src, src.Item())
+	assert.Equal(t, "ok", dan.State)
+	assert.Equal(t, 135865, b.AnilistID)
 }
 
 // 本地文件真的算不出指纹（文件不可读）仍然是 unavailable，不走关键词猜测。

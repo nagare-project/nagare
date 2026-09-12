@@ -6,6 +6,7 @@ import {
   fetchSourcePlugin,
   playSourceCandidate,
   streamSourceCandidates,
+  type SourcePlaybackIdentity,
 } from '../../lib/endpoints'
 import type {
   PluginSource,
@@ -120,7 +121,9 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     session.activeFileID = undefined
     publish(session, 'starting', `正在尝试 ${candidateLabel(candidate, session.plugin?.sources ?? [])}`)
     try {
-      const result = await playSourceCandidate(candidate, playbackTitle(candidate, session.request), session.request.episode)
+      const result = await playSourceCandidate(
+        candidate, playbackTitle(candidate, session.request), session.request.episode, playbackIdentity(session.request),
+      )
       if (current.current !== session || session.activeCandidateID !== candidate.id) return
       if (!result.fileId) throw new Error('后端未返回播放会话标识')
       session.pending = false
@@ -356,6 +359,15 @@ function sortCandidates(candidates: SourceCandidate[]): SourceCandidate[] {
 // 弹幕只能靠这个关键词匹配；来源站点的标题写法（「第二季」/「Ⅱ」）经常对不上。
 function playbackTitle(candidate: SourceCandidate, request: SourcePlaybackRequest): string {
   return request.media.title.trim() || candidate.match.subjectTitle?.trim() || ''
+}
+
+function playbackIdentity(request: SourcePlaybackRequest): SourcePlaybackIdentity {
+  const primary = request.media.title.trim()
+  const altTitles = [...new Set([request.media.titleNative, request.media.titleEnglish]
+    .filter((title): title is string => typeof title === 'string' && title.trim() !== '')
+    .map(title => title.trim())
+    .filter(title => title !== primary))]
+  return { anilistId: request.media.id, altTitles }
 }
 
 function candidateLabel(candidate: SourceCandidate, sources: PluginSource[]): string {

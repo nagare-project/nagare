@@ -324,18 +324,44 @@ func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item libra
 	if item.ParsedTitle != nil {
 		keyword = *item.ParsedTitle
 	}
-
-	res, err := m.opts.Client.Match(ctx, animego.MatchInput{
-		FileName: item.FileName,
-		FileHash: hash,
-		FileSize: item.Size,
-		Episode:  episode,
-		Keyword:  keyword,
-	})
-	if err != nil {
-		return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: classifyAnimegoErr(err)}
+	// 目录里已知作品身份的源（在线候选）带来两样东西：校验用的 anilistId，
+	// 和主标题失手时可以再试的别名（原名/英文名）。本地文件没有这些，只试一次。
+	wantAnilist, keywords := 0, []string{keyword}
+	if hinted, ok := src.(matchHinted); ok {
+		var alts []string
+		wantAnilist, alts = hinted.MatchHints()
+		keywords = appendUniqueKeywords(keywords, alts)
 	}
-	if !res.Matched {
+
+	var res animego.MatchResult
+	matched, strayAnilist := false, 0
+	for _, kw := range keywords {
+		r, err := m.opts.Client.Match(ctx, animego.MatchInput{
+			FileName: item.FileName,
+			FileHash: hash,
+			FileSize: item.Size,
+			Episode:  episode,
+			Keyword:  kw,
+		})
+		if err != nil {
+			return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: classifyAnimegoErr(err)}
+		}
+		if !r.Matched {
+			continue
+		}
+		// 关键词匹配对同名不同代/同系列不同季会命中别的作品：弹幕会错，播完还会把
+		// 错的作品标成已看。目录身份已知时必须对上，对不上就换下一个关键词。
+		if wantAnilist > 0 && r.AnilistID > 0 && r.AnilistID != wantAnilist {
+			strayAnilist = r.AnilistID
+			continue
+		}
+		res, matched = r, true
+		break
+	}
+	if !matched {
+		if strayAnilist > 0 {
+			return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: fmt.Sprintf("关键词只匹配到另一部作品（anilistId %d），弹幕已跳过", strayAnilist)}
+		}
 		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: "未匹配到对应剧集，弹幕不可用"}
 	}
 	ref, ok := res.EpisodeMap[episode]
@@ -343,8 +369,13 @@ func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item libra
 		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: fmt.Sprintf("匹配结果里没有第 %d 集", episode)}
 	}
 
+	anilistID := res.AnilistID
+	if anilistID == 0 {
+		// phase1 命中可能不带 anilistId；目录身份已知时用它，进度才能回写到正确的作品。
+		anilistID = wantAnilist
+	}
 	b := store.Binding{
-		AnilistID:       res.AnilistID,
+		AnilistID:       anilistID,
 		DandanEpisodeID: ref.DandanEpisodeID,
 		Episode:         episode,
 		Title:           firstNonEmpty(res.TitleChinese, res.TitleNative, keyword),
@@ -484,6 +515,27 @@ func pickTitle(b store.Binding, item library.Item) string {
 		return *item.ParsedTitle
 	}
 	return item.FileName
+}
+
+// matchHinted 由知道自己在目录里是哪部作品的媒体源实现（在线候选）。
+// anilistID 用于校验关键词匹配没有命中别的作品；alt 是主标题失手后可再试的别名。
+type matchHinted interface {
+	MatchHints() (anilistID int, alt []string)
+}
+
+// appendUniqueKeywords 追加非空且未出现过的关键词，保持原有顺序。
+func appendUniqueKeywords(base []string, extra []string) []string {
+	seen := make(map[string]bool, len(base)+len(extra))
+	out := make([]string, 0, len(base)+len(extra))
+	for _, kw := range append(append([]string{}, base...), extra...) {
+		kw = strings.TrimSpace(kw)
+		if kw == "" || seen[kw] {
+			continue
+		}
+		seen[kw] = true
+		out = append(out, kw)
+	}
+	return out
 }
 
 func firstNonEmpty(ss ...string) string {

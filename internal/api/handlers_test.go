@@ -32,6 +32,8 @@ type fakePlayer struct {
 	lastSub     string
 	lastPath    string
 	lastHeaders map[string]string
+	lastAnilist int
+	lastAlts    []string
 	stopped     bool
 	status      player.Status
 	// log 记调用顺序（可为 nil）。磁力播放里「先停播放器再准备种子」的顺序
@@ -45,6 +47,9 @@ func (f *fakePlayer) Play(_ context.Context, src player.MediaSource, sub string)
 	if withHeaders, ok := src.(interface{ HTTPHeaders() map[string]string }); ok {
 		f.lastPath = src.MPVPath()
 		f.lastHeaders = withHeaders.HTTPHeaders()
+	}
+	if hinted, ok := src.(interface{ MatchHints() (int, []string) }); ok {
+		f.lastAnilist, f.lastAlts = hinted.MatchHints()
 	}
 	result := f.playRes
 	if result.FileID == "" {

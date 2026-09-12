@@ -24,6 +24,10 @@ type RemoteSourceOptions struct {
 	Title       string
 	Episode     int
 	SizeBytes   int64
+	// AnilistID 是用户在目录里点的那部作品；弹幕匹配必须对上它，否则宁可没有弹幕。
+	AnilistID int
+	// AltTitles 是目录里的其他标题（原名/英文名），主标题匹配不上时逐个再试。
+	AltTitles []string
 }
 
 type remoteSource struct {
@@ -31,6 +35,8 @@ type remoteSource struct {
 	url       string
 	headers   map[string]string
 	expiresAt int64
+	anilistID int
+	altTitles []string
 }
 
 func NewRemoteSource(options RemoteSourceOptions) MediaSource {
@@ -47,7 +53,12 @@ func NewRemoteSource(options RemoteSourceOptions) MediaSource {
 	}
 	return &remoteSource{
 		item: item, url: options.URL, headers: cloneHeaders(options.Headers), expiresAt: options.ExpiresAt,
+		anilistID: options.AnilistID, altTitles: append([]string(nil), options.AltTitles...),
 	}
+}
+
+func (s *remoteSource) MatchHints() (int, []string) {
+	return s.anilistID, append([]string(nil), s.altTitles...)
 }
 
 func (s *remoteSource) Item() library.Item { return s.item }

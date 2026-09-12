@@ -131,7 +131,9 @@ func TestSourcePluginPlayPassesEphemeralURLAndHeadersToPlayer(t *testing.T) {
     "metadata": {"episode": 3}
   },
   "title": "Example",
-  "episode": 3
+  "episode": 3,
+  "anilistId": 123,
+  "altTitles": ["エグザンプル", "Example (TV)"]
 }`
 	rec := env.do(t, http.MethodPost, "/api/source-plugin/play", body)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -143,6 +145,15 @@ func TestSourcePluginPlayPassesEphemeralURLAndHeadersToPlayer(t *testing.T) {
 	assert.Equal(t, "https://source.example/", env.player.lastHeaders["Referer"])
 	assert.NotContains(t, env.player.lastItem.FileID, "secret")
 	assert.Empty(t, env.player.lastItem.AbsPath)
+	// 目录身份要原样交给播放器做弹幕匹配校验；省略时也要能播。
+	assert.Equal(t, 123, env.player.lastAnilist)
+	assert.Equal(t, []string{"エグザンプル", "Example (TV)"}, env.player.lastAlts)
+	rec = env.do(t, http.MethodPost, "/api/source-plugin/play", strings.Replace(strings.Replace(body, `,
+  "anilistId": 123`, "", 1), `,
+  "altTitles": ["エグザンプル", "Example (TV)"]`, "", 1))
+	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = env.do(t, http.MethodPost, "/api/source-plugin/play", strings.Replace(body, `"anilistId": 123`, `"anilistId": -1`, 1))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
 	rec = env.do(t, http.MethodPost, "/api/source-plugin/play", strings.Replace(body, `"type": "hls"`, `"type": "torrent", "magnet": "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"`, 1))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)

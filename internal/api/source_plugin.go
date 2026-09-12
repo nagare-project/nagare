@@ -197,11 +197,20 @@ func (h *Handler) sourcePluginCandidates(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// 目录里一部作品最多带原名 + 英文名两个别名；上限留余量，挡住把整段文本当标题塞进来。
+const (
+	maxAltTitles     = 4
+	maxAltTitleBytes = 512
+)
+
 func (h *Handler) sourcePluginPlay(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Candidate sourceplugin.Candidate `json:"candidate"`
 		Title     string                 `json:"title"`
 		Episode   int                    `json:"episode"`
+		// AnilistID 与 AltTitles 是目录里的作品身份，只用于弹幕匹配校验与重试，可省略。
+		AnilistID int      `json:"anilistId"`
+		AltTitles []string `json:"altTitles"`
 	}
 	if !decodeStrictBody(w, r, &request) {
 		return
@@ -209,6 +218,16 @@ func (h *Handler) sourcePluginPlay(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(request.Title) == "" || request.Episode < 1 {
 		httpserver.WriteError(w, http.StatusBadRequest, "标题和正集号不能为空")
 		return
+	}
+	if request.AnilistID < 0 || len(request.AltTitles) > maxAltTitles {
+		httpserver.WriteError(w, http.StatusBadRequest, "作品身份字段无效")
+		return
+	}
+	for _, alt := range request.AltTitles {
+		if len(alt) > maxAltTitleBytes {
+			httpserver.WriteError(w, http.StatusBadRequest, "作品身份字段无效")
+			return
+		}
 	}
 	if err := sourceplugin.ValidateCandidate(request.Candidate); err != nil {
 		httpserver.WriteError(w, http.StatusBadRequest, "候选格式无效")
@@ -228,6 +247,8 @@ func (h *Handler) sourcePluginPlay(w http.ResponseWriter, r *http.Request) {
 		Title:       request.Title,
 		Episode:     request.Episode,
 		SizeBytes:   request.Candidate.Metadata.SizeBytes,
+		AnilistID:   request.AnilistID,
+		AltTitles:   request.AltTitles,
 	})
 	result, err := h.deps.Player.Play(r.Context(), source, "")
 	if err != nil {

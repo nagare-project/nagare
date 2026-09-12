@@ -703,12 +703,22 @@ export async function streamSourceCandidates(
   if (!doneSeen) throw new ApiError('来源插件的候选流未正常完成', response.status)
 }
 
+// identity 是目录里的作品身份：在线媒体没有文件指纹，弹幕只能靠标题匹配，
+// 后端用 anilistId 校验没有命中同名的另一部作品，主标题失手时再拿别名试。
+export interface SourcePlaybackIdentity {
+  anilistId: number
+  altTitles: string[]
+}
+
 export function playSourceCandidate(
   candidate: SourceCandidate,
   title: string,
   episode: number,
+  identity: SourcePlaybackIdentity,
 ): Promise<PlayData> {
-  return requestJson<PlayData>('/api/source-plugin/play', 'POST', { candidate, title, episode })
+  return requestJson<PlayData>('/api/source-plugin/play', 'POST', {
+    candidate, title, episode, anilistId: identity.anilistId, altTitles: identity.altTitles,
+  })
 }
 
 function parseSourcePluginEvent(value: unknown): SourcePluginEvent {
