@@ -177,7 +177,7 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
   </>
 }
 
-const UNGROUPED = '未标注字幕组'
+const UNGROUPED = '未分类'
 
 /** 每部作品记住用户上次选的字幕组：下次打开直接排在最前并预选。 */
 function fansubMemoryKey(mediaId: number): string { return `nagare:fansub:${mediaId}` }
@@ -190,9 +190,9 @@ function rememberFansub(mediaId: number, group: string): void {
 
 interface FansubGroup {
   name: string
-  /** 命中目标集的正片 */
+  /** 命中目标集的正片（季数也对得上），排在最前 */
   hits: SearchItem[]
-  /** 该字幕组的其余条目（别的集、合集、特典、未识别）；合集排前面 */
+  /** 该字幕组的其余条目（合集、别的集、特典、未识别）；合集排前面。分类只按字幕组，不按集拆开显示 */
   others: SearchItem[]
 }
 
@@ -325,8 +325,14 @@ function ResourceResults({ state, busy, mediaId, mediaTitle, mediaYear, onPlay }
     title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
     onClick={event => play(item, event.currentTarget, group)}>{label}</button>
 
+  const rowLabel = (item: SearchItem, isHit: boolean) => [
+    isHit ? `第 ${state.episode} 集` : typeof item.episode === 'number' ? `第 ${item.episode} 集` : isBatchRelease(item) ? '合集（播放时选集）' : null,
+    !isHit && typeof item.season === 'number' ? `第 ${item.season} 季` : null,
+    itemMeta(item),
+  ].filter(Boolean).join(' · ')
+
   return <section className="media-resource-results" aria-label={`第 ${state.episode} 集磁力资源`}>
-    <div className="media-play-selection"><h3>第 {state.episode} 集资源</h3><span className="result result--dim" role="status">{hitGroups.length} 个字幕组命中 · 共 {state.result.items.length} 条{state.pluginPending ? ' · 插件来源仍在搜索…' : ''}</span></div>
+    <div className="media-play-selection"><h3>第 {state.episode} 集资源</h3><span className="result result--dim" role="status">{groups.length} 个分类 · 共 {state.result.items.length} 条{state.pluginPending ? ' · 插件来源仍在搜索…' : ''}</span></div>
     {state.engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<a className="link" href="/settings#torrent">查看设置</a></p>}
     {trouble.length > 0 && <p className="result result--warn" role="status">{sourceTrouble(trouble)}</p>}
     {state.result.items.length === 0 ? <p className="media-play-hint" role="status">{state.pluginPending ? '本机规则没有结果，插件来源仍在搜索…' : '启用的源没有返回结果。可以修改搜索词后重试；源异常不等于这部作品没有资源。'}</p> : <>
@@ -335,22 +341,21 @@ function ResourceResults({ state, busy, mediaId, mediaTitle, mediaYear, onPlay }
           className={active?.name === group.name ? 'media-fansub-chip media-fansub-chip--active' : 'media-fansub-chip'}
           aria-label={`字幕组 ${group.name}`} onClick={() => setChosen(group.name)}>
           <strong>{group.name}</strong>
-          <span>{group.hits.length > 0 ? `第 ${state.episode} 集 · ${group.hits[0]!.resolution ?? ''}`.replace(/ · $/, '') : `无第 ${state.episode} 集`}{group.name === remembered ? ' · 上次' : ''}</span>
+          <span>{group.hits.length > 0 ? `第 ${state.episode} 集 · ${group.hits[0]!.resolution ?? ''}`.replace(/ · $/, '') : `${group.others.length} 条`}{group.name === remembered ? ' · 上次' : ''}</span>
         </button>)}
       </div>
-      {hitGroups.length === 0 && <p className="media-play-hint">没有识别到第 {state.episode} 集的正片条目，可能标题写法特殊或尚未发布；下面是各字幕组的全部结果，合集播放时可以选集。</p>}
+      {hitGroups.length === 0 && <p className="media-play-hint">没有识别到第 {state.episode} 集的正片条目，可能标题写法特殊或尚未发布；合集播放时可以选集。</p>}
       {active && <div className="media-fansub-detail" aria-label={`${active.name} 的资源`}>
-        {active.hits.length > 0 && <ul className="media-resource-list">{active.hits.map((item, index) => <li key={`hit-${item.source}-${index}`}>
-          <div><strong>{item.title}</strong><span>{itemMeta(item)}</span></div>
-          {playButton(item, active.name, index === 0 ? `播放第 ${state.episode} 集` : '播放')}
-        </li>)}</ul>}
-        {active.others.length > 0 && <details className="media-fansub-others" open={active.hits.length === 0}>
-          <summary>{active.name} 的其他条目（{active.others.length}）</summary>
-          <ul className="media-resource-list">{active.others.slice(0, MAX_RESOURCE_RESULTS).map((item, index) => <li key={`other-${item.source}-${index}`}>
-            <div><strong>{item.title}</strong><span>{[typeof item.season === 'number' ? `第 ${item.season} 季` : null, typeof item.episode === 'number' ? `第 ${item.episode} 集` : isBatchRelease(item) ? '合集（播放时选集）' : '未识别集数', itemMeta(item)].filter(Boolean).join(' · ')}</span></div>
+        <ul className="media-resource-list">
+          {active.hits.map((item, index) => <li key={`hit-${item.source}-${index}`} className="media-resource-hit">
+            <div><strong>{item.title}</strong><span>{rowLabel(item, true)}</span></div>
+            {playButton(item, active.name, index === 0 ? `播放第 ${state.episode} 集` : '播放')}
+          </li>)}
+          {active.others.slice(0, MAX_RESOURCE_RESULTS).map((item, index) => <li key={`other-${item.source}-${index}`}>
+            <div><strong>{item.title}</strong><span>{rowLabel(item, false)}</span></div>
             {playButton(item, active.name)}
-          </li>)}</ul>
-        </details>}
+          </li>)}
+        </ul>
       </div>}
     </>}
   </section>

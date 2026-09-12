@@ -53,7 +53,7 @@
 .media-fansub-chip:hover { border-color: var(--border); }
 .media-fansub-chip--active { border-color: #8b7cf6; background: #8b7cf614; }
 .media-fansub-detail { display: grid; gap: 8px; }
-.media-fansub-others > summary { cursor: pointer; color: var(--fg-muted); font-size: 12px; padding: 4px 0; }
+.media-resource-list .media-resource-hit { border-left: 2px solid #8b7cf6; padding-left: 10px; }
 .media-source-errors { display: grid; gap: 4px; margin: 0; padding: 10px 12px 10px 28px; border-radius: 8px; background: #f59e0b12; color: var(--warning); font-size: 12px; }
 @media (max-width: 640px) { .media-play-body { padding: 32px 20px 24px; } }
 @media (max-width: 520px) { .media-manual-episode { align-items: stretch; flex-direction: column; } .media-resource-list li { align-items: stretch; flex-direction: column; } }

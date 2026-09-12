@@ -104,13 +104,13 @@ describe('目录作品磁力选集', () => {
     expect(chips.map(chip => chip.querySelector('strong')?.textContent)).toEqual(['C组', 'B组', 'A组'])
     expect(chips[0]?.getAttribute('aria-selected')).toBe('true')
     expect(chips[0]?.textContent).toContain('上次')
-    expect(chips[2]?.textContent).toContain('无第 2 集')
-    // C 组的 OP 不算命中：命中列表只有正片那一条，OP 折叠进「其他条目」
-    expect(container.querySelectorAll('.media-fansub-detail > .media-resource-list li')).toHaveLength(1)
-    expect(container.querySelector('.media-fansub-others summary')?.textContent).toContain('1')
+    expect(chips[2]?.textContent).toContain('1 条')
+    // C 组的 OP 不算命中：同一列表里正片排前（带命中标记），OP 跟在后面
+    expect(container.querySelectorAll('.media-fansub-detail .media-resource-list li')).toHaveLength(2)
+    expect(container.querySelectorAll('.media-fansub-detail .media-resource-hit')).toHaveLength(1)
 
     await act(async () => chips[1]!.click())
-    const hits = [...container.querySelectorAll('.media-fansub-detail > .media-resource-list li')]
+    const hits = [...container.querySelectorAll('.media-fansub-detail .media-resource-hit')]
     expect(hits.map(li => li.querySelector('strong')?.textContent)).toEqual(['[B] 测试动画 - 02 强种', '[B] 测试动画 - 02 弱种'])
     expect(hits[0]?.querySelector('button')?.textContent).toBe('播放第 2 集')
 
@@ -135,7 +135,7 @@ describe('目录作品磁力选集', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
     await act(async () => {})
-    const hits = [...container.querySelectorAll('.media-fansub-detail > .media-resource-list li')]
+    const hits = [...container.querySelectorAll('.media-fansub-detail .media-resource-hit')]
     expect(hits).toHaveLength(2)
     expect(hits[0]?.textContent).toContain('做种 42')
     await unmount()
@@ -158,10 +158,12 @@ describe('目录作品磁力选集', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
     await act(async () => {})
-    const hits = [...container.querySelectorAll('.media-fansub-detail > .media-resource-list li')].map(li => li.querySelector('strong')?.textContent)
-    // 第四季那条不算命中；两条第一季按离 2014 近的在前
+    const hits = [...container.querySelectorAll('.media-fansub-detail .media-resource-hit')].map(li => li.querySelector('strong')?.textContent)
+    // 第四季那条不算命中；两条第一季按离 2014 近的在前；第四季那条跟在同一列表后面并标出季数
     expect(hits).toEqual(['[A] 测试动画 - 02', '[A] 测试动画 - 02 [BDRip]'])
-    expect(container.querySelector('.media-fansub-others')?.textContent).toContain('第 4 季')
+    const rows = [...container.querySelectorAll('.media-fansub-detail .media-resource-list li')]
+    expect(rows).toHaveLength(3)
+    expect(rows[2]?.textContent).toContain('第 4 季')
     await unmount()
   })
 
@@ -198,9 +200,8 @@ describe('目录作品磁力选集', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
     await act(async () => {})
     expect(container.textContent).toContain('没有识别到第 2 集的正片条目')
-    expect(container.querySelector('.media-fansub-chip strong')?.textContent).toBe('未标注字幕组')
-    expect(container.querySelector<HTMLDetailsElement>('.media-fansub-others')?.open).toBe(true)
-    expect(container.querySelector('.media-fansub-others li span')?.textContent).toContain('合集（播放时选集）')
+    expect(container.querySelector('.media-fansub-chip strong')?.textContent).toBe('未分类')
+    expect(container.querySelector('.media-fansub-detail li span')?.textContent).toContain('合集（播放时选集）')
     await unmount()
   })
 
