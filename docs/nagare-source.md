@@ -2,6 +2,8 @@
 
 Nagare 通过本机子进程接入 [Nagare Source](https://github.com/nagare-project/Nagare_Source)。来源进程统一返回 HTTP/HLS 与 BT 候选；Nagare 优先启动可靠的在线候选，播放失败时依次换源，在线候选耗尽后复用原有磁力边下边播管线。
 
+作品页的「选集」（磁力选集）也会向插件要 BT 候选：请求带 `preferences.transports: ["torrent"]`，插件只运行 BT 来源、不启动任何浏览器嗅探，通常 1–7 秒返回；结果与本机规则的结果合并，来源标为「插件 · <来源名>」，按字幕组分组。只装了插件、没有配置规则仓库的用户也能靠这条路播磁力。
+
 ## 本地安装
 
 克隆 Nagare Source 后，在仓库根目录构建可执行文件：

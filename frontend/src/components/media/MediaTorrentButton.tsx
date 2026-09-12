@@ -65,8 +65,10 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
     const version = ++requestVersion.current
     setState({ phase: 'searching', episode })
     try {
+      const altTitles = [media.titleNative, media.titleEnglish]
+        .filter((title): title is string => typeof title === 'string' && title.trim() !== '' && title.trim() !== searchQuery)
       const [result, sources, settings] = await Promise.all([
-        searchMagnets(searchQuery),
+        searchMagnets(searchQuery, { episode, anilistId: media.id, ...(media.year === undefined ? {} : { year: media.year }), altTitles }),
         fetchSources(),
         fetchSettings(),
       ])
@@ -203,9 +205,10 @@ function ResourceResults({ state, busy, mediaId, onPlay }: {
   const [chosen, setChosen] = useState<string | null>(null)
   const active = groups.find(group => group.name === chosen) ?? hitGroups[0] ?? groups[0] ?? null
 
-  if (state.sources.sources.length === 0) return <div className="media-resource-empty">
-    <p className="result result--warn">尚未配置资源源。</p>
-    <a className="btn btn--sm" href="/settings#sources">去设置添加规则来源</a>
+  // 本机规则和插件 BT 来源都没有时才算「没配源」；插件给了结果就照常展示
+  if (state.sources.sources.length === 0 && state.result.sources.length === 0) return <div className="media-resource-empty">
+    <p className="result result--warn">尚未配置资源源：启用本地来源插件（Nagare Source）或添加规则仓库。</p>
+    <a className="btn btn--sm" href="/settings#sources">去设置</a>
   </div>
 
   const trouble = state.result.sources.filter(outcome => outcome.state === 'dead' || outcome.state === 'failed')
@@ -214,7 +217,8 @@ function ResourceResults({ state, busy, mediaId, onPlay }: {
     if (group !== UNGROUPED) rememberFansub(mediaId, group)
     onPlay(item, state.episode, button)
   }
-  const itemMeta = (item: SearchItem) => [item.resolution, item.size, typeof item.seeders === 'number' ? `做种 ${item.seeders}` : null, sourceNames.get(item.source) ?? item.source].filter(Boolean).join(' · ')
+  const sourceLabel = (item: SearchItem) => sourceNames.get(item.source) ?? (item.source.startsWith('plugin:') ? `插件 · ${item.provider ?? item.source.slice('plugin:'.length)}` : item.source)
+  const itemMeta = (item: SearchItem) => [item.resolution, item.size, typeof item.seeders === 'number' ? `做种 ${item.seeders}` : null, sourceLabel(item)].filter(Boolean).join(' · ')
   const playButton = (item: SearchItem, group: string, label = '播放') => <button type="button" className="btn btn--sm btn--primary" disabled={busy || state.engineDown}
     title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
     onClick={event => play(item, event.currentTarget, group)}>{label}</button>

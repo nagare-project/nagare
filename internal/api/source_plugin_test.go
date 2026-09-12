@@ -12,16 +12,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nagare-project/nagare/internal/player"
+	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/sourceplugin"
 )
 
 type fakeSourcePluginRuntime struct {
-	status   sourceplugin.Status
-	started  sourceplugin.LaunchConfig
-	startErr error
-	stopped  bool
-	sources  []sourceplugin.Source
-	events   []sourceplugin.Event
+	status      sourceplugin.Status
+	started     sourceplugin.LaunchConfig
+	startErr    error
+	stopped     bool
+	sources     []sourceplugin.Source
+	events      []sourceplugin.Event
+	lastRequest sourceplugin.ResolveRequest
 }
 
 func (f *fakeSourcePluginRuntime) Start(config sourceplugin.LaunchConfig) error {
@@ -48,7 +50,8 @@ func (f *fakeSourcePluginRuntime) Sources(context.Context) ([]sourceplugin.Sourc
 	return append([]sourceplugin.Source(nil), f.sources...), nil
 }
 
-func (f *fakeSourcePluginRuntime) Candidates(_ context.Context, _ sourceplugin.ResolveRequest, emit func(sourceplugin.Event) error) error {
+func (f *fakeSourcePluginRuntime) Candidates(_ context.Context, request sourceplugin.ResolveRequest, emit func(sourceplugin.Event) error) error {
+	f.lastRequest = request
 	for _, event := range f.events {
 		if err := emit(event); err != nil {
 			return err
@@ -157,4 +160,64 @@ func TestSourcePluginPlayPassesEphemeralURLAndHeadersToPlayer(t *testing.T) {
 
 	rec = env.do(t, http.MethodPost, "/api/source-plugin/play", strings.Replace(body, `"type": "hls"`, `"type": "torrent", "magnet": "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"`, 1))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// 磁力选集带集号搜索时，插件的 BT 来源要以「只要 torrent」的允许列表参与，
+// 候选压成与本机规则同形的条目；在线候选与失败来源分别被忽略/记入状态。
+func TestSearchWithEpisodeMergesPluginTorrentCandidates(t *testing.T) {
+	env := newEnv(t)
+	env.plugin.status = sourceplugin.Status{Phase: "ready"}
+	env.plugin.sources = []sourceplugin.Source{{ID: "garden", Name: "Anime Garden", Kind: "bt", Tier: 3, Enabled: true}}
+	seeders := 12
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "garden:abc", SourceID: "garden", Tier: 3, MatchConfidence: 0.95,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, SubjectTitle: "幼女战记 第二季", EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", InfoHash: "0123456789ABCDEF0123456789ABCDEF01234567"},
+			Metadata:  sourceplugin.Metadata{Fansub: "LoliHouse", Resolution: "1080P", Episode: 5, SizeBytes: 734003200, Seeders: &seeders},
+		}},
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "web:5", SourceID: "web-a", Tier: 1, MatchConfidence: 1,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}},
+			Transport: sourceplugin.Transport{Type: "hls", URL: "https://media.example/5.m3u8"},
+		}},
+		{Event: "source_error", SourceID: "bt-dead", Category: "search_failed", Message: "boom", Retryable: true},
+		{Event: "done", Queried: 3, Succeeded: 2, Failed: 1},
+	}
+
+	rec := env.do(t, http.MethodGet, "/api/search?q=%E5%B9%BC%E5%A5%B3%E6%88%98%E8%AE%B0%20%E7%AC%AC%E4%BA%8C%E5%AD%A3&episode=5&anilist=135865&year=2026&title=%E5%B9%BC%E5%A5%B3%E6%88%A6%E8%A8%98%E2%85%A1", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var view SearchView
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
+
+	assert.Equal(t, []string{"torrent"}, env.plugin.lastRequest.Preferences.Transports, "只要 BT，不能触发浏览器嗅探")
+	assert.Equal(t, "135865", env.plugin.lastRequest.Subject.IDs["anilist"])
+	assert.Equal(t, []string{"幼女战记 第二季", "幼女戦記Ⅱ"}, env.plugin.lastRequest.Subject.Titles)
+	assert.Equal(t, "5", env.plugin.lastRequest.Episode.Number)
+
+	require.Len(t, view.Items, 1, "在线候选不进磁力选集")
+	item := view.Items[0]
+	assert.Equal(t, "plugin:garden", item.Source)
+	assert.Equal(t, "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", item.Magnet)
+	assert.Equal(t, "幼女战记 第二季 - 05", item.Title)
+	assert.Equal(t, "LoliHouse", item.Group)
+	assert.Equal(t, "1080p", item.Resolution)
+	require.NotNil(t, item.Episode)
+	assert.Equal(t, 5, *item.Episode)
+	assert.Equal(t, "734 MB", item.Size)
+	assert.Equal(t, 12, *item.Seeders)
+	assert.Equal(t, "Anime Garden", *item.Provider)
+
+	states := map[string]rules.State{}
+	for _, outcome := range view.Sources {
+		states[outcome.Source] = outcome.State
+	}
+	assert.Equal(t, rules.StateOK, states["plugin:garden"])
+	assert.Equal(t, rules.StateFailed, states["plugin:bt-dead"])
+
+	// 没有集号：不问插件。
+	env.plugin.lastRequest = sourceplugin.ResolveRequest{}
+	rec = env.do(t, http.MethodGet, "/api/search?q=x", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, env.plugin.lastRequest.Schema)
 }

@@ -63,6 +63,9 @@ type Preferences struct {
 	SubtitleLanguages   []string `json:"subtitleLanguages,omitempty"`
 	MaxResolution       string   `json:"maxResolution,omitempty"`
 	PreferredTransports []string `json:"preferredTransports,omitempty"`
+	// Transports 是允许列表：非空时插件只运行能产出这些 transport 的来源
+	// （磁力选集只要 torrent，跳过整队浏览器嗅探）。
+	Transports []string `json:"transports,omitempty"`
 }
 
 type ResolveRequest struct {

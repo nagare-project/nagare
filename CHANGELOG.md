@@ -5,6 +5,12 @@
 
 ## [未发布]
 
+### 磁力选集接入来源插件的 BT 来源（2026-09-12）
+
+- `GET /api/search` 带 `episode`（可附 `anilist` / `year` / `title` 别名）时，额外向已就绪的本地来源插件请求 BT 候选，请求携带 `preferences.transports: ["torrent"]`，插件只运行 BT 来源、不触发浏览器嗅探。候选压成与本机规则同形的条目（来源 `plugin:<id>`，magnet 缺失时按 infohash 拼），与规则结果合并、按字幕组分组；失败来源记入结果状态，不影响规则结果。
+- 磁力选集的「尚未配置资源源」只在本机规则与插件 BT 来源都没有时显示。
+- 实测只装 Nagare Source（含新内置的 Anime Garden BT 来源）、未配置任何规则：《幼女战记 第二季》第 5 集 6.5 秒返回 9 条候选、5 个字幕组。
+
 ### 磁力选集按字幕组分组（2026-09-12）
 
 - `GET /api/search` 的每条结果补上本机解析链给出的 `episode`、`group`（规则给的 fansub 优先，否则用标题里的发布组）、`resolution` 和 `kind`；规则与解析链互不知道对方，合并在 API 层。

@@ -59,7 +59,8 @@ describe('目录作品磁力选集', () => {
 
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
     await act(async () => {})
-    expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('测试动画')
+    // 带上集号与作品身份：后端据此再向来源插件要 BT 候选
+    expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('测试动画', { episode: 2, anilistId: 7, altTitles: [] })
     expect(container.querySelector('.media-resource-list')?.textContent).toContain('[Group] 测试动画 02')
     expect(container.querySelector('.media-resource-list')?.textContent).toContain('本机规则')
 

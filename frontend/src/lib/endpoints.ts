@@ -505,8 +505,24 @@ export interface RulesConfigPatch {
 }
 
 /** 关键词搜索；q 走 encodeURIComponent（中文 / `&` / `#` 都不能裸露在 query 里） */
-export function searchMagnets(query: string): Promise<SearchResult> {
-  return apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(query)}`)
+/** 磁力选集附带的作品身份：有集号时后端会再向来源插件要 BT 候选（只要 torrent） */
+export interface MagnetSearchContext {
+  episode: number
+  anilistId?: number
+  year?: number
+  /** 目录里的其他标题（原名/英文名），插件按它们再搜一遍 */
+  altTitles?: string[]
+}
+
+export function searchMagnets(query: string, context?: MagnetSearchContext): Promise<SearchResult> {
+  const params = [`q=${encodeURIComponent(query)}`]
+  if (context !== undefined) {
+    params.push(`episode=${context.episode}`)
+    if (context.anilistId !== undefined) params.push(`anilist=${context.anilistId}`)
+    if (context.year !== undefined) params.push(`year=${context.year}`)
+    for (const title of context.altTitles ?? []) params.push(`title=${encodeURIComponent(title)}`)
+  }
+  return apiFetch<SearchResult>(`/api/search?${params.join('&')}`)
 }
 
 export function fetchSources(): Promise<SourcesData> {

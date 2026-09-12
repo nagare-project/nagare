@@ -197,7 +197,14 @@ cd frontend && bun run test
 
 ## 磁力源
 
-nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供规则：
+nagare **本体不内置任何磁力源**。磁力资源有两条来路，任选其一或同时用：
+
+**A. 本地来源插件（推荐，装上即用）**：安装 [Nagare Source](https://github.com/nagare-project/Nagare_Source)，
+在设置页「来源」里启用并指定可执行文件与仓库目录。它自带 BT 来源，作品页的「选集」会直接列出
+按字幕组分组的资源；这条路只请求 BT 来源，不会为磁力触发任何网页嗅探。安装与边界见
+[docs/nagare-source.md](docs/nagare-source.md)。
+
+**B. 自己的规则仓库（高级）**：
 
 1. 打开设置页，在「磁力源」里填规则仓库的 HTTPS 地址（或一个本机目录），点「同步规则」
 2. 规则文件的格式与仓库布局见 [docs/rules-format.md](docs/rules-format.md)；
