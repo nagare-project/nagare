@@ -303,3 +303,41 @@ func TestSourcePluginAdoptsBundledOnFirstRunOnly(t *testing.T) {
 
 func boolPtr(v bool) *bool    { return &v }
 func strPtr(v string) *string { return &v }
+
+// 流式端点：条目、来源结果逐行到达，最后一行 done；本机规则不参与。
+func TestSearchPluginStreamsItemsAndOutcomes(t *testing.T) {
+	env := newEnv(t)
+	env.plugin.status = sourceplugin.Status{Phase: "ready"}
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "garden:a", SourceID: "garden", Tier: 3, MatchConfidence: 0.95,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", InfoHash: "0123456789abcdef0123456789abcdef01234567"},
+			Metadata:  sourceplugin.Metadata{Fansub: "A", Episode: 5, Title: "[A] Show - 05 [1080p]"},
+		}},
+		{Event: "source_error", SourceID: "nyaa", Category: "search_failed", Message: "dns", Retryable: true},
+		{Event: "done", Queried: 2, Succeeded: 1, Failed: 1},
+	}
+	rec := env.do(t, http.MethodGet, "/api/search/plugin?q=Show&episode=5&anilist=1", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Header().Get("Content-Type"), "application/x-ndjson")
+	lines := strings.Split(strings.TrimSpace(rec.Body.String()), "\n")
+	require.Len(t, lines, 4, rec.Body.String())
+	var first, second, third, last PluginSearchEvent
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))
+	require.NoError(t, json.Unmarshal([]byte(lines[1]), &second))
+	require.NoError(t, json.Unmarshal([]byte(lines[2]), &third))
+	require.NoError(t, json.Unmarshal([]byte(lines[3]), &last))
+	require.NotNil(t, first.Item)
+	assert.Equal(t, "plugin:garden", first.Item.Source)
+	require.NotNil(t, second.Outcome)
+	assert.Equal(t, "plugin:nyaa", second.Outcome.Source)
+	assert.Equal(t, rules.StateFailed, second.Outcome.State)
+	require.NotNil(t, third.Outcome)
+	assert.Equal(t, "plugin:garden", third.Outcome.Source)
+	assert.Equal(t, rules.StateOK, third.Outcome.State)
+	assert.Equal(t, "done", last.Event)
+
+	rec = env.do(t, http.MethodGet, "/api/search/plugin?q=Show", "")
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}

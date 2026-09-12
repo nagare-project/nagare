@@ -518,6 +518,52 @@ export interface MagnetSearchContext {
   altTitles?: string[]
 }
 
+/** GET /api/search/plugin 的 NDJSON 事件：条目 / 来源结果 / 结束 */
+export type PluginSearchEvent =
+  | { event: 'item'; item: SearchItem }
+  | { event: 'outcome'; outcome: SourceOutcome }
+  | { event: 'done' }
+
+/**
+ * 只问来源插件的 BT 来源，逐条返回。选集窗口先用 searchMagnets（本机规则，不到一秒）
+ * 把列表摆出来，再把这里的条目追加进去——最慢的站点不再拖住整个列表。
+ */
+export async function streamPluginMagnets(
+  query: string,
+  context: MagnetSearchContext,
+  onEvent: (event: PluginSearchEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const params = [`q=${encodeURIComponent(query)}`, `episode=${context.episode}`]
+  if (context.anilistId !== undefined) params.push(`anilist=${context.anilistId}`)
+  if (context.year !== undefined) params.push(`year=${context.year}`)
+  for (const title of context.altTitles ?? []) params.push(`title=${encodeURIComponent(title)}`)
+  const response = await apiStream(`/api/search/plugin?${params.join('&')}`, { signal })
+  if (!response.headers.get('Content-Type')?.toLowerCase().includes('application/x-ndjson') || response.body === null) {
+    throw new ApiError('插件搜索返回了意外的响应格式', response.status)
+  }
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let pending = ''
+  const consume = (line: string): void => {
+    if (line.trim() === '') return
+    const parsed: unknown = JSON.parse(line)
+    if (!isRecord(parsed) || typeof parsed.event !== 'string') throw new ApiError('插件搜索返回了无效事件', response.status)
+    if (parsed.event === 'item' && isRecord(parsed.item)) onEvent({ event: 'item', item: parsed.item as unknown as SearchItem })
+    else if (parsed.event === 'item' && isRecord(parsed.outcome)) onEvent({ event: 'outcome', outcome: parsed.outcome as unknown as SourceOutcome })
+    else if (parsed.event === 'done') onEvent({ event: 'done' })
+  }
+  while (true) {
+    const { value, done } = await reader.read()
+    pending += decoder.decode(value, { stream: !done })
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+    for (const line of lines) consume(line)
+    if (done) break
+  }
+  consume(pending)
+}
+
 export function searchMagnets(query: string, context?: MagnetSearchContext): Promise<SearchResult> {
   const params = [`q=${encodeURIComponent(query)}`]
   if (context !== undefined) {

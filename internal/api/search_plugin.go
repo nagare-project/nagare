@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/nagare-project/nagare/internal/httpserver"
 	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -31,6 +34,29 @@ type pluginTorrentQuery struct {
 // 插件不会为此启动任何浏览器嗅探；候选映射成与本机规则同形的条目，来源 id 加前缀区分。
 // 任何失败只落到 Sources 状态里，不影响本机规则的结果。
 func (s *SourcePluginService) appendPluginTorrents(ctx context.Context, view *SearchView, query pluginTorrentQuery) {
+	s.streamPluginTorrents(ctx, query, func(item *SearchItemView, outcome *rules.Outcome) error {
+		if item != nil {
+			view.Items = append(view.Items, *item)
+		}
+		if outcome != nil {
+			view.Sources = append(view.Sources, *outcome)
+		}
+		return nil
+	})
+}
+
+// PluginSearchEvent 是 GET /api/search/plugin 的 NDJSON 事件：条目、来源结果、结束。
+// 选集窗口先拿本机规则的结果（不到一秒），插件来源一条条追加——最慢的站点（Mikan 十几秒）
+// 不再拖住整个列表。
+type PluginSearchEvent struct {
+	Event   string          `json:"event"`
+	Item    *SearchItemView `json:"item,omitempty"`
+	Outcome *rules.Outcome  `json:"outcome,omitempty"`
+}
+
+// streamPluginTorrents 逐条交出插件的 BT 候选；每个来源结束时交出它的结果状态。
+// emit 返回错误（客户端断开）即停止。
+func (s *SourcePluginService) streamPluginTorrents(ctx context.Context, query pluginTorrentQuery, emit func(item *SearchItemView, outcome *rules.Outcome) error) {
 	if s == nil || query.Episode < 1 || s.Status().Phase != "ready" {
 		return
 	}
@@ -68,34 +94,72 @@ func (s *SourcePluginService) appendPluginTorrents(ctx context.Context, view *Se
 	started := time.Now()
 	counts := map[string]int{}
 	failed := map[string]string{}
+	var emitErr error
 	err := s.Candidates(requestContext, request, func(event sourceplugin.Event) error {
+		latency := time.Since(started).Milliseconds()
 		switch event.Event {
 		case "candidate":
 			if event.Candidate == nil || event.Candidate.Transport.Type != "torrent" {
 				return nil
 			}
 			if item, ok := pluginTorrentItem(*event.Candidate, names); ok {
-				view.Items = append(view.Items, item)
 				counts[event.Candidate.SourceID]++
+				if emitErr = emit(&item, nil); emitErr != nil {
+					return emitErr
+				}
 			}
 		case "source_error":
 			failed[event.SourceID] = event.Category
+			if _, ok := counts[event.SourceID]; !ok {
+				emitErr = emit(nil, &rules.Outcome{Source: pluginSourcePrefix + event.SourceID, State: rules.StateFailed, Reason: "来源插件报告失败", Detail: event.Category, LatencyMs: latency})
+				return emitErr
+			}
 		}
 		return nil
 	})
+	if emitErr != nil {
+		return
+	}
 	latency := time.Since(started).Milliseconds()
 	for id, count := range counts {
-		view.Sources = append(view.Sources, rules.Outcome{Source: pluginSourcePrefix + id, State: rules.StateOK, Count: count, RawCount: count, LatencyMs: latency})
-	}
-	for id, category := range failed {
-		if _, ok := counts[id]; ok {
-			continue
+		if emit(nil, &rules.Outcome{Source: pluginSourcePrefix + id, State: rules.StateOK, Count: count, RawCount: count, LatencyMs: latency}) != nil {
+			return
 		}
-		view.Sources = append(view.Sources, rules.Outcome{Source: pluginSourcePrefix + id, State: rules.StateFailed, Reason: "来源插件报告失败", Detail: category, LatencyMs: latency})
 	}
 	if err != nil && ctx.Err() == nil && len(counts) == 0 && len(failed) == 0 {
-		view.Sources = append(view.Sources, rules.Outcome{Source: pluginSourcePrefix + "bt", State: rules.StateFailed, Reason: "来源插件候选流中断", LatencyMs: latency})
+		_ = emit(nil, &rules.Outcome{Source: pluginSourcePrefix + "bt", State: rules.StateFailed, Reason: "来源插件候选流中断", LatencyMs: latency})
 	}
+}
+
+// searchPlugin 是 GET /api/search/plugin：只问插件的 BT 来源，NDJSON 逐条返回。
+func (h *Handler) searchPlugin(w http.ResponseWriter, r *http.Request) {
+	params := r.URL.Query()
+	episode, err := strconv.Atoi(params.Get("episode"))
+	if err != nil || episode < 1 {
+		httpserver.WriteError(w, http.StatusBadRequest, "集号必须大于零")
+		return
+	}
+	anilist, _ := strconv.Atoi(params.Get("anilist"))
+	year, _ := strconv.Atoi(params.Get("year"))
+	titles := append([]string{params.Get("q")}, params["title"]...)
+	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	flusher, _ := w.(http.Flusher)
+	encoder := json.NewEncoder(w)
+	write := func(event PluginSearchEvent) error {
+		if err := encoder.Encode(event); err != nil {
+			return err
+		}
+		if flusher != nil {
+			flusher.Flush()
+		}
+		return nil
+	}
+	h.deps.SourcePlugin.streamPluginTorrents(r.Context(), pluginTorrentQuery{Titles: titles, Episode: episode, AnilistID: anilist, Year: year}, func(item *SearchItemView, outcome *rules.Outcome) error {
+		return write(PluginSearchEvent{Event: "item", Item: item, Outcome: outcome})
+	})
+	_ = write(PluginSearchEvent{Event: "done"})
 }
 
 // pluginTorrentItem 把一条 torrent 候选压成磁力选集的条目；没有 magnet 但有 infohash 时拼一条。

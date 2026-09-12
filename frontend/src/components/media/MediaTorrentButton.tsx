@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useTorrentPlayback } from '../torrent/TorrentPlayContext'
-import { fetchSettings, fetchSources, searchMagnets } from '../../lib/endpoints'
+import { fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
 import type { SearchItem, SearchResult, SourceOutcome, SourcesData } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { Icon } from '../ui/Icon'
@@ -14,7 +14,7 @@ const MAX_RESOURCE_RESULTS = 80
 type ResourceState =
   | { phase: 'idle' }
   | { phase: 'searching'; episode: number }
-  | { phase: 'ready'; episode: number; result: SearchResult; sources: SourcesData; engineDown: boolean }
+  | { phase: 'ready'; episode: number; result: SearchResult; sources: SourcesData; engineDown: boolean; pluginPending: boolean }
   | { phase: 'error'; episode: number; message: string }
 
 /** 只列已经播出的集。未知总集数时依然可以依靠最近/下次放送信息给出已有集数。 */
@@ -45,6 +45,7 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const requestVersion = useRef(0)
+  const pluginAbort = useRef<AbortController | null>(null)
   const torrent = useTorrentPlayback()
   const [query, setQuery] = useState(media.title)
   const [manualEpisode, setManualEpisode] = useState(String(Math.max(1, media.watched + 1)))
@@ -52,7 +53,7 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
   const numbers = episodeNumbers(media)
   const titleByEpisode = new Map(media.episodeTitles?.map(item => [item.episode, item.title]) ?? [])
 
-  useEffect(() => () => { requestVersion.current += 1 }, [])
+  useEffect(() => () => { requestVersion.current += 1; pluginAbort.current?.abort() }, [])
   useEffect(() => {
     setQuery(media.title)
     setManualEpisode(String(Math.max(1, media.watched + 1)))
@@ -67,13 +68,34 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
     try {
       const altTitles = [media.titleNative, media.titleEnglish]
         .filter((title): title is string => typeof title === 'string' && title.trim() !== '' && title.trim() !== searchQuery)
+      const context = { episode, anilistId: media.id, ...(media.year === undefined ? {} : { year: media.year }), altTitles }
+      // 本机规则先回（不到一秒），列表立刻摆出来；插件的 BT 来源随后逐条追加，
+      // 最慢的站点（Mikan 十几秒）不再拖住整个窗口。
       const [result, sources, settings] = await Promise.all([
-        searchMagnets(searchQuery, { episode, anilistId: media.id, ...(media.year === undefined ? {} : { year: media.year }), altTitles }),
+        searchMagnets(searchQuery),
         fetchSources(),
         fetchSettings(),
       ])
       if (version !== requestVersion.current) return
-      setState({ phase: 'ready', episode, result, sources, engineDown: !settings.torrent.enabled })
+      setState({ phase: 'ready', episode, result, sources, engineDown: !settings.torrent.enabled, pluginPending: true })
+      const controller = new AbortController()
+      pluginAbort.current?.abort()
+      pluginAbort.current = controller
+      try {
+        await streamPluginMagnets(searchQuery, context, event => {
+          if (version !== requestVersion.current) return
+          setState(current => {
+            if (current.phase !== 'ready' || current.episode !== episode) return current
+            if (event.event === 'item') return { ...current, result: { ...current.result, items: [...current.result.items, event.item] } }
+            if (event.event === 'outcome') return { ...current, result: { ...current.result, sources: [...current.result.sources, event.outcome] } }
+            return { ...current, pluginPending: false }
+          })
+        }, controller.signal)
+      } catch (err) {
+        if (controller.signal.aborted) return
+        console.error('插件来源搜索失败', err)
+      }
+      if (version === requestVersion.current) setState(current => (current.phase === 'ready' ? { ...current, pluginPending: false } : current))
     } catch (err) {
       if (version === requestVersion.current) setState({ phase: 'error', episode, message: errorText(err, '搜索磁力资源失败') })
     }
@@ -109,6 +131,7 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
     <dialog ref={dialog} className="media-play-dialog media-torrent-dialog" aria-label={`${media.title} 磁力选集`}
       onClose={() => {
         requestVersion.current += 1
+        pluginAbort.current?.abort()
         trigger.current?.focus()
         onOpenChange?.(false)
       }}
@@ -285,7 +308,7 @@ function ResourceResults({ state, busy, mediaId, mediaTitle, mediaYear, onPlay }
   const active = groups.find(group => group.name === chosen) ?? hitGroups[0] ?? groups[0] ?? null
 
   // 本机规则和插件 BT 来源都没有时才算「没配源」；插件给了结果就照常展示
-  if (state.sources.sources.length === 0 && state.result.sources.length === 0) return <div className="media-resource-empty">
+  if (state.sources.sources.length === 0 && state.result.sources.length === 0 && !state.pluginPending) return <div className="media-resource-empty">
     <p className="result result--warn">尚未配置资源源：启用本地来源插件（Nagare Source）或添加规则仓库。</p>
     <a className="btn btn--sm" href="/settings#sources">去设置</a>
   </div>
@@ -303,10 +326,10 @@ function ResourceResults({ state, busy, mediaId, mediaTitle, mediaYear, onPlay }
     onClick={event => play(item, event.currentTarget, group)}>{label}</button>
 
   return <section className="media-resource-results" aria-label={`第 ${state.episode} 集磁力资源`}>
-    <div className="media-play-selection"><h3>第 {state.episode} 集资源</h3><span className="result result--dim">{hitGroups.length} 个字幕组命中 · 共 {state.result.items.length} 条</span></div>
+    <div className="media-play-selection"><h3>第 {state.episode} 集资源</h3><span className="result result--dim" role="status">{hitGroups.length} 个字幕组命中 · 共 {state.result.items.length} 条{state.pluginPending ? ' · 插件来源仍在搜索…' : ''}</span></div>
     {state.engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<a className="link" href="/settings#torrent">查看设置</a></p>}
     {trouble.length > 0 && <p className="result result--warn" role="status">{sourceTrouble(trouble)}</p>}
-    {state.result.items.length === 0 ? <p className="media-play-hint">启用的源没有返回结果。可以修改搜索词后重试；源异常不等于这部作品没有资源。</p> : <>
+    {state.result.items.length === 0 ? <p className="media-play-hint" role="status">{state.pluginPending ? '本机规则没有结果，插件来源仍在搜索…' : '启用的源没有返回结果。可以修改搜索词后重试；源异常不等于这部作品没有资源。'}</p> : <>
       <div className="media-fansub-row" role="tablist" aria-label="按字幕组选择">
         {groups.map(group => <button type="button" key={group.name} role="tab" aria-selected={active?.name === group.name}
           className={active?.name === group.name ? 'media-fansub-chip media-fansub-chip--active' : 'media-fansub-chip'}

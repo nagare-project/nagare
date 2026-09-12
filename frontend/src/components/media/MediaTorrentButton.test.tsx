@@ -3,7 +3,8 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installLocalStorage } from '../../test/storage'
 import { mount } from '../../test/harness'
-import { fetchSettings, fetchSources, searchMagnets } from '../../lib/endpoints'
+import { fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
+import type { SearchItem } from '../../lib/endpoints'
 import type { SettingsData, SourcesData } from '../../lib/endpoints'
 import { airedEpisodeCount, MediaTorrentButton } from './MediaTorrentButton'
 
@@ -13,7 +14,7 @@ vi.mock('../torrent/TorrentPlayContext', () => ({
 }))
 vi.mock('../../lib/endpoints', async original => ({
   ...await original<typeof import('../../lib/endpoints')>(),
-  fetchSettings: vi.fn(), fetchSources: vi.fn(), searchMagnets: vi.fn(),
+  fetchSettings: vi.fn(), fetchSources: vi.fn(), searchMagnets: vi.fn(), streamPluginMagnets: vi.fn(),
 }))
 
 const media = {
@@ -35,6 +36,7 @@ beforeEach(() => {
   shared.play.mockReset()
   vi.mocked(fetchSources).mockReset().mockResolvedValue(sources)
   installLocalStorage()
+  vi.mocked(streamPluginMagnets).mockReset().mockImplementation(async (_q, _c, onEvent) => { onEvent({ event: 'done' }) })
   vi.mocked(fetchSettings).mockReset().mockResolvedValue(settings)
   vi.mocked(searchMagnets).mockReset().mockResolvedValue({
     query: media.title,
@@ -60,7 +62,9 @@ describe('目录作品磁力选集', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
     await act(async () => {})
     // 带上集号与作品身份：后端据此再向来源插件要 BT 候选
-    expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('测试动画', { episode: 2, anilistId: 7, altTitles: [] })
+    expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('测试动画')
+    expect(streamPluginMagnets).toHaveBeenCalledOnce()
+    expect(vi.mocked(streamPluginMagnets).mock.calls[0]?.[1]).toEqual({ episode: 2, anilistId: 7, altTitles: [] })
     expect(container.querySelector('.media-resource-list')?.textContent).toContain('[Group] 测试动画 02')
     expect(container.querySelector('.media-resource-list')?.textContent).toContain('本机规则')
 
@@ -158,6 +162,28 @@ describe('目录作品磁力选集', () => {
     // 第四季那条不算命中；两条第一季按离 2014 近的在前
     expect(hits).toEqual(['[A] 测试动画 - 02', '[A] 测试动画 - 02 [BDRip]'])
     expect(container.querySelector('.media-fansub-others')?.textContent).toContain('第 4 季')
+    await unmount()
+  })
+
+  it('插件来源逐条追加：本机规则结果先显示，插件条目到达后并入分组，结束前标「仍在搜索」', async () => {
+    let emit: ((event: { event: 'item'; item: SearchItem } | { event: 'done' }) => void) | undefined
+    let finish: (() => void) | undefined
+    vi.mocked(streamPluginMagnets).mockImplementation(async (_q, _c, onEvent) => {
+      emit = onEvent as typeof emit
+      await new Promise<void>(resolve => { finish = resolve })
+    })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
+    await act(async () => {})
+    expect(container.querySelector('.media-resource-list')?.textContent).toContain('[Group] 测试动画 02')
+    const selectionStatus = () => [...container.querySelectorAll('.media-play-selection')].at(-1)?.textContent ?? ''
+    expect(selectionStatus()).toContain('仍在搜索')
+
+    await act(async () => emit!({ event: 'item', item: { title: '[Plug] 测试动画 - 02', magnet: 'magnet:?xt=urn:btih:fedcba9876543210fedcba9876543210fedcba98', size: '700 MB', fansub: null, date: null, source: 'plugin:dmhy', group: 'Plug组', episode: 2, kind: 'main' } }))
+    expect([...container.querySelectorAll('.media-fansub-chip strong')].map(el => el.textContent)).toContain('Plug组')
+    await act(async () => { emit!({ event: 'done' }); finish!() })
+    expect(selectionStatus()).not.toContain('仍在搜索')
     await unmount()
   })
 

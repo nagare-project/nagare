@@ -101,6 +101,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/animego/login", h.login)
 	mux.HandleFunc("POST /api/animego/logout", h.logout)
 	mux.HandleFunc("GET /api/search", h.search)
+	mux.HandleFunc("GET /api/search/plugin", h.searchPlugin)
 	mux.HandleFunc("GET /api/sources", h.sources)
 	mux.HandleFunc("POST /api/sources/reload", h.sourcesReload)
 	mux.HandleFunc("POST /api/sources/sync", h.sourcesSync)
