@@ -51,6 +51,12 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }}
     mod_timestamp: "{{ .CommitTimestamp }}"
+    hooks:
+      # pre：按 scripts/release/source-plugin.lock 拉取并校验捆绑的 Nagare Source 插件
+      # （引擎 + 只含 BT 规则的 repo）→ dist/source-plugin/MacOS_{arm64,x86_64}
+      pre:
+        - cmd: scripts/release/fetch-source-plugin.sh darwin {{ .Arch }}
+          output: true
 
   # Windows：纯 Go 交叉编译；-H=windowsgui 去掉控制台窗口（界面在浏览器 + 托盘）。
   - id: windows
@@ -69,6 +75,8 @@ builds:
       pre:
         - cmd: scripts/windows/fetch-mpv.sh
           output: true
+        - cmd: scripts/release/fetch-source-plugin.sh windows {{ .Arch }}
+          output: true
       post:
         - cmd: scripts/windows/build-installer.sh "{{ .Path }}" "{{ .Version }}" dist
           output: true
@@ -84,6 +92,10 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }}
     mod_timestamp: "{{ .CommitTimestamp }}"
+    hooks:
+      pre:
+        - cmd: scripts/release/fetch-source-plugin.sh linux {{ .Arch }}
+          output: true
 
 universal_binaries:
   - id: darwin-universal # 合成后的产物挂这个 id（不是 darwin），archives 里要按它引用
@@ -96,15 +108,33 @@ universal_binaries:
           output: true
 
 # 归档命名：nagare-<版本>_<MacOS|Linux|Windows>_<universal|x86_64|arm64>
+# 每个归档都带 nagare-source/（Nagare Source 引擎 + 只含 BT 规则的 repo/），Go 侧按
+# 「可执行文件旁边的 nagare-source/」这个相对位置探测（见 internal/sourceplugin/bundled.go）。
+# lock 未钉版本时该目录里只有一个 README.txt，探测不到就当没捆。
 archives:
-  - id: unix
-    ids: [darwin-universal, linux]
+  - id: darwin
+    ids: [darwin-universal]
     formats: [tar.gz]
-    name_template: '{{ .ProjectName }}-{{ .Version }}_{{ if eq .Os "darwin" }}MacOS{{ else }}{{ title .Os }}{{ end }}_{{ if eq .Arch "amd64" }}x86_64{{ else if eq .Arch "all" }}universal{{ else }}{{ .Arch }}{{ end }}'
+    name_template: '{{ .ProjectName }}-{{ .Version }}_MacOS_universal'
     files:
       - LICENSE
       - README.md
       - THIRD_PARTY_NOTICES.md
+      # universal 二进制两种 arch 都可能跑：目录里是 nagare-source-arm64 / -amd64 两个引擎
+      # 加一份 repo，运行时按 GOARCH 挑（fetch 脚本合成 MacOS_universal）
+      - src: dist/source-plugin/MacOS_universal/**
+        dst: nagare-source
+
+  - id: linux
+    ids: [linux]
+    formats: [tar.gz]
+    name_template: '{{ .ProjectName }}-{{ .Version }}_Linux_{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}'
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_NOTICES.md
+      - src: 'dist/source-plugin/Linux_{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}/**'
+        dst: nagare-source
 
   # 便携版：解压后 nagare.exe 旁边就是 mpv\mpv.exe，Go 侧按这个相对位置找内置 mpv。
   - id: windows
@@ -117,6 +147,8 @@ archives:
       - THIRD_PARTY_NOTICES.md
       - src: dist/mpv-win/**
         dst: mpv
+      - src: dist/source-plugin/Windows_x86_64/**
+        dst: nagare-source
 
 nfpms:
   - id: linux-packages
@@ -145,6 +177,9 @@ nfpms:
         dst: /usr/share/icons/hicolor/256x256/apps/nagare.png
       - src: THIRD_PARTY_NOTICES.md
         dst: /usr/share/doc/nagare/THIRD_PARTY_NOTICES.md
+      # 捆绑的插件放 /usr/lib/nagare/nagare-source/；Go 侧从 /usr/bin 向 ../lib/nagare 找
+      - src: 'dist/source-plugin/Linux_{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}/'
+        dst: /usr/lib/nagare/nagare-source
 
 checksum:
   name_template: checksums.txt

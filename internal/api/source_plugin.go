@@ -32,6 +32,7 @@ type SourcePluginService struct {
 	runtime     SourcePluginRuntime
 	hostVersion string
 	mu          sync.Mutex
+	bundled     *sourceplugin.Bundled
 }
 
 type SourcePluginView struct {
@@ -39,16 +40,51 @@ type SourcePluginView struct {
 	Status       sourceplugin.Status      `json:"status"`
 	Sources      []sourceplugin.Source    `json:"sources"`
 	SourcesError string                   `json:"sourcesError,omitempty"`
+	// Bundled 是随安装包捆绑的插件位置（引擎 + 只含 BT 规则的 repo）；没捆时为 nil。
+	Bundled *BundledPluginView `json:"bundled,omitempty"`
+}
+
+type BundledPluginView struct {
+	Executable string `json:"executable"`
+	Root       string `json:"root"`
+	// Active 表示当前配置用的就是捆绑的这一份
+	Active bool `json:"active"`
 }
 
 func NewSourcePluginService(store *store.Store, runtime SourcePluginRuntime, hostVersion string) *SourcePluginService {
 	return &SourcePluginService{store: store, runtime: runtime, hostVersion: hostVersion}
 }
 
+// SetBundled 登记安装包捆绑的插件位置。ok 为 false 表示本次构建没捆。
+func (s *SourcePluginService) SetBundled(bundled sourceplugin.Bundled, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ok {
+		s.bundled = &bundled
+	} else {
+		s.bundled = nil
+	}
+}
+
 // StartConfigured 在应用启动时恢复用户上次启用的插件。失败只让插件降级，
 // 不阻止本地媒体库和磁力播放启动。
+//
+// 从未配置过（没有任何路径）而安装包捆了插件时，直接采用捆绑的那份并启用：
+// 这是「装完就能搜磁力」的前提。用户之后改过路径或关掉的，都照用户的。
 func (s *SourcePluginService) StartConfigured() error {
 	config := s.store.SourcePluginConfig()
+	if !config.Enabled && config.Executable == "" && config.Root == "" {
+		s.mu.Lock()
+		bundled := s.bundled
+		s.mu.Unlock()
+		if bundled == nil {
+			return nil
+		}
+		config = store.SourcePluginConfig{Enabled: true, Executable: bundled.Executable, Root: bundled.Root}
+		if err := s.store.SetSourcePluginConfig(config); err != nil {
+			return err
+		}
+	}
 	if !config.Enabled {
 		return nil
 	}
@@ -63,6 +99,14 @@ func (s *SourcePluginService) View(ctx context.Context) SourcePluginView {
 	view := SourcePluginView{
 		Config: s.store.SourcePluginConfig(), Status: s.runtime.Status(), Sources: []sourceplugin.Source{},
 	}
+	s.mu.Lock()
+	if s.bundled != nil {
+		view.Bundled = &BundledPluginView{
+			Executable: s.bundled.Executable, Root: s.bundled.Root,
+			Active: view.Config.Executable == s.bundled.Executable && view.Config.Root == s.bundled.Root,
+		}
+	}
+	s.mu.Unlock()
 	if view.Status.Phase != "ready" {
 		return view
 	}
@@ -77,11 +121,19 @@ func (s *SourcePluginService) View(ctx context.Context) SourcePluginView {
 	return view
 }
 
-func (s *SourcePluginService) Configure(enabled *bool, executable, root *string) (SourcePluginView, error) {
+// Configure 更新配置。useBundled 为 true 时把路径换成捆绑的那份（没捆则报错）。
+func (s *SourcePluginService) Configure(enabled *bool, executable, root *string, useBundled bool) (SourcePluginView, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	previous := s.store.SourcePluginConfig()
 	next := previous
+	if useBundled {
+		if s.bundled == nil {
+			return SourcePluginView{}, errs.New(errs.CategoryInput, "sourceplugin.configure",
+				"这个安装包没有捆绑来源插件", "手动指定插件的可执行文件与仓库目录")
+		}
+		next.Executable, next.Root = s.bundled.Executable, s.bundled.Root
+	}
 	if enabled != nil {
 		next.Enabled = *enabled
 	}
@@ -105,7 +157,10 @@ func (s *SourcePluginService) Configure(enabled *bool, executable, root *string)
 		s.restore(previous)
 		return SourcePluginView{}, err
 	}
-	return s.View(context.Background()), nil
+	s.mu.Unlock()
+	view := s.View(context.Background())
+	s.mu.Lock()
+	return view, nil
 }
 
 func (s *SourcePluginService) restore(config store.SourcePluginConfig) {
@@ -141,11 +196,13 @@ func (h *Handler) sourcePluginConfig(w http.ResponseWriter, r *http.Request) {
 		Enabled    *bool   `json:"enabled"`
 		Executable *string `json:"executable"`
 		Root       *string `json:"root"`
+		// UseBundled 把路径换回安装包捆绑的插件
+		UseBundled bool `json:"useBundled"`
 	}
 	if !decodeStrictBody(w, r, &request) {
 		return
 	}
-	view, err := h.deps.SourcePlugin.Configure(request.Enabled, request.Executable, request.Root)
+	view, err := h.deps.SourcePlugin.Configure(request.Enabled, request.Executable, request.Root, request.UseBundled)
 	if err != nil {
 		writeErr(w, err)
 		return

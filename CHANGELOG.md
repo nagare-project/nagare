@@ -5,6 +5,12 @@
 
 ## [未发布]
 
+### 安装包内置 Nagare Source（只含 BT 来源）（2026-09-12）
+
+- 发布流水线按 `scripts/release/source-plugin.lock` 拉取 Nagare Source 的五平台引擎归档（版本 + sha256 钉死，归档里出现在线规则即拒绝），放进 dmg / NSIS 安装包 / 便携 zip / tar.gz / deb / rpm：可执行文件旁的 `nagare-source/`（macOS 的 .app 内按 arch 带两个引擎并各自 ad-hoc 签名；deb/rpm 为 `/usr/lib/nagare/nagare-source/`）。lock 未钉版本时安装包不捆，只留说明文件。
+- 首次运行从未配置过插件时自动采用捆绑的那份并启用；用户改过路径或关掉后照用户的，设置页可「使用内置插件」切回。引导屏的「磁力搜索」一项据此显示就绪。
+- 实测模拟全新用户（空配置目录、零本机规则、只有捆绑目录）：作品页选第 5 集 7 秒返回 9 条候选、5 个字幕组，点播放 17 秒后 mpv 起播、671 条弹幕挂上。
+
 ### 磁力选集接入来源插件的 BT 来源（2026-09-12）
 
 - `GET /api/search` 带 `episode`（可附 `anilist` / `year` / `title` 别名）时，额外向已就绪的本地来源插件请求 BT 候选，请求携带 `preferences.transports: ["torrent"]`，插件只运行 BT 来源、不触发浏览器嗅探。候选压成与本机规则同形的条目（来源 `plugin:<id>`，magnet 缺失时按 infohash 拼），与规则结果合并、按字幕组分组；失败来源记入结果状态，不影响规则结果。

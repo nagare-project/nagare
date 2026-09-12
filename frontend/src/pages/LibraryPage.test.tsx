@@ -231,9 +231,11 @@ describe('LibraryPage（整页冒烟）', () => {
             ? SETTINGS
             : path === '/api/sources'
               ? noSources
-              : path === '/api/update'
-                ? UPDATE
-                : PLAYER
+              : path === '/api/source-plugin'
+                ? { config: { enabled: false, executable: '', root: '' }, status: { phase: 'disabled' }, sources: [] }
+                : path === '/api/update'
+                  ? UPDATE
+                  : PLAYER
       return new Response(JSON.stringify({ success: true, data }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

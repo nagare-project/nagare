@@ -14,6 +14,7 @@ import (
 	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/sourceplugin"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 type fakeSourcePluginRuntime struct {
@@ -221,3 +222,45 @@ func TestSearchWithEpisodeMergesPluginTorrentCandidates(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Empty(t, env.plugin.lastRequest.Schema)
 }
+
+// 安装包捆了插件时首次运行直接采用并启动；用户改过配置（哪怕只是关掉）后就不再自动接管。
+func TestSourcePluginAdoptsBundledOnFirstRunOnly(t *testing.T) {
+	env := newEnv(t)
+	svc := NewSourcePluginService(env.store, env.plugin, "test")
+	svc.SetBundled(sourceplugin.Bundled{Executable: "/Applications/Nagare.app/Contents/MacOS/nagare-source/nagare-source-arm64", Root: "/Applications/Nagare.app/Contents/MacOS/nagare-source/repo"}, true)
+	require.NoError(t, svc.StartConfigured())
+	config := env.store.SourcePluginConfig()
+	assert.True(t, config.Enabled)
+	assert.Equal(t, "/Applications/Nagare.app/Contents/MacOS/nagare-source/repo", config.Root)
+	assert.Equal(t, config.Executable, env.plugin.started.Executable)
+	view := svc.View(context.Background())
+	require.NotNil(t, view.Bundled)
+	assert.True(t, view.Bundled.Active)
+
+	// 用户显式关掉：下次启动不能又给打开
+	_, err := svc.Configure(boolPtr(false), nil, nil, false)
+	require.NoError(t, err)
+	env.plugin.started = sourceplugin.LaunchConfig{}
+	require.NoError(t, svc.StartConfigured())
+	assert.False(t, env.store.SourcePluginConfig().Enabled)
+	assert.Empty(t, env.plugin.started.Executable)
+
+	// 用户换成自己的路径后，「使用内置」能切回来
+	_, err = svc.Configure(boolPtr(true), strPtr("/opt/mine"), strPtr("/srv/mine"), false)
+	require.NoError(t, err)
+	assert.False(t, svc.View(context.Background()).Bundled.Active)
+	_, err = svc.Configure(nil, nil, nil, true)
+	require.NoError(t, err)
+	assert.True(t, svc.View(context.Background()).Bundled.Active)
+
+	// 没捆的构建：不自动启用，useBundled 报错
+	bare := NewSourcePluginService(env.store, &fakeSourcePluginRuntime{status: sourceplugin.Status{Phase: "disabled"}}, "test")
+	require.NoError(t, env.store.SetSourcePluginConfig(store.SourcePluginConfig{}))
+	require.NoError(t, bare.StartConfigured())
+	assert.False(t, env.store.SourcePluginConfig().Enabled)
+	_, err = bare.Configure(nil, nil, nil, true)
+	require.Error(t, err)
+}
+
+func boolPtr(v bool) *bool    { return &v }
+func strPtr(v string) *string { return &v }

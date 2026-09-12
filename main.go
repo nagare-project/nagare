@@ -413,6 +413,14 @@ func buildServices(configDir string) (*services, error) {
 	// 统一来源插件同样默认关闭。只有 state.json 中保存了用户显式启用的
 	// 绝对路径才会启动；失败只降级插件，不影响本地库与原有磁力规则。
 	pluginService := api.NewSourcePluginService(st, sourceplugin.NewManager(), version)
+	// 安装包捆绑的插件（引擎 + 只含 BT 规则）：首次运行自动采用，之后照用户配置。
+	if exeDir, err := nagareExecutableDir(); err == nil {
+		bundled, ok := sourceplugin.DetectBundled(exeDir)
+		pluginService.SetBundled(bundled, ok)
+		if ok {
+			log.Printf("来源插件：检测到安装包捆绑的 Nagare Source（%s）", bundled.Executable)
+		}
+	}
 	if err := pluginService.StartConfigured(); err != nil {
 		log.Printf("来源插件未能启动（不影响本地播放）：%v", err)
 	}
@@ -422,6 +430,19 @@ func buildServices(configDir string) (*services, error) {
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
 		selfUpdate: su,
 	}, nil
+}
+
+// nagareExecutableDir 返回可执行文件所在目录（解析符号链接：Homebrew 的 bin/ 里是指向
+// Cellar 的链接），是捆绑资源（mpv、来源插件）的锚点。
+func nagareExecutableDir() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return filepath.Dir(exe), nil
 }
 
 // newTorrentEngine 按持久化配置起磁力引擎。

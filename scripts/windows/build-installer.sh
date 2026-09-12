@@ -33,6 +33,10 @@ cp "$exe" "$stage/nagare.exe"
 sed 's/$/\r/' "$root/LICENSE" > "$stage/LICENSE.txt"
 cp "$root/THIRD_PARTY_NOTICES.md" "$stage/"
 cp -R "$mpv_dir" "$stage/mpv"
+# 捆绑的 Nagare Source 插件：nagare.exe 旁边的 nagare-source\，Go 侧按这个相对位置探测
+plugin_dir="$root/dist/source-plugin/Windows_x86_64"
+[ -d "$plugin_dir" ] || { echo "缺少 $plugin_dir，先跑 scripts/release/fetch-source-plugin.sh windows amd64" >&2; exit 1; }
+cp -R "$plugin_dir" "$stage/nagare-source"
 
 outfile="$out/nagare-${version}_Windows_x86_64-setup.exe"
 rm -f "$outfile"

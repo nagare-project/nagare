@@ -53,6 +53,21 @@ cp "$bin" "$app/Contents/MacOS/nagare"
 chmod 755 "$app/Contents/MacOS/nagare"
 cp "$root/packaging/icon/nagare.icns" "$app/Contents/Resources/nagare.icns"
 
+# 捆绑的 Nagare Source 插件（引擎 + 只含 BT 规则的 repo）放在主程序旁边：
+# Go 侧按 <exeDir>/nagare-source/nagare-source-<GOARCH> 探测。lock 未钉版本时
+# fetch 脚本只留一个 README.txt，这里照样复制，探测不到就当没捆。
+plugin_src="$root/dist/source-plugin/MacOS_universal"
+if [ -d "$plugin_src" ]; then
+  cp -R "$plugin_src" "$app/Contents/MacOS/nagare-source"
+  # 嵌套的可执行文件必须先各自 ad-hoc 签名，外层 --deep 校验才过；不签的话
+  # Gatekeeper 放行了 .app，子进程启动时仍会被拦。
+  for nested in "$app"/Contents/MacOS/nagare-source/nagare-source-*; do
+    [ -f "$nested" ] || continue
+    chmod 755 "$nested"
+    codesign --force --sign - "$nested"
+  done
+fi
+
 echo "==> ad-hoc 签名"
 codesign --force --sign - "$app"
 codesign --verify --deep --strict --verbose=2 "$app"

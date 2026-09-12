@@ -199,10 +199,11 @@ cd frontend && bun run test
 
 nagare **本体不内置任何磁力源**。磁力资源有两条来路，任选其一或同时用：
 
-**A. 本地来源插件（推荐，装上即用）**：安装 [Nagare Source](https://github.com/nagare-project/Nagare_Source)，
-在设置页「来源」里启用并指定可执行文件与仓库目录。它自带 BT 来源，作品页的「选集」会直接列出
-按字幕组分组的资源；这条路只请求 BT 来源，不会为磁力触发任何网页嗅探。安装与边界见
-[docs/nagare-source.md](docs/nagare-source.md)。
+**A. 安装包内置的来源插件（默认，装完即用）**：dmg / 安装包 / deb 里捆着
+[Nagare Source](https://github.com/nagare-project/Nagare_Source) 的引擎和一份**只含 BT 来源**的规则目录，
+首次运行自动启用。作品页的「选集」直接列出按字幕组分组的磁力资源；这条路只请求 BT 来源，
+不会触发任何网页嗅探。**在线来源不在安装包里**：要用的话在设置页「来源」里自己指定完整的
+Nagare Source 仓库目录。边界与细节见 [docs/nagare-source.md](docs/nagare-source.md)。
 
 **B. 自己的规则仓库（高级）**：
 

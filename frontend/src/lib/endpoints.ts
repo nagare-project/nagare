@@ -556,6 +556,16 @@ export interface SourcePluginConfig {
   enabled: boolean
   executable: string
   root: string
+  /** 把路径换回安装包捆绑的插件 */
+  useBundled?: boolean
+}
+
+/** 安装包捆绑的插件（引擎 + 只含 BT 规则的 repo）；没捆时缺席 */
+export interface BundledPluginView {
+  executable: string
+  root: string
+  /** 当前配置用的就是捆绑的这一份 */
+  active: boolean
 }
 
 export interface SourcePluginManifest {
@@ -591,6 +601,7 @@ export interface SourcePluginView {
   status: SourcePluginStatus
   sources: PluginSource[]
   sourcesError?: string
+  bundled?: BundledPluginView
 }
 
 export interface SourceResolveRequest {
