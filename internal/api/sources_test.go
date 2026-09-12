@@ -78,9 +78,20 @@ func TestEnrichSearchItemParsesEpisodeGroupAndResolution(t *testing.T) {
 	require.NotNil(t, got.Episode)
 	assert.Equal(t, 5, *got.Episode)
 	assert.Equal(t, "LoliHouse", got.Group, "规则没给 fansub 时用标题里解析的发布组")
+	require.NotNil(t, got.Season)
+	assert.Equal(t, 2, *got.Season, "II 也算第二季")
+	assert.Nil(t, enrichSearchItem(rules.Item{Title: "[BYSub] 排球少年 Haikyuu!! [01][1080P]"}).Season, "没写季数就留空")
 
 	got = enrichSearchItem(rules.Item{Title: "幼女战记 第二季 全集合集"})
 	assert.Nil(t, got.Episode, "解析不出集号就留空，界面归入未识别")
+
+	// 合集：本机解析链会把 [01-25全] 读成第 1 集，发布标题必须先按区间识别
+	got = enrichSearchItem(rules.Item{Title: "[诸神字幕组][排球少年!!][Haikyuu!!][BDRip][01-25全][简繁日文字幕][1080P][HEVC MKV]"})
+	assert.Nil(t, got.Episode)
+	assert.Equal(t, "batch", got.Kind)
+	got = enrichSearchItem(rules.Item{Title: "[VCB-Studio] Haikyuu!! [1-12 Fin][Ma10p_1080p]"})
+	assert.Equal(t, "batch", got.Kind)
+	assert.False(t, IsBatchTitle("[Sub] Show - 05 [1920x1080] [2024-2025]"), "年份区间、分辨率不是集号范围")
 }
 
 func TestSourcesLocalDirSearchAndToggle(t *testing.T) {

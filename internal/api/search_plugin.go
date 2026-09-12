@@ -109,9 +109,14 @@ func pluginTorrentItem(candidate sourceplugin.Candidate, names map[string]string
 	if magnet == "" && torrentURL == "" {
 		return SearchItemView{}, false
 	}
-	title := strings.TrimSpace(candidate.Match.SubjectTitle)
-	if candidate.Match.EpisodeNumber > 0 && title != "" {
-		title = fmt.Sprintf("%s - %s", title, formatEpisode(candidate.Match.EpisodeNumber))
+	// 优先用来源的原始发布标题：字幕组、季数、清晰度都在里面，本机解析链也靠它；
+	// 老插件不给时才退回「作品名 - 集号」的合成写法。
+	title := strings.TrimSpace(candidate.Metadata.Title)
+	if title == "" {
+		title = strings.TrimSpace(candidate.Match.SubjectTitle)
+		if candidate.Match.EpisodeNumber > 0 && title != "" {
+			title = fmt.Sprintf("%s - %s", title, formatEpisode(candidate.Match.EpisodeNumber))
+		}
 	}
 	item := rules.Item{Magnet: magnet, Source: pluginSourcePrefix + candidate.SourceID, Infohash: infohash, Title: title}
 	if candidate.Metadata.Fansub != "" {
@@ -134,14 +139,15 @@ func pluginTorrentItem(candidate sourceplugin.Candidate, names map[string]string
 		item.Provider = &provider
 	}
 	out := enrichSearchItem(item)
-	if magnet == "" {
-		out.TorrentURL = torrentURL
-	}
-	// 插件已经按目标集匹配过；它给的集号比从合成标题里再解一次可靠。
+	// 有种子文件地址就一并带上（不只在没磁力时）：播放端优先下载种子文件，跳过找元数据。
+	out.TorrentURL = torrentURL
+	// 集号：插件从标题解出来的（metadata.episode）最可靠；没有就用本机解析链从原始标题解的
+	// （合集会解成 nil，这正是我们要的——合集不能冒充单集）；只有老插件不给原始标题时，
+	// 才退回 match.episodeNumber（那是请求里的目标集，不是条目自己的）。
 	if candidate.Metadata.Episode > 0 {
 		episode := int(math.Round(candidate.Metadata.Episode))
 		out.Episode = &episode
-	} else if candidate.Match.EpisodeNumber > 0 {
+	} else if candidate.Metadata.Title == "" && candidate.Match.EpisodeNumber > 0 {
 		episode := int(math.Round(candidate.Match.EpisodeNumber))
 		out.Episode = &episode
 	}
@@ -151,7 +157,9 @@ func pluginTorrentItem(candidate sourceplugin.Candidate, names map[string]string
 	if out.Group == "" && candidate.Metadata.Fansub != "" {
 		out.Group = candidate.Metadata.Fansub
 	}
-	out.Kind = "main"
+	if candidate.Metadata.Title == "" {
+		out.Kind = "main"
+	}
 	return out, true
 }
 

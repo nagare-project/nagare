@@ -175,7 +175,7 @@ func TestSearchWithEpisodeMergesPluginTorrentCandidates(t *testing.T) {
 			Schema: "nagare-candidate/v1", ID: "garden:abc", SourceID: "garden", Tier: 3, MatchConfidence: 0.95,
 			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, SubjectTitle: "幼女战记 第二季", EpisodeNumber: 5},
 			Transport: sourceplugin.Transport{Type: "torrent", InfoHash: "0123456789ABCDEF0123456789ABCDEF01234567"},
-			Metadata:  sourceplugin.Metadata{Fansub: "LoliHouse", Resolution: "1080P", Episode: 5, SizeBytes: 734003200, Seeders: &seeders},
+			Metadata:  sourceplugin.Metadata{Fansub: "LoliHouse", Resolution: "1080P", Episode: 5, SizeBytes: 734003200, Seeders: &seeders, Title: "[LoliHouse] 幼女战记II / Youjo Senki II - 05 [WebRip 1080p HEVC-10bit AAC]"},
 		}},
 		{Event: "candidate", Candidate: &sourceplugin.Candidate{
 			Schema: "nagare-candidate/v1", ID: "web:5", SourceID: "web-a", Tier: 1, MatchConfidence: 1,
@@ -200,7 +200,10 @@ func TestSearchWithEpisodeMergesPluginTorrentCandidates(t *testing.T) {
 	item := view.Items[0]
 	assert.Equal(t, "plugin:garden", item.Source)
 	assert.Equal(t, "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", item.Magnet)
-	assert.Equal(t, "幼女战记 第二季 - 05", item.Title)
+	assert.Empty(t, item.TorrentURL)
+	assert.Equal(t, "[LoliHouse] 幼女战记II / Youjo Senki II - 05 [WebRip 1080p HEVC-10bit AAC]", item.Title, "优先用来源的原始发布标题")
+	require.NotNil(t, item.Season)
+	assert.Equal(t, 2, *item.Season)
 	assert.Equal(t, "LoliHouse", item.Group)
 	assert.Equal(t, "1080p", item.Resolution)
 	require.NotNil(t, item.Episode)
@@ -228,10 +231,29 @@ func TestSearchWithEpisodeMergesPluginTorrentCandidates(t *testing.T) {
 	}
 	rec = env.do(t, http.MethodGet, "/api/search?q=x&episode=5", "")
 	require.Equal(t, http.StatusOK, rec.Code)
+	view = SearchView{}
 	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
 	require.Len(t, view.Items, 1)
 	assert.Empty(t, view.Items[0].Magnet)
 	assert.Equal(t, "https://acg.rip/t/1.torrent", view.Items[0].TorrentURL)
+
+	// 合集：插件按范围放行、不给单集号，本机解析也解不出集号 → 不能冒充第 5 集
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "garden:batch", SourceID: "garden", Tier: 3, MatchConfidence: 0.85,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, SubjectTitle: "排球少年", EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", InfoHash: "0123456789abcdef0123456789abcdef01234567"},
+			Metadata:  sourceplugin.Metadata{Fansub: "诸神字幕组", Title: "[诸神字幕组][排球少年!!][Haikyuu!!][BDRip][01-25全][简繁日文字幕][1080P][HEVC MKV]"},
+		}},
+		{Event: "done", Queried: 1, Succeeded: 1},
+	}
+	rec = env.do(t, http.MethodGet, "/api/search?q=x&episode=5", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	view = SearchView{} // Unmarshal 不会清掉上一次留下的字段（omitempty 的 episode 就会残留）
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
+	require.Len(t, view.Items, 1)
+	assert.Nil(t, view.Items[0].Episode, "合集没有单集号")
+	assert.Equal(t, "batch", view.Items[0].Kind)
 
 	// 没有集号：不问插件。
 	env.plugin.lastRequest = sourceplugin.ResolveRequest{}

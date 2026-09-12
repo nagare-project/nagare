@@ -104,6 +104,8 @@ type Metadata struct {
 	SizeBytes         int64    `json:"sizeBytes,omitempty"`
 	Seeders           *int     `json:"seeders,omitempty"`
 	PublishedAt       string   `json:"publishedAt,omitempty"`
+	// Title 是来源上的原始发布标题（BT 条目）；字幕组、季数、清晰度都在里面。
+	Title string `json:"title,omitempty"`
 }
 
 type Candidate struct {

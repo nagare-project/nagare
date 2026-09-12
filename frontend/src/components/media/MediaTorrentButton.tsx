@@ -85,8 +85,9 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
   }
 
   function start(item: SearchItem, episode: number, button: HTMLButtonElement): void {
-    // acg.rip 一类只给 .torrent 地址：走种子文件路径（自带 info 与 tracker，不用等元数据）
-    const target = item.magnet ? { magnet: item.magnet } : { torrentUrl: item.torrentUrl ?? '' }
+    // 有种子文件地址就优先走它（自带 info 与 tracker，不用等 DHT 找元数据；实测 8 秒 vs 18 秒），
+    // 只有磁力的才走磁力
+    const target = item.torrentUrl ? { torrentUrl: item.torrentUrl } : { magnet: item.magnet }
     torrent.play(
       { ...target, title: item.title, episodeHint: episode },
       item.title,
@@ -147,7 +148,7 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
 
         {state.phase === 'searching' && <p className="result result--dim" role="status">正在搜索第 {state.episode} 集资源…</p>}
         {state.phase === 'error' && <p className="result result--err" role="alert">{state.message} <button type="button" className="link" onClick={() => void findEpisode(state.episode)}>重试</button></p>}
-        {state.phase === 'ready' && <ResourceResults key={`${state.episode}-${state.result.query}`} state={state} busy={torrent.busy} mediaId={media.id} onPlay={start} />}
+        {state.phase === 'ready' && <ResourceResults key={`${state.episode}-${state.result.query}`} state={state} busy={torrent.busy} mediaId={media.id} mediaTitle={media.title} mediaYear={media.year} onPlay={start} />}
       </div>
     </dialog>
   </>
@@ -168,8 +169,13 @@ interface FansubGroup {
   name: string
   /** 命中目标集的正片 */
   hits: SearchItem[]
-  /** 该字幕组的其余条目（别的集、合集、特典、未识别） */
+  /** 该字幕组的其余条目（别的集、合集、特典、未识别）；合集排前面 */
   others: SearchItem[]
+}
+
+/** 合集 / 整季 BD 包：老番往往只剩这种还有人做种，播放时会弹选集 */
+export function isBatchRelease(item: SearchItem): boolean {
+  return typeof item.episode !== 'number' && /合集|全\s*\d+\s*[集话話]|\bBatch\b|BD-?(?:Rip|Box|MV)|BDRip|\[\s*\d{1,3}\s*[-~]\s*\d{1,3}\s*(?:Fin|END)?\s*\]|\d{1,3}\s*-\s*\d{1,3}\s*(?:Fin|END)\b/i.test(item.title)
 }
 
 /**
@@ -182,7 +188,41 @@ export function releaseKey(item: SearchItem): string {
   return hash ?? (item.torrentUrl ?? item.magnet ?? item.title).toLowerCase()
 }
 
-export function groupByFansub(items: SearchItem[], episode: number, remembered: string | null): FansubGroup[] {
+/**
+ * 目录作品自己是第几季：标题里的「第二季 / S2 / II」等；没写就是第 1 季。
+ * 续作命名不统一（「TO THE TOP」这类不带数字）时解不出来，只能靠年份排序兜底。
+ */
+export function seasonOfTitle(title: string): number | undefined {
+  const t = title.normalize('NFKC')
+  const cn = /第\s*([一二三四五六七八九十\d]+)\s*[季期部]/.exec(t)
+  if (cn) return chineseNumber(cn[1]!)
+  const en = /(?:\bS|Season\s*)(\d{1,2})\b/i.exec(t)
+  if (en) return Number(en[1])
+  const roman = /\b(II|III|IV|V|VI)\b|\s(Ⅱ|Ⅲ|Ⅳ)\s*$/.exec(t)
+  if (roman) return { II: 2, III: 3, IV: 4, V: 5, VI: 6, 'Ⅱ': 2, 'Ⅲ': 3, 'Ⅳ': 4 }[(roman[1] ?? roman[2])!]
+  const nth = /(\d)(?:st|nd|rd|th)\s+Season/i.exec(t)
+  if (nth) return Number(nth[1])
+  return undefined
+}
+
+function chineseNumber(raw: string): number | undefined {
+  if (/^\d+$/.test(raw)) return Number(raw)
+  const digits: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+  if (raw === '十') return 10
+  if (raw.startsWith('十')) return 10 + (digits[raw[1]!] ?? 0)
+  if (raw.endsWith('十')) return (digits[raw[0]!] ?? 0) * 10
+  return digits[raw]
+}
+
+export interface FansubGroupingOptions {
+  /** 目录作品的季数；缺省按标题解析，解不出按第 1 季 */
+  wantedSeason?: number
+  /** 目录作品的年份，用于同组内做种数未知时按年份接近度排序 */
+  year?: number
+}
+
+export function groupByFansub(items: SearchItem[], episode: number, remembered: string | null, options: FansubGroupingOptions = {}): FansubGroup[] {
+  const wantedSeason = options.wantedSeason ?? 1
   const byName = new Map<string, FansubGroup>()
   const seen = new Map<string, SearchItem>()
   const deduped: SearchItem[] = []
@@ -201,7 +241,9 @@ export function groupByFansub(items: SearchItem[], episode: number, remembered: 
   for (const item of deduped) {
     const name = item.group?.trim() || item.fansub?.trim() || UNGROUPED
     const group = byName.get(name) ?? { name, hits: [], others: [] }
-    const isHit = item.episode === episode && (item.kind ?? 'main') === 'main'
+    // 命中 = 集号对、是正片、季数对得上（标题没写季数按第 1 季）：搜「排球少年」会把四季的
+    // 第 1 集都搜回来，只按集号会把第四季当第一季播
+    const isHit = item.episode === episode && (item.kind ?? 'main') === 'main' && (item.season ?? 1) === wantedSeason
     ;(isHit ? group.hits : group.others).push(item)
     byName.set(name, group)
   }
@@ -209,7 +251,17 @@ export function groupByFansub(items: SearchItem[], episode: number, remembered: 
   // 几年前的冷门发布多半已经没人做种了，先试新的。
   const seeders = (item: SearchItem) => (typeof item.seeders === 'number' ? item.seeders : -1)
   const published = (item: SearchItem) => Date.parse(item.date ?? '') || 0
-  for (const group of byName.values()) group.hits.sort((a, b) => seeders(b) - seeders(a) || published(b) - published(a))
+  // 没有做种数时：先按离作品播出年份近的（老番的 2014 年发布比 2020 年「同名续作」更像本季），
+  // 再按发布时间新的在前
+  const yearDistance = (item: SearchItem) => {
+    const ms = published(item)
+    if (!ms || options.year === undefined) return 0
+    return Math.max(0, new Date(ms).getFullYear() - options.year)
+  }
+  for (const group of byName.values()) {
+    group.hits.sort((a, b) => seeders(b) - seeders(a) || yearDistance(a) - yearDistance(b) || published(b) - published(a))
+    group.others.sort((a, b) => Number(isBatchRelease(b)) - Number(isBatchRelease(a)) || seeders(b) - seeders(a) || published(b) - published(a))
+  }
   return [...byName.values()].sort((a, b) =>
     Number(b.hits.length > 0) - Number(a.hits.length > 0) ||
     Number(b.name === remembered) - Number(a.name === remembered) ||
@@ -218,14 +270,16 @@ export function groupByFansub(items: SearchItem[], episode: number, remembered: 
   )
 }
 
-function ResourceResults({ state, busy, mediaId, onPlay }: {
+function ResourceResults({ state, busy, mediaId, mediaTitle, mediaYear, onPlay }: {
   state: Extract<ResourceState, { phase: 'ready' }>
   busy: boolean
   mediaId: number
+  mediaTitle: string
+  mediaYear?: number
   onPlay: (item: SearchItem, episode: number, button: HTMLButtonElement) => void
 }) {
   const remembered = rememberedFansub(mediaId)
-  const groups = groupByFansub(state.result.items, state.episode, remembered)
+  const groups = groupByFansub(state.result.items, state.episode, remembered, { wantedSeason: seasonOfTitle(mediaTitle) ?? 1, year: mediaYear })
   const hitGroups = groups.filter(group => group.hits.length > 0)
   const [chosen, setChosen] = useState<string | null>(null)
   const active = groups.find(group => group.name === chosen) ?? hitGroups[0] ?? groups[0] ?? null
@@ -261,7 +315,7 @@ function ResourceResults({ state, busy, mediaId, onPlay }: {
           <span>{group.hits.length > 0 ? `第 ${state.episode} 集 · ${group.hits[0]!.resolution ?? ''}`.replace(/ · $/, '') : `无第 ${state.episode} 集`}{group.name === remembered ? ' · 上次' : ''}</span>
         </button>)}
       </div>
-      {hitGroups.length === 0 && <p className="media-play-hint">没有识别到第 {state.episode} 集的正片条目，可能标题写法特殊或尚未发布；下面是各字幕组的全部结果。</p>}
+      {hitGroups.length === 0 && <p className="media-play-hint">没有识别到第 {state.episode} 集的正片条目，可能标题写法特殊或尚未发布；下面是各字幕组的全部结果，合集播放时可以选集。</p>}
       {active && <div className="media-fansub-detail" aria-label={`${active.name} 的资源`}>
         {active.hits.length > 0 && <ul className="media-resource-list">{active.hits.map((item, index) => <li key={`hit-${item.source}-${index}`}>
           <div><strong>{item.title}</strong><span>{itemMeta(item)}</span></div>
@@ -270,7 +324,7 @@ function ResourceResults({ state, busy, mediaId, onPlay }: {
         {active.others.length > 0 && <details className="media-fansub-others" open={active.hits.length === 0}>
           <summary>{active.name} 的其他条目（{active.others.length}）</summary>
           <ul className="media-resource-list">{active.others.slice(0, MAX_RESOURCE_RESULTS).map((item, index) => <li key={`other-${item.source}-${index}`}>
-            <div><strong>{item.title}</strong><span>{[typeof item.episode === 'number' ? `第 ${item.episode} 集` : '未识别集数', itemMeta(item)].join(' · ')}</span></div>
+            <div><strong>{item.title}</strong><span>{[typeof item.season === 'number' ? `第 ${item.season} 季` : null, typeof item.episode === 'number' ? `第 ${item.episode} 集` : isBatchRelease(item) ? '合集（播放时选集）' : '未识别集数', itemMeta(item)].filter(Boolean).join(' · ')}</span></div>
             {playButton(item, active.name)}
           </li>)}</ul>
         </details>}

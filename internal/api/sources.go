@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -234,8 +236,11 @@ type SearchItemView struct {
 	Resolution string `json:"resolution,omitempty"`
 	// Kind 是 main / sp / op / ed 等（library.ParseEpisodeKind），合集与特典靠它区分。
 	Kind string `json:"kind"`
-	// TorrentURL 是只给 .torrent 地址、没有磁力的条目（acg.rip 一类）；播放端下载它。
+	// TorrentURL 是来源给的 .torrent 地址（有磁力时也可能同时给）；播放端优先下载它——
+	// 种子文件自带 info 与 tracker，不用等 DHT 找元数据。
 	TorrentURL string `json:"torrentUrl,omitempty"`
+	// Season 是标题里解析出的季数（第二季 / S2 / II…）；没写就为 nil，界面按第 1 季理解。
+	Season *int `json:"season,omitempty"`
 }
 
 // SearchView 是 GET /api/search 的响应。
@@ -255,9 +260,28 @@ func (s *SourcesService) Search(ctx context.Context, q string) SearchView {
 	return view
 }
 
+// batchRangePattern 认合集标题里的集号范围：[01-25全]、[1-12 Fin]、01~13 合集。
+// 本机解析链是给单个文件名用的，会把「01-25」读成第 1 集；发布标题得先排除合集。
+var batchRangePattern = regexp.MustCompile(`(?i)(?:^|[\[\s【])(\d{1,3})\s*[-~～]\s*(\d{1,3})\s*(?:全|Fin|END|完)?\s*(?:$|[\]\s】])`)
+
+// IsBatchTitle 判断发布标题是不是整季 / 区间合集。
+func IsBatchTitle(title string) bool {
+	m := batchRangePattern.FindStringSubmatch(title)
+	if m == nil {
+		return false
+	}
+	low, _ := strconv.Atoi(m[1])
+	high, _ := strconv.Atoi(m[2])
+	return low > 0 && high > low && high <= 999
+}
+
 func enrichSearchItem(item rules.Item) SearchItemView {
 	meta := library.ParseEpisodeMeta(item.Title)
-	out := SearchItemView{Item: item, Episode: meta.Number, Kind: meta.Kind}
+	out := SearchItemView{Item: item, Episode: meta.Number, Kind: meta.Kind, Season: meta.Season}
+	if IsBatchTitle(item.Title) {
+		// 合集没有单集号；播放时由种子内选集处理
+		out.Episode, out.Kind = nil, "batch"
+	}
 	if meta.Resolution != nil {
 		out.Resolution = *meta.Resolution
 	}

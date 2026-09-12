@@ -137,6 +137,30 @@ describe('目录作品磁力选集', () => {
     await unmount()
   })
 
+  it('季数对不上的条目不算命中：搜第一季时第四季的第 1 集归入「其他条目」', async () => {
+    let n = 0
+    const item = (title: string, group: string, season: number | undefined, date: string) =>
+      ({ title, magnet: `magnet:?xt=urn:btih:${String(++n).padStart(40, '0')}`, size: '1 GB', fansub: null, date, source: 'plugin:dmhy', group, episode: 2, kind: 'main', ...(season === undefined ? {} : { season }) })
+    vi.mocked(searchMagnets).mockResolvedValue({
+      query: '测试动画',
+      sources: [{ source: 'plugin:dmhy', state: 'ok', count: 3, rawCount: 3, dropped: 0, latencyMs: 1 }],
+      items: [
+        item('[A] 测试动画 第四季 - 02', 'A组', 4, '2020-01-11T00:00:00Z'),
+        item('[A] 测试动画 - 02 [BDRip]', 'A组', undefined, '2019-06-01T00:00:00Z'),
+        item('[A] 测试动画 - 02', 'A组', undefined, '2014-04-06T00:00:00Z'),
+      ],
+    })
+    const { container, unmount } = await mount(<MediaTorrentButton media={{ ...media, year: 2014 }} />)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
+    await act(async () => {})
+    const hits = [...container.querySelectorAll('.media-fansub-detail > .media-resource-list li')].map(li => li.querySelector('strong')?.textContent)
+    // 第四季那条不算命中；两条第一季按离 2014 近的在前
+    expect(hits).toEqual(['[A] 测试动画 - 02', '[A] 测试动画 - 02 [BDRip]'])
+    expect(container.querySelector('.media-fansub-others')?.textContent).toContain('第 4 季')
+    await unmount()
+  })
+
   it('没有任何组命中目标集时给出提示并展开该组全部条目', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({
       query: '测试动画',
@@ -150,7 +174,7 @@ describe('目录作品磁力选集', () => {
     expect(container.textContent).toContain('没有识别到第 2 集的正片条目')
     expect(container.querySelector('.media-fansub-chip strong')?.textContent).toBe('未标注字幕组')
     expect(container.querySelector<HTMLDetailsElement>('.media-fansub-others')?.open).toBe(true)
-    expect(container.querySelector('.media-fansub-others li span')?.textContent).toContain('未识别集数')
+    expect(container.querySelector('.media-fansub-others li span')?.textContent).toContain('合集（播放时选集）')
     await unmount()
   })
 
