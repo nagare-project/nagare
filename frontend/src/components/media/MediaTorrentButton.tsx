@@ -143,17 +143,66 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
 
         {state.phase === 'searching' && <p className="result result--dim" role="status">正在搜索第 {state.episode} 集资源…</p>}
         {state.phase === 'error' && <p className="result result--err" role="alert">{state.message} <button type="button" className="link" onClick={() => void findEpisode(state.episode)}>重试</button></p>}
-        {state.phase === 'ready' && <ResourceResults state={state} busy={torrent.busy} onPlay={start} />}
+        {state.phase === 'ready' && <ResourceResults key={`${state.episode}-${state.result.query}`} state={state} busy={torrent.busy} mediaId={media.id} onPlay={start} />}
       </div>
     </dialog>
   </>
 }
 
-function ResourceResults({ state, busy, onPlay }: {
+const UNGROUPED = '未标注字幕组'
+
+/** 每部作品记住用户上次选的字幕组：下次打开直接排在最前并预选。 */
+function fansubMemoryKey(mediaId: number): string { return `nagare:fansub:${mediaId}` }
+export function rememberedFansub(mediaId: number): string | null {
+  try { return localStorage.getItem(fansubMemoryKey(mediaId)) } catch { return null }
+}
+function rememberFansub(mediaId: number, group: string): void {
+  try { localStorage.setItem(fansubMemoryKey(mediaId), group) } catch { /* 无存储时只是不记住 */ }
+}
+
+interface FansubGroup {
+  name: string
+  /** 命中目标集的正片 */
+  hits: SearchItem[]
+  /** 该字幕组的其余条目（别的集、合集、特典、未识别） */
+  others: SearchItem[]
+}
+
+/**
+ * 按字幕组分组，命中目标集的组排前面；同为命中/未命中时，上次选过的组优先，再按命中数多、名称序。
+ * 组内命中条目按做种数降序（无做种数视为 -1），让「播放这一组」拿到的就是第一条。
+ */
+export function groupByFansub(items: SearchItem[], episode: number, remembered: string | null): FansubGroup[] {
+  const byName = new Map<string, FansubGroup>()
+  for (const item of items) {
+    const name = item.group?.trim() || item.fansub?.trim() || UNGROUPED
+    const group = byName.get(name) ?? { name, hits: [], others: [] }
+    const isHit = item.episode === episode && (item.kind ?? 'main') === 'main'
+    ;(isHit ? group.hits : group.others).push(item)
+    byName.set(name, group)
+  }
+  const seeders = (item: SearchItem) => (typeof item.seeders === 'number' ? item.seeders : -1)
+  for (const group of byName.values()) group.hits.sort((a, b) => seeders(b) - seeders(a))
+  return [...byName.values()].sort((a, b) =>
+    Number(b.hits.length > 0) - Number(a.hits.length > 0) ||
+    Number(b.name === remembered) - Number(a.name === remembered) ||
+    b.hits.length - a.hits.length ||
+    a.name.localeCompare(b.name, 'zh'),
+  )
+}
+
+function ResourceResults({ state, busy, mediaId, onPlay }: {
   state: Extract<ResourceState, { phase: 'ready' }>
   busy: boolean
+  mediaId: number
   onPlay: (item: SearchItem, episode: number, button: HTMLButtonElement) => void
 }) {
+  const remembered = rememberedFansub(mediaId)
+  const groups = groupByFansub(state.result.items, state.episode, remembered)
+  const hitGroups = groups.filter(group => group.hits.length > 0)
+  const [chosen, setChosen] = useState<string | null>(null)
+  const active = groups.find(group => group.name === chosen) ?? hitGroups[0] ?? groups[0] ?? null
+
   if (state.sources.sources.length === 0) return <div className="media-resource-empty">
     <p className="result result--warn">尚未配置资源源。</p>
     <a className="btn btn--sm" href="/settings#sources">去设置添加规则来源</a>
@@ -161,18 +210,43 @@ function ResourceResults({ state, busy, onPlay }: {
 
   const trouble = state.result.sources.filter(outcome => outcome.state === 'dead' || outcome.state === 'failed')
   const sourceNames = new Map(state.sources.sources.map(source => [source.id, source.name]))
+  const play = (item: SearchItem, button: HTMLButtonElement, group: string) => {
+    if (group !== UNGROUPED) rememberFansub(mediaId, group)
+    onPlay(item, state.episode, button)
+  }
+  const itemMeta = (item: SearchItem) => [item.resolution, item.size, typeof item.seeders === 'number' ? `做种 ${item.seeders}` : null, sourceNames.get(item.source) ?? item.source].filter(Boolean).join(' · ')
+  const playButton = (item: SearchItem, group: string, label = '播放') => <button type="button" className="btn btn--sm btn--primary" disabled={busy || state.engineDown}
+    title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
+    onClick={event => play(item, event.currentTarget, group)}>{label}</button>
+
   return <section className="media-resource-results" aria-label={`第 ${state.episode} 集磁力资源`}>
-    <div className="media-play-selection"><h3>第 {state.episode} 集资源</h3><span className="result result--dim">{state.result.items.length} 条</span></div>
+    <div className="media-play-selection"><h3>第 {state.episode} 集资源</h3><span className="result result--dim">{hitGroups.length} 个字幕组命中 · 共 {state.result.items.length} 条</span></div>
     {state.engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<a className="link" href="/settings#torrent">查看设置</a></p>}
     {trouble.length > 0 && <p className="result result--warn" role="status">{sourceTrouble(trouble)}</p>}
-    {state.result.items.length === 0 ? <p className="media-play-hint">启用的源没有返回结果。可以修改搜索词后重试；源异常不等于这部作品没有资源。</p> :
-      <ul className="media-resource-list">{state.result.items.slice(0, MAX_RESOURCE_RESULTS).map((item, index) => <li key={`${item.source}-${index}`}>
-        <div><strong>{item.title}</strong><span>{[item.fansub, item.size, typeof item.seeders === 'number' ? `做种 ${item.seeders}` : null, sourceNames.get(item.source) ?? item.source].filter(Boolean).join(' · ')}</span></div>
-        <button type="button" className="btn btn--sm btn--primary" disabled={busy || state.engineDown}
-          title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
-          onClick={event => onPlay(item, state.episode, event.currentTarget)}>播放</button>
-      </li>)}</ul>}
-    {state.result.items.length > MAX_RESOURCE_RESULTS && <p className="media-play-hint">只显示前 {MAX_RESOURCE_RESULTS} 条，请收窄搜索词。</p>}
+    {state.result.items.length === 0 ? <p className="media-play-hint">启用的源没有返回结果。可以修改搜索词后重试；源异常不等于这部作品没有资源。</p> : <>
+      <div className="media-fansub-row" role="tablist" aria-label="按字幕组选择">
+        {groups.map(group => <button type="button" key={group.name} role="tab" aria-selected={active?.name === group.name}
+          className={active?.name === group.name ? 'media-fansub-chip media-fansub-chip--active' : 'media-fansub-chip'}
+          aria-label={`字幕组 ${group.name}`} onClick={() => setChosen(group.name)}>
+          <strong>{group.name}</strong>
+          <span>{group.hits.length > 0 ? `第 ${state.episode} 集 · ${group.hits[0]!.resolution ?? ''}`.replace(/ · $/, '') : `无第 ${state.episode} 集`}{group.name === remembered ? ' · 上次' : ''}</span>
+        </button>)}
+      </div>
+      {hitGroups.length === 0 && <p className="media-play-hint">没有识别到第 {state.episode} 集的正片条目，可能标题写法特殊或尚未发布；下面是各字幕组的全部结果。</p>}
+      {active && <div className="media-fansub-detail" aria-label={`${active.name} 的资源`}>
+        {active.hits.length > 0 && <ul className="media-resource-list">{active.hits.map((item, index) => <li key={`hit-${item.source}-${index}`}>
+          <div><strong>{item.title}</strong><span>{itemMeta(item)}</span></div>
+          {playButton(item, active.name, index === 0 ? `播放第 ${state.episode} 集` : '播放')}
+        </li>)}</ul>}
+        {active.others.length > 0 && <details className="media-fansub-others" open={active.hits.length === 0}>
+          <summary>{active.name} 的其他条目（{active.others.length}）</summary>
+          <ul className="media-resource-list">{active.others.slice(0, MAX_RESOURCE_RESULTS).map((item, index) => <li key={`other-${item.source}-${index}`}>
+            <div><strong>{item.title}</strong><span>{[typeof item.episode === 'number' ? `第 ${item.episode} 集` : '未识别集数', itemMeta(item)].join(' · ')}</span></div>
+            {playButton(item, active.name)}
+          </li>)}</ul>
+        </details>}
+      </div>}
+    </>}
   </section>
 }
 

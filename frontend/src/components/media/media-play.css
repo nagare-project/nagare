@@ -46,6 +46,14 @@
 .media-resource-list span { color: var(--fg-muted); font-size: 11px; }
 .media-resource-list .btn { flex: none; }
 .media-resource-list .media-resource-active { border-color: #34d39955; background: #10b9810a; }
+.media-fansub-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.media-fansub-chip { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--border-dim); border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.media-fansub-chip strong { font-size: 13px; }
+.media-fansub-chip span { color: var(--fg-muted); font-size: 11px; }
+.media-fansub-chip:hover { border-color: var(--border); }
+.media-fansub-chip--active { border-color: #8b7cf6; background: #8b7cf614; }
+.media-fansub-detail { display: grid; gap: 8px; }
+.media-fansub-others > summary { cursor: pointer; color: var(--fg-muted); font-size: 12px; padding: 4px 0; }
 .media-source-errors { display: grid; gap: 4px; margin: 0; padding: 10px 12px 10px 28px; border-radius: 8px; background: #f59e0b12; color: var(--warning); font-size: 12px; }
 @media (max-width: 640px) { .media-play-body { padding: 32px 20px 24px; } }
 @media (max-width: 520px) { .media-manual-episode { align-items: stretch; flex-direction: column; } .media-resource-list li { align-items: stretch; flex-direction: column; } }

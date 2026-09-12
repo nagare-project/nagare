@@ -5,10 +5,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
+	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/rulesync"
 	"github.com/nagare-project/nagare/internal/store"
@@ -219,9 +221,50 @@ func (s *SourcesService) Sync(ctx context.Context) (rulesync.Report, error) {
 	return rep, nil
 }
 
-// Search 聚合搜索。
-func (s *SourcesService) Search(ctx context.Context, q string) rules.SearchResult {
-	return s.reg.Search(ctx, q)
+// SearchItemView 是搜索结果条目 + 本机解析链给出的结构化字段。
+// 规则只负责把站点响应抽成 Item；集号/字幕组/清晰度从标题里解析是 library 那套
+// 与 animego 共享语料的解析链的事，放在这一层合并，规则和解析链互不知道对方。
+type SearchItemView struct {
+	rules.Item
+	// Episode 是标题里解析出的集号；解析不出为 nil，界面归入「未识别集数」。
+	Episode *int `json:"episode,omitempty"`
+	// Group 是用于分组的字幕组名：规则给的 fansub 优先（站点的规范名），
+	// 没有才用标题里解析出的发布组。
+	Group      string `json:"group,omitempty"`
+	Resolution string `json:"resolution,omitempty"`
+	// Kind 是 main / sp / op / ed 等（library.ParseEpisodeKind），合集与特典靠它区分。
+	Kind string `json:"kind"`
+}
+
+// SearchView 是 GET /api/search 的响应。
+type SearchView struct {
+	Query   string           `json:"query"`
+	Items   []SearchItemView `json:"items"`
+	Sources []rules.Outcome  `json:"sources"`
+}
+
+// Search 聚合搜索并补齐解析字段。
+func (s *SourcesService) Search(ctx context.Context, q string) SearchView {
+	res := s.reg.Search(ctx, q)
+	view := SearchView{Query: res.Query, Items: make([]SearchItemView, 0, len(res.Items)), Sources: res.Sources}
+	for _, item := range res.Items {
+		view.Items = append(view.Items, enrichSearchItem(item))
+	}
+	return view
+}
+
+func enrichSearchItem(item rules.Item) SearchItemView {
+	meta := library.ParseEpisodeMeta(item.Title)
+	out := SearchItemView{Item: item, Episode: meta.Number, Kind: meta.Kind}
+	if meta.Resolution != nil {
+		out.Resolution = *meta.Resolution
+	}
+	if item.Fansub != nil && strings.TrimSpace(*item.Fansub) != "" {
+		out.Group = strings.TrimSpace(*item.Fansub)
+	} else if meta.Group != nil {
+		out.Group = strings.TrimSpace(*meta.Group)
+	}
+	return out
 }
 
 // SelfCheck 探活某源。

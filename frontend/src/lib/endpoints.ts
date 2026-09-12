@@ -436,6 +436,13 @@ export interface SearchItem {
   provider?: string
   seeders?: number
   infohash?: string
+  /** 标题里解析出的集号；解析不出则缺席 */
+  episode?: number
+  /** 分组用的字幕组名：规则给的 fansub 优先，没有才用标题里解析的发布组 */
+  group?: string
+  resolution?: string
+  /** main / sp / op / ed …，合集与特典靠它区分 */
+  kind?: string
 }
 
 /** GET /api/search?q= 的 data 载荷 */
