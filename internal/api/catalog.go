@@ -10,6 +10,7 @@ func (h *Handler) SetCatalogArtPrefix(prefix string) { h.remoteArt.SetPrefix(pre
 func (h *Handler) RemoteArtwork() RemoteArtSource    { return h.remoteArt }
 func (h *Handler) registerCatalog(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/discover", h.catalogDiscover)
+	mux.HandleFunc("GET /api/seasonal", h.catalogSeasonal)
 	mux.HandleFunc("GET /api/anime/{id}", h.catalogDetail)
 	mux.HandleFunc("GET /api/schedule", h.catalogSchedule)
 	mux.HandleFunc("GET /api/lists", h.catalogList)

@@ -5,6 +5,11 @@
 
 ## [未发布]
 
+### 季度浏览（2026-09-12）
+
+- 新增 `/seasonal` 页面与 `GET /api/seasonal?season=&year=`：按年份 + 季度列出 animego 目录里的整季作品（上游一页 200 条，本机十分钟缓存，与发现页的季度板块共用缓存键），放送快照在缓存时顺带补下一集与最近已播。
+- 页面：上一季 / 下一季跨年回绕、四季标签、年份下拉（1990 起到明年）、类型 / 格式 / 状态筛选与评分 / 标题 / 格式排序，全部在地址栏参数里可分享可回退；卡片沿用发现页的悬停详情、选集与磁力入口。导航栏新增「季度」。
+
 ### 安装包内置 Nagare Source（只含 BT 来源）（2026-09-12）
 
 - 发布流水线按 `scripts/release/source-plugin.lock` 拉取 Nagare Source 的五平台引擎归档（版本 + sha256 钉死，归档里出现在线规则即拒绝），放进 dmg / NSIS 安装包 / 便携 zip / tar.gz / deb / rpm：可执行文件旁的 `nagare-source/`（macOS 的 .app 内按 arch 带两个引擎并各自 ad-hoc 签名；deb/rpm 为 `/usr/lib/nagare/nagare-source/`）。lock 未钉版本时安装包不捆，只留说明文件。

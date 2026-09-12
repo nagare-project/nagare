@@ -34,3 +34,7 @@
 验证命令：nagare 的 `go vet ./...` / `go test ./...`（本机加 CGO_ENABLED=0）、前端 `bun run typecheck` / `bun run test` / `bun run build`。animego 在 go-api 下运行 `go test ./internal/anime ./internal/anilist ./internal/db/...`；Docker 与 animego-postgres:dev 就绪后运行 `go test -tags=integration ./internal/anime -run TestTrailerPostgresRoundTrip`。本机 Docker 未运行，因此真实数据库迁移测试待执行；本机 CGO 不可用，race 待可用环境验证。
 
 作品预览、Discover 悬停卡片与作品页现已接入磁力选集：只展示已播出集数，也允许手填目标集；搜索词可编辑，资源仍只来自用户配置的本机规则。搜索页和作品入口共用一份播放会话，换页后保留缓冲与停止入口，种子内选集和重试继续携带 `episodeHint`。未配置源、源规则异常、源连接失败、零结果、引擎不可用与长时间零 peer 分开显示。首版要求用户显式选择资源，不自动猜字幕语言或把第一条结果当成最优版本。
+
+## `GET /api/seasonal`
+
+参数 `season`（WINTER / SPRING / SUMMER / FALL，不分大小写）与 `year`（1990–2100）。响应 `{ season, year, items: SummaryMedia[], fetchedAt }`，items 是 animego `/api/anime/seasonal` 一页 200 条的投影，按 `seasonal:<季>:<年>` 缓存十分钟并合并同键在途请求；放送快照已在缓存时补 `nextAiring` / `recentAiring`。参数不合法返回 400。

@@ -151,3 +151,28 @@ func TestReadCacheIndependentKeysAndCanceledWaiter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 7, v)
 }
+
+// 季度浏览：任意年份季度可查、十分钟内同键不重复请求、参数不合法直接拒绝，
+// 放送快照已在缓存时顺带补最近已播。
+func TestSeasonalViewCachesAndValidates(t *testing.T) {
+	f := &catalogStub{}
+	s := catalogService(f)
+	s.cache.now = func() time.Time { return time.Unix(1788656401, 0) }
+	_, err := s.schedule(context.Background())
+	require.NoError(t, err)
+
+	view, err := s.Seasonal(context.Background(), "fall", 2024)
+	require.NoError(t, err)
+	require.Equal(t, "FALL", view.Season)
+	require.Equal(t, 2024, view.Year)
+	require.Len(t, view.Items, 1)
+	require.Equal(t, &Airing{Episode: 3, At: 1788656400}, view.Items[0].RecentAiring)
+	_, err = s.Seasonal(context.Background(), "FALL", 2024)
+	require.NoError(t, err)
+	require.Equal(t, 1, f.calls["FALL2024"], "十分钟内同季不重复请求")
+
+	_, err = s.Seasonal(context.Background(), "AUTUMN", 2024)
+	require.Error(t, err)
+	_, err = s.Seasonal(context.Background(), "FALL", 1800)
+	require.Error(t, err)
+}

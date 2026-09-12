@@ -950,6 +950,11 @@ export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] 
 export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
 export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; format?: string; inLibrary: boolean }[]; fetchedAt: number }
 export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
+export type SeasonName = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL'
+export interface SeasonalData { season: SeasonName; year: number; items: SummaryMediaData[]; fetchedAt: number }
+/** 某一季的全部作品（animego 一页 200 条），后端十分钟缓存 */
+export const fetchSeasonalData = (season: SeasonName, year: number, signal?: AbortSignal) =>
+  apiFetch<SeasonalData>(`/api/seasonal?season=${season}&year=${year}`, { signal })
 export const fetchMediaData = (id: number, signal?: AbortSignal) => apiFetch<SummaryMediaData>(`/api/anime/${id}`, { signal })
 export const fetchCollection = () => apiFetch<CollectionData>('/api/lists')
 export const saveCollection = (id: number, data: CollectionEdit) => apiFetch<CollectionEntry>(`/api/lists/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: data.status, currentEpisode: data.progress, score: data.score }) })
