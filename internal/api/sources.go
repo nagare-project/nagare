@@ -234,6 +234,8 @@ type SearchItemView struct {
 	Resolution string `json:"resolution,omitempty"`
 	// Kind 是 main / sp / op / ed 等（library.ParseEpisodeKind），合集与特典靠它区分。
 	Kind string `json:"kind"`
+	// TorrentURL 是只给 .torrent 地址、没有磁力的条目（acg.rip 一类）；播放端下载它。
+	TorrentURL string `json:"torrentUrl,omitempty"`
 }
 
 // SearchView 是 GET /api/search 的响应。

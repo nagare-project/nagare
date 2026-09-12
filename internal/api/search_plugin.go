@@ -102,10 +102,11 @@ func (s *SourcePluginService) appendPluginTorrents(ctx context.Context, view *Se
 func pluginTorrentItem(candidate sourceplugin.Candidate, names map[string]string) (SearchItemView, bool) {
 	magnet := strings.TrimSpace(candidate.Transport.Magnet)
 	infohash := strings.ToLower(strings.TrimSpace(candidate.Transport.InfoHash))
+	torrentURL := strings.TrimSpace(candidate.Transport.TorrentURL)
 	if magnet == "" && infohash != "" {
 		magnet = "magnet:?xt=urn:btih:" + infohash
 	}
-	if magnet == "" {
+	if magnet == "" && torrentURL == "" {
 		return SearchItemView{}, false
 	}
 	title := strings.TrimSpace(candidate.Match.SubjectTitle)
@@ -133,6 +134,9 @@ func pluginTorrentItem(candidate sourceplugin.Candidate, names map[string]string
 		item.Provider = &provider
 	}
 	out := enrichSearchItem(item)
+	if magnet == "" {
+		out.TorrentURL = torrentURL
+	}
 	// 插件已经按目标集匹配过；它给的集号比从合成标题里再解一次可靠。
 	if candidate.Metadata.Episode > 0 {
 		episode := int(math.Round(candidate.Metadata.Episode))

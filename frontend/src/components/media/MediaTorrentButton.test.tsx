@@ -75,8 +75,10 @@ describe('目录作品磁力选集', () => {
   })
 
   it('结果按字幕组分组：命中目标集的组在前、上次选过的预选、播放后记住字幕组', async () => {
+    let n = 0
+    // 每条一个不同的 infohash：选集按 infohash 折叠重复种子，同 hash 会被当成同一条
     const item = (title: string, group: string, episode: number | undefined, seeders?: number, kind = 'main') =>
-      ({ title, magnet: `${magnet}${title.length}`, size: '1 GB', fansub: null, date: null, source: 'local-rule', group, episode, kind, resolution: '1080p', seeders })
+      ({ title, magnet: `magnet:?xt=urn:btih:${String(++n).padStart(40, '0')}`, size: '1 GB', fansub: null, date: null, source: 'local-rule', group, episode, kind, resolution: '1080p', seeders })
     vi.mocked(searchMagnets).mockResolvedValue({
       query: '测试动画',
       sources: [{ source: 'local-rule', state: 'ok', count: 5, rawCount: 5, dropped: 0, latencyMs: 1 }],
@@ -111,6 +113,27 @@ describe('目录作品磁力选集', () => {
     await act(async () => hits[0]!.querySelector('button')!.click())
     expect(shared.play).toHaveBeenCalledWith(expect.objectContaining({ episodeHint: 2, title: '[B] 测试动画 - 02 强种' }), expect.any(String), expect.any(Function))
     expect(localStorage.getItem('nagare:fansub:7')).toBe('B组')
+    await unmount()
+  })
+
+  it('同一种子来自多个来源时按 infohash 折叠，保留带做种数的那条', async () => {
+    const ih = '0123456789abcdef0123456789abcdef01234567'
+    vi.mocked(searchMagnets).mockResolvedValue({
+      query: '测试动画',
+      sources: [{ source: 'garden', state: 'ok', count: 2, rawCount: 2, dropped: 0, latencyMs: 1 }, { source: 'plugin:nyaa', state: 'ok', count: 1, rawCount: 1, dropped: 0, latencyMs: 1 }],
+      items: [
+        { title: '[A] 测试动画 - 02', magnet: `magnet:?xt=urn:btih:${ih}&dn=x`, size: '1 GB', fansub: null, date: null, source: 'garden', group: 'A组', episode: 2, kind: 'main' },
+        { title: '[A] 测试动画 - 02', magnet: `magnet:?xt=urn:btih:${ih.toUpperCase()}`, size: '1 GB', fansub: null, date: null, source: 'plugin:nyaa', group: 'A组', episode: 2, kind: 'main', seeders: 42, infohash: ih },
+        { title: '[A] 测试动画 - 02 v2', magnet: 'magnet:?xt=urn:btih:fedcba9876543210fedcba9876543210fedcba98', size: '1 GB', fansub: null, date: null, source: 'garden', group: 'A组', episode: 2, kind: 'main' },
+      ],
+    })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
+    await act(async () => {})
+    const hits = [...container.querySelectorAll('.media-fansub-detail > .media-resource-list li')]
+    expect(hits).toHaveLength(2)
+    expect(hits[0]?.textContent).toContain('做种 42')
     await unmount()
   })
 

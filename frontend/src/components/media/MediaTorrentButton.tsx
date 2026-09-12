@@ -85,8 +85,10 @@ export function MediaTorrentButton({ media, onOpenChange }: { media: MediaSummar
   }
 
   function start(item: SearchItem, episode: number, button: HTMLButtonElement): void {
+    // acg.rip 一类只给 .torrent 地址：走种子文件路径（自带 info 与 tracker，不用等元数据）
+    const target = item.magnet ? { magnet: item.magnet } : { torrentUrl: item.torrentUrl ?? '' }
     torrent.play(
-      { magnet: item.magnet, title: item.title, episodeHint: episode },
+      { ...target, title: item.title, episodeHint: episode },
       item.title,
       () => {
         if (button.isConnected && !button.disabled) button.focus()
@@ -174,9 +176,29 @@ interface FansubGroup {
  * 按字幕组分组，命中目标集的组排前面；同为命中/未命中时，上次选过的组优先，再按命中数多、名称序。
  * 组内命中条目按做种数降序（无做种数视为 -1），让「播放这一组」拿到的就是第一条。
  */
+/** 同一个种子会从多个来源（Anime Garden / 動漫花園 / Mikan…）各来一次，按 infohash 折叠。 */
+export function releaseKey(item: SearchItem): string {
+  const hash = item.infohash?.toLowerCase() || /btih:([0-9a-z]{32,40})/i.exec(item.magnet)?.[1]?.toLowerCase()
+  return hash ?? (item.torrentUrl ?? item.magnet ?? item.title).toLowerCase()
+}
+
 export function groupByFansub(items: SearchItem[], episode: number, remembered: string | null): FansubGroup[] {
   const byName = new Map<string, FansubGroup>()
+  const seen = new Map<string, SearchItem>()
+  const deduped: SearchItem[] = []
   for (const item of items) {
+    const key = releaseKey(item)
+    const existing = seen.get(key)
+    if (existing === undefined) {
+      seen.set(key, item)
+      deduped.push(item)
+    } else if (typeof item.seeders === 'number' && typeof existing.seeders !== 'number') {
+      // 同一种子以带做种数的那条为准（排序靠它）
+      deduped[deduped.indexOf(existing)] = { ...item, group: existing.group ?? item.group }
+      seen.set(key, item)
+    }
+  }
+  for (const item of deduped) {
     const name = item.group?.trim() || item.fansub?.trim() || UNGROUPED
     const group = byName.get(name) ?? { name, hits: [], others: [] }
     const isHit = item.episode === episode && (item.kind ?? 'main') === 'main'

@@ -443,6 +443,8 @@ export interface SearchItem {
   resolution?: string
   /** main / sp / op / ed …，合集与特典靠它区分 */
   kind?: string
+  /** 只给 .torrent 地址、没有磁力的条目（magnet 为空串时使用） */
+  torrentUrl?: string
 }
 
 /** GET /api/search?q= 的 data 载荷 */

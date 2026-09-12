@@ -216,6 +216,23 @@ func TestSearchWithEpisodeMergesPluginTorrentCandidates(t *testing.T) {
 	assert.Equal(t, rules.StateOK, states["plugin:garden"])
 	assert.Equal(t, rules.StateFailed, states["plugin:bt-dead"])
 
+	// 只给 .torrent 地址的候选（acg.rip）也要进选集，标出 torrentUrl 供播放端下载。
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "acg:url:abc", SourceID: "acg", Tier: 3, MatchConfidence: 0.95,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, SubjectTitle: "幼女战记 第二季", EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", TorrentURL: "https://acg.rip/t/1.torrent"},
+			Metadata:  sourceplugin.Metadata{Fansub: "LoliHouse", Episode: 5},
+		}},
+		{Event: "done", Queried: 1, Succeeded: 1},
+	}
+	rec = env.do(t, http.MethodGet, "/api/search?q=x&episode=5", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
+	require.Len(t, view.Items, 1)
+	assert.Empty(t, view.Items[0].Magnet)
+	assert.Equal(t, "https://acg.rip/t/1.torrent", view.Items[0].TorrentURL)
+
 	// 没有集号：不问插件。
 	env.plugin.lastRequest = sourceplugin.ResolveRequest{}
 	rec = env.do(t, http.MethodGet, "/api/search?q=x", "")
