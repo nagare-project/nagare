@@ -65,6 +65,7 @@ interface RuntimeSession {
   plugin?: SourcePluginView
   candidates: SourceCandidate[]
   sourceErrors: string[]
+  failedSources: Set<string>
   attempted: Set<string>
   streamDone: boolean
   pending: boolean
@@ -166,7 +167,11 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     const online = candidates.filter(candidate => candidate.transport.type !== 'torrent')
     const nextOnline = session.streamDone
       ? online[0]
-      : online.find(candidate => candidate.tier <= 1 && candidate.matchConfidence >= 0.8)
+      : online.find(candidate => candidate.matchConfidence >= 0.8 && (
+        candidate.tier <= 1 || (session.plugin?.sources ?? []).every(source =>
+          !source.enabled || source.kind !== 'web' || source.tier >= candidate.tier || session.failedSources.has(source.id),
+        )
+      ))
     if (nextOnline !== undefined) {
       void attemptOnline(session, nextOnline)
       return
@@ -192,6 +197,7 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController()
     const session: RuntimeSession = {
       generation: ++generation.current, request, controller, candidates: [], sourceErrors: [],
+      failedSources: new Set(),
       attempted: new Set(), streamDone: false, pending: false, phase: 'checking',
       message: '正在检查本地来源插件',
     }
@@ -217,8 +223,10 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
             publish(session)
             chooseNext(session)
           } else if (event.event === 'source_error') {
+            session.failedSources.add(event.sourceId)
             session.sourceErrors.push(`${sourceName(plugin.sources, event.sourceId)}：${sourceErrorText(event.category, event.message)}`)
             publish(session)
+            chooseNext(session)
           } else if (event.event === 'done') {
             session.streamDone = true
             publish(session)

@@ -65,6 +65,69 @@ afterEach(() => {
 })
 
 describe('目录作品的本地插件找源', () => {
+  it('快速切集后忽略上一集迟到的候选，避免自动播错集', async () => {
+    const streams: Array<{ emit: Parameters<typeof streamSourceCandidates>[1]; signal?: AbortSignal; finish: () => void }> = []
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit, signal) => {
+      await new Promise<void>(finish => streams.push({ emit, signal, finish }))
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 1 集"]')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    expect(streams[0]?.signal?.aborted).toBe(true)
+    await act(async () => streams[0]!.emit({ event: 'candidate', candidate: { ...online, id: 'old-episode' } }))
+    expect(playSourceCandidate).not.toHaveBeenCalled()
+    await act(async () => streams[1]!.emit({ event: 'candidate', candidate: online }))
+    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(online, '测试动画', 2)
+    await act(async () => streams.forEach(stream => stream.finish()))
+    await unmount()
+  })
+
+  it('用户正常关闭播放器后不自动启动另一条来源', async () => {
+    vi.mocked(fetchPlayerStatus).mockResolvedValue({ playing: false })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+    expect(playSourceCandidate).toHaveBeenCalledTimes(1)
+    await unmount()
+  })
+
+  it('更高优先级来源失败后立即播放已有在线候选，不等待整个流结束', async () => {
+    const lower = { ...online, id: 'lower', sourceId: 'web-b', tier: 2 }
+    vi.mocked(fetchSourcePlugin).mockResolvedValue({ ...plugin, sources: [...plugin.sources,
+      { ...plugin.sources[0]!, id: 'web-b', tier: 2 },
+    ] })
+    let emitEvent: Parameters<typeof streamSourceCandidates>[1] | undefined
+    let finish: (() => void) | undefined
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emitEvent = emit
+      emit({ event: 'candidate', candidate: lower })
+      await new Promise<void>(resolve => { finish = resolve })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    expect(playSourceCandidate).not.toHaveBeenCalled()
+    await act(async () => emitEvent!({ event: 'source_error', sourceId: 'web-a', category: 'search_failed', message: 'failed', retryable: true }))
+    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(lower, '测试动画', 2)
+    await act(async () => finish!())
+    await unmount()
+  })
+
+  it('已启用来源没有更高优先级时首条可靠在线候选立即起播', async () => {
+    const lower = { ...online, tier: 2 }
+    vi.mocked(fetchSourcePlugin).mockResolvedValue({ ...plugin, sources: [{ ...plugin.sources[0]!, tier: 2 }] })
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: lower })
+      expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(lower, '测试动画', 2)
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await unmount()
+  })
+
   it('选集后高优先级候选立即起播，列表可换源且不泄露 URL/请求头', async () => {
     const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
     await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())

@@ -62,6 +62,8 @@ type Options struct {
 	MPV        *mpv.Runtime  // 共享探测状态；可为 nil（测试注入假 Launch 时不需要真实 mpv）
 	RuntimeDir string        // 弹幕 ASS、IPC socket 等运行时文件目录
 	Launch     Launcher      // 为 nil 时用 mpv.Launch
+	// RemoteStallTimeout 控制在线媒体无进度的最长等待，非正值使用 45 秒。
+	RemoteStallTimeout time.Duration
 	// OnSessionEnd 在一次播放会话终结后调用（mpv 播完、用户关窗、或被 Stop）。
 	//
 	// 磁力播放靠它兑现「停止播放即停做种并删分片」：用户直接关掉 mpv 窗口时
@@ -223,6 +225,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	m.current = sess
 	m.mu.Unlock()
 	go m.watch(sess)
+	go m.watchRemoteProgress(sess)
 	go m.resolveDanmaku(sess)
 
 	return PlayResult{FileID: item.FileID, Title: title, Danmaku: loading}, nil
