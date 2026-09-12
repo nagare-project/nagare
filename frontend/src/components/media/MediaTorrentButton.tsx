@@ -183,8 +183,11 @@ export function groupByFansub(items: SearchItem[], episode: number, remembered: 
     ;(isHit ? group.hits : group.others).push(item)
     byName.set(name, group)
   }
+  // 做种数优先；来源不给做种数（Anime Garden 就不给）时按发布时间新的在前——
+  // 几年前的冷门发布多半已经没人做种了，先试新的。
   const seeders = (item: SearchItem) => (typeof item.seeders === 'number' ? item.seeders : -1)
-  for (const group of byName.values()) group.hits.sort((a, b) => seeders(b) - seeders(a))
+  const published = (item: SearchItem) => Date.parse(item.date ?? '') || 0
+  for (const group of byName.values()) group.hits.sort((a, b) => seeders(b) - seeders(a) || published(b) - published(a))
   return [...byName.values()].sort((a, b) =>
     Number(b.hits.length > 0) - Number(a.hits.length > 0) ||
     Number(b.name === remembered) - Number(a.name === remembered) ||
@@ -218,7 +221,7 @@ function ResourceResults({ state, busy, mediaId, onPlay }: {
     onPlay(item, state.episode, button)
   }
   const sourceLabel = (item: SearchItem) => sourceNames.get(item.source) ?? (item.source.startsWith('plugin:') ? `插件 · ${item.provider ?? item.source.slice('plugin:'.length)}` : item.source)
-  const itemMeta = (item: SearchItem) => [item.resolution, item.size, typeof item.seeders === 'number' ? `做种 ${item.seeders}` : null, sourceLabel(item)].filter(Boolean).join(' · ')
+  const itemMeta = (item: SearchItem) => [item.resolution, item.size, typeof item.seeders === 'number' ? `做种 ${item.seeders}` : null, publishedLabel(item.date), sourceLabel(item)].filter(Boolean).join(' · ')
   const playButton = (item: SearchItem, group: string, label = '播放') => <button type="button" className="btn btn--sm btn--primary" disabled={busy || state.engineDown}
     title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
     onClick={event => play(item, event.currentTarget, group)}>{label}</button>
@@ -252,6 +255,15 @@ function ResourceResults({ state, busy, mediaId, onPlay }: {
       </div>}
     </>}
   </section>
+}
+
+/** 发布日期只显示到月；老发布（两年以上）标出来，提醒用户可能已经没人做种。 */
+export function publishedLabel(date: string | null | undefined): string | null {
+  const ms = Date.parse(date ?? '')
+  if (!ms) return null
+  const d = new Date(ms)
+  const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return Date.now() - ms > 2 * 365 * 24 * 3600 * 1000 ? `${label} 发布（较旧，可能无人做种）` : `${label} 发布`
 }
 
 function sourceTrouble(outcomes: SourceOutcome[]): string {
