@@ -4,7 +4,7 @@ Nagare 通过本机子进程接入 [Nagare Source](https://github.com/nagare-pro
 
 ## 安装包内置
 
-nagare 的 dmg / NSIS 安装包 / 便携 zip / deb / rpm 都捆着一份 Nagare Source：引擎（`nagare-source`，macOS 的 .app 里按 arch 分两个）加一个**只含 BT 规则**的运行时目录 `repo/`（由 `nagare-source bundle --profile bt` 生成，里面没有 `sources/web`）。位置约定为可执行文件旁边的 `nagare-source/`（deb/rpm 为 `/usr/lib/nagare/nagare-source/`）。首次运行如果从未配置过插件，nagare 自动采用这份并启用；用户改过路径或关掉之后就照用户的，设置页有「使用内置插件」可切回。
+nagare 的 dmg / NSIS 安装包 / 便携 zip / deb / rpm 都捆着一份 Nagare Source：引擎（`nagare-source`，macOS 的 .app 里按 arch 分两个）加一个**只含 BT 规则**的运行时目录 `repo/`（由 `nagare-source bundle --profile bt` 生成，里面没有 `sources/web`）。位置约定为可执行文件旁边的 `nagare-source/`（deb/rpm 为 `/usr/lib/nagare/nagare-source/`；macOS 的 .app 里引擎在 `Contents/MacOS/nagare-source-<arch>`、规则目录在 `Contents/Resources/nagare-source/repo`，bundle 规范不允许数据文件混在 MacOS/ 下）。首次运行如果从未配置过插件，nagare 自动采用这份并启用；用户改过路径或关掉之后就照用户的，设置页有「使用内置插件」可切回。
 
 捆哪一版由 `scripts/release/source-plugin.lock` 钉死（版本 + 五平台 sha256），校验不过即构建失败；lock 未钉版本时安装包不捆插件，目录里只有一个说明文件。在线规则永远不进安装包，要用的用户自己指定完整仓库目录。
 

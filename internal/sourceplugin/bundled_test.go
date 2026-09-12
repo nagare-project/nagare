@@ -54,3 +54,17 @@ func TestDetectBundledIgnoresPlaceholderAndMissingRepo(t *testing.T) {
 	_, ok = DetectBundled("")
 	assert.False(t, ok)
 }
+
+func TestDetectBundledMacOSAppLayout(t *testing.T) {
+	contents := t.TempDir()
+	exeDir := filepath.Join(contents, "MacOS")
+	require.NoError(t, os.MkdirAll(exeDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(exeDir, "nagare-source-"+runtime.GOARCH), []byte("#!/bin/sh\n"), 0o755))
+	repo := filepath.Join(contents, "Resources", "nagare-source", "repo")
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, "schema"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "schema", "source-v1.schema.json"), []byte("{}"), 0o644))
+	got, ok := DetectBundled(exeDir)
+	require.True(t, ok)
+	assert.Equal(t, filepath.Join(exeDir, "nagare-source-"+runtime.GOARCH), got.Executable)
+	assert.Equal(t, repo, got.Root)
+}
