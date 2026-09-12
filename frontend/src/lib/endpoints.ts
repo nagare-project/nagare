@@ -841,8 +841,12 @@ export interface TorrentSettings {
   enabled: boolean
   /** 停止播放后是否继续上传；播放期间的分片交换是 BT 协议必需的，不受此开关影响 */
   seeding: boolean
-  /** 用户自填的 tracker，默认空（本体不内置任何 tracker）；只补给公开种子 */
+  /** 用户自己追加的 tracker（内置组之外）；只补给公开种子 */
   trackers: string[]
+  /** 是否启用内置的公共 tracker 组（默认开；关掉后只剩用户自填的） */
+  useDefaultTrackers: boolean
+  /** 内置公共 tracker 组的内容，只读展示 */
+  defaultTrackers: string[]
   /** UPnP / NAT-PMP 自动端口映射 */
   portForwarding: boolean
   listenPort: number
@@ -860,6 +864,7 @@ export interface TorrentConfigData extends TorrentSettings {
 export interface TorrentConfigPatch {
   seeding?: boolean
   trackers?: string[]
+  useDefaultTrackers?: boolean
   portForwarding?: boolean
   listenPort?: number
 }

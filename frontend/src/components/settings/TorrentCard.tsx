@@ -42,6 +42,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
   const [portForwarding, setPortForwarding] = useState(torrent.portForwarding)
   const [listenPort, setListenPort] = useState(String(torrent.listenPort))
   const [trackersText, setTrackersText] = useState(torrent.trackers.join('\n'))
+  const [useDefaultTrackers, setUseDefaultTrackers] = useState(torrent.useDefaultTrackers)
   const [restartRequired, setRestartRequired] = useState(false)
   const [state, setState] = useState<ActionState>({ phase: 'idle' })
 
@@ -52,6 +53,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
     seeding !== saved.seeding ||
     portForwarding !== saved.portForwarding ||
     listenPort.trim() !== String(saved.listenPort) ||
+    useDefaultTrackers !== saved.useDefaultTrackers ||
     trackers.join('\n') !== saved.trackers.join('\n')
 
   function handleSave(event: FormEvent<HTMLFormElement>): void {
@@ -64,13 +66,14 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
     setState({ phase: 'busy', action: 'save' })
     void (async () => {
       try {
-        const next = await updateTorrentConfig({ seeding, portForwarding, listenPort: port, trackers })
+        const next = await updateTorrentConfig({ seeding, portForwarding, listenPort: port, trackers, useDefaultTrackers })
         // 以后端返回值为准回填：后端可能规范化端口 / 去重 tracker
         setSaved(next)
         setSeeding(next.seeding)
         setPortForwarding(next.portForwarding)
         setListenPort(String(next.listenPort))
         setTrackersText(next.trackers.join('\n'))
+        setUseDefaultTrackers(next.useDefaultTrackers)
         setRestartRequired(next.restartRequired)
         setState({ phase: 'ok', text: '已保存' })
         await onReload()
@@ -173,9 +176,35 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           </p>
         </div>
 
+        <label className="torrent-toggle">
+          <button
+            type="button"
+            role="switch"
+            className="switch"
+            aria-checked={useDefaultTrackers}
+            aria-label="内置 tracker"
+            onClick={() => setUseDefaultTrackers(!useDefaultTrackers)}
+            disabled={disabled}
+          >
+            <span className="switch-knob" aria-hidden="true" />
+          </button>
+          <span className="torrent-toggle-body">
+            <span className="torrent-toggle-text">使用内置公共 tracker（{torrent.defaultTrackers.length} 条）</span>
+            <span className="torrent-toggle-note">
+              tracker 只回答「谁在分享这个种子」，不存内容。索引站给的磁力常常不带 tracker，
+              只靠 DHT 找元数据要几十秒到几分钟，带上公共 tracker 通常几秒。默认开启。
+            </span>
+            {useDefaultTrackers && (
+              <span className="torrent-default-trackers" aria-label="内置 tracker 列表">
+                {torrent.defaultTrackers.join('\n')}
+              </span>
+            )}
+          </span>
+        </label>
+
         <div className="field">
           <label htmlFor="torrent-trackers" style={label}>
-            Tracker 列表
+            追加 tracker
           </label>
           <textarea
             id="torrent-trackers"
@@ -189,8 +218,8 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
             aria-describedby="torrent-trackers-note"
           />
           <p id="torrent-trackers-note" className="torrent-note">
-            一行一个，默认留空。留空即只用 DHT / PEX 找分享者；填的地址只会补给公开种子
-            （给私有站种子补公共 tracker 会导致封号）。nagare 不内置任何 tracker。
+            一行一个，在内置组之外追加；两者都关/留空即只用 DHT / PEX 找分享者。
+            填的地址只会补给公开种子（给私有站种子补公共 tracker 会导致封号）。
           </p>
         </div>
 

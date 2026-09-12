@@ -432,7 +432,7 @@ func newTorrentEngine(st *store.Store, cacheDir string, base *streamBaseHolder) 
 		StreamBase: base.get,
 		Config: torrentstream.Config{
 			Seeding:        c.Seeding,
-			Trackers:       c.Trackers,
+			Trackers:       torrentstream.EffectiveTrackers(!c.DisableDefaultTrackers, c.Trackers),
 			PortForwarding: c.PortForwarding,
 			ListenPort:     c.ListenPort,
 		},

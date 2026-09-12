@@ -16,6 +16,8 @@ const SETTINGS: TorrentSettings = {
   enabled: true,
   seeding: false,
   trackers: [],
+  useDefaultTrackers: true,
+  defaultTrackers: ['udp://tracker.opentrackr.org:1337/announce', 'udp://open.stealth.si:80/announce'],
   portForwarding: true,
   listenPort: 6881,
   cacheDir: '/Users/you/Library/Application Support/nagare/cache/torrent',
@@ -122,7 +124,21 @@ describe('TorrentCard · 受控行为', () => {
     expect(note).toContain('公开种子')
   })
 
-  it('保存把四项一起发出去；tracker 按行拆分并丢掉空行', async () => {
+  it('内置 tracker 默认开启并列出内容；关掉后列表隐藏、保存时一并发出', async () => {
+    const { container } = await mountCard()
+    expect(toggle(container, '内置 tracker').getAttribute('aria-checked')).toBe('true')
+    expect(container.querySelector('.torrent-default-trackers')?.textContent).toContain('udp://tracker.opentrackr.org:1337/announce')
+    await act(async () => {
+      toggle(container, '内置 tracker').click()
+    })
+    expect(container.querySelector('.torrent-default-trackers')).toBeNull()
+    await submit(container)
+    expect(endpoints.updateTorrentConfig).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ useDefaultTrackers: false }),
+    )
+  })
+
+  it('保存把五项一起发出去；tracker 按行拆分并丢掉空行', async () => {
     const { container, onReload } = await mountCard()
     await act(async () => {
       toggle(container, '持续做种').click()
@@ -135,6 +151,7 @@ describe('TorrentCard · 受控行为', () => {
       portForwarding: true,
       listenPort: 6881,
       trackers: ['udp://a.invalid:80', 'udp://b.invalid:80'],
+      useDefaultTrackers: true,
     })
     expect(onReload).toHaveBeenCalledTimes(1)
     expect(status(container)).toBe('已保存')

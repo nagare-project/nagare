@@ -147,10 +147,11 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Seeding        *bool     `json:"seeding"`
-		Trackers       *[]string `json:"trackers"`
-		PortForwarding *bool     `json:"portForwarding"`
-		ListenPort     *int      `json:"listenPort"`
+		Seeding            *bool     `json:"seeding"`
+		Trackers           *[]string `json:"trackers"`
+		UseDefaultTrackers *bool     `json:"useDefaultTrackers"`
+		PortForwarding     *bool     `json:"portForwarding"`
+		ListenPort         *int      `json:"listenPort"`
 	}
 	if !decodeBody(w, r, &req) {
 		return
@@ -174,6 +175,9 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.Trackers != nil {
 			c.Trackers = *req.Trackers
+		}
+		if req.UseDefaultTrackers != nil {
+			c.DisableDefaultTrackers = !*req.UseDefaultTrackers
 		}
 		if req.PortForwarding != nil {
 			c.PortForwarding = *req.PortForwarding
@@ -203,7 +207,7 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 func engineConfig(c store.TorrentConfig) torrentstream.Config {
 	return torrentstream.Config{
 		Seeding:        c.Seeding,
-		Trackers:       c.Trackers,
+		Trackers:       torrentstream.EffectiveTrackers(!c.DisableDefaultTrackers, c.Trackers),
 		PortForwarding: c.PortForwarding,
 		ListenPort:     c.ListenPort,
 	}
@@ -217,14 +221,16 @@ func torrentView(c store.TorrentConfig, eng TorrentAPI, cacheDir string) map[str
 		trackers = []string{} // 前端要数组，不要 null
 	}
 	view := map[string]any{
-		"enabled":         eng != nil,
-		"seeding":         c.Seeding,
-		"trackers":        trackers,
-		"portForwarding":  c.PortForwarding,
-		"listenPort":      c.ListenPort,
-		"cacheDir":        cacheDir,
-		"cacheBytes":      int64(0),
-		"restartRequired": false,
+		"enabled":            eng != nil,
+		"seeding":            c.Seeding,
+		"trackers":           trackers,
+		"useDefaultTrackers": !c.DisableDefaultTrackers,
+		"defaultTrackers":    append([]string(nil), torrentstream.DefaultTrackers...),
+		"portForwarding":     c.PortForwarding,
+		"listenPort":         c.ListenPort,
+		"cacheDir":           cacheDir,
+		"cacheBytes":         int64(0),
+		"restartRequired":    false,
 	}
 	if eng != nil {
 		view["cacheBytes"] = eng.CacheBytes()

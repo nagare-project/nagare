@@ -64,6 +64,8 @@ const SETTINGS: SettingsData = {
     enabled: true,
     seeding: false,
     trackers: [],
+    useDefaultTrackers: true,
+    defaultTrackers: [],
     portForwarding: true,
     listenPort: 6881,
     cacheDir: '/Users/you/Library/Application Support/nagare/cache/torrent',

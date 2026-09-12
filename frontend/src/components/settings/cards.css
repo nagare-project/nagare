@@ -263,6 +263,21 @@
   line-height: 1.6;
 }
 
+.torrent-default-trackers {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre-line;
+  color: var(--text-muted, inherit);
+  overflow-x: auto;
+}
+
 .torrent-dirty {
   font-size: 0.84rem;
 }

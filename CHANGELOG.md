@@ -9,7 +9,8 @@
 
 - 用户配置的 tracker 改为在等待元数据之前就挂到种子上。此前刻意排在拿到 info 之后（顾虑私有种子 passkey），但磁力路径本就要先经 DHT 公开找 peer，补公共 tracker 并不多暴露什么，而 passkey 只存在于私有站自己的 announce 地址里。实测 Anime Garden 的无 tracker 磁力：纯 DHT 找元数据 50–125 秒甚至找不到，带公共 tracker 2.6 秒。
 - 修复起播缓冲期间分片优先级根本没有生效：启动期的头尾钉住只在第一个 reader 登记时才写下去，而缓冲阶段还没有任何 reader（mpv 未起、弹幕哈希未读），头 8MB 只能按默认顺序碰运气，实测要等整个文件下到四成。现在管理器建好即应用。
-- 两项合计，同一部番同一来源的「点播放 → mpv 起播」实测从 75–125 秒降到 18 秒（其中约 3 秒元数据、15 秒缓冲 8MB）。tracker 列表仍默认为空、需用户自行填写。
+- 两项合计，同一部番同一来源的「点播放 → mpv 起播」实测从 75–125 秒降到 18 秒（其中约 3 秒元数据、15 秒缓冲 8MB）。
+- 内置一组 8 条公共 tracker（逐条 announce 实测可用：opentrackr / stealth.si / torrent.eu.org / demonii / nyaa / leet-tracker.moe / nekomi.cn / zhuqiy.com），默认开启，设置页可整组关闭并在其外追加；旧配置升级后自动启用。`.torrent` 文件路径上的私有种子仍不补任何 tracker。
 
 ### 在线弹幕匹配与提前结束修复（2026-09-12）
 
