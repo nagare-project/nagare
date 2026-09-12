@@ -145,8 +145,11 @@ func (m *Manager) watch(sess *session) {
 			fileLoaded = true
 			maybeArrange()
 		case <-sess.player.Done():
-			m.finalize(sess, endedByEOF)
-			if failure := playbackFailureFor(sess.item.FileID, endedReason, sess.player.Err(), time.Now().UnixMilli()); failure != nil {
+			// 在线流被服务器掐断时 mpv 同样报 eof：这种 eof 不能算看完
+			// （否则会把账号标成已看），而是一次来源故障。
+			premature := prematureEOF(sess.src, sess.player.State(), endedByEOF)
+			m.finalize(sess, endedByEOF && !premature)
+			if failure := playbackFailureFor(sess.item.FileID, endedReason, sess.player.Err(), premature, time.Now().UnixMilli()); failure != nil {
 				m.setPlaybackFailure(failure)
 			}
 			// mpv 自然退出（播完/用户关窗）时收敛 current，Status 不再误报在播。
@@ -166,7 +169,10 @@ func (m *Manager) watch(sess *session) {
 	}
 }
 
-func playbackFailureFor(fileID, endedReason string, playerErr error, at int64) *PlaybackFailure {
+func playbackFailureFor(fileID, endedReason string, playerErr error, premature bool, at int64) *PlaybackFailure {
+	if premature {
+		return &PlaybackFailure{FileID: fileID, Reason: "在线媒体提前结束，已停止当前来源", At: at}
+	}
 	if endedReason != "error" && playerErr == nil {
 		return nil
 	}
@@ -175,6 +181,16 @@ func playbackFailureFor(fileID, endedReason string, playerErr error, at int64) *
 		Reason: "媒体加载或播放失败",
 		At:     at,
 	}
+}
+
+// prematureEOF 判定在线流是否在远未播完时就到达 eof —— 服务器掐断连接、HLS 分片
+// 缺失时 mpv 不报错而是正常结束。只对在线媒体判定：本地文件时长估计偶有偏差，
+// 误报会让用户看到一条并不存在的故障。
+func prematureEOF(src MediaSource, st mpv.State, endedByEOF bool) bool {
+	if _, online := src.(*remoteSource); !online || !endedByEOF || st.Duration <= 0 {
+		return false
+	}
+	return st.TimePos < completionRatio*st.Duration
 }
 
 // mpvTrack 是 track-list 属性里我们关心的字段。

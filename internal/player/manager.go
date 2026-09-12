@@ -295,13 +295,17 @@ func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item libra
 	hash := m.opts.Store.Hash(item.FileID)
 	if hash == "" {
 		h, err := src.Hash16M(ctx)
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrNoFingerprint):
+			// 在线媒体没有指纹：hash 留空，服务端只能靠文件名/关键词（见 MatchInput.FileHash）。
+		case err != nil:
 			return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: "计算文件指纹失败，弹幕匹配跳过"}
-		}
-		hash = h
-		if err := m.opts.Store.SetHash(item.FileID, hash); err != nil {
-			// 缓存写失败不致命：下次再算一遍。
-			log.Printf("player: 缓存 hash 失败：%v", err)
+		default:
+			hash = h
+			if err := m.opts.Store.SetHash(item.FileID, hash); err != nil {
+				// 缓存写失败不致命：下次再算一遍。
+				log.Printf("player: 缓存 hash 失败：%v", err)
+			}
 		}
 	}
 

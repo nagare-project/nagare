@@ -83,6 +83,18 @@ describe('目录作品的本地插件找源', () => {
     await unmount()
   })
 
+  it('起播标题用目录作品标题而不是来源站点的写法，保证弹幕关键词匹配', async () => {
+    const renamed = { ...online, match: { ...online.match, subjectTitle: '幼女战记 第二季' } }
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: renamed })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(renamed, '测试动画', 2)
+    await unmount()
+  })
+
   it('用户正常关闭播放器后不自动启动另一条来源', async () => {
     vi.mocked(fetchPlayerStatus).mockResolvedValue({ playing: false })
     const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)

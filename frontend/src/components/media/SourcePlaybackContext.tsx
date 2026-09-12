@@ -352,8 +352,10 @@ function sortCandidates(candidates: SourceCandidate[]): SourceCandidate[] {
   )
 }
 
+// 优先用目录里的作品标题：它就是 animego 自己的标题，在线媒体没有文件指纹时
+// 弹幕只能靠这个关键词匹配；来源站点的标题写法（「第二季」/「Ⅱ」）经常对不上。
 function playbackTitle(candidate: SourceCandidate, request: SourcePlaybackRequest): string {
-  return candidate.match.subjectTitle?.trim() || request.media.title
+  return request.media.title.trim() || candidate.match.subjectTitle?.trim() || ''
 }
 
 function candidateLabel(candidate: SourceCandidate, sources: PluginSource[]): string {

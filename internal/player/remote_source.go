@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -68,9 +69,14 @@ func (s *remoteSource) Probe(context.Context) error {
 	return nil
 }
 
-// 在线媒体不为弹幕匹配额外下载前 16 MiB；失败只降级弹幕，播放已经先启动。
+// ErrNoFingerprint 表示这种媒体源天生没有文件指纹（不是计算失败）。
+// ensureBinding 收到它会改走关键词匹配，而不是放弃弹幕。
+var ErrNoFingerprint = errors.New("该媒体源不提供文件指纹")
+
+// 在线媒体不为弹幕匹配额外下载前 16 MiB：起播不等指纹，弹幕靠标题 + 集号走
+// animego 的关键词匹配（phase 2）。
 func (s *remoteSource) Hash16M(context.Context) (string, error) {
-	return "", errs.New(errs.CategoryNetwork, "player.remote.hash", "在线播放不计算文件指纹", "弹幕匹配将跳过")
+	return "", ErrNoFingerprint
 }
 
 func cloneHeaders(headers map[string]string) map[string]string {

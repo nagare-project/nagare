@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,12 +26,17 @@ type fakeClient struct {
 	matchRes   animego.MatchResult
 	matchErr   error
 	matchCalls atomic.Int32
+	matchMu    sync.Mutex
+	matchIn    []animego.MatchInput
 	loggedIn   bool
 	marked     []int
 }
 
-func (f *fakeClient) Match(_ context.Context, _ animego.MatchInput) (animego.MatchResult, error) {
+func (f *fakeClient) Match(_ context.Context, in animego.MatchInput) (animego.MatchResult, error) {
 	f.matchCalls.Add(1)
+	f.matchMu.Lock()
+	f.matchIn = append(f.matchIn, in)
+	f.matchMu.Unlock()
 	return f.matchRes, f.matchErr
 }
 func (f *fakeClient) Comments(context.Context, int64) ([]danmaku.Comment, error) { return nil, nil }
@@ -91,6 +97,43 @@ func TestEnsureBindingMatchSuccess(t *testing.T) {
 	_, dan2 := m.ensureBinding(context.Background(), NewLocalSource(item), item)
 	assert.Equal(t, "ok", dan2.State)
 	assert.Equal(t, int32(1), client.matchCalls.Load(), "有缓存绑定时不应重复匹配")
+}
+
+// 在线媒体没有文件指纹：不能因此放弃弹幕，要以标题 + 集号走关键词匹配，
+// 且不把空 hash 写进缓存。
+func TestEnsureBindingRemoteSourceMatchesByKeyword(t *testing.T) {
+	client := &fakeClient{matchRes: animego.MatchResult{
+		Matched:    true,
+		AnilistID:  9527,
+		EpisodeMap: map[int]animego.EpisodeRef{5: {DandanEpisodeID: 184300005, Title: "第5话"}},
+	}}
+	m, st, _ := newTestManager(t, client)
+	src := NewRemoteSource(RemoteSourceOptions{
+		SourceID: "web-a", CandidateID: "c1", URL: "https://example.test/ep5.m3u8", Title: "幼女战记 第二季", Episode: 5,
+	})
+
+	b, dan := m.ensureBinding(context.Background(), src, src.Item())
+	assert.Equal(t, "ok", dan.State)
+	assert.Equal(t, int64(184300005), b.DandanEpisodeID)
+	require.Len(t, client.matchIn, 1)
+	assert.Empty(t, client.matchIn[0].FileHash, "在线媒体不该伪造指纹")
+	assert.Equal(t, "幼女战记 第二季", client.matchIn[0].Keyword)
+	assert.Equal(t, 5, client.matchIn[0].Episode)
+	assert.Empty(t, st.Hash(src.Item().FileID), "空 hash 不该进缓存")
+	_, ok := st.Binding(src.Item().FileID)
+	assert.True(t, ok, "关键词命中的绑定同样要落库")
+}
+
+// 本地文件真的算不出指纹（文件不可读）仍然是 unavailable，不走关键词猜测。
+func TestEnsureBindingLocalHashFailureStaysUnavailable(t *testing.T) {
+	client := &fakeClient{matchRes: animego.MatchResult{Matched: true}}
+	m, _, dir := newTestManager(t, client)
+	item := testItem(t, dir, 7)
+	item.AbsPath = filepath.Join(dir, "missing.mkv")
+	_, dan := m.ensureBinding(context.Background(), NewLocalSource(item), item)
+	assert.Equal(t, "unavailable", dan.State)
+	assert.Contains(t, dan.Reason, "指纹")
+	assert.Equal(t, int32(0), client.matchCalls.Load())
 }
 
 // 集号无法识别时不猜 1：跳过匹配，避免把剧场版/特典当第 1 集
@@ -241,14 +284,29 @@ func TestProgressUpdate(t *testing.T) {
 
 func TestPlaybackFailureOnlyMarksAbnormalSessionEnd(t *testing.T) {
 	for _, reason := range []string{"", "eof", "stop", "quit", "redirect"} {
-		assert.Nil(t, playbackFailureFor("remote|a", reason, nil, 123), reason)
+		assert.Nil(t, playbackFailureFor("remote|a", reason, nil, false, 123), reason)
 	}
-	failure := playbackFailureFor("remote|a", "error", nil, 123)
+	failure := playbackFailureFor("remote|a", "error", nil, false, 123)
 	require.NotNil(t, failure)
 	assert.Equal(t, "remote|a", failure.FileID)
 	assert.Equal(t, int64(123), failure.At)
 	assert.NotEmpty(t, failure.Reason)
-	assert.NotNil(t, playbackFailureFor("remote|b", "", errors.New("mpv died"), 124))
+	assert.NotNil(t, playbackFailureFor("remote|b", "", errors.New("mpv died"), false, 124))
+
+	// 在线流提前到达 eof 是来源故障，要进自动换源通道，而不是当成正常播完。
+	premature := playbackFailureFor("remote|c", "eof", nil, true, 125)
+	require.NotNil(t, premature)
+	assert.Contains(t, premature.Reason, "提前结束")
+}
+
+func TestPrematureEOFOnlyForRemoteWithKnownDuration(t *testing.T) {
+	remote := NewRemoteSource(RemoteSourceOptions{SourceID: "s", CandidateID: "c", URL: "https://example.test/a.mp4", Title: "t", Episode: 1})
+	local := NewLocalSource(library.Item{FileID: "local|1", FileName: "a.mkv"})
+	assert.True(t, prematureEOF(remote, mpv.State{TimePos: 20, Duration: 1400}, true))
+	assert.False(t, prematureEOF(remote, mpv.State{TimePos: 1395, Duration: 1400}, true), "播到尾")
+	assert.False(t, prematureEOF(remote, mpv.State{TimePos: 20, Duration: 0}, true), "时长未知无从判断")
+	assert.False(t, prematureEOF(remote, mpv.State{TimePos: 20, Duration: 1400}, false), "不是 eof")
+	assert.False(t, prematureEOF(local, mpv.State{TimePos: 20, Duration: 1400}, true), "本地文件不按此判定")
 }
 
 func TestPickTitle(t *testing.T) {
