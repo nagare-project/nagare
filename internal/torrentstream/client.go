@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
+	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
@@ -128,6 +129,9 @@ type Engine struct {
 	client  *torrent.Client
 	sess    *session
 	closed  bool
+	// fetchMetaInfo 只在 Plugin API 返回 torrentUrl 且没有 magnet/infoHash 时使用。
+	// 字段留作注入点，让端到端测试不需要访问真实网络。
+	fetchMetaInfo func(context.Context, string) (*metainfo.MetaInfo, error)
 	// rebuildErr 记「client 重建失败且回滚也失败」的死态，
 	// 让后续调用拿到明确错误而不是对着 nil client panic。
 	rebuildErr error
@@ -149,7 +153,7 @@ func New(opts Options) (*Engine, error) {
 	}
 	cfg := opts.Config.normalized()
 
-	engine := &Engine{cacheDir: opts.CacheDir, streamBase: base, cfg: cfg}
+	engine := &Engine{cacheDir: opts.CacheDir, streamBase: base, cfg: cfg, fetchMetaInfo: fetchTorrentMetaInfo}
 	// 启动即清空（决议 M3-4）：分片完成状态只在内存里，残留文件对下一次播放
 	// 没有任何价值。先删后建，「磁盘被逐次播放写满」这类故障在结构上消失，
 	// 也就不需要 LRU 记账。

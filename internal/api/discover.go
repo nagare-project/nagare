@@ -50,6 +50,7 @@ func (s *DiscoverService) Detail(ctx context.Context, id int) (SummaryMedia, err
 	// 详情复用已有放送快照；不因补倒计时再增加一个阻塞上游请求。
 	if value, ok := s.cache.get("schedule"); ok {
 		m.NextAiring = nextAirings(value.(animego.ScheduleData), s.cache.now().Unix())[id]
+		m.RecentAiring = recentAirings(value.(animego.ScheduleData), s.cache.now().Unix())[id]
 	}
 	return m, nil
 }
@@ -114,6 +115,7 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 		}
 	}
 	next := nextAirings(schedule, now.Unix())
+	aired := recentAirings(schedule, now.Unix())
 	fetchedAt := now
 	for _, key := range keys {
 		at := s.cache.fetchedAt(fmt.Sprintf("%s:%d:%d", key, year, quarter))
@@ -128,6 +130,7 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 		v := SectionView{Key: key, Title: title, Items: s.summaries(items)}
 		for i := range v.Items {
 			v.Items[i].NextAiring = next[v.Items[i].AnilistID]
+			v.Items[i].RecentAiring = aired[v.Items[i].AnilistID]
 		}
 		if err != nil {
 			v.Error = "暂时取不到该板块，请稍后重试：" + err.Error()
@@ -231,6 +234,22 @@ func nextAirings(schedule animego.ScheduleData, now int64) map[int]*Airing {
 				continue
 			}
 			if old := out[a.AnilistID]; old == nil || a.AiringAt < old.At {
+				out[a.AnilistID] = &Airing{Episode: a.Episode, At: a.AiringAt}
+			}
+		}
+	}
+	return out
+}
+
+// 所有目录入口共享最近已播记录，避免季番卡片或详情在暂无下一次排期时丢失选集。
+func recentAirings(schedule animego.ScheduleData, now int64) map[int]*Airing {
+	out := map[int]*Airing{}
+	for _, batch := range schedule.Groups {
+		for _, a := range batch {
+			if a.AnilistID < 1 || a.Episode < 1 || a.AiringAt <= 0 || a.AiringAt > now {
+				continue
+			}
+			if old := out[a.AnilistID]; old == nil || a.AiringAt > old.At {
 				out[a.AnilistID] = &Airing{Episode: a.Episode, At: a.AiringAt}
 			}
 		}

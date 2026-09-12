@@ -53,6 +53,28 @@ cp "$bin" "$app/Contents/MacOS/nagare"
 chmod 755 "$app/Contents/MacOS/nagare"
 cp "$root/packaging/icon/nagare.icns" "$app/Contents/Resources/nagare.icns"
 
+# 捆绑的 Nagare Source 插件：引擎放 Contents/MacOS/nagare-source-<arch>，规则目录放
+# Contents/Resources/nagare-source/repo —— bundle 规范要求 MacOS/ 下只能有可执行文件，
+# 数据文件混进去 `codesign --verify --strict` 直接报 "code object is not signed at all"
+# （CI 实测）。Go 侧（sourceplugin.DetectBundled）按这两个位置探测。
+# lock 未钉版本时 fetch 脚本只留一个 README.txt，这里只复制资源目录，探测不到就当没捆。
+plugin_src="$root/dist/source-plugin/MacOS_universal"
+if [ -d "$plugin_src" ]; then
+  mkdir -p "$app/Contents/Resources/nagare-source"
+  for entry in "$plugin_src"/*; do
+    case "$(basename "$entry")" in
+      nagare-source-*)
+        cp "$entry" "$app/Contents/MacOS/$(basename "$entry")"
+        chmod 755 "$app/Contents/MacOS/$(basename "$entry")"
+        # 嵌套的可执行文件必须先各自 ad-hoc 签名，外层 --deep 校验才过；不签的话
+        # Gatekeeper 放行了 .app，子进程启动时仍会被拦。
+        codesign --force --sign - "$app/Contents/MacOS/$(basename "$entry")"
+        ;;
+      *) cp -R "$entry" "$app/Contents/Resources/nagare-source/" ;;
+    esac
+  done
+fi
+
 echo "==> ad-hoc 签名"
 codesign --force --sign - "$app"
 codesign --verify --deep --strict --verbose=2 "$app"

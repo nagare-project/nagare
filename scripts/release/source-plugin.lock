@@ -1,0 +1,16 @@
+# 随安装包捆绑的 Nagare Source 插件（引擎 + 只含 BT 规则的运行时根目录）。
+# 来源：https://github.com/nagare-project/Nagare_Source/releases/tag/v<version>
+#
+# 钉死步骤（Nagare_Source 发新版后）：
+#   1. version=<tag 去掉 v>
+#   2. 从该 release 的 SHA256SUMS 里逐条抄五个归档的 sha256 到下面
+#   3. 本机跑 scripts/release/fetch-source-plugin.sh darwin arm64 验证一次
+#
+# version 为空 = 本次构建不捆插件：fetch 脚本只放一个说明文件，安装后用户仍可自行安装插件。
+# sha256 缺失或不符一律构建失败，不会降级成「跳过校验」。
+version=0.1.2
+sha256_MacOS_arm64=36ac4c0ce9db3b47641f6167ec538be4d7d79d2449da59e6525754ce32885c5b
+sha256_MacOS_x86_64=782f31ba19cf145614330673bb90f5145c46f0e91888276789b18bb0381ef872
+sha256_Linux_x86_64=acacaa7b9af9d234d089bdf4063162300c15ba8c12d3702b40d7a93efe9b8771
+sha256_Linux_arm64=fd1a4b7179b27df63c2b58f0ce55304387af5b38221a08759d317e16aba2e22c
+sha256_Windows_x86_64=c9655e848492dcf43b516252400b30ff8f50b937611e56a497661413f69bc112

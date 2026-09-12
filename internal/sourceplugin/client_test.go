@@ -87,6 +87,23 @@ func TestClientRejectsUntrustedProtocolShapes(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestClientRejectsSourceStatusOutsidePluginAPIV1(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/sources", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(w, map[string]any{"sources": []Source{{
+			ID: "example-web", Name: "Example", Kind: "web", Tier: 1,
+			Version: "1", Enabled: true, Status: "ready",
+		}}})
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(server.URL)
+	require.NoError(t, err)
+	_, err = client.Sources(context.Background())
+	require.ErrorContains(t, err, "invalid source")
+}
+
 func TestManagerStartsNegotiatesAndStopsChild(t *testing.T) {
 	t.Setenv("NAGARE_SOURCEPLUGIN_HELPER", "1")
 	executable, err := filepath.Abs(os.Args[0])

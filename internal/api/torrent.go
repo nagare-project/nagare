@@ -51,6 +51,7 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Magnet      string `json:"magnet"`
+		TorrentURL  string `json:"torrentUrl"`
 		Title       string `json:"title"`
 		EpisodeHint int    `json:"episodeHint"`
 		// FileIndex 用指针：0 是合法下标，零值分不出「用户选了第 0 个」与「还没选」。
@@ -59,8 +60,8 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	if strings.TrimSpace(req.Magnet) == "" {
-		httpserver.WriteError(w, http.StatusBadRequest, "缺少磁力链接")
+	if (strings.TrimSpace(req.Magnet) == "") == (strings.TrimSpace(req.TorrentURL) == "") {
+		httpserver.WriteError(w, http.StatusBadRequest, "需要提供磁力链接或种子文件地址")
 		return
 	}
 	fileIndex := -1
@@ -74,6 +75,7 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.deps.Torrent.Prepare(r.Context(), torrentstream.PrepareRequest{
 		Magnet:      req.Magnet,
+		TorrentURL:  req.TorrentURL,
 		Title:       req.Title,
 		EpisodeHint: req.EpisodeHint,
 		FileIndex:   fileIndex,
@@ -145,10 +147,11 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Seeding        *bool     `json:"seeding"`
-		Trackers       *[]string `json:"trackers"`
-		PortForwarding *bool     `json:"portForwarding"`
-		ListenPort     *int      `json:"listenPort"`
+		Seeding            *bool     `json:"seeding"`
+		Trackers           *[]string `json:"trackers"`
+		UseDefaultTrackers *bool     `json:"useDefaultTrackers"`
+		PortForwarding     *bool     `json:"portForwarding"`
+		ListenPort         *int      `json:"listenPort"`
 	}
 	if !decodeBody(w, r, &req) {
 		return
@@ -172,6 +175,9 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.Trackers != nil {
 			c.Trackers = *req.Trackers
+		}
+		if req.UseDefaultTrackers != nil {
+			c.DisableDefaultTrackers = !*req.UseDefaultTrackers
 		}
 		if req.PortForwarding != nil {
 			c.PortForwarding = *req.PortForwarding
@@ -201,7 +207,7 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 func engineConfig(c store.TorrentConfig) torrentstream.Config {
 	return torrentstream.Config{
 		Seeding:        c.Seeding,
-		Trackers:       c.Trackers,
+		Trackers:       torrentstream.EffectiveTrackers(!c.DisableDefaultTrackers, c.Trackers),
 		PortForwarding: c.PortForwarding,
 		ListenPort:     c.ListenPort,
 	}
@@ -215,14 +221,16 @@ func torrentView(c store.TorrentConfig, eng TorrentAPI, cacheDir string) map[str
 		trackers = []string{} // 前端要数组，不要 null
 	}
 	view := map[string]any{
-		"enabled":         eng != nil,
-		"seeding":         c.Seeding,
-		"trackers":        trackers,
-		"portForwarding":  c.PortForwarding,
-		"listenPort":      c.ListenPort,
-		"cacheDir":        cacheDir,
-		"cacheBytes":      int64(0),
-		"restartRequired": false,
+		"enabled":            eng != nil,
+		"seeding":            c.Seeding,
+		"trackers":           trackers,
+		"useDefaultTrackers": !c.DisableDefaultTrackers,
+		"defaultTrackers":    append([]string(nil), torrentstream.DefaultTrackers...),
+		"portForwarding":     c.PortForwarding,
+		"listenPort":         c.ListenPort,
+		"cacheDir":           cacheDir,
+		"cacheBytes":         int64(0),
+		"restartRequired":    false,
 	}
 	if eng != nil {
 		view["cacheBytes"] = eng.CacheBytes()

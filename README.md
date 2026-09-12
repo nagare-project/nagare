@@ -197,7 +197,15 @@ cd frontend && bun run test
 
 ## 磁力源
 
-nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供规则：
+nagare **本体不内置任何磁力源**。磁力资源有两条来路，任选其一或同时用：
+
+**A. 安装包内置的来源插件（默认，装完即用）**：dmg / 安装包 / deb 里捆着
+[Nagare Source](https://github.com/nagare-project/Nagare_Source) 的引擎和一份**只含 BT 来源**的规则目录，
+首次运行自动启用。作品页的「选集」直接列出按字幕组分组的磁力资源；这条路只请求 BT 来源，
+不会触发任何网页嗅探。**在线来源不在安装包里**：要用的话在设置页「来源」里自己指定完整的
+Nagare Source 仓库目录。边界与细节见 [docs/nagare-source.md](docs/nagare-source.md)。
+
+**B. 自己的规则仓库（高级）**：
 
 1. 打开设置页，在「磁力源」里填规则仓库的 HTTPS 地址（或一个本机目录），点「同步规则」
 2. 规则文件的格式与仓库布局见 [docs/rules-format.md](docs/rules-format.md)；
@@ -213,6 +221,13 @@ nagare **不内置任何磁力源**。要用磁力搜索，需要你自己提供
 nagare -validate-rules <规则目录>
 ```
 
+## Nagare Source
+
+作品详情页可以通过本机安装的
+[Nagare Source](https://github.com/nagare-project/Nagare_Source) 统一查找在线与 BT 候选。
+Nagare 优先播放可靠的 HTTP/HLS 候选，失败后自动换源，在线候选耗尽时回退到 BT 边下边播。
+安装、设置与安全边界见 [docs/nagare-source.md](docs/nagare-source.md)。
+
 ## 磁力边下边播
 
 搜索结果里点「播放」即可边下边播：等到分享者与起播缓冲之后自动拉起 mpv，弹幕、观看进度、
@@ -226,7 +241,7 @@ nagare -validate-rules <规则目录>
 | --- | --- | --- |
 | 持续做种 | 关 | 播放期间的分片交换是 BT 协议必需的，不受此开关影响；它只决定**停止播放后是否继续上传** |
 | 自动端口映射 | 开 | UPnP / NAT-PMP。与监听端口一样，没有正在播放时改动立即生效，正在播时会提示重启后生效 |
-| tracker | 空 | nagare **不内置任何 tracker**，默认只用 DHT/PEX。填进去的地址只会补给公开种子——给私有站种子补公共 tracker 会泄露 passkey |
+| tracker | 内置 8 条公共 tracker，开 | tracker 只回答「谁在分享这个种子」，不存内容；索引站给的磁力常不带 tracker，只靠 DHT 找元数据要几十秒到几分钟，带上通常几秒。可整组关掉，也可在下方追加自己的。补充的地址只会补给公开种子——给私有站种子补公共 tracker 会泄露 passkey |
 | 缓存 | —— | 分片放在配置目录的 `cache/torrent/`。**停止播放即删、启动与退出各清空一次**，不保留、无容量上限，界面显示当前占用并可手动清空 |
 
 **不支持私有站（PT）种子**：nagare 会在读到种子信息时发现 private 标记并立刻停下。原因是 BT 引擎无法
@@ -242,7 +257,7 @@ nagare -validate-rules <规则目录>
 - **M2 声明式源规则引擎** —— 已完成：磁力源由 YAML 规则描述（只能"发一个 GET + 按路径解字段"，
   无脚本无沙箱），规则从用户指定的仓库同步、校验后加载；本体零内置源。搜索结果区分
   「无结果」与「源异常（规则失效）」；规则格式见 [docs/rules-format.md](docs/rules-format.md)
-- **M3 磁力边下边播** —— 已完成：磁力链接由用户提供，边下边播复用与本地文件同一条播放管线
+- **M3 磁力边下边播** —— 已完成：磁力链接、infohash 和 `.torrent` 地址进入同一条边下边播管线
   （弹幕、进度、看完标记都一样）；自动选集 + 手动兜底、分阶段缓冲状态与实时分享者数、
   停止播放即删分片。实现说明见 [docs/m3-torrent-streaming.md](docs/m3-torrent-streaming.md)
 - **M4 打包与分发** —— macOS dmg（ad-hoc 签名的 universal .app）、Windows 安装包与便携版

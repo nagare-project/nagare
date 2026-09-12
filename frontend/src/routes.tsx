@@ -42,6 +42,24 @@ const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: '/dis
 const entryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/entry', validateSearch: (search: Record<string, unknown>) => ({ id: Number.isSafeInteger(Number(search.id)) && Number(search.id) > 0 ? Number(search.id) : 0 }), component: lazyRouteComponent(() => import('./pages/EntryPage'), 'EntryPage') })
 const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
 
+/** `/seasonal` 季度浏览：按年份 + 季度列 animego 目录；筛选与排序都在地址栏，可分享可回退。 */
+const seasonalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/seasonal',
+  validateSearch: (search: Record<string, unknown>) => {
+    const out: Record<string, unknown> = {}
+    const season = String(search.season ?? '').toUpperCase()
+    if (['WINTER', 'SPRING', 'SUMMER', 'FALL'].includes(season)) out.season = season
+    const year = Number(search.year)
+    if (Number.isSafeInteger(year) && year >= 1990 && year <= 2100) out.year = year
+    for (const key of ['genre', 'format', 'status', 'sort'] as const) {
+      if (typeof search[key] === 'string' && (search[key] as string) !== '') out[key] = search[key]
+    }
+    return out
+  },
+  component: lazyRouteComponent(() => import('./pages/SeasonalPage'), 'SeasonalPage'),
+})
+
 /** `/torrents` 磁力任务：走真实的 /api/torrent/status，没有假数据 */
 const torrentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/torrents', component: TorrentsPage })
 const autoDlRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auto-downloader', component: AutoDownloaderPage })
@@ -105,6 +123,7 @@ const routeTree = rootRoute.addChildren([
   discoverRoute,
   entryRoute,
   scheduleRoute,
+  seasonalRoute,
   torrentsRoute,
   autoDlRoute,
   extensionsRoute,

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
+	"github.com/anacrolix/torrent/metainfo"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/library"
@@ -35,6 +36,7 @@ var awaitingTTL = 10 * time.Minute
 // PrepareRequest 是一次播放准备请求。
 type PrepareRequest struct {
 	Magnet      string
+	TorrentURL  string // Plugin API v1 的 .torrent 地址；与 Magnet 二选一
 	Title       string // 搜索结果标题，用于派生集号提示；可空
 	EpisodeHint int    // <=0 表示未指定
 	FileIndex   int    // <0 表示用户还没手选
@@ -58,9 +60,11 @@ type PrepareResult struct {
 
 // session 是当前这一次播放。字段由 mu 保护，可被 Status / handler 并发读。
 type session struct {
-	engine *Engine
-	client *torrent.Client
-	magnet string
+	engine   *Engine
+	client   *torrent.Client
+	locator  string
+	magnet   string
+	metaInfo *metainfo.MetaInfo
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -95,19 +99,68 @@ type session struct {
 // Prepare 准备一次播放。同一时刻只有一个会话，开新的之前先停掉旧的。
 func (e *Engine) Prepare(ctx context.Context, req PrepareRequest) (PrepareResult, error) {
 	req.Magnet = strings.TrimSpace(req.Magnet)
-	if !strings.HasPrefix(strings.ToLower(req.Magnet), "magnet:") {
+	req.TorrentURL = strings.TrimSpace(req.TorrentURL)
+	if (req.Magnet == "") == (req.TorrentURL == "") {
 		return PrepareResult{}, errs.New(errs.CategoryInput, "torrentstream.prepare",
-			"这不是一条磁力链接", "复制完整的 magnet: 链接后重试")
+			"需要提供一条磁力链接或种子文件地址", "换一条资源后重试")
+	}
+	locator := req.Magnet
+	if req.Magnet != "" {
+		if !strings.HasPrefix(strings.ToLower(req.Magnet), "magnet:") {
+			return PrepareResult{}, errs.New(errs.CategoryInput, "torrentstream.prepare",
+				"这不是一条磁力链接", "复制完整的 magnet: 链接后重试")
+		}
+	} else {
+		if err := validateTorrentURL(req.TorrentURL); err != nil {
+			return PrepareResult{}, errs.Wrap(errs.CategoryInput, "torrentstream.torrent-url",
+				"种子文件地址无效", "换一条资源后重试", err)
+		}
+		locator = "torrent-url:" + req.TorrentURL
 	}
 
 	// 抢占：上一次 Prepare 可能还卡在等元数据里，先打断它，否则这一次要在
 	// prepMu 上白等一个超时。
-	e.interrupt(req.Magnet)
+	e.interrupt(locator)
 
 	e.prepMu.Lock()
 	defer e.prepMu.Unlock()
 
-	sess, err := e.beginSession(req.Magnet)
+	// 选集回传时复用已经下载并解析好的 .torrent，不再次访问可能已经失效的地址。
+	if sess := e.reusableSession(locator); sess != nil {
+		sess.resume()
+		res, err := sess.run(ctx, req)
+		if err != nil {
+			e.Stop()
+			return PrepareResult{}, err
+		}
+		return res, nil
+	}
+
+	var metadata *metainfo.MetaInfo
+	if req.TorrentURL != "" {
+		fetch := e.fetchMetaInfo
+		if fetch == nil {
+			fetch = fetchTorrentMetaInfo
+		}
+		var err error
+		metadata, err = fetch(ctx, req.TorrentURL)
+		if err != nil {
+			return PrepareResult{}, err
+		}
+		info, err := metadata.UnmarshalInfo()
+		if err != nil {
+			return PrepareResult{}, errs.Wrap(errs.CategoryInput, "torrentstream.metainfo",
+				"种子文件内容无效", "换一条资源后重试", err)
+		}
+		if isPrivate(&info) {
+			return PrepareResult{}, errPrivateTorrent()
+		}
+		// magnet 只作为当前会话的内部标识；实际加入的是已经验证的 metainfo，
+		// 不会为了拿元数据再等待 DHT。
+		req.Magnet = metadata.Magnet(nil, &info).String()
+	}
+
+	sess, err := e.beginSession(locator, req.Magnet, metadata)
 	if err != nil {
 		return PrepareResult{}, err
 	}
@@ -122,11 +175,11 @@ func (e *Engine) Prepare(ctx context.Context, req PrepareRequest) (PrepareResult
 
 // interrupt 打断当前会话，除非它正停在选集弹窗上等同一条磁力
 // —— 那种情况重新等一次元数据是白等。
-func (e *Engine) interrupt(magnet string) {
+func (e *Engine) interrupt(locator string) {
 	e.mu.Lock()
 	sess := e.sess
 	e.mu.Unlock()
-	if sess != nil && sess.reusableFor(magnet) {
+	if sess != nil && sess.reusableFor(locator) {
 		return
 	}
 	// 只收掉刚才观察到的那一个：这段跑在 prepMu 之外，无条件 Stop 会误杀
@@ -135,13 +188,13 @@ func (e *Engine) interrupt(magnet string) {
 }
 
 // beginSession 复用或新建会话。
-func (e *Engine) beginSession(magnet string) (*session, error) {
+func (e *Engine) beginSession(locator, magnet string, metadata *metainfo.MetaInfo) (*session, error) {
 	e.mu.Lock()
 	if e.closed {
 		e.mu.Unlock()
 		return nil, errEngineClosed()
 	}
-	if sess := e.sess; sess != nil && sess.reusableFor(magnet) {
+	if sess := e.sess; sess != nil && sess.reusableFor(locator) {
 		e.mu.Unlock()
 		sess.resume()
 		return sess, nil
@@ -161,11 +214,21 @@ func (e *Engine) beginSession(magnet string) (*session, error) {
 	}
 	ctx, cancel := context.WithCancel(e.rootCtx)
 	sess := &session{
-		engine: e, client: client, magnet: magnet,
+		engine: e, client: client, locator: locator, magnet: magnet, metaInfo: metadata,
 		ctx: ctx, cancel: cancel, index: -1, phase: PhaseMetadata,
 	}
 	e.sess = sess
 	return sess, nil
+}
+
+func (e *Engine) reusableSession(locator string) *session {
+	e.mu.Lock()
+	sess := e.sess
+	e.mu.Unlock()
+	if sess != nil && sess.reusableFor(locator) {
+		return sess
+	}
+	return nil
 }
 
 // Stop 停止当前播放：取消会话、丢掉种子、删掉这次的分片。幂等，可并发调用。
@@ -240,12 +303,38 @@ func (s *session) ensureTorrent(ctx context.Context) (*torrent.Torrent, error) {
 		return tor, nil
 	}
 	s.setPhase(PhaseMetadata)
+	if s.metaInfo != nil {
+		info, err := s.metaInfo.UnmarshalInfo()
+		if err != nil {
+			return nil, errs.Wrap(errs.CategoryInput, "torrentstream.metainfo",
+				"种子文件内容无效", "换一条资源后重试", err)
+		}
+		if isPrivate(&info) {
+			return nil, errPrivateTorrent()
+		}
+		tor, err := s.client.AddTorrent(s.metaInfo)
+		if err != nil {
+			return nil, errs.Wrap(errs.CategoryInput, "torrentstream.metainfo",
+				"种子文件无法载入", "换一条资源后重试", err)
+		}
+		s.adopt(tor)
+		applyTrackers(tor, &info, s.engine.trackers())
+		s.noteName(tor.Name())
+		return tor, nil
+	}
 	tor, err := s.client.AddMagnet(s.magnet)
 	if err != nil {
 		return nil, errs.Wrap(errs.CategoryInput, "torrentstream.magnet",
 			"磁力链接无法解析", "复制完整的 magnet: 链接后重试", err)
 	}
 	s.adopt(tor)
+	// 用户配的 tracker 在【拿 info 之前】就挂上。实测（2026-09-12，Anime Garden 的无 tracker
+	// 磁力）：纯 DHT 找元数据 50–125 秒甚至找不到，带公共 tracker 2.6 秒 —— 这一段正是
+	// 「点了播放却迟迟不起播」的全部。
+	// 私有种子的顾虑在磁力这条路上不成立：private 标记只在 info 里，而磁力本来就要先靠
+	// DHT 公开找 peer 才拿得到 info，多报几个公共 tracker 并没有多暴露什么；passkey 只存在
+	// 于私有站自己的 announce 地址里，我们从不碰它。拿到 info 发现是私有种子照旧中止。
+	applyTrackers(tor, nil, s.engine.trackers())
 
 	timeout := time.NewTimer(metadataTimeout)
 	defer timeout.Stop()
@@ -259,10 +348,6 @@ func (s *session) ensureTorrent(ctx context.Context) (*torrent.Torrent, error) {
 			if isPrivate(info) {
 				return nil, errPrivateTorrent()
 			}
-			// 补 tracker 必须排在拿到 info 之后：private 标记只有 info 里才有，
-			// 而给私有种子补公共 tracker 会泄露 passkey。代价是这一段等待用不上
-			// 用户配的 tracker，这个代价是有意付的。
-			applyTrackers(tor, info, s.engine.trackers())
 			s.noteName(tor.Name())
 			return tor, nil
 		case <-tick.C:
@@ -409,11 +494,11 @@ func (s *session) expireAwaiting() {
 	s.engine.stopSession(s)
 }
 
-// reusableFor 判断这个会话能否直接承接同一条磁力的重发（选集弹窗选完那一次）。
-func (s *session) reusableFor(magnet string) bool {
+// reusableFor 判断这个会话能否直接承接同一资源的重发（选集弹窗选完那一次）。
+func (s *session) reusableFor(locator string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return !s.closed && s.awaiting && s.magnet == magnet &&
+	return !s.closed && s.awaiting && s.locator == locator &&
 		s.tor != nil && s.tor.Info() != nil
 }
 

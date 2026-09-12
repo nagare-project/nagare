@@ -5,10 +5,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
+	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/rulesync"
 	"github.com/nagare-project/nagare/internal/store"
@@ -219,9 +223,74 @@ func (s *SourcesService) Sync(ctx context.Context) (rulesync.Report, error) {
 	return rep, nil
 }
 
-// Search 聚合搜索。
-func (s *SourcesService) Search(ctx context.Context, q string) rules.SearchResult {
-	return s.reg.Search(ctx, q)
+// SearchItemView 是搜索结果条目 + 本机解析链给出的结构化字段。
+// 规则只负责把站点响应抽成 Item；集号/字幕组/清晰度从标题里解析是 library 那套
+// 与 animego 共享语料的解析链的事，放在这一层合并，规则和解析链互不知道对方。
+type SearchItemView struct {
+	rules.Item
+	// Episode 是标题里解析出的集号；解析不出为 nil，界面归入「未识别集数」。
+	Episode *int `json:"episode,omitempty"`
+	// Group 是用于分组的字幕组名：规则给的 fansub 优先（站点的规范名），
+	// 没有才用标题里解析出的发布组。
+	Group      string `json:"group,omitempty"`
+	Resolution string `json:"resolution,omitempty"`
+	// Kind 是 main / sp / op / ed 等（library.ParseEpisodeKind），合集与特典靠它区分。
+	Kind string `json:"kind"`
+	// TorrentURL 是来源给的 .torrent 地址（有磁力时也可能同时给）；播放端优先下载它——
+	// 种子文件自带 info 与 tracker，不用等 DHT 找元数据。
+	TorrentURL string `json:"torrentUrl,omitempty"`
+	// Season 是标题里解析出的季数（第二季 / S2 / II…）；没写就为 nil，界面按第 1 季理解。
+	Season *int `json:"season,omitempty"`
+}
+
+// SearchView 是 GET /api/search 的响应。
+type SearchView struct {
+	Query   string           `json:"query"`
+	Items   []SearchItemView `json:"items"`
+	Sources []rules.Outcome  `json:"sources"`
+}
+
+// Search 聚合搜索并补齐解析字段。
+func (s *SourcesService) Search(ctx context.Context, q string) SearchView {
+	res := s.reg.Search(ctx, q)
+	view := SearchView{Query: res.Query, Items: make([]SearchItemView, 0, len(res.Items)), Sources: res.Sources}
+	for _, item := range res.Items {
+		view.Items = append(view.Items, enrichSearchItem(item))
+	}
+	return view
+}
+
+// batchRangePattern 认合集标题里的集号范围：[01-25全]、[1-12 Fin]、01~13 合集。
+// 本机解析链是给单个文件名用的，会把「01-25」读成第 1 集；发布标题得先排除合集。
+var batchRangePattern = regexp.MustCompile(`(?i)(?:^|[\[\s【])(\d{1,3})\s*[-~～]\s*(\d{1,3})\s*(?:全|Fin|END|完)?\s*(?:$|[\]\s】])`)
+
+// IsBatchTitle 判断发布标题是不是整季 / 区间合集。
+func IsBatchTitle(title string) bool {
+	m := batchRangePattern.FindStringSubmatch(title)
+	if m == nil {
+		return false
+	}
+	low, _ := strconv.Atoi(m[1])
+	high, _ := strconv.Atoi(m[2])
+	return low > 0 && high > low && high <= 999
+}
+
+func enrichSearchItem(item rules.Item) SearchItemView {
+	meta := library.ParseEpisodeMeta(item.Title)
+	out := SearchItemView{Item: item, Episode: meta.Number, Kind: meta.Kind, Season: meta.Season}
+	if IsBatchTitle(item.Title) {
+		// 合集没有单集号；播放时由种子内选集处理
+		out.Episode, out.Kind = nil, "batch"
+	}
+	if meta.Resolution != nil {
+		out.Resolution = *meta.Resolution
+	}
+	if item.Fansub != nil && strings.TrimSpace(*item.Fansub) != "" {
+		out.Group = strings.TrimSpace(*item.Fansub)
+	} else if meta.Group != nil {
+		out.Group = strings.TrimSpace(*meta.Group)
+	}
+	return out
 }
 
 // SelfCheck 探活某源。

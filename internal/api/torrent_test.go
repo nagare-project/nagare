@@ -130,6 +130,15 @@ func TestTorrentPlayAbsentFileIndexMeansUnselected(t *testing.T) {
 	assert.Equal(t, -1, env.torrent.lastReq.FileIndex)
 }
 
+func TestTorrentPlayAcceptsPluginTorrentURL(t *testing.T) {
+	env := newEnv(t)
+	env.torrent.prepareRes = torrentstream.PrepareResult{Source: &torrentstream.Source{}}
+	rec := env.do(t, http.MethodPost, "/api/torrent/play", `{"torrentUrl":"https://tracker.example/release.torrent","title":"番"}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "https://tracker.example/release.torrent", env.torrent.lastReq.TorrentURL)
+	assert.Empty(t, env.torrent.lastReq.Magnet)
+}
+
 // 顺序是正确性的一部分：必须先停旧的播放会话再准备新种子。
 // 反过来的话，旧会话终结时的「停止播放即停做种」回调会把刚建好的新种子掐掉。
 func TestTorrentPlayStopsPlayerBeforePrepare(t *testing.T) {
@@ -146,6 +155,12 @@ func TestTorrentPlayRejectsEmptyMagnet(t *testing.T) {
 	rec := env.do(t, http.MethodPost, "/api/torrent/play", `{"magnet":"   "}`)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, decode(t, rec).Error, "磁力链接")
+}
+
+func TestTorrentPlayRejectsMixedBTLocators(t *testing.T) {
+	env := newEnv(t)
+	rec := env.do(t, http.MethodPost, "/api/torrent/play", `{"magnet":"magnet:?xt=urn:btih:abc","torrentUrl":"https://tracker.example/release.torrent"}`)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 // swarm 侧的失败映射成 502，并且原样透出中文提示 + 恢复动作（CQ3：失败必须可行动）。

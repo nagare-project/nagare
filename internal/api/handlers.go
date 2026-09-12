@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/nagare-project/nagare/internal/animego"
 	errs "github.com/nagare-project/nagare/internal/errors"
@@ -100,6 +101,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/animego/login", h.login)
 	mux.HandleFunc("POST /api/animego/logout", h.logout)
 	mux.HandleFunc("GET /api/search", h.search)
+	mux.HandleFunc("GET /api/search/plugin", h.searchPlugin)
 	mux.HandleFunc("GET /api/sources", h.sources)
 	mux.HandleFunc("POST /api/sources/reload", h.sourcesReload)
 	mux.HandleFunc("POST /api/sources/sync", h.sourcesSync)
@@ -333,8 +335,19 @@ func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
 
 // ── 磁力源：搜索与规则管理 ──
 
+// search 聚合本机规则的结果；带 episode 时再向来源插件要 BT 候选（只要 torrent，
+// 不会触发浏览器嗅探），让只装了插件、没配规则的用户也能在磁力选集里看到资源。
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
-	httpserver.WriteJSON(w, http.StatusOK, h.deps.Sources.Search(r.Context(), r.URL.Query().Get("q")))
+	params := r.URL.Query()
+	q := params.Get("q")
+	view := h.deps.Sources.Search(r.Context(), q)
+	if episode, err := strconv.Atoi(params.Get("episode")); err == nil && episode > 0 {
+		anilist, _ := strconv.Atoi(params.Get("anilist"))
+		year, _ := strconv.Atoi(params.Get("year"))
+		titles := append([]string{q}, params["title"]...)
+		h.deps.SourcePlugin.appendPluginTorrents(r.Context(), &view, pluginTorrentQuery{Titles: titles, Episode: episode, AnilistID: anilist, Year: year})
+	}
+	httpserver.WriteJSON(w, http.StatusOK, view)
 }
 
 func (h *Handler) sources(w http.ResponseWriter, _ *http.Request) {

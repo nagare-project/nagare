@@ -63,6 +63,9 @@ type Preferences struct {
 	SubtitleLanguages   []string `json:"subtitleLanguages,omitempty"`
 	MaxResolution       string   `json:"maxResolution,omitempty"`
 	PreferredTransports []string `json:"preferredTransports,omitempty"`
+	// Transports 是允许列表：非空时插件只运行能产出这些 transport 的来源
+	// （磁力选集只要 torrent，跳过整队浏览器嗅探）。
+	Transports []string `json:"transports,omitempty"`
 }
 
 type ResolveRequest struct {
@@ -101,6 +104,8 @@ type Metadata struct {
 	SizeBytes         int64    `json:"sizeBytes,omitempty"`
 	Seeders           *int     `json:"seeders,omitempty"`
 	PublishedAt       string   `json:"publishedAt,omitempty"`
+	// Title 是来源上的原始发布标题（BT 条目）；字幕组、季数、清晰度都在里面。
+	Title string `json:"title,omitempty"`
 }
 
 type Candidate struct {

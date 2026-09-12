@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { AddFolderForm } from './AddFolderForm'
 import { useSources } from '../../hooks/useSources'
+import { useSourcePlugin } from '../../hooks/useSourcePlugin'
 import type { SettingsState } from '../../hooks/useSettings'
 import type { AddFolderData } from '../../lib/endpoints'
 
@@ -30,13 +31,25 @@ type Readiness = 'done' | 'todo' | 'required'
 
 export function GettingStarted({ settings, onAdd }: Props) {
   const sources = useSources()
+  const plugin = useSourcePlugin()
 
   const mpv = settings.phase === 'ready' ? settings.data.mpv : null
   const loggedIn = settings.phase === 'ready' && settings.data.animego.loggedIn
   const rules = sources.state.phase === 'ready' ? sources.state.data : null
-  // 「磁力可用」= 配了规则仓库且真的加载出了源。只看地址非空会把
-  // 「填了地址但同步失败」说成已就绪，用户点进搜索页才发现搜不出东西。
-  const magnetReady = rules !== null && rules.rules.remoteUrl !== '' && rules.sources.length > 0
+  // 「磁力可用」有两条来路：来源插件就绪且公布了启用的 BT 来源（安装包捆的那份首次运行
+  // 就是这样），或者配了规则仓库且真的加载出了源。只看地址非空会把「填了地址但同步失败」
+  // 说成已就绪，用户点进搜索页才发现搜不出东西。
+  const pluginView = plugin.state.phase === 'ready' ? plugin.state.data : null
+  const pluginBT = pluginView?.status?.phase === 'ready'
+    ? (pluginView.sources ?? []).filter(source => source.kind === 'bt' && source.enabled).length
+    : 0
+  const ruleCount = rules !== null && rules.rules.remoteUrl !== '' ? rules.sources.length : 0
+  const magnetReady = pluginBT > 0 || ruleCount > 0
+  const magnetDesc = magnetReady
+    ? `已就绪：${[pluginBT > 0 ? `内置来源插件 ${pluginBT} 个 BT 来源` : '', ruleCount > 0 ? `规则仓库 ${ruleCount} 个源` : ''].filter(Boolean).join('，')}，可以直接在作品页选集或搜索`
+    : pluginView?.bundled
+      ? '安装包内置了 Nagare Source（BT 来源），启用后即可搜索磁力。'
+      : 'nagare 不内置任何搜索源。安装 Nagare Source 插件，或自己填一个规则仓库地址。'
 
   return (
     <section className="onboard" aria-labelledby="onboard-heading">
@@ -84,14 +97,10 @@ export function GettingStarted({ settings, onAdd }: Props) {
           state={magnetReady ? 'done' : 'todo'}
           name="磁力搜索"
           tag="可选"
-          desc={
-            magnetReady
-              ? `已加载 ${rules?.sources.length ?? 0} 个源，可以直接搜索`
-              : 'nagare 不内置任何搜索源。要用磁力搜索，得先自己填一个规则仓库地址。'
-          }
+          desc={magnetDesc}
         >
-          <Link to={magnetReady ? '/search' : '/settings'} hash={magnetReady ? '' : 'sources'} className="btn btn--sm">
-            {magnetReady ? '去搜索' : '配置规则仓库'}
+          <Link to={magnetReady ? '/discover' : '/settings'} hash={magnetReady ? '' : 'sources'} className="btn btn--sm">
+            {magnetReady ? '去发现页选番' : '去设置来源'}
           </Link>
         </Step>
 

@@ -1,0 +1,15 @@
+/* 季度浏览：标题 + 季度导航 + 筛选条 + 海报网格（网格与卡片沿用发现页样式） */
+.seasonal-shell { padding-bottom: 40px; }
+.seasonal-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.seasonal-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.seasonal-nav .btn { display: inline-flex; align-items: center; gap: 4px; }
+.seasonal-year .input { width: auto; padding-right: 28px; }
+.seasonal-filters { display: grid; gap: 10px; margin: 8px 0 20px; }
+.seasonal-chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.seasonal-chip { padding: 6px 12px; border: 1px solid var(--border-dim); border-radius: 999px; background: transparent; color: var(--fg-muted); font-size: 13px; cursor: pointer; }
+.seasonal-chip:hover { border-color: var(--border); color: inherit; }
+.seasonal-chip--active { border-color: #8b7cf6; background: #8b7cf614; color: inherit; }
+.seasonal-chip-gap { width: 12px; }
+.seasonal-sort-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.seasonal-sort-row .input { width: auto; padding-right: 28px; }
+@media (max-width: 720px) { .seasonal-head { flex-direction: column; align-items: stretch; } }

@@ -380,6 +380,31 @@ func TestSingleEpisodeEndToEnd(t *testing.T) {
 	})
 }
 
+func TestTorrentURLCandidateUsesDownloadedMetaInfo(t *testing.T) {
+	const fileName = "[Nekomoe kissaten][Some Show][02][1080p][JPSC].mkv"
+
+	seedDir := t.TempDir()
+	cacheDir := filepath.Join(t.TempDir(), "torrent")
+	_, metadata, _ := buildTestTorrent(t, seedDir, "", testFile{name: fileName, size: testEpisodeBytes})
+	seedTorrent := startSeeder(t, seedDir, metadata)
+
+	engine := newIntegrationEngine(t, cacheDir)
+	fetches := 0
+	engine.fetchMetaInfo = func(context.Context, string) (*metainfo.MetaInfo, error) {
+		fetches++
+		return metadata, nil
+	}
+	linkSeeder(t, seedTorrent, engine)
+
+	result, err := engine.Prepare(prepareCtx(t), PrepareRequest{
+		TorrentURL: "https://tracker.example/release.torrent", EpisodeHint: 2, FileIndex: -1,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.Source)
+	assert.Equal(t, 1, fetches)
+	assert.Equal(t, "t:"+metadata.HashInfoBytes().HexString()+"/0", result.Source.Item().FileID)
+}
+
 // ─────────────────────────── 场景 3：合集选集 ───────────────────────────
 
 func TestPackSelection(t *testing.T) {
@@ -524,6 +549,37 @@ func TestPrepareReportsMissingSeeders(t *testing.T) {
 	// 失败之后不能把种子和分片留在后台。
 	assert.Empty(t, currentClient(engine).Torrents(), "失败后不该留下孤儿种子")
 	assert.Zero(t, dirSize(cacheDir))
+}
+
+// 用户配的 tracker 必须在等元数据【期间】就挂在种子上：找 info 这一段正是磁力起播
+// 最慢的部分（实测纯 DHT 50–125 秒、带 tracker 2.6 秒），排在拿到 info 之后等于没配。
+func TestConfiguredTrackersAppliedBeforeMetadata(t *testing.T) {
+	shortenWaits(t, 3*time.Second, 2*time.Second)
+	engine := newIntegrationEngine(t, filepath.Join(t.TempDir(), "torrent"))
+	engine.SetConfig(Config{ListenPort: 0, Trackers: []string{"udp://tracker.example:1337/announce"}})
+
+	magnet := "magnet:?xt=urn:btih:" + strings.Repeat("cd", 20) + "&dn=nobody"
+	done := make(chan error, 1)
+	go func() {
+		_, err := engine.Prepare(context.Background(), PrepareRequest{Magnet: magnet, FileIndex: -1})
+		done <- err
+	}()
+	require.Eventually(t, func() bool {
+		for _, tor := range currentClient(engine).Torrents() {
+			if tor.Info() != nil {
+				return false
+			}
+			for _, tier := range tor.Metainfo().AnnounceList {
+				for _, addr := range tier {
+					if addr == "udp://tracker.example:1337/announce" {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}, 2*time.Second, 20*time.Millisecond, "元数据还没到时 tracker 就该已经挂上")
+	require.Error(t, <-done, "这条磁力没人做种，最终仍应超时")
 }
 
 func TestPrepareReturnsPromptlyWhenCallerCancels(t *testing.T) {

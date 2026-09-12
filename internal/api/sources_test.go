@@ -64,6 +64,36 @@ func TestSourcesEmptyByDefault(t *testing.T) {
 }
 
 // 配置本地规则目录 → 加载 → 搜索出结果 → 源状态 ok；禁用后源状态 disabled 且持久化。
+// 搜索结果要带上解析链给出的集号/字幕组/清晰度，界面才能按字幕组分组、按集号命中。
+func TestEnrichSearchItemParsesEpisodeGroupAndResolution(t *testing.T) {
+	fansub := "夜莺家族"
+	got := enrichSearchItem(rules.Item{Title: "[YYQ字幕组][幼女战记 第二季 / Youjo Senki S2][10][1080P][简日双语][MP4]", Fansub: &fansub})
+	require.NotNil(t, got.Episode)
+	assert.Equal(t, 10, *got.Episode)
+	assert.Equal(t, "夜莺家族", got.Group, "规则给的站点规范名优先于标题里解析的发布组")
+	assert.Equal(t, "1080p", got.Resolution)
+	assert.Equal(t, "main", got.Kind)
+
+	got = enrichSearchItem(rules.Item{Title: "[LoliHouse] 幼女战记II / Youjo Senki II - 05 [WebRip 1080p HEVC-10bit AAC]"})
+	require.NotNil(t, got.Episode)
+	assert.Equal(t, 5, *got.Episode)
+	assert.Equal(t, "LoliHouse", got.Group, "规则没给 fansub 时用标题里解析的发布组")
+	require.NotNil(t, got.Season)
+	assert.Equal(t, 2, *got.Season, "II 也算第二季")
+	assert.Nil(t, enrichSearchItem(rules.Item{Title: "[BYSub] 排球少年 Haikyuu!! [01][1080P]"}).Season, "没写季数就留空")
+
+	got = enrichSearchItem(rules.Item{Title: "幼女战记 第二季 全集合集"})
+	assert.Nil(t, got.Episode, "解析不出集号就留空，界面归入未识别")
+
+	// 合集：本机解析链会把 [01-25全] 读成第 1 集，发布标题必须先按区间识别
+	got = enrichSearchItem(rules.Item{Title: "[诸神字幕组][排球少年!!][Haikyuu!!][BDRip][01-25全][简繁日文字幕][1080P][HEVC MKV]"})
+	assert.Nil(t, got.Episode)
+	assert.Equal(t, "batch", got.Kind)
+	got = enrichSearchItem(rules.Item{Title: "[VCB-Studio] Haikyuu!! [1-12 Fin][Ma10p_1080p]"})
+	assert.Equal(t, "batch", got.Kind)
+	assert.False(t, IsBatchTitle("[Sub] Show - 05 [1920x1080] [2024-2025]"), "年份区间、分辨率不是集号范围")
+}
+
 func TestSourcesLocalDirSearchAndToggle(t *testing.T) {
 	env := newEnv(t)
 	_, dir := fakeSource(t)
@@ -82,11 +112,13 @@ func TestSourcesLocalDirSearchAndToggle(t *testing.T) {
 	assert.True(t, view.Sources[0].Enabled)
 	assert.True(t, view.Sources[0].HasSelfTest)
 
-	var res rules.SearchResult
+	var res SearchView
 	require.NoError(t, json.Unmarshal(decode(t, env.do(t, http.MethodGet, "/api/search?q=%E8%8A%99%E8%8E%89%E8%8E%B2", "")).Data, &res))
 	require.Len(t, res.Items, 1)
 	assert.Equal(t, "1.5 GB", res.Items[0].Size)
 	assert.Equal(t, "G", *res.Items[0].Fansub)
+	assert.Equal(t, "G", res.Items[0].Group, "分组名优先用规则给的 fansub")
+	assert.Equal(t, "main", res.Items[0].Kind)
 	require.Len(t, res.Sources, 1)
 	assert.Equal(t, rules.StateOK, res.Sources[0].State)
 

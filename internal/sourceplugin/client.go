@@ -97,7 +97,9 @@ func (c *Client) Sources(ctx context.Context) ([]Source, error) {
 	}
 	seen := map[string]bool{}
 	for _, source := range result.Sources {
-		if source.ID == "" || source.Name == "" || (source.Kind != "web" && source.Kind != "bt") || source.Tier < 0 || source.Tier > 9 {
+		if !validSourceID(source.ID) || strings.TrimSpace(source.Name) == "" ||
+			(source.Kind != "web" && source.Kind != "bt") || source.Tier < 0 || source.Tier > 9 ||
+			!validSourceStatus(source.Status) {
 			return nil, errors.New("plugin returned an invalid source")
 		}
 		if seen[source.ID] {
@@ -106,6 +108,15 @@ func (c *Client) Sources(ctx context.Context) ([]Source, error) {
 		seen[source.ID] = true
 	}
 	return result.Sources, nil
+}
+
+func validSourceStatus(status string) bool {
+	switch status {
+	case "healthy", "degraded", "unavailable", "interactive_required", "disabled":
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *Client) Candidates(ctx context.Context, input ResolveRequest, emit func(Event) error) error {

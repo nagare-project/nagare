@@ -6,12 +6,14 @@ import {
   fetchSourcePlugin,
   playSourceCandidate,
   streamSourceCandidates,
+  type SourcePlaybackIdentity,
 } from '../../lib/endpoints'
 import type {
   PluginSource,
   SourceCandidate,
   SourcePluginView,
   SourceResolveRequest,
+  TorrentPlayRequest,
 } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import type { MediaSummary } from './types'
@@ -64,6 +66,7 @@ interface RuntimeSession {
   plugin?: SourcePluginView
   candidates: SourceCandidate[]
   sourceErrors: string[]
+  failedSources: Set<string>
   attempted: Set<string>
   streamDone: boolean
   pending: boolean
@@ -118,7 +121,9 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     session.activeFileID = undefined
     publish(session, 'starting', `正在尝试 ${candidateLabel(candidate, session.plugin?.sources ?? [])}`)
     try {
-      const result = await playSourceCandidate(candidate, playbackTitle(candidate, session.request), session.request.episode)
+      const result = await playSourceCandidate(
+        candidate, playbackTitle(candidate, session.request), session.request.episode, playbackIdentity(session.request),
+      )
       if (current.current !== session || session.activeCandidateID !== candidate.id) return
       if (!result.fileId) throw new Error('后端未返回播放会话标识')
       session.pending = false
@@ -136,10 +141,10 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
   }
 
   function startTorrent(session: RuntimeSession, candidate: SourceCandidate): void {
-    const magnet = candidateMagnet(candidate)
+    const locator = candidateTorrentLocator(candidate)
     session.attempted.add(candidate.id)
-    if (magnet === null) {
-      session.sourceErrors.push(`${candidateLabel(candidate, session.plugin?.sources ?? [])}：只提供了当前不支持的种子文件地址`)
+    if (locator === null) {
+      session.sourceErrors.push(`${candidateLabel(candidate, session.plugin?.sources ?? [])}：缺少可用的 BT 入口`)
       session.activeCandidateID = undefined
       publish(session, 'fallback', '无法使用这条 BT 候选，正在尝试下一条')
       chooseNextRef.current(session)
@@ -149,8 +154,11 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     session.activeFileID = undefined
     session.activeCandidateID = candidate.id
     const title = playbackTitle(candidate, session.request)
+    const torrentRequest: TorrentPlayRequest = 'magnet' in locator
+      ? { magnet: locator.magnet, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex }
+      : { torrentUrl: locator.torrentUrl, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex }
     torrentRef.current.play(
-      { magnet, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex },
+      torrentRequest,
       title,
     )
     publish(session, 'playing', `已回退到 ${candidateLabel(candidate, session.plugin?.sources ?? [])}`)
@@ -162,7 +170,11 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     const online = candidates.filter(candidate => candidate.transport.type !== 'torrent')
     const nextOnline = session.streamDone
       ? online[0]
-      : online.find(candidate => candidate.tier <= 1 && candidate.matchConfidence >= 0.8)
+      : online.find(candidate => candidate.matchConfidence >= 0.8 && (
+        candidate.tier <= 1 || (session.plugin?.sources ?? []).every(source =>
+          !source.enabled || source.kind !== 'web' || source.tier >= candidate.tier || session.failedSources.has(source.id),
+        )
+      ))
     if (nextOnline !== undefined) {
       void attemptOnline(session, nextOnline)
       return
@@ -188,6 +200,7 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController()
     const session: RuntimeSession = {
       generation: ++generation.current, request, controller, candidates: [], sourceErrors: [],
+      failedSources: new Set(),
       attempted: new Set(), streamDone: false, pending: false, phase: 'checking',
       message: '正在检查本地来源插件',
     }
@@ -213,8 +226,10 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
             publish(session)
             chooseNext(session)
           } else if (event.event === 'source_error') {
+            session.failedSources.add(event.sourceId)
             session.sourceErrors.push(`${sourceName(plugin.sources, event.sourceId)}：${sourceErrorText(event.category, event.message)}`)
             publish(session)
+            chooseNext(session)
           } else if (event.event === 'done') {
             session.streamDone = true
             publish(session)
@@ -340,8 +355,19 @@ function sortCandidates(candidates: SourceCandidate[]): SourceCandidate[] {
   )
 }
 
+// 优先用目录里的作品标题：它就是 animego 自己的标题，在线媒体没有文件指纹时
+// 弹幕只能靠这个关键词匹配；来源站点的标题写法（「第二季」/「Ⅱ」）经常对不上。
 function playbackTitle(candidate: SourceCandidate, request: SourcePlaybackRequest): string {
-  return candidate.match.subjectTitle?.trim() || request.media.title
+  return request.media.title.trim() || candidate.match.subjectTitle?.trim() || ''
+}
+
+function playbackIdentity(request: SourcePlaybackRequest): SourcePlaybackIdentity {
+  const primary = request.media.title.trim()
+  const altTitles = [...new Set([request.media.titleNative, request.media.titleEnglish]
+    .filter((title): title is string => typeof title === 'string' && title.trim() !== '')
+    .map(title => title.trim())
+    .filter(title => title !== primary))]
+  return { anilistId: request.media.id, altTitles }
 }
 
 function candidateLabel(candidate: SourceCandidate, sources: PluginSource[]): string {
@@ -377,10 +403,12 @@ function sourceErrorText(category: string, fallback: string): string {
   return messages[category] ?? fallback
 }
 
-function candidateMagnet(candidate: SourceCandidate): string | null {
-  if (candidate.transport.magnet) return candidate.transport.magnet
-  if (!candidate.transport.infoHash) return null
+function candidateTorrentLocator(candidate: SourceCandidate): { magnet: string } | { torrentUrl: string } | null {
+  if (candidate.transport.magnet) return { magnet: candidate.transport.magnet }
+  if (!candidate.transport.infoHash) {
+    return candidate.transport.torrentUrl ? { torrentUrl: candidate.transport.torrentUrl } : null
+  }
   const params = new URLSearchParams({ xt: `urn:btih:${candidate.transport.infoHash}` })
   for (const tracker of candidate.transport.trackers ?? []) params.append('tr', tracker)
-  return `magnet:?${params.toString()}`
+  return { magnet: `magnet:?${params.toString()}` }
 }

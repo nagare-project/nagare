@@ -349,10 +349,13 @@ type TorrentConfig struct {
 	// Seeding：停止播放后是否继续做种。播放期间的分片交换是协议必需，
 	// 与这个开关无关；它只决定「停止播放后要不要继续上传」，默认关。
 	Seeding bool `json:"seeding"`
-	// Trackers 是为【公开】种子补充的 tracker 列表：默认空、不硬编码进二进制
-	// （与 rules 的零硬编码姿态一致）。私有种子一律不补 —— 给私有站种子补公共
-	// tracker 会把 passkey 泄露给外部，导致封号。
+	// Trackers 是用户自己追加的 tracker；内置那组见 torrentstream.DefaultTrackers。
+	// 私有种子（.torrent 路径）一律不补 —— 给私有站种子补公共 tracker 会把
+	// passkey 泄露给外部，导致封号。
 	Trackers []string `json:"trackers,omitempty"`
+	// DisableDefaultTrackers 关掉内置 tracker 组。零值 = 启用：这样老的 state.json
+	// 升级上来直接享受内置列表，不用手动改设置。
+	DisableDefaultTrackers bool `json:"disableDefaultTrackers,omitempty"`
 	// PortForwarding：UPnP/NAT-PMP 自动端口映射，默认开（决议 M3-6：开箱连接质量优先）。
 	PortForwarding bool `json:"portForwarding"`
 	// ListenPort 是 BT 监听端口；0 表示交由系统随机分配。

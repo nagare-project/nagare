@@ -9,6 +9,7 @@ const ITEMS = [
   { to: '/schedule', icon: 'calendar', label: '放送表' },
   { to: '/lists', icon: 'lists', label: '我的列表' },
   { to: '/discover', icon: 'compass', label: '发现' },
+  { to: '/seasonal', icon: 'grid', label: '季度' },
   { to: '/search', icon: 'search', label: '搜索' },
   { to: '/torrents', icon: 'download', label: '磁力任务' },
   { to: '/auto-downloader', icon: 'rss', label: '自动下载' },

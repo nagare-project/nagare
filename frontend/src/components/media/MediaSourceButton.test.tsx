@@ -29,7 +29,7 @@ const media = {
 const plugin: SourcePluginView = {
   config: { enabled: true, executable: '/opt/nagare-source', root: '/srv/sources' },
   status: { phase: 'ready', manifest: { id: 'source', name: 'Nagare Source', version: '0.1.0', protocolVersions: [1], sourceSchemaVersions: [1], capabilities: ['candidates'] } },
-  sources: [{ id: 'web-a', name: '网页源 A', kind: 'web', tier: 1, version: '1', enabled: true, status: 'ready', capabilities: ['hls'] }],
+  sources: [{ id: 'web-a', name: '网页源 A', kind: 'web', tier: 1, version: '1', enabled: true, status: 'healthy', capabilities: ['hls'] }],
 }
 const online: SourceCandidate = {
   schema: 'nagare-candidate/v1', id: 'online-1', sourceId: 'web-a', tier: 1,
@@ -65,6 +65,81 @@ afterEach(() => {
 })
 
 describe('目录作品的本地插件找源', () => {
+  it('快速切集后忽略上一集迟到的候选，避免自动播错集', async () => {
+    const streams: Array<{ emit: Parameters<typeof streamSourceCandidates>[1]; signal?: AbortSignal; finish: () => void }> = []
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit, signal) => {
+      await new Promise<void>(finish => streams.push({ emit, signal, finish }))
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 1 集"]')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    expect(streams[0]?.signal?.aborted).toBe(true)
+    await act(async () => streams[0]!.emit({ event: 'candidate', candidate: { ...online, id: 'old-episode' } }))
+    expect(playSourceCandidate).not.toHaveBeenCalled()
+    await act(async () => streams[1]!.emit({ event: 'candidate', candidate: online }))
+    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(online, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
+    await act(async () => streams.forEach(stream => stream.finish()))
+    await unmount()
+  })
+
+  it('起播标题用目录作品标题而不是来源站点的写法，保证弹幕关键词匹配', async () => {
+    const renamed = { ...online, match: { ...online.match, subjectTitle: '幼女战记 第二季' } }
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: renamed })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(renamed, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
+    await unmount()
+  })
+
+  it('用户正常关闭播放器后不自动启动另一条来源', async () => {
+    vi.mocked(fetchPlayerStatus).mockResolvedValue({ playing: false })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+    expect(playSourceCandidate).toHaveBeenCalledTimes(1)
+    await unmount()
+  })
+
+  it('更高优先级来源失败后立即播放已有在线候选，不等待整个流结束', async () => {
+    const lower = { ...online, id: 'lower', sourceId: 'web-b', tier: 2 }
+    vi.mocked(fetchSourcePlugin).mockResolvedValue({ ...plugin, sources: [...plugin.sources,
+      { ...plugin.sources[0]!, id: 'web-b', tier: 2 },
+    ] })
+    let emitEvent: Parameters<typeof streamSourceCandidates>[1] | undefined
+    let finish: (() => void) | undefined
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emitEvent = emit
+      emit({ event: 'candidate', candidate: lower })
+      await new Promise<void>(resolve => { finish = resolve })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    expect(playSourceCandidate).not.toHaveBeenCalled()
+    await act(async () => emitEvent!({ event: 'source_error', sourceId: 'web-a', category: 'search_failed', message: 'failed', retryable: true }))
+    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(lower, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
+    await act(async () => finish!())
+    await unmount()
+  })
+
+  it('已启用来源没有更高优先级时首条可靠在线候选立即起播', async () => {
+    const lower = { ...online, tier: 2 }
+    vi.mocked(fetchSourcePlugin).mockResolvedValue({ ...plugin, sources: [{ ...plugin.sources[0]!, tier: 2 }] })
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: lower })
+      expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(lower, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await unmount()
+  })
+
   it('选集后高优先级候选立即起播，列表可换源且不泄露 URL/请求头', async () => {
     const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
     await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
@@ -80,11 +155,11 @@ describe('目录作品的本地插件找源', () => {
     expect(container.querySelector('.media-resource-list')?.textContent).toContain('1080p')
     expect(container.textContent).not.toContain('secret.invalid')
     expect(container.textContent).not.toContain('private-token')
-    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(online, '测试动画', 2)
+    expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(online, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
 
     const alternateRow = Array.from(container.querySelectorAll<HTMLLIElement>('.media-resource-list li')).find(row => row.textContent?.includes('720p'))!
     await act(async () => alternateRow.querySelector<HTMLButtonElement>('button')!.click())
-    expect(playSourceCandidate).toHaveBeenLastCalledWith(alternate, '测试动画', 2)
+    expect(playSourceCandidate).toHaveBeenLastCalledWith(alternate, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
     await unmount()
   })
 
@@ -106,6 +181,23 @@ describe('目录作品的本地插件找源', () => {
     await unmount()
   })
 
+  it('只有 .torrent 地址的 BT 候选也交给全局播放会话', async () => {
+    const bt: SourceCandidate = { ...online, id: 'bt-url', transport: { type: 'torrent', torrentUrl: 'https://tracker.invalid/release.torrent' } }
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: bt })
+      emit({ event: 'done', queried: 1, succeeded: 1, failed: 0, durationMs: 8 })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+    expect(shared.play).toHaveBeenCalledWith(
+      { torrentUrl: 'https://tracker.invalid/release.torrent', title: '测试动画', episodeHint: 2, fileIndex: undefined },
+      '测试动画',
+    )
+    await unmount()
+  })
+
   it('首个在线候选立即启动失败时自动尝试下一条', async () => {
     vi.mocked(playSourceCandidate).mockRejectedValueOnce(new Error('上游拒绝连接'))
     const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
@@ -113,8 +205,8 @@ describe('目录作品的本地插件找源', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
     await act(async () => {})
 
-    expect(playSourceCandidate).toHaveBeenNthCalledWith(1, online, '测试动画', 2)
-    expect(playSourceCandidate).toHaveBeenNthCalledWith(2, alternate, '测试动画', 2)
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(1, online, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(2, alternate, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
     expect(container.querySelector('.media-source-errors')?.textContent).toContain('上游拒绝连接')
     await unmount()
   })
@@ -129,8 +221,8 @@ describe('目录作品的本地插件找源', () => {
     await act(async () => {})
     await act(async () => {})
 
-    expect(playSourceCandidate).toHaveBeenNthCalledWith(1, online, '测试动画', 2)
-    expect(playSourceCandidate).toHaveBeenNthCalledWith(2, alternate, '测试动画', 2)
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(1, online, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
+    expect(playSourceCandidate).toHaveBeenNthCalledWith(2, alternate, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
     expect(container.querySelector('.media-source-errors')?.textContent).toContain('媒体加载失败')
     await unmount()
   })

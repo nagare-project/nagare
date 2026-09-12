@@ -100,6 +100,37 @@ func TestProjectionSanitizesAndFallsBack(t *testing.T) {
 	require.Equal(t, "R", v[1].Title)
 	require.Equal(t, "日", v[2].Title)
 }
+
+func TestAiredEpisodesSurviveSeasonalAndDetailProjection(t *testing.T) {
+	f := &catalogStub{}
+	s := catalogService(f)
+	s.cache.now = func() time.Time { return time.Unix(1788656401, 0) }
+	view, err := s.View(context.Background())
+	require.NoError(t, err)
+	for _, section := range view.Sections {
+		for _, item := range section.Items {
+			if item.AnilistID == 1 {
+				require.Equal(t, &Airing{Episode: 3, At: 1788656400}, item.RecentAiring, section.Key)
+			}
+		}
+	}
+	detail, err := s.Detail(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, &Airing{Episode: 3, At: 1788656400}, detail.RecentAiring)
+	require.Nil(t, detail.NextAiring)
+	require.Equal(t, 1, f.calls["schedule"], "复用放送快照")
+}
+
+func TestRecentAiringsIgnoreFutureAndInvalidEpisodes(t *testing.T) {
+	schedule := animego.ScheduleData{Groups: map[string][]animego.ScheduleItem{"day": {
+		{CatalogMedia: animego.CatalogMedia{AnilistID: 1}, Episode: 4, AiringAt: 99},
+		{CatalogMedia: animego.CatalogMedia{AnilistID: 1}, Episode: 5, AiringAt: 101},
+		{CatalogMedia: animego.CatalogMedia{AnilistID: 1}, Episode: 3, AiringAt: 90},
+		{CatalogMedia: animego.CatalogMedia{AnilistID: 2}, Episode: 0, AiringAt: 99},
+		{CatalogMedia: animego.CatalogMedia{AnilistID: 3}, Episode: 1, AiringAt: 0},
+	}}}
+	require.Equal(t, map[int]*Airing{1: {Episode: 4, At: 99}}, recentAirings(schedule, 100))
+}
 func TestReadCacheIndependentKeysAndCanceledWaiter(t *testing.T) {
 	cache := newReadCache()
 	started, release := make(chan struct{}), make(chan struct{})
@@ -119,4 +150,29 @@ func TestReadCacheIndependentKeysAndCanceledWaiter(t *testing.T) {
 	v, err := cachedRead(context.Background(), cache, "slow", time.Minute, func(context.Context) (int, error) { t.Error("duplicate load"); return 0, nil })
 	require.NoError(t, err)
 	require.Equal(t, 7, v)
+}
+
+// 季度浏览：任意年份季度可查、十分钟内同键不重复请求、参数不合法直接拒绝，
+// 放送快照已在缓存时顺带补最近已播。
+func TestSeasonalViewCachesAndValidates(t *testing.T) {
+	f := &catalogStub{}
+	s := catalogService(f)
+	s.cache.now = func() time.Time { return time.Unix(1788656401, 0) }
+	_, err := s.schedule(context.Background())
+	require.NoError(t, err)
+
+	view, err := s.Seasonal(context.Background(), "fall", 2024)
+	require.NoError(t, err)
+	require.Equal(t, "FALL", view.Season)
+	require.Equal(t, 2024, view.Year)
+	require.Len(t, view.Items, 1)
+	require.Equal(t, &Airing{Episode: 3, At: 1788656400}, view.Items[0].RecentAiring)
+	_, err = s.Seasonal(context.Background(), "FALL", 2024)
+	require.NoError(t, err)
+	require.Equal(t, 1, f.calls["FALL2024"], "十分钟内同季不重复请求")
+
+	_, err = s.Seasonal(context.Background(), "AUTUMN", 2024)
+	require.Error(t, err)
+	_, err = s.Seasonal(context.Background(), "FALL", 1800)
+	require.Error(t, err)
 }

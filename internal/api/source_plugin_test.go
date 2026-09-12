@@ -12,16 +12,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nagare-project/nagare/internal/player"
+	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/sourceplugin"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 type fakeSourcePluginRuntime struct {
-	status   sourceplugin.Status
-	started  sourceplugin.LaunchConfig
-	startErr error
-	stopped  bool
-	sources  []sourceplugin.Source
-	events   []sourceplugin.Event
+	status      sourceplugin.Status
+	started     sourceplugin.LaunchConfig
+	startErr    error
+	stopped     bool
+	sources     []sourceplugin.Source
+	events      []sourceplugin.Event
+	lastRequest sourceplugin.ResolveRequest
 }
 
 func (f *fakeSourcePluginRuntime) Start(config sourceplugin.LaunchConfig) error {
@@ -48,7 +51,8 @@ func (f *fakeSourcePluginRuntime) Sources(context.Context) ([]sourceplugin.Sourc
 	return append([]sourceplugin.Source(nil), f.sources...), nil
 }
 
-func (f *fakeSourcePluginRuntime) Candidates(_ context.Context, _ sourceplugin.ResolveRequest, emit func(sourceplugin.Event) error) error {
+func (f *fakeSourcePluginRuntime) Candidates(_ context.Context, request sourceplugin.ResolveRequest, emit func(sourceplugin.Event) error) error {
+	f.lastRequest = request
 	for _, event := range f.events {
 		if err := emit(event); err != nil {
 			return err
@@ -131,7 +135,9 @@ func TestSourcePluginPlayPassesEphemeralURLAndHeadersToPlayer(t *testing.T) {
     "metadata": {"episode": 3}
   },
   "title": "Example",
-  "episode": 3
+  "episode": 3,
+  "anilistId": 123,
+  "altTitles": ["エグザンプル", "Example (TV)"]
 }`
 	rec := env.do(t, http.MethodPost, "/api/source-plugin/play", body)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -143,7 +149,195 @@ func TestSourcePluginPlayPassesEphemeralURLAndHeadersToPlayer(t *testing.T) {
 	assert.Equal(t, "https://source.example/", env.player.lastHeaders["Referer"])
 	assert.NotContains(t, env.player.lastItem.FileID, "secret")
 	assert.Empty(t, env.player.lastItem.AbsPath)
+	// 目录身份要原样交给播放器做弹幕匹配校验；省略时也要能播。
+	assert.Equal(t, 123, env.player.lastAnilist)
+	assert.Equal(t, []string{"エグザンプル", "Example (TV)"}, env.player.lastAlts)
+	rec = env.do(t, http.MethodPost, "/api/source-plugin/play", strings.Replace(strings.Replace(body, `,
+  "anilistId": 123`, "", 1), `,
+  "altTitles": ["エグザンプル", "Example (TV)"]`, "", 1))
+	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = env.do(t, http.MethodPost, "/api/source-plugin/play", strings.Replace(body, `"anilistId": 123`, `"anilistId": -1`, 1))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
 	rec = env.do(t, http.MethodPost, "/api/source-plugin/play", strings.Replace(body, `"type": "hls"`, `"type": "torrent", "magnet": "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"`, 1))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// 磁力选集带集号搜索时，插件的 BT 来源要以「只要 torrent」的允许列表参与，
+// 候选压成与本机规则同形的条目；在线候选与失败来源分别被忽略/记入状态。
+func TestSearchWithEpisodeMergesPluginTorrentCandidates(t *testing.T) {
+	env := newEnv(t)
+	env.plugin.status = sourceplugin.Status{Phase: "ready"}
+	env.plugin.sources = []sourceplugin.Source{{ID: "garden", Name: "Anime Garden", Kind: "bt", Tier: 3, Enabled: true}}
+	seeders := 12
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "garden:abc", SourceID: "garden", Tier: 3, MatchConfidence: 0.95,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, SubjectTitle: "幼女战记 第二季", EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", InfoHash: "0123456789ABCDEF0123456789ABCDEF01234567"},
+			Metadata:  sourceplugin.Metadata{Fansub: "LoliHouse", Resolution: "1080P", Episode: 5, SizeBytes: 734003200, Seeders: &seeders, Title: "[LoliHouse] 幼女战记II / Youjo Senki II - 05 [WebRip 1080p HEVC-10bit AAC]"},
+		}},
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "web:5", SourceID: "web-a", Tier: 1, MatchConfidence: 1,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}},
+			Transport: sourceplugin.Transport{Type: "hls", URL: "https://media.example/5.m3u8"},
+		}},
+		{Event: "source_error", SourceID: "bt-dead", Category: "search_failed", Message: "boom", Retryable: true},
+		{Event: "done", Queried: 3, Succeeded: 2, Failed: 1},
+	}
+
+	rec := env.do(t, http.MethodGet, "/api/search?q=%E5%B9%BC%E5%A5%B3%E6%88%98%E8%AE%B0%20%E7%AC%AC%E4%BA%8C%E5%AD%A3&episode=5&anilist=135865&year=2026&title=%E5%B9%BC%E5%A5%B3%E6%88%A6%E8%A8%98%E2%85%A1", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var view SearchView
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
+
+	assert.Equal(t, []string{"torrent"}, env.plugin.lastRequest.Preferences.Transports, "只要 BT，不能触发浏览器嗅探")
+	assert.Equal(t, "135865", env.plugin.lastRequest.Subject.IDs["anilist"])
+	assert.Equal(t, []string{"幼女战记 第二季", "幼女戦記Ⅱ"}, env.plugin.lastRequest.Subject.Titles)
+	assert.Equal(t, "5", env.plugin.lastRequest.Episode.Number)
+
+	require.Len(t, view.Items, 1, "在线候选不进磁力选集")
+	item := view.Items[0]
+	assert.Equal(t, "plugin:garden", item.Source)
+	assert.Equal(t, "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", item.Magnet)
+	assert.Empty(t, item.TorrentURL)
+	assert.Equal(t, "[LoliHouse] 幼女战记II / Youjo Senki II - 05 [WebRip 1080p HEVC-10bit AAC]", item.Title, "优先用来源的原始发布标题")
+	require.NotNil(t, item.Season)
+	assert.Equal(t, 2, *item.Season)
+	assert.Equal(t, "LoliHouse", item.Group)
+	assert.Equal(t, "1080p", item.Resolution)
+	require.NotNil(t, item.Episode)
+	assert.Equal(t, 5, *item.Episode)
+	assert.Equal(t, "734 MB", item.Size)
+	assert.Equal(t, 12, *item.Seeders)
+	assert.Equal(t, "Anime Garden", *item.Provider)
+
+	states := map[string]rules.State{}
+	for _, outcome := range view.Sources {
+		states[outcome.Source] = outcome.State
+	}
+	assert.Equal(t, rules.StateOK, states["plugin:garden"])
+	assert.Equal(t, rules.StateFailed, states["plugin:bt-dead"])
+
+	// 只给 .torrent 地址的候选（acg.rip）也要进选集，标出 torrentUrl 供播放端下载。
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "acg:url:abc", SourceID: "acg", Tier: 3, MatchConfidence: 0.95,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, SubjectTitle: "幼女战记 第二季", EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", TorrentURL: "https://acg.rip/t/1.torrent"},
+			Metadata:  sourceplugin.Metadata{Fansub: "LoliHouse", Episode: 5},
+		}},
+		{Event: "done", Queried: 1, Succeeded: 1},
+	}
+	rec = env.do(t, http.MethodGet, "/api/search?q=x&episode=5", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	view = SearchView{}
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
+	require.Len(t, view.Items, 1)
+	assert.Empty(t, view.Items[0].Magnet)
+	assert.Equal(t, "https://acg.rip/t/1.torrent", view.Items[0].TorrentURL)
+
+	// 合集：插件按范围放行、不给单集号，本机解析也解不出集号 → 不能冒充第 5 集
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "garden:batch", SourceID: "garden", Tier: 3, MatchConfidence: 0.85,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, SubjectTitle: "排球少年", EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", InfoHash: "0123456789abcdef0123456789abcdef01234567"},
+			Metadata:  sourceplugin.Metadata{Fansub: "诸神字幕组", Title: "[诸神字幕组][排球少年!!][Haikyuu!!][BDRip][01-25全][简繁日文字幕][1080P][HEVC MKV]"},
+		}},
+		{Event: "done", Queried: 1, Succeeded: 1},
+	}
+	rec = env.do(t, http.MethodGet, "/api/search?q=x&episode=5", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	view = SearchView{} // Unmarshal 不会清掉上一次留下的字段（omitempty 的 episode 就会残留）
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &view))
+	require.Len(t, view.Items, 1)
+	assert.Nil(t, view.Items[0].Episode, "合集没有单集号")
+	assert.Equal(t, "batch", view.Items[0].Kind)
+
+	// 没有集号：不问插件。
+	env.plugin.lastRequest = sourceplugin.ResolveRequest{}
+	rec = env.do(t, http.MethodGet, "/api/search?q=x", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, env.plugin.lastRequest.Schema)
+}
+
+// 安装包捆了插件时首次运行直接采用并启动；用户改过配置（哪怕只是关掉）后就不再自动接管。
+func TestSourcePluginAdoptsBundledOnFirstRunOnly(t *testing.T) {
+	env := newEnv(t)
+	svc := NewSourcePluginService(env.store, env.plugin, "test")
+	svc.SetBundled(sourceplugin.Bundled{Executable: "/Applications/Nagare.app/Contents/MacOS/nagare-source/nagare-source-arm64", Root: "/Applications/Nagare.app/Contents/MacOS/nagare-source/repo"}, true)
+	require.NoError(t, svc.StartConfigured())
+	config := env.store.SourcePluginConfig()
+	assert.True(t, config.Enabled)
+	assert.Equal(t, "/Applications/Nagare.app/Contents/MacOS/nagare-source/repo", config.Root)
+	assert.Equal(t, config.Executable, env.plugin.started.Executable)
+	view := svc.View(context.Background())
+	require.NotNil(t, view.Bundled)
+	assert.True(t, view.Bundled.Active)
+
+	// 用户显式关掉：下次启动不能又给打开
+	_, err := svc.Configure(boolPtr(false), nil, nil, false)
+	require.NoError(t, err)
+	env.plugin.started = sourceplugin.LaunchConfig{}
+	require.NoError(t, svc.StartConfigured())
+	assert.False(t, env.store.SourcePluginConfig().Enabled)
+	assert.Empty(t, env.plugin.started.Executable)
+
+	// 用户换成自己的路径后，「使用内置」能切回来
+	_, err = svc.Configure(boolPtr(true), strPtr("/opt/mine"), strPtr("/srv/mine"), false)
+	require.NoError(t, err)
+	assert.False(t, svc.View(context.Background()).Bundled.Active)
+	_, err = svc.Configure(nil, nil, nil, true)
+	require.NoError(t, err)
+	assert.True(t, svc.View(context.Background()).Bundled.Active)
+
+	// 没捆的构建：不自动启用，useBundled 报错
+	bare := NewSourcePluginService(env.store, &fakeSourcePluginRuntime{status: sourceplugin.Status{Phase: "disabled"}}, "test")
+	require.NoError(t, env.store.SetSourcePluginConfig(store.SourcePluginConfig{}))
+	require.NoError(t, bare.StartConfigured())
+	assert.False(t, env.store.SourcePluginConfig().Enabled)
+	_, err = bare.Configure(nil, nil, nil, true)
+	require.Error(t, err)
+}
+
+func boolPtr(v bool) *bool    { return &v }
+func strPtr(v string) *string { return &v }
+
+// 流式端点：条目、来源结果逐行到达，最后一行 done；本机规则不参与。
+func TestSearchPluginStreamsItemsAndOutcomes(t *testing.T) {
+	env := newEnv(t)
+	env.plugin.status = sourceplugin.Status{Phase: "ready"}
+	env.plugin.events = []sourceplugin.Event{
+		{Event: "candidate", Candidate: &sourceplugin.Candidate{
+			Schema: "nagare-candidate/v1", ID: "garden:a", SourceID: "garden", Tier: 3, MatchConfidence: 0.95,
+			Match:     sourceplugin.Match{Basis: []string{"title_episode"}, EpisodeNumber: 5},
+			Transport: sourceplugin.Transport{Type: "torrent", InfoHash: "0123456789abcdef0123456789abcdef01234567"},
+			Metadata:  sourceplugin.Metadata{Fansub: "A", Episode: 5, Title: "[A] Show - 05 [1080p]"},
+		}},
+		{Event: "source_error", SourceID: "nyaa", Category: "search_failed", Message: "dns", Retryable: true},
+		{Event: "done", Queried: 2, Succeeded: 1, Failed: 1},
+	}
+	rec := env.do(t, http.MethodGet, "/api/search/plugin?q=Show&episode=5&anilist=1", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Header().Get("Content-Type"), "application/x-ndjson")
+	lines := strings.Split(strings.TrimSpace(rec.Body.String()), "\n")
+	require.Len(t, lines, 4, rec.Body.String())
+	var first, second, third, last PluginSearchEvent
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))
+	require.NoError(t, json.Unmarshal([]byte(lines[1]), &second))
+	require.NoError(t, json.Unmarshal([]byte(lines[2]), &third))
+	require.NoError(t, json.Unmarshal([]byte(lines[3]), &last))
+	require.NotNil(t, first.Item)
+	assert.Equal(t, "plugin:garden", first.Item.Source)
+	require.NotNil(t, second.Outcome)
+	assert.Equal(t, "plugin:nyaa", second.Outcome.Source)
+	assert.Equal(t, rules.StateFailed, second.Outcome.State)
+	require.NotNil(t, third.Outcome)
+	assert.Equal(t, "plugin:garden", third.Outcome.Source)
+	assert.Equal(t, rules.StateOK, third.Outcome.State)
+	assert.Equal(t, "done", last.Event)
+
+	rec = env.do(t, http.MethodGet, "/api/search/plugin?q=Show", "")
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }

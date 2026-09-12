@@ -191,6 +191,16 @@ func TestPriorityManagerStrideGate(t *testing.T) {
 	assert.Equal(t, torrent.PiecePriorityNormal, rec.state[48], "旧窗口的分片降回 Normal")
 }
 
+// 起播缓冲期间还没有任何 reader（mpv 未起、弹幕哈希未读），头尾钉住必须在
+// 管理器建好那一刻就生效；否则头 8MB 只能按默认顺序碰运气，实测要等整个文件下到四成。
+func TestPriorityManagerPinsHeadAndTailBeforeAnyReader(t *testing.T) {
+	clock := &fakeClock{at: time.Now()}
+	pm, rec := newTestManager(clock)
+	_ = pm
+	require.Equal(t, torrent.PiecePriorityNow, rec.state[0], "没有 reader 时头部也该已钉住")
+	require.Equal(t, torrent.PiecePriorityNext, rec.state[testLastPiece], "没有 reader 时尾部也该已钉住")
+}
+
 func TestPriorityManagerDropsPinsAfterStartupWindow(t *testing.T) {
 	clock := &fakeClock{at: time.Now()}
 	pm, rec := newTestManager(clock)

@@ -100,11 +100,30 @@ func TestTrackersForEmptyConfig(t *testing.T) {
 	assert.Nil(t, trackersFor(&metainfo.Info{}, []string{"  ", "ftp://x.example/announce"}))
 }
 
-func TestNoHardcodedTrackers(t *testing.T) {
-	// 红线：本体零内置 tracker。默认配置里一条地址都不能有。
+func TestEngineConfigItselfCarriesNoTrackers(t *testing.T) {
+	// 引擎配置本身不藏地址：内置组只在 DefaultTrackers 一处，由调用方经
+	// EffectiveTrackers 显式合进来，关掉它就真的一条都不剩。
 	cfg := Config{}.normalized()
 	assert.Empty(t, cfg.Trackers)
 	for _, scheme := range supportedTrackerSchemes {
 		assert.True(t, strings.HasSuffix(scheme, "://"), "协议白名单只该是 scheme 前缀，不该是具体地址")
 	}
+}
+
+func TestDefaultTrackersAreValidAndOptOutable(t *testing.T) {
+	kept, dropped := NormalizeTrackers(DefaultTrackers)
+	assert.Empty(t, dropped, "内置列表里不能有过不了自己校验的地址")
+	assert.Len(t, kept, len(DefaultTrackers), "内置列表不能有重复")
+	for _, addr := range DefaultTrackers {
+		assert.NotContains(t, addr, "announce.php", "带 passkey 风格的私有站地址不该出现在内置组")
+	}
+
+	assert.Equal(t, DefaultTrackers, EffectiveTrackers(true, nil))
+	assert.Empty(t, EffectiveTrackers(false, nil), "关掉内置组后必须一条不剩")
+	extra := []string{"udp://tracker.example:1337/announce", DefaultTrackers[0], "not-a-url"}
+	assert.Equal(t, []string{"udp://tracker.example:1337/announce", DefaultTrackers[0]}, EffectiveTrackers(false, extra),
+		"关掉内置组时用户自己填的照常保留，哪怕和内置的重名")
+	got := EffectiveTrackers(true, extra)
+	assert.Len(t, got, len(DefaultTrackers)+1, "用户追加的与内置重复时只算一次")
+	assert.Equal(t, "udp://tracker.example:1337/announce", got[len(got)-1], "用户追加的排在内置之后")
 }

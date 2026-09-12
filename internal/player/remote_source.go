@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -23,6 +24,10 @@ type RemoteSourceOptions struct {
 	Title       string
 	Episode     int
 	SizeBytes   int64
+	// AnilistID 是用户在目录里点的那部作品；弹幕匹配必须对上它，否则宁可没有弹幕。
+	AnilistID int
+	// AltTitles 是目录里的其他标题（原名/英文名），主标题匹配不上时逐个再试。
+	AltTitles []string
 }
 
 type remoteSource struct {
@@ -30,6 +35,8 @@ type remoteSource struct {
 	url       string
 	headers   map[string]string
 	expiresAt int64
+	anilistID int
+	altTitles []string
 }
 
 func NewRemoteSource(options RemoteSourceOptions) MediaSource {
@@ -46,7 +53,12 @@ func NewRemoteSource(options RemoteSourceOptions) MediaSource {
 	}
 	return &remoteSource{
 		item: item, url: options.URL, headers: cloneHeaders(options.Headers), expiresAt: options.ExpiresAt,
+		anilistID: options.AnilistID, altTitles: append([]string(nil), options.AltTitles...),
 	}
+}
+
+func (s *remoteSource) MatchHints() (int, []string) {
+	return s.anilistID, append([]string(nil), s.altTitles...)
 }
 
 func (s *remoteSource) Item() library.Item { return s.item }
@@ -68,9 +80,14 @@ func (s *remoteSource) Probe(context.Context) error {
 	return nil
 }
 
-// 在线媒体不为弹幕匹配额外下载前 16 MiB；失败只降级弹幕，播放已经先启动。
+// ErrNoFingerprint 表示这种媒体源天生没有文件指纹（不是计算失败）。
+// ensureBinding 收到它会改走关键词匹配，而不是放弃弹幕。
+var ErrNoFingerprint = errors.New("该媒体源不提供文件指纹")
+
+// 在线媒体不为弹幕匹配额外下载前 16 MiB：起播不等指纹，弹幕靠标题 + 集号走
+// animego 的关键词匹配（phase 2）。
 func (s *remoteSource) Hash16M(context.Context) (string, error) {
-	return "", errs.New(errs.CategoryNetwork, "player.remote.hash", "在线播放不计算文件指纹", "弹幕匹配将跳过")
+	return "", ErrNoFingerprint
 }
 
 func cloneHeaders(headers map[string]string) map[string]string {

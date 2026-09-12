@@ -102,6 +102,8 @@ Section "nagare" SecMain
   File "${SRCDIR}/THIRD_PARTY_NOTICES.md"
   ; 内置 mpv：nagare.exe 旁边的 mpv\mpv.exe，Go 侧按这个相对位置查找
   File /r "${SRCDIR}/mpv"
+  ; 捆绑的 Nagare Source 插件（引擎 + 只含 BT 规则的 repo），同样按相对位置查找
+  File /r "${SRCDIR}/nagare-source"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
@@ -134,6 +136,7 @@ Section "Uninstall"
   Delete "$INSTDIR\LICENSE.txt"
   Delete "$INSTDIR\THIRD_PARTY_NOTICES.md"
   RMDir /r "$INSTDIR\mpv"
+  RMDir /r "$INSTDIR\nagare-source"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
 

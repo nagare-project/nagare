@@ -436,6 +436,17 @@ export interface SearchItem {
   provider?: string
   seeders?: number
   infohash?: string
+  /** 标题里解析出的集号；解析不出则缺席 */
+  episode?: number
+  /** 分组用的字幕组名：规则给的 fansub 优先，没有才用标题里解析的发布组 */
+  group?: string
+  resolution?: string
+  /** main / sp / op / ed …，合集与特典靠它区分 */
+  kind?: string
+  /** 来源给的 .torrent 地址；有就优先用它播放（自带 info 与 tracker，不用等元数据） */
+  torrentUrl?: string
+  /** 标题里解析出的季数；没写则缺席（按第 1 季理解） */
+  season?: number
 }
 
 /** GET /api/search?q= 的 data 载荷 */
@@ -498,8 +509,70 @@ export interface RulesConfigPatch {
 }
 
 /** 关键词搜索；q 走 encodeURIComponent（中文 / `&` / `#` 都不能裸露在 query 里） */
-export function searchMagnets(query: string): Promise<SearchResult> {
-  return apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(query)}`)
+/** 磁力选集附带的作品身份：有集号时后端会再向来源插件要 BT 候选（只要 torrent） */
+export interface MagnetSearchContext {
+  episode: number
+  anilistId?: number
+  year?: number
+  /** 目录里的其他标题（原名/英文名），插件按它们再搜一遍 */
+  altTitles?: string[]
+}
+
+/** GET /api/search/plugin 的 NDJSON 事件：条目 / 来源结果 / 结束 */
+export type PluginSearchEvent =
+  | { event: 'item'; item: SearchItem }
+  | { event: 'outcome'; outcome: SourceOutcome }
+  | { event: 'done' }
+
+/**
+ * 只问来源插件的 BT 来源，逐条返回。选集窗口先用 searchMagnets（本机规则，不到一秒）
+ * 把列表摆出来，再把这里的条目追加进去——最慢的站点不再拖住整个列表。
+ */
+export async function streamPluginMagnets(
+  query: string,
+  context: MagnetSearchContext,
+  onEvent: (event: PluginSearchEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const params = [`q=${encodeURIComponent(query)}`, `episode=${context.episode}`]
+  if (context.anilistId !== undefined) params.push(`anilist=${context.anilistId}`)
+  if (context.year !== undefined) params.push(`year=${context.year}`)
+  for (const title of context.altTitles ?? []) params.push(`title=${encodeURIComponent(title)}`)
+  const response = await apiStream(`/api/search/plugin?${params.join('&')}`, { signal })
+  if (!response.headers.get('Content-Type')?.toLowerCase().includes('application/x-ndjson') || response.body === null) {
+    throw new ApiError('插件搜索返回了意外的响应格式', response.status)
+  }
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let pending = ''
+  const consume = (line: string): void => {
+    if (line.trim() === '') return
+    const parsed: unknown = JSON.parse(line)
+    if (!isRecord(parsed) || typeof parsed.event !== 'string') throw new ApiError('插件搜索返回了无效事件', response.status)
+    if (parsed.event === 'item' && isRecord(parsed.item)) onEvent({ event: 'item', item: parsed.item as unknown as SearchItem })
+    else if (parsed.event === 'item' && isRecord(parsed.outcome)) onEvent({ event: 'outcome', outcome: parsed.outcome as unknown as SourceOutcome })
+    else if (parsed.event === 'done') onEvent({ event: 'done' })
+  }
+  while (true) {
+    const { value, done } = await reader.read()
+    pending += decoder.decode(value, { stream: !done })
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+    for (const line of lines) consume(line)
+    if (done) break
+  }
+  consume(pending)
+}
+
+export function searchMagnets(query: string, context?: MagnetSearchContext): Promise<SearchResult> {
+  const params = [`q=${encodeURIComponent(query)}`]
+  if (context !== undefined) {
+    params.push(`episode=${context.episode}`)
+    if (context.anilistId !== undefined) params.push(`anilist=${context.anilistId}`)
+    if (context.year !== undefined) params.push(`year=${context.year}`)
+    for (const title of context.altTitles ?? []) params.push(`title=${encodeURIComponent(title)}`)
+  }
+  return apiFetch<SearchResult>(`/api/search?${params.join('&')}`)
 }
 
 export function fetchSources(): Promise<SourcesData> {
@@ -533,6 +606,16 @@ export interface SourcePluginConfig {
   enabled: boolean
   executable: string
   root: string
+  /** 把路径换回安装包捆绑的插件 */
+  useBundled?: boolean
+}
+
+/** 安装包捆绑的插件（引擎 + 只含 BT 规则的 repo）；没捆时缺席 */
+export interface BundledPluginView {
+  executable: string
+  root: string
+  /** 当前配置用的就是捆绑的这一份 */
+  active: boolean
 }
 
 export interface SourcePluginManifest {
@@ -559,7 +642,7 @@ export interface PluginSource {
   tier: number
   version: string
   enabled: boolean
-  status: string
+  status: 'healthy' | 'degraded' | 'unavailable' | 'interactive_required' | 'disabled'
   capabilities: string[]
 }
 
@@ -568,6 +651,7 @@ export interface SourcePluginView {
   status: SourcePluginStatus
   sources: PluginSource[]
   sourcesError?: string
+  bundled?: BundledPluginView
 }
 
 export interface SourceResolveRequest {
@@ -703,12 +787,22 @@ export async function streamSourceCandidates(
   if (!doneSeen) throw new ApiError('来源插件的候选流未正常完成', response.status)
 }
 
+// identity 是目录里的作品身份：在线媒体没有文件指纹，弹幕只能靠标题匹配，
+// 后端用 anilistId 校验没有命中同名的另一部作品，主标题失手时再拿别名试。
+export interface SourcePlaybackIdentity {
+  anilistId: number
+  altTitles: string[]
+}
+
 export function playSourceCandidate(
   candidate: SourceCandidate,
   title: string,
   episode: number,
+  identity: SourcePlaybackIdentity,
 ): Promise<PlayData> {
-  return requestJson<PlayData>('/api/source-plugin/play', 'POST', { candidate, title, episode })
+  return requestJson<PlayData>('/api/source-plugin/play', 'POST', {
+    candidate, title, episode, anilistId: identity.anilistId, altTitles: identity.altTitles,
+  })
 }
 
 function parseSourcePluginEvent(value: unknown): SourcePluginEvent {
@@ -801,9 +895,8 @@ export interface TorrentStatus {
   error?: string
 }
 
-/** POST /api/torrent/play 的 body */
-export interface TorrentPlayRequest {
-  magnet: string
+/** POST /api/torrent/play 的 body；Plugin API v1 的 BT 候选可以给 magnet 或 .torrent URL。 */
+export type TorrentPlayRequest = ({ magnet: string; torrentUrl?: never } | { magnet?: never; torrentUrl: string }) & {
   title?: string
   /**
    * 合集里定位文件用的集号。**当前搜索页不传**：`SearchItem` 没有集号字段，
@@ -832,8 +925,12 @@ export interface TorrentSettings {
   enabled: boolean
   /** 停止播放后是否继续上传；播放期间的分片交换是 BT 协议必需的，不受此开关影响 */
   seeding: boolean
-  /** 用户自填的 tracker，默认空（本体不内置任何 tracker）；只补给公开种子 */
+  /** 用户自己追加的 tracker（内置组之外）；只补给公开种子 */
   trackers: string[]
+  /** 是否启用内置的公共 tracker 组（默认开；关掉后只剩用户自填的） */
+  useDefaultTrackers: boolean
+  /** 内置公共 tracker 组的内容，只读展示 */
+  defaultTrackers: string[]
   /** UPnP / NAT-PMP 自动端口映射 */
   portForwarding: boolean
   listenPort: number
@@ -851,6 +948,7 @@ export interface TorrentConfigData extends TorrentSettings {
 export interface TorrentConfigPatch {
   seeding?: boolean
   trackers?: string[]
+  useDefaultTrackers?: boolean
   portForwarding?: boolean
   listenPort?: number
 }
@@ -902,6 +1000,11 @@ export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] 
 export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
 export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; format?: string; inLibrary: boolean }[]; fetchedAt: number }
 export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
+export type SeasonName = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL'
+export interface SeasonalData { season: SeasonName; year: number; items: SummaryMediaData[]; fetchedAt: number }
+/** 某一季的全部作品（animego 一页 200 条），后端十分钟缓存 */
+export const fetchSeasonalData = (season: SeasonName, year: number, signal?: AbortSignal) =>
+  apiFetch<SeasonalData>(`/api/seasonal?season=${season}&year=${year}`, { signal })
 export const fetchMediaData = (id: number, signal?: AbortSignal) => apiFetch<SummaryMediaData>(`/api/anime/${id}`, { signal })
 export const fetchCollection = () => apiFetch<CollectionData>('/api/lists')
 export const saveCollection = (id: number, data: CollectionEdit) => apiFetch<CollectionEntry>(`/api/lists/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: data.status, currentEpisode: data.progress, score: data.score }) })
