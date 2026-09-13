@@ -44,12 +44,12 @@ func (a *RemoteArt) SetPrefix(prefix string) {
 }
 func (a *RemoteArt) Register(source string) string {
 	u, err := url.Parse(source)
-	// AniList 图床与配置的 animego HTTPS 站点是目前已核实的两类来源；重定向仍由 artcache 逐跳检查。
+	// 只接已核实的海报图床、AniZip 使用的 TVDB 截图图床及配置的元数据站点。
 	if err != nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" || u.Host == "" {
 		return ""
 	}
 	host := strings.ToLower(u.Host)
-	if host != "s4.anilist.co" && host != a.upstreamHost {
+	if host != "s4.anilist.co" && host != "artworks.thetvdb.com" && host != a.upstreamHost {
 		return ""
 	}
 	key := fmt.Sprintf("%x", sha256.Sum256([]byte(source)))

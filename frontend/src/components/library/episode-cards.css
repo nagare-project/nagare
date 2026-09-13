@@ -1,0 +1,61 @@
+.library-episodes { display: grid; gap: 32px; min-width: 0; }
+.episode-featured { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.episode-feature { display: block; padding: 0; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.episode-feature-art { position: relative; display: flex; flex-direction: column; justify-content: center; aspect-ratio: 2 / 1; overflow: hidden; padding: 28px; border: 1px solid var(--border-dim); border-radius: 10px; background: radial-gradient(ellipse at 85% 0%, #51438a55, transparent 70%), linear-gradient(125deg, #18151f, #0e1016); }
+.episode-feature:nth-child(2n) .episode-feature-art { background: radial-gradient(ellipse at 85% 0%, #346b6255, transparent 70%), linear-gradient(125deg, #121c1a, #0e1016); }
+.episode-feature-art > span:first-child { font-size: 11px; letter-spacing: .22em; color: var(--fg-muted); }
+.episode-feature-art > strong { color: #ffffffb3; font-size: clamp(48px, 7vw, 110px); font-weight: 700; line-height: 1.1; letter-spacing: -.06em; }
+.episode-feature-play { position: absolute; right: 28px; bottom: 28px; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: #ffffff0d; color: white; transition: background .15s; }
+.episode-feature:hover .episode-feature-play { background: var(--brand-solid); }
+.episode-feature-title { display: block; margin-top: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 16px; font-weight: 600; }
+.episode-feature-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; }
+.episode-feature-meta > strong { font-size: 18px; }
+.episode-feature-meta span { color: var(--fg-muted); }
+.episode-feature-meta > span { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.episode-card-group h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font-size: 18px; }
+.episode-card-group h3 > span { color: var(--fg-muted); font-size: 13px; font-weight: 400; }
+.episode-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; list-style: none; margin: 0; padding: 0; }
+.episode-card { min-width: 0; border-radius: 8px; }
+.episode-card-action { display: flex; align-items: flex-start; gap: 16px; width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.episode-card-art { display: flex; flex-direction: column; justify-content: center; align-items: center; flex: none; width: 32%; max-width: 180px; aspect-ratio: 1.4; border-radius: 8px; border: 1px solid var(--border-dim); background: linear-gradient(140deg, #272136, #101017); }
+.episode-card-art strong { font-size: 36px; font-weight: 600; color: #ffffffa6; }
+.episode-card-art > span { margin-top: 4px; font-size: 9px; letter-spacing: .12em; color: var(--fg-muted); }
+.episode-card-copy { display: grid; flex: 1; gap: 6px; min-width: 0; padding-top: 4px; }
+.episode-card-copy > strong, .episode-card-copy > small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: 14px; line-height: 1.45; }
+.episode-card-copy > small { -webkit-line-clamp: 1; font-size: 11px; color: var(--fg-muted); }
+.episode-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; }
+.episode-card-meta > span { color: var(--fg-muted); }
+.episode-card-copy > .episode-card-meta:last-child { color: var(--fg-muted); font-size: 11px; }
+.episode-card-action > svg { margin-top: 5px; color: var(--fg-muted); }
+.episode-card-action:hover .episode-card-copy > strong { color: white; }
+.episode-card--active .episode-card-art { border-color: var(--brand); }
+.episode-card-browser { display: flex; justify-content: flex-end; align-items: center; margin-top: 8px; font-size: 12px; }
+.episode-card-action:focus-visible, .episode-feature:focus-visible { outline: 2px solid var(--brand); outline-offset: 5px; border-radius: 8px; }
+.episode-card-action:disabled, .episode-feature:disabled { opacity: .5; cursor: wait; }
+@media (max-width: 767px) { .episode-card-grid { grid-template-columns: 1fr; gap: 20px; } .episode-feature-art { padding: 16px; } .episode-feature-play { right: 12px; bottom: 12px; width: 36px; height: 36px; } .episode-feature-play svg { width: 20px; } .episode-feature-title { font-size: 14px; } .episode-feature-meta { align-items: flex-start; flex-direction: column; gap: 4px; } .episode-feature-meta > strong { font-size: 15px; } }
+@media (prefers-reduced-motion: reduce) { .episode-feature-play { transition: none; } }
+.episode-artwork { display: block; width: 100%; height: 100%; object-fit: cover; }
+.episode-artwork-empty { display: grid; place-items: center; width: 100%; height: 100%; min-height: 80px; color: var(--fg-muted); font-size: 13px; background: var(--paper-raised); }
+.episode-feature-art { padding: 0; }
+.episode-feature-art > .episode-artwork-empty { height: 100%; letter-spacing: normal; }
+.episode-card-art { overflow: hidden; }
+.episode-card-art > .episode-artwork-empty { margin: 0; font-size: 12px; letter-spacing: normal; }
+.episode-card-description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--fg-muted); font-size: 13px; line-height: 1.45; }
+
+/* 未入库的真实剧集资料：横向缩略图、两列列表与独立资料按钮。 */
+.missing-episodes { min-width: 0; }
+.missing-episodes-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.missing-episodes-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 20px; line-height: 28px; }
+.missing-episodes-heading > a { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.missing-episodes-hint { margin: 38px 0 28px; font-size: 15px; color: var(--fg); }
+.missing-episode-grid { gap: 38px 24px; }
+.missing-episode { position: relative; display: flex; gap: 16px; min-width: 0; padding-right: 22px; }
+.missing-episode .episode-card-art { width: 175px; max-width: 32%; height: 128px; border: 0; }
+.missing-episode-copy { min-width: 0; padding-top: 2px; }
+.missing-episode-copy > span, .missing-episode-copy > strong { display: block; font-size: 16px; line-height: 22px; font-weight: 600; }
+.missing-episode-copy > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.missing-episode-copy p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--fg-muted); font-size: 14px; line-height: 20px; margin: 2px 0 4px; }
+.missing-episode-copy time { display: flex; gap: 5px; align-items: center; color: var(--fg-muted); font-size: 13px; line-height: 20px; }
+.missing-episode-info { position: absolute; top: -8px; right: -2px; width: 28px; height: 28px; color: var(--fg-muted); }
+.episode-info-art { overflow: hidden; aspect-ratio: 16 / 9; border-radius: 8px; margin-bottom: 18px; }
+@media (max-width: 767px) { .missing-episode-grid { gap: 24px; } .missing-episode .episode-card-art { width: 32%; height: 110px; } .missing-episodes-heading { flex-wrap: wrap; } .missing-episodes-hint { margin-top: 24px; } }

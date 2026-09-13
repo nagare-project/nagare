@@ -71,6 +71,7 @@ type Handler struct {
 	catalog   *DiscoverService
 	lists     *ListsService
 	remoteArt *RemoteArt
+	episodes  *episodeMetadataService
 }
 
 // New 构造 Handler。
@@ -80,7 +81,7 @@ func New(deps Deps) *Handler {
 		art = NewRemoteArt(deps.AnimegoBaseURL, 4096)
 	}
 	catalog := NewDiscoverService(deps.Catalog, art)
-	return &Handler{deps: deps, catalog: catalog, lists: NewListsService(deps.Lists, catalog), remoteArt: art}
+	return &Handler{deps: deps, catalog: catalog, lists: NewListsService(deps.Lists, catalog), remoteArt: art, episodes: newEpisodeMetadataService(art)}
 }
 
 // Register 把业务路由注册进 /api/* 的鉴权链（httpserver.Options.RegisterAPI 的挂载点）。

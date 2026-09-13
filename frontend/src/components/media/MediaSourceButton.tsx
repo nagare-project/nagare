@@ -1,3 +1,6 @@
+import { episodeHasAired } from './episode-metadata'
+import { EpisodeArtwork } from './EpisodeArtwork'
+import { PlaybackSurface } from './PlaybackSurface'
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { PluginSource, SourceCandidate } from '../../lib/endpoints'
@@ -13,6 +16,9 @@ const MAX_EPISODE_BUTTONS = 120
 const MAX_CANDIDATES = 100
 
 function episodeNumbers(media: MediaSummary): number[] {
+  const known = media.episodeTitles?.filter(ep => episodeHasAired(ep, media)).map(ep => ep.episode).sort((a, b) => a - b)
+  const hasDates = media.episodeTitles?.some(ep => ep.airedAt || ep.airDate)
+  if (hasDates) return (known ?? []).slice(0, MAX_EPISODE_BUTTONS)
   const count = airedEpisodeCount(media)
   if (count <= MAX_EPISODE_BUTTONS) return Array.from({ length: count }, (_, index) => index + 1)
   const start = Math.max(1, Math.min(count - MAX_EPISODE_BUTTONS + 1, media.watched - 10))
@@ -20,11 +26,12 @@ function episodeNumbers(media: MediaSummary): number[] {
 }
 
 /** 选集即开始找源；高优先级在线候选先起播，其余候选保留供回退与手动换源。 */
-export function MediaSourceButton({ media }: { media: MediaSummary }) {
+export function MediaSourceButton({ media, inline = false }: { media: MediaSummary; inline?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const source = useSourcePlayback()
   const [manualEpisode, setManualEpisode] = useState(String(Math.max(1, media.watched + 1)))
+  const [gridView, setGridView] = useState(false)
   const numbers = episodeNumbers(media)
   const titleByEpisode = new Map(media.episodeTitles?.map(item => [item.episode, item.title]) ?? [])
   const session = source.state.phase !== 'idle' && source.state.request.media.id === media.id
@@ -54,32 +61,20 @@ export function MediaSourceButton({ media }: { media: MediaSummary }) {
   const selectedEpisode = session?.request.episode ?? null
   const searching = session !== null && !session.streamDone
   return <>
-    <button type="button" className="discover-card-play discover-card-source" ref={trigger}
+    {!inline && <button type="button" className="discover-card-play discover-card-source" ref={trigger}
       aria-label={`选择集数并从本地插件找源：${media.title}`}
       onClick={() => dialog.current?.showModal()}>
       <Icon name="extension" size={18} />在线找源
-    </button>
-    <dialog ref={dialog} className="media-play-dialog media-source-dialog" aria-label={`${media.title} 在线来源选集`}
+    </button>}
+    <PlaybackSurface inline={inline} ref={dialog} className="media-play-dialog media-source-dialog" aria-label={`${media.title} 在线来源选集`}
       onClose={() => trigger.current?.focus()}
       onClick={event => { if (event.target === dialog.current) dialog.current.close() }}>
       <div className="media-play-body">
-        <button type="button" className="icon-button media-play-close" aria-label="关闭在线来源选集" onClick={() => dialog.current?.close()}><Icon name="close" /></button>
+        {!inline && <button type="button" className="icon-button media-play-close" aria-label="关闭在线来源选集" onClick={() => dialog.current?.close()}><Icon name="close" /></button>}
         <p className="media-play-kicker">本地来源插件</p>
-        <h2>{media.title}</h2>
-        <p className="media-play-hint">点选集数后立即开始找源。高优先级在线候选会先起播；失败时自动尝试下一在线来源或 BT，列表始终可手动换源。</p>
-
-        {numbers.length > 0 && <section className="media-episode-section" aria-labelledby={`source-episodes-${media.id}`}>
-          <div className="media-play-selection"><h3 id={`source-episodes-${media.id}`}>{media.format === 'MOVIE' ? '影片' : '选择集数'}</h3><span className="result result--dim">已播出 {airedEpisodeCount(media)} 集</span></div>
-          <div className="media-episode-grid">
-            {numbers.map(episode => <button type="button" key={episode}
-              className={selectedEpisode === episode ? 'media-episode-button media-episode-button--selected' : 'media-episode-button'}
-              title={titleByEpisode.get(episode)} aria-label={`从本地插件查找第 ${episode} 集`}
-              onClick={() => { setManualEpisode(String(episode)); findEpisode(episode) }}>
-              <strong>{media.format === 'MOVIE' ? '播放' : episode}</strong>
-              {titleByEpisode.has(episode) && <span>{titleByEpisode.get(episode)}</span>}
-            </button>)}
-          </div>
-        </section>}
+        <h2 className={inline ? 'visually-hidden' : undefined}>{inline ? '在线选集' : media.title}</h2>
+        {!inline && <p className="media-play-hint">点选集数后立即开始找源。高优先级在线候选会先起播；失败时自动尝试下一在线来源或 BT，列表始终可手动换源。</p>}
+        {inline && <div className="online-episode-toolbar"><span><Icon name="broadcast" size={18} />自动匹配来源</span><a className="link" href="/settings#sources"><Icon name="settings" size={16} />来源设置</a><button type="button" className="icon-button" aria-label={gridView ? '切换列表视图' : '切换网格视图'} onClick={() => setGridView(value => !value)}><Icon name={gridView ? 'lists' : 'grid'} size={18} /></button></div>}
 
         <form className="media-manual-episode" onSubmit={submitManual}>
           <label><span>{numbers.length ? '指定其他集' : '目标集数'}</span><input className="input" type="number" min="1" step="1" required value={manualEpisode} onChange={event => setManualEpisode(event.target.value)} /></label>
@@ -88,8 +83,23 @@ export function MediaSourceButton({ media }: { media: MediaSummary }) {
         </form>
 
         {session !== null && <CandidateResults session={session} busy={source.busy} onPlay={source.play} />}
+
+        {numbers.length > 0 && <section className="media-episode-section" aria-labelledby={`source-episodes-${media.id}`}>
+          <div className="media-play-selection"><h3 id={`source-episodes-${media.id}`}>{media.format === 'MOVIE' ? '影片' : '选择集数'}</h3><span className="result result--dim">已播出 {numbers.length} 集</span></div>
+          <div className={inline && !gridView ? "media-episode-grid media-episode-grid--list" : "media-episode-grid"}>
+            {numbers.map(episode => <button type="button" key={episode}
+              className={selectedEpisode === episode ? 'media-episode-button media-episode-button--selected' : 'media-episode-button'}
+              title={titleByEpisode.get(episode)} aria-label={`从本地插件查找第 ${episode} 集`}
+              onClick={() => { setManualEpisode(String(episode)); findEpisode(episode) }}>
+              {inline && <span className="media-source-still"><EpisodeArtwork image={media.episodeTitles?.find(ep => ep.episode === episode)?.image} banner={media.banner} cover={media.cover} /></span>}
+              {inline ? <span className="online-episode-copy"><span>第 {episode} 集 <small>{media.episodeTitles?.find(ep => ep.episode === episode)?.duration || media.duration || ''}{(media.episodeTitles?.find(ep => ep.episode === episode)?.duration || media.duration) ? ' 分钟' : ''}</small></span><strong>{titleByEpisode.get(episode) || `第 ${episode} 集`}</strong>{media.episodeTitles?.find(ep => ep.episode === episode)?.description && <span className="online-episode-description">{media.episodeTitles.find(ep => ep.episode === episode)!.description}</span>}</span> : <><strong>{media.format === 'MOVIE' ? '播放' : episode}</strong>{titleByEpisode.has(episode) && <span>{titleByEpisode.get(episode)}</span>}</>}
+            </button>)}
+          </div>
+        </section>}
+
+
       </div>
-    </dialog>
+    </PlaybackSurface>
   </>
 }
 

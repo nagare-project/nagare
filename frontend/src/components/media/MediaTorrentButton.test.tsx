@@ -52,162 +52,99 @@ afterEach(() => {
   if (close) Object.defineProperty(HTMLDialogElement.prototype, 'close', close); else Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
 })
 
-describe('目录作品磁力选集', () => {
-  it('点集数后用本机规则搜索，选择版本时把 episodeHint 交给共享播放会话', async () => {
-    const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
-    expect(container.querySelector<HTMLDialogElement>('.media-torrent-dialog')?.open).toBe(true)
-    expect(container.querySelector('[aria-label="搜索第 2 集资源"]')?.textContent).toContain('第二话的标题')
 
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
-    await act(async () => {})
-    // 带上集号与作品身份：后端据此再向来源插件要 BT 候选
-    expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('测试动画')
+const search = async (container: HTMLElement) => act(async () => {
+  container.querySelector<HTMLFormElement>('.media-release-search')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+})
+const release = (id: number, group: string, episode?: number, extra: Partial<SearchItem> = {}): SearchItem => ({
+  title: `[${group}] 测试动画 ${episode ?? '合集'}`, magnet: `magnet:?xt=urn:btih:${String(id).padStart(40, '0')}`,
+  size: '1 GB', fansub: null, date: null, source: 'local-rule', group, episode, kind: 'main', resolution: '1080p', ...extra,
+})
+
+describe('按字幕组浏览磁力版本', () => {
+  it('移除集数网格，先搜索字幕组；未知集号的合集不继承观看进度', async () => {
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    expect(container.querySelector('.media-episode-grid')).toBeNull()
+    expect(container.querySelector('input[type="number"]')).toBeNull()
+    expect(searchMagnets).not.toHaveBeenCalled()
+    await search(container)
+    expect(searchMagnets).toHaveBeenCalledExactlyOnceWith(media.title)
     expect(streamPluginMagnets).toHaveBeenCalledOnce()
-    expect(vi.mocked(streamPluginMagnets).mock.calls[0]?.[1]).toEqual({ episode: 2, anilistId: 7, altTitles: [] })
-    expect(container.querySelector('.media-resource-list')?.textContent).toContain('[Group] 测试动画 02')
-    expect(container.querySelector('.media-resource-list')?.textContent).toContain('本机规则')
-
     await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button')!.click())
-    expect(shared.play).toHaveBeenCalledWith(
-      { magnet, title: '[Group] 测试动画 02', episodeHint: 2 },
-      '[Group] 测试动画 02',
-      expect.any(Function),
-    )
-    expect(container.querySelector<HTMLDialogElement>('.media-torrent-dialog')?.open).toBe(false)
+    expect(shared.play.mock.calls[0]?.[0]).toEqual({ magnet, title: '[Group] 测试动画 02' })
     await unmount()
   })
 
-  it('结果按字幕组分组：命中目标集的组在前、上次选过的预选、播放后记住字幕组', async () => {
-    let n = 0
-    // 每条一个不同的 infohash：选集按 infohash 折叠重复种子，同 hash 会被当成同一条
-    const item = (title: string, group: string, episode: number | undefined, seeders?: number, kind = 'main') =>
-      ({ title, magnet: `magnet:?xt=urn:btih:${String(++n).padStart(40, '0')}`, size: '1 GB', fansub: null, date: null, source: 'local-rule', group, episode, kind, resolution: '1080p', seeders })
-    vi.mocked(searchMagnets).mockResolvedValue({
-      query: '测试动画',
-      sources: [{ source: 'local-rule', state: 'ok', count: 5, rawCount: 5, dropped: 0, latencyMs: 1 }],
-      items: [
-        item('[A] 测试动画 - 01', 'A组', 1),
-        item('[B] 测试动画 - 02 弱种', 'B组', 2, 1),
-        item('[B] 测试动画 - 02 强种', 'B组', 2, 20),
-        item('[C] 测试动画 - 02', 'C组', 2, 5),
-        item('[C] 测试动画 OP', 'C组', 2, 9, 'op'),
-      ],
-    })
-    localStorage.setItem('nagare:fansub:7', 'C组')
-    const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
-    await act(async () => {})
-
+  it('同组所有集数合并，记住字幕组，合集优先，单集播放使用条目自己的集号', async () => {
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [
+      release(1, 'A组', 8, { seeders: 20 }), release(2, 'A组', 1, { seeders: 1 }),
+      release(3, 'A组', undefined), release(4, 'B组', 2),
+    ] })
+    localStorage.setItem('nagare:fansub:7', 'B组')
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
     const chips = [...container.querySelectorAll<HTMLButtonElement>('.media-fansub-chip')]
-    expect(chips.map(chip => chip.querySelector('strong')?.textContent)).toEqual(['C组', 'B组', 'A组'])
-    expect(chips[0]?.getAttribute('aria-selected')).toBe('true')
-    expect(chips[0]?.textContent).toContain('上次')
-    expect(chips[2]?.textContent).toContain('1 条')
-    // C 组的 OP 不算命中：同一列表里正片排前（带命中标记），OP 跟在后面
-    expect(container.querySelectorAll('.media-fansub-detail .media-resource-list li')).toHaveLength(2)
-    expect(container.querySelectorAll('.media-fansub-detail .media-resource-hit')).toHaveLength(1)
-
+    expect(chips.map(chip => chip.querySelector('strong')?.textContent)).toEqual(['B组', 'A组'])
+    expect(chips[0]?.getAttribute('aria-pressed')).toBe('true')
     await act(async () => chips[1]!.click())
-    const hits = [...container.querySelectorAll('.media-fansub-detail .media-resource-hit')]
-    expect(hits.map(li => li.querySelector('strong')?.textContent)).toEqual(['[B] 测试动画 - 02 强种', '[B] 测试动画 - 02 弱种'])
-    expect(hits[0]?.querySelector('button')?.textContent).toBe('播放第 2 集')
-
-    await act(async () => hits[0]!.querySelector('button')!.click())
-    expect(shared.play).toHaveBeenCalledWith(expect.objectContaining({ episodeHint: 2, title: '[B] 测试动画 - 02 强种' }), expect.any(String), expect.any(Function))
-    expect(localStorage.getItem('nagare:fansub:7')).toBe('B组')
-    await unmount()
-  })
-
-  it('同一种子来自多个来源时按 infohash 折叠，保留带做种数的那条', async () => {
-    const ih = '0123456789abcdef0123456789abcdef01234567'
-    vi.mocked(searchMagnets).mockResolvedValue({
-      query: '测试动画',
-      sources: [{ source: 'garden', state: 'ok', count: 2, rawCount: 2, dropped: 0, latencyMs: 1 }, { source: 'plugin:nyaa', state: 'ok', count: 1, rawCount: 1, dropped: 0, latencyMs: 1 }],
-      items: [
-        { title: '[A] 测试动画 - 02', magnet: `magnet:?xt=urn:btih:${ih}&dn=x`, size: '1 GB', fansub: null, date: null, source: 'garden', group: 'A组', episode: 2, kind: 'main' },
-        { title: '[A] 测试动画 - 02', magnet: `magnet:?xt=urn:btih:${ih.toUpperCase()}`, size: '1 GB', fansub: null, date: null, source: 'plugin:nyaa', group: 'A组', episode: 2, kind: 'main', seeders: 42, infohash: ih },
-        { title: '[A] 测试动画 - 02 v2', magnet: 'magnet:?xt=urn:btih:fedcba9876543210fedcba9876543210fedcba98', size: '1 GB', fansub: null, date: null, source: 'garden', group: 'A组', episode: 2, kind: 'main' },
-      ],
-    })
-    const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
-    await act(async () => {})
-    const hits = [...container.querySelectorAll('.media-fansub-detail .media-resource-hit')]
-    expect(hits).toHaveLength(2)
-    expect(hits[0]?.textContent).toContain('做种 42')
-    await unmount()
-  })
-
-  it('季数对不上的条目不算命中：搜第一季时第四季的第 1 集归入「其他条目」', async () => {
-    let n = 0
-    const item = (title: string, group: string, season: number | undefined, date: string) =>
-      ({ title, magnet: `magnet:?xt=urn:btih:${String(++n).padStart(40, '0')}`, size: '1 GB', fansub: null, date, source: 'plugin:dmhy', group, episode: 2, kind: 'main', ...(season === undefined ? {} : { season }) })
-    vi.mocked(searchMagnets).mockResolvedValue({
-      query: '测试动画',
-      sources: [{ source: 'plugin:dmhy', state: 'ok', count: 3, rawCount: 3, dropped: 0, latencyMs: 1 }],
-      items: [
-        item('[A] 测试动画 第四季 - 02', 'A组', 4, '2020-01-11T00:00:00Z'),
-        item('[A] 测试动画 - 02 [BDRip]', 'A组', undefined, '2019-06-01T00:00:00Z'),
-        item('[A] 测试动画 - 02', 'A组', undefined, '2014-04-06T00:00:00Z'),
-      ],
-    })
-    const { container, unmount } = await mount(<MediaTorrentButton media={{ ...media, year: 2014 }} />)
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
-    await act(async () => {})
-    const hits = [...container.querySelectorAll('.media-fansub-detail .media-resource-hit')].map(li => li.querySelector('strong')?.textContent)
-    // 第四季那条不算命中；两条第一季按离 2014 近的在前；第四季那条跟在同一列表后面并标出季数
-    expect(hits).toEqual(['[A] 测试动画 - 02', '[A] 测试动画 - 02 [BDRip]'])
-    const rows = [...container.querySelectorAll('.media-fansub-detail .media-resource-list li')]
+    const rows = [...container.querySelectorAll('.media-resource-list li')]
     expect(rows).toHaveLength(3)
-    expect(rows[2]?.textContent).toContain('第 4 季')
+    expect(rows[0]?.textContent).toContain('合集')
+    expect(rows[1]?.textContent).toContain('第 8 集')
+    await act(async () => rows[1]!.querySelector('button')!.click())
+    expect(shared.play.mock.calls[0]?.[0].episodeHint).toBe(8)
+    expect(localStorage.getItem('nagare:fansub:7')).toBe('A组')
     await unmount()
   })
 
-  it('插件来源逐条追加：本机规则结果先显示，插件条目到达后并入分组，结束前标「仍在搜索」', async () => {
-    let emit: ((event: { event: 'item'; item: SearchItem } | { event: 'done' }) => void) | undefined
+  it('同一种子跨来源去重，保留做种数，未识别字幕组仍可选择', async () => {
+    const first = release(1, 'A组', 3)
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [first, { ...first, source: 'plugin:test', seeders: 42 }, release(2, '', undefined)] })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    const chips = [...container.querySelectorAll<HTMLButtonElement>('.media-fansub-chip')]
+    expect(chips).toHaveLength(2)
+    const a = chips.find(chip => chip.textContent?.includes('A组'))!
+    await act(async () => a.click())
+    expect(container.querySelectorAll('.media-resource-list li')).toHaveLength(1)
+    expect(container.querySelector('.media-resource-list')?.textContent).toContain('做种 42')
+    expect(chips.some(chip => chip.textContent?.includes('未分类'))).toBe(true)
+    await unmount()
+  })
+
+  it('字幕组流式追加不会覆盖用户选择；旧作品的请求不能写入新作品', async () => {
+    let emit: Parameters<typeof streamPluginMagnets>[2] | undefined
     let finish: (() => void) | undefined
-    vi.mocked(streamPluginMagnets).mockImplementation(async (_q, _c, onEvent) => {
-      emit = onEvent as typeof emit
-      await new Promise<void>(resolve => { finish = resolve })
-    })
-    const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
-    await act(async () => {})
-    expect(container.querySelector('.media-resource-list')?.textContent).toContain('[Group] 测试动画 02')
-    const selectionStatus = () => [...container.querySelectorAll('.media-play-selection')].at(-1)?.textContent ?? ''
-    expect(selectionStatus()).toContain('仍在搜索')
-
-    await act(async () => emit!({ event: 'item', item: { title: '[Plug] 测试动画 - 02', magnet: 'magnet:?xt=urn:btih:fedcba9876543210fedcba9876543210fedcba98', size: '700 MB', fansub: null, date: null, source: 'plugin:dmhy', group: 'Plug组', episode: 2, kind: 'main' } }))
-    expect([...container.querySelectorAll('.media-fansub-chip strong')].map(el => el.textContent)).toContain('Plug组')
-    await act(async () => { emit!({ event: 'done' }); finish!() })
-    expect(selectionStatus()).not.toContain('仍在搜索')
+    vi.mocked(streamPluginMagnets).mockImplementation(async (_q, _c, onEvent) => { emit = onEvent; await new Promise<void>(resolve => { finish = resolve }) })
+    const { container, rerender, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    await act(async () => emit!({ event: 'item', item: release(2, '新组', 5) }))
+    const chip = container.querySelector<HTMLButtonElement>('[aria-label="字幕组 新组"]')!
+    await act(async () => chip.click())
+    await act(async () => emit!({ event: 'item', item: release(3, '另一组', 6) }))
+    expect(chip.getAttribute('aria-pressed')).toBe('true')
+    await rerender(<MediaTorrentButton media={{ ...media, id: 9, title: '另一部作品' }} inline />)
+    await act(async () => { emit!({ event: 'item', item: release(4, '过期组', 1) }); finish!() })
+    expect(container.querySelector('.media-fansub-browser')).toBeNull()
     await unmount()
   })
 
-  it('没有任何组命中目标集时给出提示并展开该组全部条目', async () => {
-    vi.mocked(searchMagnets).mockResolvedValue({
-      query: '测试动画',
-      sources: [{ source: 'local-rule', state: 'ok', count: 1, rawCount: 1, dropped: 0, latencyMs: 1 }],
-      items: [{ title: '测试动画 合集', magnet, size: '9 GB', fansub: null, date: null, source: 'local-rule' }],
-    })
+  it('搜索失败可重试，弹窗入口保留关闭与播放行为', async () => {
+    vi.mocked(searchMagnets).mockRejectedValueOnce(new Error('暂时断线'))
     const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
     await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="搜索第 2 集资源"]')!.click())
-    await act(async () => {})
-    expect(container.textContent).toContain('没有识别到第 2 集的正片条目')
-    expect(container.querySelector('.media-fansub-chip strong')?.textContent).toBe('未分类')
-    expect(container.querySelector('.media-fansub-detail li span')?.textContent).toContain('合集（播放时选集）')
+    expect(container.querySelector<HTMLDialogElement>('dialog')?.open).toBe(true)
+    await search(container)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('暂时断线')
+    await act(async () => container.querySelector<HTMLButtonElement>('[role="alert"] button')!.click())
+    expect(container.querySelector('.media-resource-list')).not.toBeNull()
+    await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button')!.click())
+    expect(container.querySelector<HTMLDialogElement>('dialog')?.open).toBe(false)
     await unmount()
   })
 
-  it('未知总集数只列已有放送，未播作品不虚构集表', () => {
+  it('在线选集仍只列已播出的集数', () => {
     expect(airedEpisodeCount({ ...media, episodes: null, status: 'RELEASING', nextAiring: { episode: 5, at: 1 } })).toBe(4)
     expect(airedEpisodeCount({ ...media, episodes: 12, watched: 0, status: 'NOT_YET_RELEASED' })).toBe(0)
-    expect(airedEpisodeCount({ ...media, format: 'MOVIE', episodes: null })).toBe(1)
   })
 })

@@ -48,6 +48,9 @@ export interface MediaSummary {
   recommendations?: MediaSummary[]
   characters?: { name: string; image: string; role: string; actor?: string; actorImage?: string }[]
   /** animego 已知的逐集标题；缺项不代表该集不存在。 */
-  episodeTitles?: { episode: number; title: string }[]
+  episodeTitles?: EpisodeMetadata[]
   rankings?: { rank: number; type: string; context: string; year: number; season: string }[]
 }
+
+/** 公开的逐集资料，图片为服务端登记后的本机地址。 */
+export interface EpisodeMetadata { episode: number; title: string; image?: string; description?: string; duration?: number; airDate?: string; airedAt?: string }

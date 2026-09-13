@@ -23,3 +23,10 @@
   .anime-group { margin-left: 0; padding: 12px; }
 }
 @media (max-width: 480px) { .anime-hero-art { width: 100px; } .anime-title { font-size: 24px; } .anime-hero-actions { margin-top: 16px; } }
+.anime-hero-body { align-items: flex-start; }
+.anime-hero-art { width: 270px; aspect-ratio: 27 / 37; }
+.anime-hero { padding-top: 32px; }
+.anime-library-label { display: flex; align-items: center; gap: 8px; padding-bottom: 16px; margin-top: 4px; border-bottom: 1px solid var(--border-dim); font-size: 15px; font-weight: 600; }
+.anime-library-label > span { margin-left: auto; color: var(--fg-muted); font-size: 13px; font-weight: 400; }
+@media (max-width: 800px) { .anime-hero-body { align-items: center; } .anime-hero-art { width: 140px; } }
+@media (max-width: 480px) { .anime-hero-art { width: 100px; } }

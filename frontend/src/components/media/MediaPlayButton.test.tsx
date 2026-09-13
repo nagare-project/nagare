@@ -43,6 +43,31 @@ afterEach(() => {
 })
 
 describe('Discover 播放入口', () => {
+  it('详情页直接加载关联的真实剧集，但必须点击才播放', async () => {
+    localStorage.setItem('nagare:media-library:900', cluster.clusterKey)
+    const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
+    expect(fetchLibrary).toHaveBeenCalledOnce()
+    expect(container.querySelector('dialog')).toBeNull()
+    expect(container.querySelector('.media-play-close')).toBeNull()
+    expect(container.querySelectorAll('.episode-card')).toHaveLength(4)
+    expect(container.querySelector('.episode-feature-meta')?.textContent).toContain('第 02 集 / 12')
+    expect(playFile).not.toHaveBeenCalled()
+    await click(container, '.episode-feature')
+    expect(playFile).toHaveBeenCalledExactlyOnceWith('ep2')
+    await unmount()
+  })
+
+  it('详情页未关联作品时保留用户选择，不按名称自动关联', async () => {
+    const { container, unmount } = await mount(<MediaPlayButton media={{ ...media, title: cluster.title }} inline />)
+    expect(container.querySelector('.media-play-choice')).not.toBeNull()
+    expect(container.querySelector('.episode-feature')).toBeNull()
+    expect(playFile).not.toHaveBeenCalled()
+    await click(container, '.media-play-choice')
+    expect(container.querySelectorAll('.episode-card')).toHaveLength(4)
+    expect(localStorage.getItem('nagare:media-library:900')).toBeNull()
+    await unmount()
+  })
+
   it('首次由用户选作品和真实文件，只有播放成功后保存关联', async () => {
     const { container, unmount } = await mount(<MediaPlayButton media={media} onOpenChange={() => {}} />)
     expect(fetchLibrary).not.toHaveBeenCalled()
