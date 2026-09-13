@@ -1,7 +1,8 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Icon } from '../components/ui/Icon'
-import { EpisodeRow } from '../components/library/EpisodeRow'
+import { LibraryEpisodeCards } from '../components/library/LibraryEpisodeCards'
+import { nextLibraryEpisode } from '../components/media/MediaPlayButton'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { usePlayerStatus } from '../hooks/usePlayerStatus'
@@ -91,9 +92,8 @@ export function AnimePage() {
   }
 
   const playing = player.status?.playing === true ? player.status : null
-  const episodes = cluster.groups.flatMap((group) => group.items)
-  const next = episodes.find((item) => item.progress && item.progress.positionSec > 0 && !item.progress.completed)
-    ?? episodes.find((item) => !item.progress?.completed) ?? episodes[0]
+  const next = nextLibraryEpisode(cluster)
+
 
   return (
     <main className="lib-shell anime-shell">
@@ -105,22 +105,9 @@ export function AnimePage() {
         </p>
       )}
 
-      {cluster.groups.map((group) => (
-        <section key={group.groupKey} className="anime-group">
-<h2 className="anime-group-label">{shouldShowGroupLabel(group.label, cluster.title, cluster.groups.length) ? group.label : '剧集'} <span className="section-count">{group.items.length}</span></h2>
-          <ul className="ep-list">
-            {group.items.map((item) => (
-              <EpisodeRow
-                key={item.fileId}
-                item={item}
-                onPlay={(fileId) => void handlePlay(fileId)}
-                isActive={item.fileId === playing?.fileId}
-                isPending={item.fileId === pendingFileId}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+      <div className="anime-library-label"><Icon name="lists" size={18} />本地媒体库<span>{cluster.episodeCount} 集已入库</span></div>
+      <LibraryEpisodeCards cluster={cluster} next={next} pending={pendingFileId !== null} activeFileId={playing?.fileId} onPlay={item => void handlePlay(item.fileId)} />
+
     </main>
   )
 }
@@ -166,11 +153,4 @@ function AnimeHero({ cluster, onPlay, pending, resume }: { cluster: LibraryClust
       </div>
     </header>
   )
-}
-
-/** 只有一个分组且标签与作品同名（或为空）时不重复展示分组标题 */
-function shouldShowGroupLabel(groupLabel: string, clusterTitle: string, groupCount: number): boolean {
-  if (groupLabel === '') return false
-  if (groupCount > 1) return true
-  return groupLabel !== clusterTitle
 }

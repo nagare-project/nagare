@@ -65,6 +65,21 @@ afterEach(() => {
 })
 
 describe('目录作品的本地插件找源', () => {
+  it('详情页只展示已播出剧集，切换列表和网格不会自动找源', async () => {
+    const dated = { ...media, episodeTitles: [
+      { episode: 1, title: '已播出', airedAt: '2020-01-01T00:00:00Z', image: '/one.jpg' },
+      { episode: 2, title: '未来集', airedAt: '2099-01-01T00:00:00Z' },
+    ] }
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={dated} inline /></SourcePlaybackProvider>)
+    expect(container.querySelectorAll('.media-episode-button')).toHaveLength(1)
+    expect(container.querySelector('.media-episode-grid--list')).not.toBeNull()
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="切换网格视图"]')!.click())
+    expect(container.querySelector('.media-episode-grid--list')).toBeNull()
+    expect(container.querySelector('.media-source-still img')?.getAttribute('src')).toBe('/one.jpg')
+    expect(streamSourceCandidates).not.toHaveBeenCalled()
+    await unmount()
+  })
+
   it('快速切集后忽略上一集迟到的候选，避免自动播错集', async () => {
     const streams: Array<{ emit: Parameters<typeof streamSourceCandidates>[1]; signal?: AbortSignal; finish: () => void }> = []
     vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit, signal) => {

@@ -1,3 +1,4 @@
+import { COLLECTION_LABELS } from '../../lib/media'
 import { audienceColor } from './media-format'
 import type { ReactNode } from 'react'
 import { useRef } from 'react'
@@ -16,7 +17,8 @@ const RELATIONS: Record<string, string> = { PREQUEL: '前作', SEQUEL: '续作',
 
 export function MediaDetails({ media, titleId, page = false, children }: { media: MediaSummary; titleId?: string; page?: boolean; children?: ReactNode }) {
   const collection = useCollection()
-  const watched = collection.entries.find(entry => entry.anilistId === media.id)?.currentEpisode ?? media.watched
+  const entry = collection.entries.find(entry => entry.anilistId === media.id)
+  const watched = entry?.currentEpisode ?? media.watched
   const subtitle = media.titleEnglish?.toLowerCase() !== media.title.toLowerCase() ? media.titleEnglish : undefined
   const rankings = (media.rankings ?? []).filter(rank => rank.type === 'RATED' && rank.rank <= (rank.year || rank.season ? 5 : 100)).slice(0, 2)
   const description = useRef<HTMLDialogElement>(null)
@@ -27,8 +29,8 @@ export function MediaDetails({ media, titleId, page = false, children }: { media
       <div className="media-preview-info">
         <DescriptionTitle id={titleId} className="media-detail-title">{media.title}</DescriptionTitle>
         {subtitle && <p className="media-preview-native">{subtitle}</p>}
-        <div className="media-preview-meta"><span className="media-preview-progress">{watched}<span>/{media.episodes ?? '—'}</span></span><MediaListEditor media={media} />
-          {(media.year || media.season) && <span><Icon name="calendar" size={20} />{media.startDate?.slice(0, 7) || media.year} {media.season}</span>}
+        <div className="media-preview-meta"><span className="media-preview-progress">{watched}<span>/{media.episodes ?? '—'}</span></span><MediaListEditor media={media} />{page && entry && <span className="media-detail-collection-status">{COLLECTION_LABELS[entry.status]}</span>}
+          {(media.year || media.season) && <span className="media-detail-date"><Icon name="calendar" size={20} />{media.startDate?.slice(0, 7) || media.year} {media.season}</span>}
           {media.status && media.status !== 'FINISHED' && <span className="media-detail-status"><Icon name="broadcast" size={18} />{STATUS[media.status] ?? media.status}</span>}
         </div>
         <div className="media-preview-genres">
@@ -49,12 +51,13 @@ export function MediaDetails({ media, titleId, page = false, children }: { media
 
 export function MediaRelations({ media, preview = false }: { media: MediaSummary; preview?: boolean }) {
   return <div className={preview ? 'media-relations media-relations--preview' : 'media-relations'}>
-    {!!media.relations?.length && <section><h2>关联作品</h2><ul className="media-detail-grid">{media.relations.slice(0, 4).map(relation => <DiscoverCard key={`${relation.type}-${relation.media.id}`} media={relation.media} badge={RELATIONS[relation.type] ?? relation.type} />)}</ul></section>}
-    {!!media.recommendations?.length && <section><h2>相关推荐</h2><ul className="media-detail-grid">{media.recommendations.map(item => <DiscoverCard key={item.id} media={item} />)}</ul></section>}
+
     {!preview && !!media.characters?.length && <section><h2>角色</h2><ul className="media-character-grid">{media.characters.map((character, index) => <li key={index}>
       <MediaArtwork src={character.image} title={character.name} /><div><strong>{character.name}</strong><span>{character.role === 'MAIN' ? '主角' : '配角'}</span></div>
       {character.actor && <div className="media-character-actor"><strong>{character.actor}</strong><span>日语配音</span></div>}{character.actorImage && <MediaArtwork src={character.actorImage} title={character.actor ?? ''} />}
     </li>)}</ul></section>}
+    {!!media.relations?.length && <section><h2>关联作品</h2><ul className="media-detail-grid">{media.relations.slice(0, 4).map(relation => <DiscoverCard key={`${relation.type}-${relation.media.id}`} media={relation.media} badge={RELATIONS[relation.type] ?? relation.type} />)}</ul></section>}
+    {!!media.recommendations?.length && <section><h2>相关推荐</h2><ul className="media-detail-grid">{media.recommendations.map(item => <DiscoverCard key={item.id} media={item} />)}</ul></section>}
   </div>
 }
 

@@ -28,6 +28,10 @@ export default defineConfig({
       // rebinding），所以必须 changeOrigin 把 Host 改写成目标地址才能过校验。
       // 8590 是后端默认端口；被占时后端会自动向上找并回写配置，此时用
       // NAGARE_DEV_PORT=<实际端口> bun run dev 覆盖。
+      '/art': {
+        target: `http://127.0.0.1:${process.env.NAGARE_DEV_PORT ?? '8590'}`,
+        changeOrigin: true,
+      },
       '/api': {
         target: `http://127.0.0.1:${process.env.NAGARE_DEV_PORT ?? '8590'}`,
         changeOrigin: true,
