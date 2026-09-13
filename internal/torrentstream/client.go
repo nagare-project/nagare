@@ -272,7 +272,7 @@ func (e *Engine) rebuildClient(next, prev Config) (bool, error) {
 		log.Printf("torrent: 重建磁力引擎时清理缓存失败：%v", err)
 	}
 
-	client, err := newClient(e.cacheDir, next)
+	client, err := newClientAfterRelease(e.cacheDir, next)
 	if err == nil {
 		e.mu.Lock()
 		if e.closed {
@@ -287,16 +287,44 @@ func (e *Engine) rebuildClient(next, prev Config) (bool, error) {
 		return false, nil
 	}
 
-	fallback, rollbackErr := newClient(e.cacheDir, prev)
+	// 这两条失败都要落日志：返回值只到得了那一次设置保存的响应里，而回滚失败
+	// 的后果（引擎死态）要到用户下一次点播放才暴露，那时没有任何线索可查。
+	log.Printf("torrent: 按新配置重建磁力引擎失败，回滚到旧配置：%v", err)
+	fallback, rollbackErr := newClientAfterRelease(e.cacheDir, prev)
 	e.mu.Lock()
 	e.client = fallback           // 回滚也失败时是 nil
 	e.cfg, e.liveCfg = prev, prev // 生效的是旧配置，存的也必须是旧配置
 	if rollbackErr != nil {
+		log.Printf("torrent: 回滚旧配置也失败，磁力引擎不可用直到重启：%v", rollbackErr)
 		e.rebuildErr = errs.Wrap(errs.CategoryTorrent, "torrentstream.rebuild",
 			"磁力引擎重启失败", "重启 nagare 后重试", rollbackErr)
 	}
 	e.mu.Unlock()
 	return false, err
+}
+
+// 重建 client 时等旧监听端口释放的上限与探测间隔。
+//
+// anacrolix 的 Client.Close 把每个 socket 的 Close 丢进 goroutine 就返回
+// （v1.61.0 client.go:402 `go s.Close()`），所以 closeClient 返回那一刻端口多半还被
+// 占着；紧接着在同一端口上起新 client 会撞 EADDRINUSE，回滚走同一端口再撞一次，
+// 引擎就被标成死态。真机上第一次切换做种开关就复现了。等的只是我们自己刚关掉的
+// socket，正常几十毫秒内放开；三秒还占着就真是别的程序占了端口，照常报错。
+const (
+	rebindGrace    = 3 * time.Second
+	rebindInterval = 50 * time.Millisecond
+)
+
+// newClientAfterRelease 在 EADDRINUSE 上短暂重试；其他错误原样立刻返回。
+func newClientAfterRelease(cacheDir string, cfg Config) (*torrent.Client, error) {
+	deadline := time.Now().Add(rebindGrace)
+	for {
+		client, err := newClient(cacheDir, cfg)
+		if err == nil || !isAddrInUse(err) || time.Now().After(deadline) {
+			return client, err
+		}
+		time.Sleep(rebindInterval)
+	}
 }
 
 // closeClient 丢掉残留种子并关闭 client，错误只记日志。

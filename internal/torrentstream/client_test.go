@@ -2,13 +2,17 @@ package torrentstream
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/anacrolix/torrent"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -207,4 +211,72 @@ func forceCacheRefresh(e *Engine) {
 	e.cacheMu.Lock()
 	e.cacheAt = time.Time{}
 	e.cacheMu.Unlock()
+}
+
+// 固定端口上重建 client：anacrolix 的 Client.Close 把 socket 关闭丢进 goroutine 就返回
+// （client.go:402 `go s.Close()`），Close 返回那一刻端口多半还被占着。真机复现过：
+// 第一次切换做种开关就撞 EADDRINUSE，回滚走同一端口再撞一次，引擎被标成死态。
+// 之前的用例全部用 ListenPort 0（每次随机端口），所以从来没撞上。
+func TestSetConfigRebuildsOnSamePortAfterClose(t *testing.T) {
+	port := freeTCPPort(t)
+	engine, err := New(Options{
+		CacheDir:   t.TempDir(),
+		StreamBase: func() string { return "" },
+		Config:     Config{PortForwarding: false, ListenPort: port},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+
+	for i, seeding := range []bool{true, false, true} {
+		restart, err := engine.SetConfig(Config{PortForwarding: false, ListenPort: port, Seeding: seeding})
+		require.NoError(t, err, "第 %d 次在同一端口上重建", i+1)
+		assert.False(t, restart)
+		assert.False(t, engine.RestartRequired())
+		_, err = engine.activeClient()
+		require.NoError(t, err, "重建后引擎必须可用")
+	}
+}
+
+// 端口迟迟不释放时，重建只在 EADDRINUSE 上等，其他错误立刻返回、不白等。
+func TestRebuildRetriesOnlyOnAddrInUse(t *testing.T) {
+	engine := newTestEngine(t, t.TempDir())
+	prev := newClient
+	t.Cleanup(func() { newClient = prev })
+
+	var calls int
+	newClient = func(dir string, cfg Config) (*torrent.Client, error) {
+		calls++
+		if calls <= 3 {
+			return nil, errs.Wrap(errs.CategoryTorrent, "torrentstream.client", "磁力引擎启动失败", "换端口",
+				&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "bind", Err: syscall.EADDRINUSE}})
+		}
+		return prev(dir, cfg)
+	}
+	_, err := engine.SetConfig(Config{PortForwarding: false, ListenPort: 0, Seeding: true})
+	require.NoError(t, err, "端口释放后应重建成功")
+	assert.Equal(t, 4, calls, "前三次 EADDRINUSE 都应重试")
+
+	calls = 0
+	newClient = func(dir string, cfg Config) (*torrent.Client, error) {
+		calls++
+		if calls == 1 {
+			return nil, errors.New("别的错误")
+		}
+		return prev(dir, cfg)
+	}
+	_, err = engine.SetConfig(Config{PortForwarding: false, ListenPort: 0, Seeding: false})
+	require.Error(t, err)
+	assert.Equal(t, 2, calls, "非 EADDRINUSE 不重试：一次失败 + 一次回滚")
+	_, err = engine.activeClient()
+	require.NoError(t, err, "回滚成功，引擎仍可用")
+}
+
+// freeTCPPort 向系统要一个当前空闲的端口。
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+	return port
 }
