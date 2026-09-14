@@ -3,25 +3,40 @@
 package mpv
 
 import (
-	"errors"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"net"
+	"os"
+	"time"
+
+	winio "github.com/Microsoft/go-winio"
 )
 
-// errWindowsNotYet：Windows 上 mpv 的 IPC 走命名管道（\\.\pipe\...），
-// 连接需要专门的管道拨号实现，按计划在打包里程碑（M4）随自带 mpv 一起接入。
-// M1 先保证可交叉编译并给出明确指引。
-var errWindowsNotYet = errors.New(
-	"Windows 上的 mpv 播放尚未接入（命名管道 IPC 将在打包版本提供）；目前请在 macOS 或 Linux 上使用 nagare")
+// Windows 上 mpv 的 `--input-ipc-server` 是命名管道（\\.\pipe\<name>），不是文件系统
+// 里的 socket：没有路径长度上限、没有残留文件要清、也不受 SocketDir 影响。
+// 客户端要 overlapped I/O 才能像 net.Conn 一样读写，用 go-winio 的 DialPipe
+// （Docker / containerd 同款），不自己拼 CreateFile。
+//
+// 名字带 pid + 128 位随机段：同机多实例不撞名，也让别的进程猜不到（管道默认 DACL
+// 给 Everyone 只读，写入需要同一用户；与 seanime 的做法一致）。
 
-// ipcEndpoint 在 Windows 上应返回命名管道路径；M1 直接返回明确错误。
+const pipePrefix = `\\.\pipe\nagare-mpv-`
+
+// ipcEndpoint 生成唯一的命名管道名；dir 对管道无意义，忽略。
 func ipcEndpoint(_ string) (string, error) {
-	return "", errWindowsNotYet
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("生成 IPC 管道随机名失败：%w", err)
+	}
+	return fmt.Sprintf("%s%d-%s", pipePrefix, os.Getpid(), hex.EncodeToString(buf)), nil
 }
 
-// dialIPC 在 Windows 上需要 named pipe 客户端；M1 直接返回明确错误。
-func dialIPC(_ string) (net.Conn, error) {
-	return nil, errWindowsNotYet
+// dialIPC 连接命名管道。管道尚未由 mpv 创建时快速失败，由上层轮询重试。
+func dialIPC(path string) (net.Conn, error) {
+	timeout := time.Second
+	return winio.DialPipe(path, &timeout)
 }
 
-// removeIPCEndpoint 命名管道无文件残留，无需清理。
+// removeIPCEndpoint 命名管道随最后一个句柄关闭而消失，没有东西要清。
 func removeIPCEndpoint(_ string) {}

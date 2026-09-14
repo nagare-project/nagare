@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 	"time"
 
@@ -248,7 +247,7 @@ func TestRebuildRetriesOnlyOnAddrInUse(t *testing.T) {
 		calls++
 		if calls <= 3 {
 			return nil, errs.Wrap(errs.CategoryTorrent, "torrentstream.client", "磁力引擎启动失败", "换端口",
-				&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "bind", Err: syscall.EADDRINUSE}})
+				&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "bind", Err: testAddrInUse}})
 		}
 		return prev(dir, cfg)
 	}
@@ -279,4 +278,23 @@ func freeTCPPort(t *testing.T) int {
 	port := l.Addr().(*net.TCPAddr).Port
 	require.NoError(t, l.Close())
 	return port
+}
+
+// 缓存目录被占用（Windows 的「being used by another process」）时在宽限期内重试，
+// 句柄一放开就删掉；不是第一次失败就放弃。
+func TestPurgeCacheRetriesWhileFilesAreBusy(t *testing.T) {
+	engine := newTestEngine(t, t.TempDir())
+	prev := removeAll
+	t.Cleanup(func() { removeAll = prev })
+
+	var calls int
+	removeAll = func(dir string) error {
+		calls++
+		if calls <= 3 {
+			return errors.New("remove: The process cannot access the file because it is being used by another process.")
+		}
+		return prev(dir)
+	}
+	require.NoError(t, engine.purgeCache())
+	assert.Equal(t, 4, calls, "前三次被占用都应重试")
 }

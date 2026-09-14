@@ -7,6 +7,7 @@ toolchain go1.27.0
 require (
 	fyne.io/systray v1.12.2
 	github.com/BurntSushi/toml v1.6.0
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/anacrolix/torrent v1.61.0
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/stretchr/testify v1.12.1

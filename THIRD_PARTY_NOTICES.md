@@ -106,7 +106,8 @@ nagare 二进制的第三方组件及其许可证。许可证以各上游源码�
 | golang.org/x/mod | BSD-3-Clause |
 | gopkg.in/yaml.v3 / go.yaml.in/yaml/v3 | MIT（部分文件 Apache-2.0） |
 | fyne.io/systray（托盘图标） | BSD-3-Clause |
-| github.com/godbus/dbus/v5（systray 的 Linux 后端） | BSD-2-Clause |
+| github.com/godbus/dbus/v5（systray 的 Linux 后端，Linux 桌面通知） | BSD-2-Clause |
+| github.com/Microsoft/go-winio（Windows 上连接 mpv 的命名管道） | MIT |
 
 仅用于测试、不进入二进制：github.com/stretchr/testify（MIT）。
 
