@@ -90,7 +90,7 @@ func TestDetect_VersionParsing(t *testing.T) {
 		{
 			name:    "低于下限应拒绝并含升级指引",
 			output:  "mpv 0.31.0 Copyright © 2000-2019 mpv/MPlayer/mplayer2 projects",
-			wantErr: []string{"版本过低", "0.31.0", MinVersion, "升级"},
+			wantErr: []string{"版本过低", "0.31.0", MinVersion, upgradeHint()},
 		},
 		{
 			name:    "乱格式",

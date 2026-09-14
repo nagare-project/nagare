@@ -3,6 +3,8 @@ package selfupdate
 import (
 	"errors"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,6 +105,7 @@ func TestClassify(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			skipIfForeignPathStyle(t, tc.exe)
 			got := classify(tc.exe, tc.goos)
 			require.Equal(t, tc.want, got.channel)
 			require.Equal(t, tc.exe, got.exePath)
@@ -185,7 +188,21 @@ func TestClassifyDetectsPackageManagers(t *testing.T) {
 // 反向：手动装在 /Applications 的 .app 仍然要能自更新 —— 那是 dmg 拖进去的，
 // 没有任何包管理器在管它。把这条一起钉住，防止上面的判定收得太宽。
 func TestClassifyKeepsManualAppBundleUpdatable(t *testing.T) {
+	skipIfForeignPathStyle(t, "/Applications/Nagare.app/Contents/MacOS/nagare")
 	got := classify("/Applications/Nagare.app/Contents/MacOS/nagare", "darwin")
 	assert.Equal(t, ChannelAppBundle, got.channel)
 	assert.Equal(t, "/Applications/Nagare.app", got.target)
+}
+
+// skipIfForeignPathStyle：classify 用的是【宿主机】的 filepath 语义（运行时只会拿到
+// 本机形状的路径），所以 unix 形状的用例在 Windows 宿主上没有意义，反之亦然。
+func skipIfForeignPathStyle(t *testing.T, exe string) {
+	t.Helper()
+	unixStyle := strings.HasPrefix(exe, "/")
+	if runtime.GOOS == "windows" && unixStyle {
+		t.Skip("unix 路径用例只在 unix 宿主上有意义")
+	}
+	if runtime.GOOS != "windows" && !unixStyle {
+		t.Skip("Windows 路径用例只在 Windows 宿主上有意义")
+	}
 }

@@ -6,6 +6,7 @@ package selfupdate
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -208,6 +209,9 @@ func TestExtractNormalizesModes(t *testing.T) {
 		{"zip", "x.zip", func(t *testing.T) []byte { return buildZip(t, entries) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				t.Skip("Windows 没有 POSIX 权限位，模式归一化在那里没有可观察的效果")
+			}
 			src := writeArchive(t, tc.file, tc.build(t))
 			dst := filepath.Join(t.TempDir(), "out")
 			require.NoError(t, extractArchive(src, dst, tc.file))

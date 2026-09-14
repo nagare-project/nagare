@@ -404,8 +404,8 @@ func (e *Engine) ClearCache() error {
 // purgeCache 删掉整个缓存目录再重建。一次只播一个种子，
 // 因此「整目录删掉」就是「删掉这次的分片」，不需要按种子挑文件。
 func (e *Engine) purgeCache() error {
-	if err := os.RemoveAll(e.cacheDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		// 正在播完的文件可能还被占用（Windows），记日志后仍然报出去 ——
+	if err := removeAllRetrying(e.cacheDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		// 等过宽限期仍被占用（Windows 上多半是 mpv 还开着那个文件），记日志后仍然报出去 ——
 		// 「以为清干净了其实没清」比报错更糟。
 		log.Printf("torrent: 清理缓存目录失败：%v", err)
 		return errs.Wrap(errs.CategoryStorage, "torrentstream.purge",
@@ -419,6 +419,33 @@ func (e *Engine) purgeCache() error {
 	e.cacheBytes, e.cacheAt = 0, time.Now()
 	e.cacheMu.Unlock()
 	return nil
+}
+
+// 删缓存目录时等文件句柄释放的上限与间隔。
+//
+// Windows 不允许删除还被打开着的文件，而停播 / 关引擎那一刻句柄多半还没放完：
+// 流端点的 reader 在另一个 goroutine 里收尾，anacrolix 关 client 也是异步的
+// （见 closeClient 上面的注释）。CI 在 windows-latest 上实测：同进程集成测试
+// 里退出时清缓存直接报「being used by another process」。unix 上删除打开中的文件
+// 本来就成功，重试不会触发。
+const (
+	purgeGrace    = 3 * time.Second
+	purgeInterval = 100 * time.Millisecond
+)
+
+// removeAll 是 os.RemoveAll 的注入点：单测用它模拟「前几次被占用」。
+var removeAll = os.RemoveAll
+
+// removeAllRetrying 在宽限期内重试删除；最后一次的错误原样返回。
+func removeAllRetrying(dir string) error {
+	deadline := time.Now().Add(purgeGrace)
+	for {
+		err := removeAll(dir)
+		if err == nil || errors.Is(err, fs.ErrNotExist) || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(purgeInterval)
+	}
 }
 
 // dirSize 累加目录下所有普通文件的大小。读不到的条目跳过 —— 这是给界面看的
