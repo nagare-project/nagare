@@ -36,6 +36,9 @@ type settingsView struct {
 		LoggedIn bool   `json:"loggedIn"`
 		BaseURL  string `json:"baseUrl"`
 	} `json:"animego"`
+	Background struct {
+		Mode string `json:"mode"`
+	} `json:"background"`
 }
 
 func getSettings(t *testing.T, env *testEnv) settingsView {
@@ -64,6 +67,13 @@ func TestSettings(t *testing.T) {
 	assert.Nil(t, s.MPV.Install, "找到 mpv 时不该带安装指引")
 	assert.False(t, s.Animego.LoggedIn)
 	assert.Equal(t, "https://example.test", s.Animego.BaseURL)
+	assert.Equal(t, "dock", s.Background.Mode, "界面按后台形态写「去哪里找它」的提示")
+}
+
+// 旧调用方没填 BackgroundMode 时归一成 none，界面只认四个枚举。
+func TestBackgroundModeViewDefaultsToNone(t *testing.T) {
+	assert.Equal(t, "none", backgroundModeView(""))
+	assert.Equal(t, "tray", backgroundModeView("tray"))
 }
 
 // mpv 缺失：settings 带 hint + install；用户装好后 POST /api/mpv/detect 翻转共享状态，

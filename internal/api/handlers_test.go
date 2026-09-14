@@ -158,6 +158,7 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 		Shutdown:        func() { env.shutdown <- struct{}{} },
 		DataDir:         "/data/nagare",
 		LogPath:         "/data/nagare/logs/nagare.log",
+		BackgroundMode:  "dock",
 		TorrentCacheDir: "/data/nagare/cache/torrent",
 	}
 	if withTorrent {

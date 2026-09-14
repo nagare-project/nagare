@@ -16,7 +16,7 @@ import (
 // 激活一下，根本不会启动新的；随后我们退出，结果是一个都不剩。
 // exec 没有这个问题：PID 与 argv 都保留，Go 建的 socket 都带 CLOEXEC 会自动关闭，
 // 端口立刻释放；新映像的路径仍在 .app 里，NSBundle 照样能找到 Info.plist，
-// LSUIElement（菜单栏应用、不占 Dock）继续生效。
+// Dock 图标与应用菜单（internal/tray/dock_darwin.m 按「在 .app 里」判定）继续生效。
 func restartProcess(exePath string, argv []string, env []string) error {
 	if err := syscall.Exec(exePath, argv, env); err != nil {
 		return errs.Wrap(errs.CategoryInternal, "selfupdate.restart",

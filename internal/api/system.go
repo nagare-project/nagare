@@ -16,16 +16,17 @@ const shutdownDelay = 100 * time.Millisecond
 // ── 系统：设置载荷、mpv 重探测、退出 ──
 
 // settings 是设置页的一次性载荷（M4 阶段 A 契约）：
-// version / platform / arch / dataDir / logPath / mpv / animego。
+// version / platform / arch / dataDir / logPath / mpv / animego / torrent / background。
 func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{
-		"version":  h.deps.Version,
-		"platform": runtime.GOOS,
-		"arch":     runtime.GOARCH,
-		"dataDir":  h.deps.DataDir,
-		"logPath":  h.deps.LogPath,
-		"mpv":      mpvView(h.deps.MPV),
-		"torrent":  torrentView(h.deps.Store.TorrentConfig(), h.deps.Torrent, h.deps.TorrentCacheDir),
+		"version":    h.deps.Version,
+		"platform":   runtime.GOOS,
+		"arch":       runtime.GOARCH,
+		"dataDir":    h.deps.DataDir,
+		"logPath":    h.deps.LogPath,
+		"mpv":        mpvView(h.deps.MPV),
+		"torrent":    torrentView(h.deps.Store.TorrentConfig(), h.deps.Torrent, h.deps.TorrentCacheDir),
+		"background": map[string]any{"mode": backgroundModeView(h.deps.BackgroundMode)},
 		"animego": map[string]any{
 			"loggedIn": h.deps.Auth.LoggedIn(),
 			"email":    h.deps.Store.AnimegoSession().Email,
@@ -86,4 +87,12 @@ func (h *Handler) shutdown(w http.ResponseWriter, _ *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
 	log.Print("api: 收到界面退出请求")
 	time.AfterFunc(shutdownDelay, h.deps.Shutdown)
+}
+
+// backgroundModeView 把空值（旧调用方没填）归一成 "none"，界面只认四个枚举。
+func backgroundModeView(mode string) string {
+	if mode == "" {
+		return "none"
+	}
+	return mode
 }

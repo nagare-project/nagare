@@ -3,6 +3,8 @@ import { AppRail } from './AppRail'
 import { SelfUpdateContext, useSelfUpdate } from '../hooks/useSelfUpdate'
 import { UpdateContext, useUpdate } from '../hooks/useUpdate'
 import { UpdateBanner } from './UpdateBanner'
+import { BackgroundHint } from './BackgroundHint'
+import { useSettings } from '../hooks/useSettings'
 import { CollectionProvider } from './media/CollectionContext'
 import { SourcePlaybackProvider } from './media/SourcePlaybackContext'
 import { TorrentPlayProvider } from './torrent/TorrentPlayContext'
@@ -18,6 +20,9 @@ import { TorrentPlayProvider } from './torrent/TorrentPlayContext'
 export function RootLayout() {
   const update = useUpdate()
   const selfUpdate = useSelfUpdate()
+  // 只为「关掉标签页不会退出」那条提示读一次设置：它要知道后台形态才能措辞。
+  const settings = useSettings()
+  const settingsData = settings.state.phase === 'ready' ? settings.state.data : null
   return (
     <UpdateContext.Provider value={update}>
       <SelfUpdateContext.Provider value={selfUpdate}>
@@ -26,6 +31,10 @@ export function RootLayout() {
             <UpdateBanner
               view={update.state.phase === 'ready' ? update.state.data : null}
               selfUpdate={selfUpdate}
+            />
+            <BackgroundHint
+              mode={settingsData?.background?.mode ?? null}
+              platform={settingsData?.platform ?? null}
             />
             <Outlet />
           </div>

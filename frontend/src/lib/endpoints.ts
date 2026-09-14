@@ -222,6 +222,19 @@ export interface AnimegoInfo {
 }
 
 /** GET /api/settings 的 data 载荷 */
+/**
+ * nagare 在后台以什么形态运行 —— 决定「关掉标签页后去哪里找它」的提示文案：
+ * - `dock`：macOS .app，Dock 图标 + 菜单栏图标
+ * - `menubar`：macOS 裸二进制（Homebrew），只有右上角菜单栏图标
+ * - `tray`：Windows / Linux 系统托盘
+ * - `none`：`--no-tray`、API-only 或没有托盘的桌面（退出只能靠设置页 / Ctrl+C）
+ */
+export type BackgroundMode = 'dock' | 'menubar' | 'tray' | 'none'
+
+export interface BackgroundInfo {
+  mode: BackgroundMode
+}
+
 export interface SettingsData {
   version: string
   platform: Platform
@@ -234,6 +247,8 @@ export interface SettingsData {
   animego: AnimegoInfo
   /** 磁力边下边播的当前配置与缓存占用（M3） */
   torrent: TorrentSettings
+  /** 后台形态（界面顶部「关掉标签页不会退出」提示条据此措辞） */
+  background: BackgroundInfo
 }
 
 // ---------- 更新（M4 阶段 A：只提示；阶段 B：一键更新） ----------
