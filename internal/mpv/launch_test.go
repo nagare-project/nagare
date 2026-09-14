@@ -58,6 +58,21 @@ func TestBuildArgsPassesURLAfterSeparator(t *testing.T) {
 	assert.Equal(t, []string{"--", streamURL}, args[len(args)-2:])
 }
 
+// 网络流要带流式缓存参数；本地文件不带（本地读盘不存在供给跟不上的问题，
+// cache-pause-initial 反而会让本地播放多等一拍）。
+func TestBuildArgsStreamCacheOnlyForNetworkStreams(t *testing.T) {
+	stream := buildArgs(LaunchOptions{MediaPath: "http://127.0.0.1:8823/stream/cap/t/hash/0", NetworkStream: true}, "/tmp/nagare.sock")
+	for _, want := range streamCacheArgs {
+		assert.Contains(t, stream, want)
+	}
+	assert.Contains(t, stream, "--cache-pause-initial=yes")
+
+	local := buildArgs(LaunchOptions{MediaPath: "/v/ep01.mkv"}, "/tmp/nagare.sock")
+	for _, arg := range local {
+		assert.NotContains(t, arg, "--cache", "本地文件不该带流式缓存参数：%s", arg)
+	}
+}
+
 func TestBuildArgsPassesRemoteHeadersInStableOrder(t *testing.T) {
 	args := buildArgs(LaunchOptions{
 		MediaPath:   "https://media.example/ep.m3u8",
