@@ -423,11 +423,13 @@ func (e *Engine) purgeCache() error {
 
 // 删缓存目录时等文件句柄释放的上限与间隔。
 //
-// Windows 不允许删除还被打开着的文件，而停播 / 关引擎那一刻句柄多半还没放完：
+// Windows 不允许删除还被打开着的文件，而停播 / 关引擎那一刻句柄未必放完：
 // 流端点的 reader 在另一个 goroutine 里收尾，anacrolix 关 client 也是异步的
-// （见 closeClient 上面的注释）。CI 在 windows-latest 上实测：同进程集成测试
-// 里退出时清缓存直接报「being used by another process」。unix 上删除打开中的文件
-// 本来就成功，重试不会触发。
+// （见 closeClient 上面的注释）。windows-latest 的 CI 上同进程集成测试退出时清缓存
+// 报「being used by another process」，而且等 3 秒也没放开 —— 连做种方那份文件都
+// 被占着，更像是 runner 上的杀软 / 索引器在扫新写入的文件，尚未定论（见 ci.yml 里
+// Windows job 的说明）。这里的重试只兜「句柄晚几百毫秒才放」这一种情况；
+// unix 上删除打开中的文件本来就成功，重试不会触发。
 const (
 	purgeGrace    = 3 * time.Second
 	purgeInterval = 100 * time.Millisecond
