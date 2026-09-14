@@ -87,7 +87,7 @@ static NagareAppDelegate *gDelegate;
 //   ──────────
 //   http://127.0.0.1:8591/ ← 禁用行，只看
 //   打开界面        ⌘O
-//   复制地址        ⌘C
+//   复制登录链接    ⌘C
 //   ──────────
 //   退出 Nagare     ⌘Q
 static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *address) {
@@ -105,7 +105,7 @@ static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *a
                                          keyEquivalent:@"o"];
   open.target = d;
   [appMenu addItem:open];
-  NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"复制地址"
+  NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"复制登录链接"
                                                 action:@selector(copyAddress:)
                                          keyEquivalent:@"c"];
   copy.target = d;
@@ -119,7 +119,7 @@ static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *a
   return appMenu;
 }
 
-// Dock 右键菜单：地址（只看）+ 打开界面 + 复制地址。退出由 Dock 自己提供。
+// Dock 右键菜单：地址（只看）+ 打开界面 + 复制登录链接。退出由 Dock 自己提供。
 static NSMenu *buildDockMenu(NagareAppDelegate *d, NSString *address) {
   NSMenu *menu = [[NSMenu alloc] init];
   NSMenuItem *addr = [[NSMenuItem alloc] initWithTitle:address action:nil keyEquivalent:@""];
@@ -130,7 +130,7 @@ static NSMenu *buildDockMenu(NagareAppDelegate *d, NSString *address) {
                                          keyEquivalent:@""];
   open.target = d;
   [menu addItem:open];
-  NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"复制地址"
+  NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"复制登录链接"
                                                 action:@selector(copyAddress:)
                                          keyEquivalent:@""];
   copy.target = d;

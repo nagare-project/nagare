@@ -52,8 +52,8 @@ func nagareDockOpen() {
 
 //export nagareDockCopyAddress
 func nagareDockCopyAddress() {
-	if err := copyToClipboard(dockOpts.Address); err != nil {
-		log.Printf("tray: 复制地址失败：%v", err)
+	if err := copyToClipboard(dockOpts.URL); err != nil {
+		log.Printf("tray: 复制登录链接失败：%v", err)
 	}
 }
 

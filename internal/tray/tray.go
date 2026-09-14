@@ -39,9 +39,10 @@ type Notice struct {
 type Options struct {
 	// URL 是界面地址（含 token）。只交给 OnOpen 那条路用，托盘本身不显示、不记日志。
 	URL string
-	// Address 是不带 token 的界面地址（http://127.0.0.1:<port>/）：菜单里原样显示，
-	// 「复制地址」复制的也是它 —— 剪贴板会被各种剪贴板管理器留档，token 不进去。
-	// 浏览器首次访问过「打开界面」之后 token 已存在其本地存储里，裸地址照样能开。
+	// Address 是不带 token 的界面地址（http://127.0.0.1:<port>/），只在菜单里显示。
+	// 「复制登录链接」复制的是 URL（带 token）：真机实测用户把裸地址贴进另一个浏览器
+	// 只会得到「缺少或错误的鉴权 token」—— 用户期望复制出来的链接在任何浏览器都能开。
+	// token 与配置文件（0600）同一信任边界：本机同一用户本来就读得到。
 	Address string
 	// Version 显示在菜单第一行与图标的悬停提示里。
 	Version string
