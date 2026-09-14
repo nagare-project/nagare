@@ -28,12 +28,23 @@ master="$work/$(basename "$svg").png"
 python3 - "$master" "$work/nagare.iconset" "$icon_dir" <<'PY'
 import os
 import sys
-from PIL import Image
+from PIL import Image, ImageDraw
 
 master, iconset, out = sys.argv[1:]
 im = Image.open(master).convert("RGBA")
 if im.size != (1024, 1024):
     im = im.resize((1024, 1024), Image.LANCZOS)
+
+# qlmanage 出的是【缩略图】：SVG 的透明区域被垫成不透明白色，直接用会在 Dock /
+# 托盘里看到一圈白边（2026-09-14 用户报）。按 SVG 里圆角方块的几何
+# （x=100, 824 见方, rx=186）算一张 alpha 遮罩，方块之外抠成透明。
+# 遮罩以 4 倍超采样再缩回，边缘才不会锯齿。
+SQUARE, RADIUS, SCALE = (100, 100, 924, 924), 186, 4
+mask = Image.new("L", (1024 * SCALE, 1024 * SCALE), 0)
+ImageDraw.Draw(mask).rounded_rectangle(
+    tuple(v * SCALE for v in SQUARE), radius=RADIUS * SCALE, fill=255)
+mask = mask.resize((1024, 1024), Image.LANCZOS)
+im.putalpha(mask)
 
 def scaled(n):
     return im.resize((n, n), Image.LANCZOS)
