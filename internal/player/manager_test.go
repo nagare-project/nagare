@@ -407,6 +407,25 @@ func TestPlayUsesRuntimeMPVPath(t *testing.T) {
 	assert.Equal(t, "/second/mpv", got)
 }
 
+// 本地文件不带流式缓存参数，HTTP 流才带（判定只看交给 mpv 的路径形状）。
+func TestIsNetworkStream(t *testing.T) {
+	assert.False(t, isNetworkStream("/Volumes/anime/ep01.mkv"))
+	assert.False(t, isNetworkStream(`C:\anime\ep01.mkv`))
+	assert.True(t, isNetworkStream("http://127.0.0.1:8823/stream/cap/t/hash/0"))
+	assert.True(t, isNetworkStream("HTTPS://media.example/ep.m3u8"))
+}
+
+func TestPlayLocalFileIsNotANetworkStream(t *testing.T) {
+	m, _, dir := newTestManager(t, nil)
+	var got mpv.LaunchOptions
+	m.opts.Launch = func(_ context.Context, o mpv.LaunchOptions) (*mpv.Player, error) {
+		got = o
+		return nil, errors.New("到此为止")
+	}
+	_, _ = m.Play(context.Background(), NewLocalSource(testItem(t, dir, 1)), "")
+	assert.False(t, got.NetworkStream)
+}
+
 // ---------- 看完回写失败必须可见（CQ3：错误不静默） ----------
 
 // syncFailClient 让 MarkWatched 按注入的错误失败。

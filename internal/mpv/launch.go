@@ -36,6 +36,30 @@ type LaunchOptions struct {
 	// RedactMediaDiagnostics 禁止捕获 mpv stderr，避免签名 URL 或临时请求头
 	// 被 mpv 原样回显后进入 API 错误或日志。
 	RedactMediaDiagnostics bool
+	// NetworkStream 表示 MediaPath 是一条边下边播 / 在线的 HTTP 流，而不是本地文件：
+	// 给 mpv 加上流式播放的缓存参数（见 streamCacheArgs）。
+	NetworkStream bool
+}
+
+// streamCacheArgs 是网络流专用的 mpv 缓存参数。
+//
+// mpv 打开 HTTP 流的默认行为是「只预读 1 秒、不等缓冲直接起播」，对磁力这种
+// 供给速度先慢后快的源正好踩坑：本地已经到齐的起播缓冲一读完就追上下载前沿，
+// 头几秒必然一顿一顿。真机实测（2026-09-14）用户报的「刚打开卡顿」就是这条。
+//
+//	--cache=yes                 强制开缓存（对 http 默认就是 auto=yes，写明防以后改默认）
+//	--demuxer-readahead-secs=60 目标预读 60 秒：让 mpv 主动把读位置推到下载前沿之前，
+//	                            种子那边的优先级窗口正是跟着这个读位置走的
+//	--demuxer-max-bytes=256MiB  预读上限，别为 60 秒把 4K 片的内存吃穿
+//	--cache-pause-initial=yes   起播前先攒够 cache-pause-wait 秒再放，攒不够时
+//	                            mpv 自己显示「缓冲中」，而不是放两秒停一秒
+//	--cache-pause-wait=5        起播 / 断流恢复都以 5 秒内容为门槛
+var streamCacheArgs = []string{
+	"--cache=yes",
+	"--demuxer-readahead-secs=60",
+	"--demuxer-max-bytes=256MiB",
+	"--cache-pause-initial=yes",
+	"--cache-pause-wait=5",
 }
 
 // Launch 启动 mpv 进程并建立 IPC 连接。ctx 只约束启动阶段（等 socket 就绪），
@@ -108,6 +132,9 @@ func buildArgs(opts LaunchOptions, endpoint string) []string {
 		"--no-terminal",
 		"--force-window",
 		"--keep-open=no",
+	}
+	if opts.NetworkStream {
+		args = append(args, streamCacheArgs...)
 	}
 	if opts.Title != "" {
 		args = append(args, "--title="+opts.Title)

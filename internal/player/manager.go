@@ -204,6 +204,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 		SocketDir:              m.opts.RuntimeDir,
 		HTTPHeaders:            sourceHTTPHeaders(src),
 		RedactMediaDiagnostics: sourceRedactsDiagnostics(src),
+		NetworkStream:          isNetworkStream(src.MPVPath()),
 	})
 	if err != nil {
 		return PlayResult{}, errs.Wrap(errs.CategoryPlayback, "player.launch",
@@ -229,6 +230,13 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	go m.resolveDanmaku(sess)
 
 	return PlayResult{FileID: item.FileID, Title: title, Danmaku: loading}, nil
+}
+
+// isNetworkStream 判断交给 mpv 的是不是一条 HTTP 流（磁力边下边播、在线候选），
+// 而不是本地文件路径 —— 只有前者需要流式缓存参数。
+func isNetworkStream(mpvPath string) bool {
+	lower := strings.ToLower(mpvPath)
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
 }
 
 type httpHeaderSource interface {

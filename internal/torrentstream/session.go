@@ -7,6 +7,7 @@ package torrentstream
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -270,11 +271,19 @@ func (e *Engine) finishSession(sess *session) {
 }
 
 // run 跑完一次准备。
+//
+// 每个阶段的耗时都落日志：「缓冲时间长」这种反馈没有数字就只能猜。日志里只有
+// 耗时、peer 数与速率，没有种子名或 infohash（那是用户在看什么，不进日志）。
 func (s *session) run(ctx context.Context, req PrepareRequest) (PrepareResult, error) {
+	started := time.Now()
 	tor, err := s.ensureTorrent(ctx)
 	if err != nil {
 		return PrepareResult{}, err
 	}
+	s.refresh()
+	metaPeers, metaSeeders := s.snapshotPeers()
+	log.Printf("torrent: 元数据就绪，耗时 %s（peers=%d seeders=%d）",
+		time.Since(started).Round(100*time.Millisecond), metaPeers, metaSeeders)
 
 	s.setPhase(PhaseSelecting)
 	sel, err := selectFile(entriesOf(tor), req)
@@ -290,11 +299,34 @@ func (s *session) run(ctx context.Context, req PrepareRequest) (PrepareResult, e
 		return PrepareResult{}, err
 	}
 	s.setPhase(PhaseBuffering)
+	bufferStarted := time.Now()
 	if err := s.waitBuffered(ctx); err != nil {
 		return PrepareResult{}, err
 	}
 	s.setPhase(PhaseReady)
+	elapsed := time.Since(bufferStarted)
+	peers, seeders := s.snapshotPeers()
+	log.Printf("torrent: 起播缓冲 %s 到齐，耗时 %s（平均 %s/s，peers=%d seeders=%d），交给 mpv",
+		formatBytes(min64(bufferStartBytes, s.file.Length())), elapsed.Round(100*time.Millisecond),
+		formatBytes(int64(float64(min64(bufferStartBytes, s.file.Length()))/max(elapsed.Seconds(), 0.1))),
+		peers, seeders)
 	return PrepareResult{Source: s.newSource()}, nil
+}
+
+// snapshotPeers 取最近一次 refresh 记下的 peer / seeder 数。
+func (s *session) snapshotPeers() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.peers, s.seeders
+}
+
+// formatBytes 给日志用的粗粒度体积（MB 一位小数；日志不是界面，不做本地化）。
+func formatBytes(n int64) string {
+	const mb = 1024 * 1024
+	if n < mb {
+		return fmt.Sprintf("%dKB", n/1024)
+	}
+	return fmt.Sprintf("%.1fMB", float64(n)/mb)
 }
 
 // ensureTorrent 加入磁力并等到元数据；已有元数据（选集重发）时直接复用。
