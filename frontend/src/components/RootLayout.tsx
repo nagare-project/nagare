@@ -4,6 +4,7 @@ import { SelfUpdateContext, useSelfUpdate } from '../hooks/useSelfUpdate'
 import { UpdateContext, useUpdate } from '../hooks/useUpdate'
 import { UpdateBanner } from './UpdateBanner'
 import { BackgroundHint } from './BackgroundHint'
+import { UnauthorizedNotice } from './UnauthorizedNotice'
 import { useSettings } from '../hooks/useSettings'
 import { CollectionProvider } from './media/CollectionContext'
 import { SourcePlaybackProvider } from './media/SourcePlaybackContext'
@@ -23,6 +24,9 @@ export function RootLayout() {
   // 只为「关掉标签页不会退出」那条提示读一次设置：它要知道后台形态才能措辞。
   const settings = useSettings()
   const settingsData = settings.state.phase === 'ready' ? settings.state.data : null
+  // 设置接口 401 = 这个浏览器没有 token，所有页面都打不开；在这里统一给恢复指引，
+  // 不让各页面各自把「缺少或错误的鉴权 token」当普通错误裸露出来。
+  const unauthorized = settings.state.phase === 'unauthorized'
   return (
     <UpdateContext.Provider value={update}>
       <SelfUpdateContext.Provider value={selfUpdate}>
@@ -36,7 +40,7 @@ export function RootLayout() {
               mode={settingsData?.background?.mode ?? null}
               platform={settingsData?.platform ?? null}
             />
-            <Outlet />
+            {unauthorized ? <UnauthorizedNotice /> : <Outlet />}
           </div>
         </SourcePlaybackProvider></TorrentPlayProvider></CollectionProvider>
       </SelfUpdateContext.Provider>

@@ -51,7 +51,7 @@ type menuChans struct {
 //	http://127.0.0.1:8591/   ← 禁用行，只看
 //	──────────
 //	打开界面
-//	复制地址
+//	复制登录链接
 //	──────────
 //	关于 nagare
 //	──────────
@@ -61,7 +61,7 @@ func buildMenu(opts Options) menuChans {
 	systray.AddMenuItem(opts.Address, "界面地址（不含 token）").Disable()
 	systray.AddSeparator()
 	open := systray.AddMenuItem("打开界面", "在浏览器中打开 nagare")
-	copyAddr := systray.AddMenuItem("复制地址", "把界面地址复制到剪贴板（不含 token；新浏览器首次请用「打开界面」）")
+	copyAddr := systray.AddMenuItem("复制登录链接", "把带登录凭证的界面链接复制到剪贴板，贴到任何浏览器都能打开")
 	systray.AddSeparator()
 	about := systray.AddMenuItem("关于 nagare", "版本、数据目录、日志位置")
 	systray.AddSeparator()
@@ -84,8 +84,8 @@ func dispatch(ctx context.Context, opts Options, m menuChans, terminateCh <-chan
 				opts.OnOpen()
 			}
 		case <-m.copyAddr:
-			if err := copyToClipboard(opts.Address); err != nil {
-				log.Printf("tray: 复制地址失败：%v", err)
+			if err := copyToClipboard(opts.URL); err != nil {
+				log.Printf("tray: 复制登录链接失败：%v", err)
 			}
 		case <-m.about:
 			if opts.OnAbout != nil {
