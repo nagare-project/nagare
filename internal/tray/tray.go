@@ -39,10 +39,17 @@ type Notice struct {
 type Options struct {
 	// URL 是界面地址（含 token）。只交给 OnOpen 那条路用，托盘本身不显示、不记日志。
 	URL string
-	// Version 显示在图标的悬停提示里。
+	// Address 是不带 token 的界面地址（http://127.0.0.1:<port>/）：菜单里原样显示，
+	// 「复制地址」复制的也是它 —— 剪贴板会被各种剪贴板管理器留档，token 不进去。
+	// 浏览器首次访问过「打开界面」之后 token 已存在其本地存储里，裸地址照样能开。
+	Address string
+	// Version 显示在菜单第一行与图标的悬停提示里。
 	Version string
 	// OnOpen 在用户点「打开界面」时调用（主进程负责开浏览器）。
 	OnOpen func()
+	// OnAbout 在用户点「关于 nagare」时调用（主进程开到设置页的「关于」分区）。
+	// macOS 的应用菜单另有系统标准的「关于」面板，不经这条路。
+	OnAbout func()
 	// OnQuit 在用户点「退出 nagare」时调用，早于 Run 返回；主进程在这里取消根 ctx。
 	OnQuit func()
 	// Done 在主进程收尾（停播放、回写进度、关磁力引擎）完成后关闭。
