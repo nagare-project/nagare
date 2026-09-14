@@ -77,6 +77,7 @@ const SETTINGS: SettingsData = {
   logPath: '/tmp/nagare/nagare.log',
   mpv: { found: true, version: '0.38.0', path: '/opt/homebrew/bin/mpv', source: 'path' },
   animego: { loggedIn: false, baseUrl: 'https://animego.example' },
+  background: { mode: 'dock' },
   torrent: {
     enabled: true,
     seeding: false,

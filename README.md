@@ -77,7 +77,7 @@ tap 仓库与更多说明见 [`packaging/homebrew/`](packaging/homebrew/README.m
    然后打开 **系统设置 › 隐私与安全性**，滚到「安全性」一栏，点 **「仍要打开」**，再确认一次。
    macOS 15 起右键「打开」已不能绕过这一步；如果没看到「仍要打开」，在终端执行
    `xattr -c /Applications/Nagare.app` 后再双击。
-3. 菜单栏出现 nagare 图标（它是菜单栏应用，不占 Dock），浏览器自动打开界面。退出在菜单栏图标的菜单里。
+3. Dock 与菜单栏都会出现 nagare 图标，浏览器自动打开界面。**关掉浏览器不会退出 nagare**：点 Dock 图标可重新打开界面，⌘Q 或菜单栏图标的菜单可退出（会先回写观看进度）。
 4. **mpv 需要自行安装**：`brew install mpv`（界面里也有一键复制；用上面的 cask 装的话已经一起装好了）。
    没有 mpv 时媒体库照常可用，只是不能播放。
 
@@ -87,6 +87,7 @@ tap 仓库与更多说明见 [`packaging/homebrew/`](packaging/homebrew/README.m
    点 **「更多信息」→「仍要运行」**。
 2. 安装到当前用户目录（`%LOCALAPPDATA%\Programs\nagare`），不需要管理员权限、不会弹 UAC。
 3. 完成后托盘出现 nagare 图标，浏览器自动打开界面。**mpv 已内置**，不用另装。
+   **关掉浏览器不会退出 nagare**：托盘图标可能被 Windows 折进任务栏的「^」里，从那里可以重新打开界面或退出。
 4. 便携版：下载 `nagare-<版本>_Windows_x86_64.zip`，解压到任意目录，双击 `nagare.exe`
    （`mpv\` 子目录要和 exe 放在一起）。
 5. [Scoop](https://scoop.sh) 用户可以直接装便携版：
@@ -108,7 +109,7 @@ tap 仓库与更多说明见 [`packaging/homebrew/`](packaging/homebrew/README.m
   看一眼 PKGBUILD。它用的是本项目官方发布的二进制，打包脚本在
   [`packaging/aur/`](packaging/aur/README.md)。
 - 其他发行版：解压 `nagare-<版本>_Linux_x86_64.tar.gz`（也有 `arm64`），自行安装 mpv，运行 `./nagare`。
-- 退出用界面里的「退出 nagare」，或托盘图标的菜单。
+- 退出用界面里的「退出 nagare」，或托盘图标的菜单（托盘走 StatusNotifierItem：KDE / 装了 AppIndicator 扩展的 GNOME / XFCE 能显示，原版 GNOME 看不到，但首次启动会发一条桌面通知）。
 
 ### 为什么会有警告
 

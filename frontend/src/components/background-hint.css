@@ -1,0 +1,34 @@
+/* ============================================================
+   顶部「关掉标签页不会退出 nagare」提示条（RootLayout 挂在所有页面之上，
+   与 update-banner 同一位置、同一版式；只在用户点「知道了」之前出现）。
+   ============================================================ */
+
+.background-hint {
+  border-bottom: 1px solid var(--border);
+  background: var(--subtle);
+}
+
+.background-hint-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding: 0.55rem clamp(1rem, 4vw, 2.5rem);
+  font-size: 0.82rem;
+}
+
+.background-hint-tag {
+  color: var(--fg-muted);
+}
+
+.background-hint-text {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.background-hint-dismiss {
+  font-size: 0.86rem;
+  white-space: nowrap;
+}

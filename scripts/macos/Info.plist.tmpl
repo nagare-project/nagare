@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Nagare.app 的 Info.plist 模板；__VERSION__ 由 scripts/macos/build-app.sh 替换。
-     LSUIElement=true：菜单栏应用，不占 Dock；界面在浏览器里。 -->
+     不设 LSUIElement：常规应用，Dock 里有图标（2026-09-14 用户定「mac 走 Dock 应用」，
+     此前是纯菜单栏应用，用户关掉浏览器后不知道它还在跑）。Dock 图标 / 应用菜单 /
+     ⌘Q 的行为在 internal/tray/dock_darwin.m；界面仍在浏览器里。 -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
@@ -26,8 +28,6 @@
 	<string>6.0</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
-	<key>LSUIElement</key>
-	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>LSApplicationCategoryType</key>

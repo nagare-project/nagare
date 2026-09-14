@@ -468,7 +468,8 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	apiHandler, updater := buildHandlers(configDir, svc, cancel)
+	mode := backgroundMode(f.noTray, apiOnly)
+	apiHandler, updater := buildHandlers(configDir, svc, cancel, mode)
 
 	srv, ln, port, err := listenAndBuild(cfg, configDir, webFS, apiHandler, updater)
 	if err != nil {
@@ -520,17 +521,21 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	}
 
 	// 托盘必须占着主 goroutine（macOS 要求 Cocoa 事件循环在主线程）；HTTP 服务已在后台。
-	if f.noTray {
+	if mode == tray.ModeNone {
 		<-ctx.Done()
 	} else {
+		log.Printf("后台形态：%s", mode)
 		tray.Run(ctx, tray.Options{
 			URL:     url,
 			Version: version,
 			OnOpen:  func() { openBrowserLogged(url) },
 			OnQuit: func() {
-				log.Print("用户从托盘退出")
+				log.Print("用户从托盘 / Dock 退出")
 				cancel()
 			},
+			// macOS ⌘Q / 注销 / 关机：系统等我们答复，收尾（进度回写）完成才放行。
+			Done:   stopped,
+			Notice: backgroundNotice(configDir, mode),
 		})
 	}
 
@@ -554,7 +559,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 //
 // 更新检查构造失败不阻断启动 —— 播放是主线功能，少一个「有新版本」提示
 // 不该让用户打不开 nagare；此时返回的 updater 为 nil，端点自然缺席。
-func buildHandlers(configDir string, svc *services, cancel context.CancelFunc) (*api.Handler, *update.Checker) {
+func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, mode tray.Mode) (*api.Handler, *update.Checker) {
 	deps := api.Deps{
 		Store:           svc.store,
 		Lib:             svc.lib,
@@ -571,6 +576,7 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc) (
 		Shutdown:        cancel,
 		DataDir:         configDir,
 		LogPath:         logfile.Path(configDir),
+		BackgroundMode:  string(mode),
 		TorrentCacheDir: svc.torrentCacheDir,
 	}
 	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
