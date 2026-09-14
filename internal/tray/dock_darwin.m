@@ -53,6 +53,10 @@
   nagareDockOpen();
 }
 
+- (void)copyAddress:(id)sender {
+  nagareDockCopyAddress();
+}
+
 // ── 终止 ──
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
@@ -78,13 +82,34 @@
 // delegate 在 NSApplication 上是弱引用，必须自己持有。
 static NagareAppDelegate *gDelegate;
 
-static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName) {
+// 应用菜单（左上角）：
+//   关于 Nagare            ← 系统标准面板：图标 + 版本 + 版权，全部来自 Info.plist
+//   ──────────
+//   http://127.0.0.1:8591/ ← 禁用行，只看
+//   打开界面        ⌘O
+//   复制地址        ⌘C
+//   ──────────
+//   退出 Nagare     ⌘Q
+static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *address) {
   NSMenu *appMenu = [[NSMenu alloc] initWithTitle:appName];
+  NSMenuItem *about = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"关于 %@", appName]
+                                                 action:@selector(orderFrontStandardAboutPanel:)
+                                          keyEquivalent:@""];
+  [appMenu addItem:about];
+  [appMenu addItem:[NSMenuItem separatorItem]];
+  NSMenuItem *addr = [[NSMenuItem alloc] initWithTitle:address action:nil keyEquivalent:@""];
+  addr.enabled = NO;
+  [appMenu addItem:addr];
   NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:@"打开界面"
                                                 action:@selector(openInterface:)
                                          keyEquivalent:@"o"];
   open.target = d;
   [appMenu addItem:open];
+  NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"复制地址"
+                                                action:@selector(copyAddress:)
+                                         keyEquivalent:@"c"];
+  copy.target = d;
+  [appMenu addItem:copy];
   [appMenu addItem:[NSMenuItem separatorItem]];
   // terminate: 走 NSApplication → applicationShouldTerminate:，与注销 / 关机同一条路。
   NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"退出 %@", appName]
@@ -94,13 +119,22 @@ static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName) {
   return appMenu;
 }
 
-static NSMenu *buildDockMenu(NagareAppDelegate *d) {
+// Dock 右键菜单：地址（只看）+ 打开界面 + 复制地址。退出由 Dock 自己提供。
+static NSMenu *buildDockMenu(NagareAppDelegate *d, NSString *address) {
   NSMenu *menu = [[NSMenu alloc] init];
+  NSMenuItem *addr = [[NSMenuItem alloc] initWithTitle:address action:nil keyEquivalent:@""];
+  addr.enabled = NO;
+  [menu addItem:addr];
   NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:@"打开界面"
                                                 action:@selector(openInterface:)
                                          keyEquivalent:@""];
   open.target = d;
   [menu addItem:open];
+  NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"复制地址"
+                                                action:@selector(copyAddress:)
+                                         keyEquivalent:@""];
+  copy.target = d;
+  [menu addItem:copy];
   return menu;
 }
 
@@ -112,19 +146,20 @@ static void runOnMain(dispatch_block_t block) {
   }
 }
 
-void nagare_dock_setup(const char *appName) {
+void nagare_dock_setup(const char *appName, const char *address) {
   NSString *name = [NSString stringWithUTF8String:appName];
+  NSString *addr = [NSString stringWithUTF8String:address];
   runOnMain(^{
     NagareAppDelegate *d = [[NagareAppDelegate alloc] init];
     d.inner = NSApp.delegate;
-    d.dockMenu = buildDockMenu(d);
+    d.dockMenu = buildDockMenu(d, addr);
     gDelegate = d;
     NSApp.delegate = d;
 
     NSMenu *mainMenu = [[NSMenu alloc] init];
     NSMenuItem *appItem = [[NSMenuItem alloc] init];
     [mainMenu addItem:appItem];
-    appItem.submenu = buildAppMenu(d, name);
+    appItem.submenu = buildAppMenu(d, name, addr);
     NSApp.mainMenu = mainMenu;
 
     // 常规应用：Dock 图标（来自 bundle 的 CFBundleIconFile）+ 左上角应用菜单。

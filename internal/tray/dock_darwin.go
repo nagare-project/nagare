@@ -34,7 +34,9 @@ func platformReady(opts Options) (<-chan struct{}, func()) {
 	}
 	name := C.CString(appDisplayName)
 	defer C.free(unsafe.Pointer(name))
-	C.nagare_dock_setup(name)
+	addr := C.CString(opts.Address)
+	defer C.free(unsafe.Pointer(addr))
+	C.nagare_dock_setup(name, addr)
 	return dockTerminate, func() {
 		log.Print("tray: 收尾完成，答复系统可以终止")
 		C.nagare_dock_reply_terminate()
@@ -45,6 +47,13 @@ func platformReady(opts Options) (<-chan struct{}, func()) {
 func nagareDockOpen() {
 	if dockOpts.OnOpen != nil {
 		dockOpts.OnOpen()
+	}
+}
+
+//export nagareDockCopyAddress
+func nagareDockCopyAddress() {
+	if err := copyToClipboard(dockOpts.Address); err != nil {
+		log.Printf("tray: 复制地址失败：%v", err)
 	}
 }
 

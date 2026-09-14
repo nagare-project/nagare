@@ -36,7 +36,7 @@ func TestDispatchOpenDoesNotQuit(t *testing.T) {
 	quits := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go dispatch(ctx, Options{OnOpen: func() { opens <- struct{}{} }}, openCh, quitCh, nil, func() { quits <- struct{}{} }, noReply)
+	go dispatch(ctx, Options{OnOpen: func() { opens <- struct{}{} }}, menuChans{open: openCh, quit: quitCh}, nil, func() { quits <- struct{}{} }, noReply)
 
 	for i := 0; i < 3; i++ {
 		openCh <- struct{}{}
@@ -51,7 +51,7 @@ func TestDispatchQuitCallsOnQuitBeforeQuit(t *testing.T) {
 	var order []string
 	done := make(chan struct{})
 	go dispatch(context.Background(), Options{OnQuit: func() { order = append(order, "onQuit") }},
-		openCh, quitCh, nil, func() { order = append(order, "quit"); close(done) }, noReply)
+		menuChans{open: openCh, quit: quitCh}, nil, func() { order = append(order, "quit"); close(done) }, noReply)
 
 	quitCh <- struct{}{}
 	select {
@@ -68,7 +68,7 @@ func TestDispatchCancelQuitsWithoutOnQuit(t *testing.T) {
 	quits := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	go dispatch(ctx, Options{OnQuit: func() { t.Error("ctx 取消不应再调 OnQuit（主进程已在收尾）") }},
-		openCh, quitCh, nil, func() { quits <- struct{}{} }, noReply)
+		menuChans{open: openCh, quit: quitCh}, nil, func() { quits <- struct{}{} }, noReply)
 
 	cancel()
 	waitFor(t, func() bool { return len(quits) == 1 }, "ctx 取消后应收起图标让 Run 返回")
@@ -78,7 +78,7 @@ func TestDispatchCancelQuitsWithoutOnQuit(t *testing.T) {
 func TestDispatchNilCallbacks(t *testing.T) {
 	openCh, quitCh := make(chan struct{}), make(chan struct{})
 	done := make(chan struct{})
-	go dispatch(context.Background(), Options{}, openCh, quitCh, nil, func() { close(done) }, noReply)
+	go dispatch(context.Background(), Options{}, menuChans{open: openCh, quit: quitCh}, nil, func() { close(done) }, noReply)
 
 	openCh <- struct{}{}
 	quitCh <- struct{}{}
@@ -98,7 +98,7 @@ func TestDispatchTerminateWaitsForTeardownThenReplies(t *testing.T) {
 	replied := make(chan struct{})
 	go dispatch(context.Background(),
 		Options{OnQuit: func() { order = append(order, "onQuit") }, Done: done},
-		openCh, quitCh, termCh,
+		menuChans{open: openCh, quit: quitCh}, termCh,
 		func() { t.Error("终止路径不应调 quit") },
 		func() { order = append(order, "reply"); close(replied) })
 
@@ -121,7 +121,7 @@ func TestDispatchTerminateWaitsForTeardownThenReplies(t *testing.T) {
 func TestDispatchTerminateWithoutDoneRepliesImmediately(t *testing.T) {
 	openCh, quitCh, termCh := make(chan struct{}), make(chan struct{}), make(chan struct{}, 1)
 	replied := make(chan struct{})
-	go dispatch(context.Background(), Options{}, openCh, quitCh, termCh,
+	go dispatch(context.Background(), Options{}, menuChans{open: openCh, quit: quitCh}, termCh,
 		func() { t.Error("终止路径不应调 quit") }, func() { close(replied) })
 
 	termCh <- struct{}{}
@@ -140,4 +140,19 @@ func TestWaitTeardownGivesUpAfterGrace(t *testing.T) {
 	elapsed := time.Since(start)
 	assert.GreaterOrEqual(t, elapsed, 30*time.Millisecond)
 	assert.Less(t, elapsed, 2*time.Second)
+}
+
+// 「关于 nagare」只调 OnAbout，不退出。
+func TestDispatchAboutDoesNotQuit(t *testing.T) {
+	aboutCh := make(chan struct{})
+	abouts := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	quits := make(chan struct{}, 1)
+	go dispatch(ctx, Options{OnAbout: func() { abouts <- struct{}{} }}, menuChans{about: aboutCh}, nil,
+		func() { quits <- struct{}{} }, noReply)
+
+	aboutCh <- struct{}{}
+	waitFor(t, func() bool { return len(abouts) == 1 }, "应触发 OnAbout")
+	assert.Empty(t, quits, "关于不应触发退出")
 }

@@ -527,8 +527,10 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		log.Printf("后台形态：%s", mode)
 		tray.Run(ctx, tray.Options{
 			URL:     url,
+			Address: baseURL(port),
 			Version: version,
 			OnOpen:  func() { openBrowserLogged(url) },
+			OnAbout: func() { openBrowserLogged(aboutURL(port, cfg.Token)) },
 			OnQuit: func() {
 				log.Print("用户从托盘 / Dock 退出")
 				cancel()
@@ -712,6 +714,16 @@ func watchSignals(ctx context.Context, cancel context.CancelFunc) {
 // launchURL 拼带 token 的首启地址：前端读取后会存入 sessionStorage 并从地址栏抹掉。
 func launchURL(port int, token string) string {
 	return fmt.Sprintf("http://127.0.0.1:%d/?token=%s", port, token)
+}
+
+// baseURL 是不带 token 的界面地址，给托盘 / Dock 菜单显示与复制用。
+func baseURL(port int) string {
+	return fmt.Sprintf("http://127.0.0.1:%d/", port)
+}
+
+// aboutURL 直接开到设置页的「关于」分区（版本、数据目录、日志位置）。
+func aboutURL(port int, token string) string {
+	return fmt.Sprintf("http://127.0.0.1:%d/settings?token=%s#about", port, token)
 }
 
 // openBrowserLogged 开浏览器，失败只记日志（日志里不带 URL —— 它含 token）。
