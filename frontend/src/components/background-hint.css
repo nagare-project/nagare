@@ -3,23 +3,29 @@
    与 update-banner 同一位置、同一版式；只在用户点「知道了」之前出现）。
    ============================================================ */
 
+/* 发现页与作品页的横幅图会向上铺到顶栏底下（定位元素），提示条必须自己定位并压在上面，
+   底色也得近乎不透明 —— 否则它在这两页整条被图盖掉，或者文字糊在图上看不清。 */
 .background-hint {
+  position: relative;
+  z-index: 6;
   border-bottom: 1px solid var(--border);
-  background: var(--subtle);
+  background: linear-gradient(var(--subtle), var(--subtle)), var(--bg-blur);
+  backdrop-filter: blur(12px);
 }
 
+/* 左右留白与页面内容对齐（侧栏之后的 --page-gutter），不另起一个居中窄栏 */
 .background-hint-inner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
-  max-width: 72rem;
-  margin-inline: auto;
-  padding: 0.55rem clamp(1rem, 4vw, 2.5rem);
+  gap: 0.5rem 0.75rem;
+  padding: 0.55rem var(--page-gutter);
   font-size: 0.82rem;
 }
 
-.background-hint-tag {
+.background-hint-icon {
+  display: inline-flex;
+  flex: none;
   color: var(--fg-muted);
 }
 

@@ -7,6 +7,7 @@ import {
   formatDateTime,
   formatDuration,
   formatEpisode,
+  formatPublished,
   formatRate,
   formatVersion,
   normalizeVersion,
@@ -152,6 +153,26 @@ describe('formatClock / formatDate', () => {
   it('formatDateTime → YYYY-MM-DD HH:MM（秒级与毫秒级都行）', () => {
     expect(formatDateTime(morning.getTime())).toBe('2026-08-30 09:05')
     expect(formatDateTime(Math.floor(morning.getTime() / 1000))).toBe('2026-08-30 09:05')
+  })
+})
+
+describe('formatPublished', () => {
+  it('带时区的 ISO 换算成本地 YYYY-MM-DD HH:MM', () => {
+    const at = new Date(Date.UTC(2026, 6, 3, 16, 38))
+    expect(formatPublished('2026-07-03T16:38:00.000Z')).toBe(formatDateTime(at.getTime()))
+  })
+
+  it('RFC 822（RSS pubDate）同样换算', () => {
+    const at = new Date(Date.UTC(2026, 6, 3, 16, 38))
+    expect(formatPublished('Fri, 03 Jul 2026 16:38:00 +0000')).toBe(formatDateTime(at.getTime()))
+  })
+
+  it('只有日期的写法原样保留（按 UTC 午夜解析会在西半球错成前一天）', () => {
+    expect(formatPublished('2026-08-30')).toBe('2026-08-30')
+  })
+
+  it('解析不了的原样返回，不吞信息', () => {
+    expect(formatPublished('3 天前')).toBe('3 天前')
   })
 })
 

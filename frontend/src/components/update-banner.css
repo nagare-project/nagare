@@ -1,25 +1,28 @@
 /* ============================================================
    顶部新版本提示条（RootLayout 挂在所有页面之上）。
-   它在各页面的 <main> 之外，--hud-* 变量由组件自行注入（hudPalette）。
    ============================================================ */
 
+/* 与 background-hint 同理：要压在发现页/作品页向上铺开的横幅图之上，底色近乎不透明 */
 .update-banner {
+  position: relative;
+  z-index: 6;
   border-bottom: 1px solid var(--border);
-  background: var(--brand-wash);
+  background: linear-gradient(var(--brand-wash), var(--brand-wash)), var(--bg-blur);
+  backdrop-filter: blur(12px);
 }
 
 .update-banner-inner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
-  max-width: 72rem;
-  margin-inline: auto;
-  padding: 0.55rem clamp(1rem, 4vw, 2.5rem);
+  gap: 0.5rem 0.75rem;
+  padding: 0.55rem var(--page-gutter);
   font-size: 0.82rem;
 }
 
-.update-banner-tag {
+.update-banner-icon {
+  display: inline-flex;
+  flex: none;
   color: var(--brand);
 }
 

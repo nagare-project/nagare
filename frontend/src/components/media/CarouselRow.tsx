@@ -4,6 +4,7 @@ import useEmblaCarousel from 'embla-carousel-react'
 import Autoplay from 'embla-carousel-autoplay'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
+import { MAX_ROW_DOTS } from './carousel-dots'
 
 /** 与 seanime 共用 Embla 的自由拖拽、惯性和逐张分页。 */
 export function CarouselRow({ title, children, filters, autoPlay = false, arrows = false }: {
@@ -72,7 +73,7 @@ export function CarouselRow({ title, children, filters, autoPlay = false, arrows
         {arrows ? <>
           <button type="button" className="icon-button" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}><Icon name="left" size={20} /></button>
           <button type="button" className="icon-button" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}><Icon name="right" size={20} /></button>
-        </> : snaps.map((_, index) => <button type="button" key={index} className="row-dot" aria-label={`${title}第 ${index + 1} 页`}
+        </> : snaps.length <= MAX_ROW_DOTS && snaps.map((_, index) => <button type="button" key={index} className="row-dot" aria-label={`${title}第 ${index + 1} 页`}
           aria-pressed={selected === index} aria-controls={id} onClick={() => api?.scrollTo(index, reduced)}><span /></button>)}
       </div>
     </div>

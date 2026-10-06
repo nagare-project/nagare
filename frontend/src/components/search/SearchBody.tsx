@@ -112,8 +112,7 @@ function NoSourcesNotice({ data }: { data: SourcesData }) {
         还没有规则来源
       </h2>
       <p className="page-notice-copy">
-        nagare 不内置任何磁力源。添加规则来源（规则仓库的 HTTPS 地址或本机目录）后即可搜索，
-        搜索在你自己的电脑上执行。
+        nagare 不内置任何磁力源。添加规则来源（规则仓库的 HTTPS 地址或本机目录）后即可搜索，搜索在你自己的电脑上执行。
       </p>
       {errors.length > 0 && (
         <div className="rules-errors" role="alert">
@@ -148,8 +147,7 @@ function IdleNotice({ data }: { data: SourcesData }) {
         输入关键词开始搜索
       </h2>
       <p className="page-notice-copy">
-        已加载 {total} 个源，{enabled} 个启用。结果可以直接「播放」（边下边播，交给 mpv），
-        也可以复制磁力链接到别的下载器。
+        已加载 {total} 个源，{enabled} 个启用。结果可以直接「播放」（边下边播，交给 mpv），也可以复制磁力链接到别的下载器。
       </p>
     </section>
   )

@@ -191,8 +191,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <span className="torrent-toggle-body">
             <span className="torrent-toggle-text">使用内置公共 tracker（{torrent.defaultTrackers.length} 条）</span>
             <span className="torrent-toggle-note">
-              tracker 只回答「谁在分享这个种子」，不存内容。索引站给的磁力常常不带 tracker，
-              只靠 DHT 找元数据要几十秒到几分钟，带上公共 tracker 通常几秒。默认开启。
+              tracker 只回答「谁在分享这个种子」，不存内容。索引站给的磁力常常不带 tracker，只靠 DHT 找元数据要几十秒到几分钟，带上公共 tracker 通常几秒。默认开启。
             </span>
             {useDefaultTrackers && (
               <span className="torrent-default-trackers" aria-label="内置 tracker 列表">
@@ -218,8 +217,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
             aria-describedby="torrent-trackers-note"
           />
           <p id="torrent-trackers-note" className="torrent-note">
-            一行一个，在内置组之外追加；两者都关/留空即只用 DHT / PEX 找分享者。
-            填的地址只会补给公开种子（给私有站种子补公共 tracker 会导致封号）。
+            一行一个，在内置组之外追加；两者都关/留空即只用 DHT / PEX 找分享者。填的地址只会补给公开种子（给私有站种子补公共 tracker 会导致封号）。
           </p>
         </div>
 

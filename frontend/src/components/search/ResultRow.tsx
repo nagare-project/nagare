@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { copyText } from '../../lib/clipboard'
 import type { SearchItem } from '../../lib/endpoints'
+import { formatPublished } from '../../lib/format'
 import { mono } from '../../theme'
 import './search.css'
 
@@ -75,7 +76,7 @@ export function playStage(magnet: string, play: PlayControl): PlayStage {
 }
 
 /**
- * 结果表的一行：标题（可换行）· 体积 · 字幕组 · 日期（原样）· 做种（可选）· 来源 · 操作。
+ * 结果表的一行：标题（可换行）· 体积 · 字幕组 · 日期（换算到本地时区，原文在 title）· 做种（可选）· 来源 · 操作。
  * 「复制磁力」走 lib/clipboard 的 copyText；「播放」把这条磁力交给 useTorrentPlay，
  * 进行中 / 被别的行占着 / 引擎不可用时禁用，并把原因写在 title 与 aria-label 里。
  */
@@ -120,8 +121,8 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
       <td className="res-fansub" title={item.fansub ?? undefined}>
         {item.fansub ?? ''}
       </td>
-      <td className="res-date" style={mono}>
-        {item.date ?? ''}
+      <td className="res-date" style={mono} title={item.date ?? undefined}>
+        {item.date === null ? '' : formatPublished(item.date)}
       </td>
       {showSeeders && (
         <td className="res-seeders" style={mono}>

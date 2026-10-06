@@ -9,9 +9,11 @@
 .discover-panel > .fixture-notice { margin-bottom: 20px; }
 .discover-row + .discover-row { margin-top: 32px; }
 .discover-row { position: relative; min-width: 0; }
-.discover-row .row-head { min-height: 36px; align-items: center; }
-.discover-row .row-title { font-size: 30px; font-weight: 700; line-height: 36px; letter-spacing: -.025em; }
+/* 标题不让位：中文的最小内容宽度是单个字，标题一参与收缩就会被挤成竖排；放不下的是分页点，它在自己的盒子里换行。 */
+.discover-row .row-head { min-height: 36px; align-items: center; flex-wrap: nowrap; }
+.discover-row .row-title { flex: none; font-size: 30px; font-weight: 700; line-height: 36px; letter-spacing: -.025em; }
 .discover-row .row-controls { align-items: center; gap: 0; }
+.discover-row .row-controls--dots { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
 .row-dot { display: grid; place-items: center; width: 20px; height: 24px; padding: 2.5px; border: 0; background: transparent; cursor: pointer; }
 .row-dot > span { width: 100%; height: 8px; border-radius: 999px; background: #ffffff30; transition: height .3s, background .3s; }
 .row-dot[aria-pressed=true] > span { background: var(--fg-muted); }
@@ -34,8 +36,8 @@
 .discover-genre-arrow--end { right: 0; background: linear-gradient(270deg, var(--bg), transparent); }
 .discover-row-viewport { overflow: hidden; margin-top: 16px; touch-action: pan-y pinch-zoom; }
 .discover-row[data-filtered] .discover-row-viewport { margin-top: 0; }
-.discover-row-track { display: flex; margin: 0 0 0 -16px; padding: 0 24px; list-style: none; backface-visibility: hidden; }
-.discover-row[data-filtered] .discover-row-track { margin-left: -32px; }
+/* -32 + 24 + 卡片左外边距 8 = 0：每一行的第一张卡都与行标题左缘对齐（有无类型筛选条都一样）。 */
+.discover-row-track { display: flex; margin: 0 0 0 -32px; padding: 0 24px; list-style: none; backface-visibility: hidden; }
 .discover-row[data-arrows] { padding-bottom: 24px; }
 .discover-row[data-arrows] .row-controls { position: absolute; top: -4px; right: 0; height: 36px; gap: 8px; }
 .discover-row[data-arrows] .row-controls .icon-button { width: 36px; height: 36px; border: 1px solid #9ca3af33; border-radius: 999px; transition: transform .15s, background .15s; }
@@ -76,6 +78,8 @@
 .discover-row[data-dragging] { cursor: grabbing; }
 @media (max-width: 1023px) {
   .discover-content { padding-top: 16px; }
+  /* 窄屏靠手指拖动翻页，分页点只会挤占标题行（seanime 在 md 以下同样不画）。 */
+  .discover-row .row-controls--dots { display: none; }
   .discover-tabs { position: static; transform: none; width: fit-content; margin: 0 auto 32px; }
   .discover-card-popup { display: none; }
 }
@@ -83,7 +87,6 @@
   .discover-content { padding-inline: 16px; }
   .discover-genre-arrow { display: none; }
   .discover-row-track > .discover-card { flex-basis: 200px; }
-  .discover-row .row-controls--dots { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .row-dot > span, .row-pause, .discover-genres button, .discover-card-cover img, .discover-card-popup { transition: none; }

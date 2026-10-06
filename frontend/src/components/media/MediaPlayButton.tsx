@@ -1,5 +1,6 @@
 import { MissingEpisodeCards } from '../library/MissingEpisodeCards'
 import { LibraryEpisodeCards } from '../library/LibraryEpisodeCards'
+import { displayGroups } from '../library/displayGroups'
 import { PlaybackSurface } from './PlaybackSurface'
 import { useEffect, useId, useRef, useState } from 'react'
 import { fetchLibrary, playFile } from '../../lib/endpoints'
@@ -139,7 +140,7 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
           {next && <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start(selected, next)}>
             <Icon name="play" size={18} />{next.progress?.positionSec && !next.progress.completed ? '继续观看' : '播放'} {next.episode === null ? next.fileName : `第 ${formatEpisode(next.episode)} 集`}
           </button>}
-          {inline ? <LibraryEpisodeCards cluster={selected} next={next} totalEpisodes={media.episodes} titles={media.episodeTitles} banner={media.banner} cover={media.cover} pending={busy} onPlay={item => void start(selected, item)} /> : selected.groups.map(group => <section className="media-play-group" key={group.groupKey}>
+          {inline ? <LibraryEpisodeCards cluster={selected} next={next} totalEpisodes={media.episodes} titles={media.episodeTitles} banner={media.banner} cover={media.cover} pending={busy} onPlay={item => void start(selected, item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
             <h4>{group.label || '剧集'}</h4><ul className="media-play-choices">{group.items.map(item => <li key={item.fileId}>
               <button type="button" className="media-play-episode" disabled={busy} onClick={() => void start(selected, item)} aria-label={`播放 ${item.fileName}`}>
                 <span>{item.episode === null ? '—' : formatEpisode(item.episode)}</span><span>{item.fileName}</span><Icon name="play" size={18} />

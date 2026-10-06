@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { BackgroundMode, Platform } from '../lib/endpoints'
-import { label } from '../theme'
+import { Icon } from './ui/Icon'
 import './background-hint.css'
 
 /** 「知道了」记在 localStorage 里的键；值固定为 '1' */
@@ -34,8 +34,8 @@ export function BackgroundHint({ mode, platform }: BackgroundHintProps) {
   return (
     <aside className="background-hint" role="note">
       <div className="background-hint-inner">
-        <span className="background-hint-tag" style={label}>
-          background
+        <span className="background-hint-icon" aria-hidden="true">
+          <Icon name="info" size={16} />
         </span>
         <span className="background-hint-text">{hintText(mode, platform)}</span>
         <button type="button" className="btn btn--sm background-hint-dismiss" onClick={handleDismiss}>

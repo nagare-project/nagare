@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import type { LibraryCluster, LibraryItem } from '../../lib/endpoints'
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
 import { Icon } from '../ui/Icon'
+import { displayGroups } from './displayGroups'
 import './episode-cards.css'
 
 interface Props {
@@ -37,7 +38,7 @@ export function LibraryEpisodeCards({ cluster, next, totalEpisodes, titles, bann
         <span className="episode-feature-meta"><strong>{episode(item)}{totalEpisodes != null && totalEpisodes > 0 && <span> / {totalEpisodes}</span>}</strong><span>{index === 0 && item.progress?.positionSec && !item.progress.completed ? '继续观看' : '播放'}<Icon name="play" size={14} /></span></span>
       </button>)}
     </div>}
-    {cluster.groups.map(group => <section className="episode-card-group" key={group.groupKey}>
+    {displayGroups(cluster).map(group => <section className="episode-card-group" key={group.groupKey}>
       <h3>{group.label && group.label !== cluster.title ? group.label : '剧集'}<span>{group.items.length}</span></h3>
       <ul className="episode-card-grid">{group.items.map(item => <li key={item.fileId} className={item.fileId === activeFileId ? 'episode-card episode-card--active' : 'episode-card'}>
         <button type="button" className="episode-card-action" disabled={pending} aria-label={`播放 ${item.fileName}`} onClick={() => onPlay(item)}>

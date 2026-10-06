@@ -111,8 +111,7 @@ export function WatchPage() {
       </p>
 
       <p className="result result--dim">
-        浏览器内播放是<strong>补充路径</strong>，没有弹幕、没有 ASS 字幕、进度也不回写账号。
-        完整体验请用 mpv 从媒体库播放。
+        浏览器内播放是<strong>补充路径</strong>，没有弹幕、没有 ASS 字幕、进度也不回写账号。完整体验请用 mpv 从媒体库播放。
       </p>
     </main>
   )

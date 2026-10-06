@@ -155,8 +155,7 @@ function IdleNotice() {
     <div className="page-notice">
       <h2 className="page-notice-title">当前没有磁力会话</h2>
       <p className="page-notice-copy">
-        nagare 不维护常驻下载队列：分片只在播放期间存在，停止播放即删除，
-        启动与退出还会各清空一次缓存。所以这里最多只会有一条 —— 你正在看的那个。
+        nagare 不维护常驻下载队列：分片只在播放期间存在，停止播放即删除，启动与退出还会各清空一次缓存。所以这里最多只会有一条 —— 你正在看的那个。
       </p>
       <p className="page-notice-actions">
         <Link to="/search" className="btn btn--sm">

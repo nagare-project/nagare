@@ -48,8 +48,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
   return <section className="panel settings-card" aria-labelledby="source-plugin-heading">
     <h2 id="source-plugin-heading" className="panel-heading">Nagare Source</h2>
     <p className="page-notice-copy">
-      连接本机安装的 Nagare Source 后，作品页可以统一查找在线与 BT 候选并自动换源。
-      只有在你明确启用后，Nagare 才会启动该进程并交给它作品标题、集号和公开元数据。
+      连接本机安装的 Nagare Source 后，作品页可以统一查找在线与 BT 候选并自动换源。只有在你明确启用后，Nagare 才会启动该进程并交给它作品标题、集号和公开元数据。
       {' '}<a className="link" href="https://github.com/nagare-project/Nagare_Source" target="_blank" rel="noreferrer">安装说明</a>
     </p>
     {view?.bundled && <p className="result result--dim source-plugin-bundled" role="status">

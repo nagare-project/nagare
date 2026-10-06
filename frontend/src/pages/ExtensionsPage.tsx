@@ -29,14 +29,10 @@ export function ExtensionsPage() {
       <section className="panel ext-intro">
         <h2 className="panel-heading">规则，不是插件</h2>
         <p className="page-notice-copy">
-          nagare 的扩展是<strong>声明式 YAML 规则</strong>：一条规则只能描述
-          「往哪发一个 GET、按路径取哪些字段、做几步固定的转换」。
-          没有脚本、没有代码执行 —— 所以装一条规则不需要你审计它能干什么，
-          它能干的事上限就写在格式里。
+          nagare 的扩展是<strong>声明式 YAML 规则</strong>：一条规则只能描述「往哪发一个 GET、按路径取哪些字段、做几步固定的转换」。没有脚本、没有代码执行 —— 所以装一条规则不需要你审计它能干什么，它能干的事上限就写在格式里。
         </p>
         <p className="page-notice-copy">
-          代价是表达力有上限；好处是<strong>装第三方规则的风险与装一个 JSON 配置相同</strong>。
-          规则地址由你自己填，nagare 不预填、不内置、不推荐任何来源。
+          代价是表达力有上限；好处是<strong>装第三方规则的风险与装一个 JSON 配置相同</strong>。规则地址由你自己填，nagare 不预填、不内置、不推荐任何来源。
         </p>
       </section>
 
