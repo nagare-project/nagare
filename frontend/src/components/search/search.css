@@ -284,10 +284,6 @@ td.res-actions {
   background: linear-gradient(var(--brand-wash), var(--brand-wash)), var(--bg);
 }
 
-td.res-actions .btn + .res-play-wrap {
-  margin-left: 0.4rem;
-}
-
 .res-copy {
   min-width: 5.6em;
 }
@@ -297,8 +293,11 @@ td.res-actions .btn + .res-play-wrap {
   color: var(--err);
 }
 
+/* 与「复制磁力」之间的间距直接写在自己身上：两者之间还夹着一个读屏用的隐藏 span，
+   `.btn + .res-play-wrap` 这种相邻选择器永远匹配不上。 */
 .res-play-wrap {
   display: inline-block;
+  margin-left: 0.4rem;
 }
 
 .res-play {
@@ -392,7 +391,7 @@ td.res-actions .btn + .res-play-wrap {
     width: 100%;
   }
 
-  td.res-actions .btn + .res-play-wrap {
+  .res-play-wrap {
     margin: 0.35rem 0 0;
   }
 }

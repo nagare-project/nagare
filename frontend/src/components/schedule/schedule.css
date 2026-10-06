@@ -116,8 +116,8 @@
   .schedule-agenda--discover .schedule-event-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
-  /* 窄屏靠手指横滑翻页，与发现页一样不画分页点。 */
-  .schedule-strip-dots { display: none; }
+  /* 窄屏靠手指横滑翻页，与发现页一样不画分页点；暂停按钮留下，自动轮播还在跑。 */
+  .schedule-strip-dot { display: none; }
 }
 @media (max-width: 640px) {
   .schedule-shell { padding: 16px 16px 32px; }

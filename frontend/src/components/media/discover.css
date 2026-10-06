@@ -9,8 +9,8 @@
 .discover-panel > .fixture-notice { margin-bottom: 20px; }
 .discover-row + .discover-row { margin-top: 32px; }
 .discover-row { position: relative; min-width: 0; }
-/* 标题不让位：中文的最小内容宽度是单个字，标题一参与收缩就会被挤成竖排；放不下的是分页点，它在自己的盒子里换行。 */
-.discover-row .row-head { min-height: 36px; align-items: center; flex-wrap: nowrap; }
+/* 标题不让位：中文的最小内容宽度是单个字，标题一参与收缩就会被挤成竖排。放不下时控件整组换到下一行（靠右）。 */
+.discover-row .row-head { min-height: 36px; align-items: center; flex-wrap: wrap; }
 .discover-row .row-title { flex: none; font-size: 30px; font-weight: 700; line-height: 36px; letter-spacing: -.025em; }
 .discover-row .row-controls { align-items: center; gap: 0; }
 .discover-row .row-controls--dots { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
@@ -40,9 +40,12 @@
 .discover-row-track { display: flex; margin: 0 0 0 -32px; padding: 0 24px; list-style: none; backface-visibility: hidden; }
 .discover-row[data-arrows] { padding-bottom: 24px; }
 .discover-row[data-arrows] .row-controls { position: absolute; top: -4px; right: 0; height: 36px; gap: 8px; }
-.discover-row[data-arrows] .row-controls .icon-button { width: 36px; height: 36px; border: 1px solid #9ca3af33; border-radius: 999px; transition: transform .15s, background .15s; }
-.discover-row[data-arrows] .row-controls .icon-button:hover { transform: scale(1.04); }
-.discover-row[data-arrows] .row-controls .icon-button:active { transform: scale(.96); }
+.discover-row .row-controls--arrows { gap: 8px; }
+/* 分页点模式下的箭头只给窄屏用；宽屏有分页点就不重复给箭头 */
+.discover-row .row-controls--dots .row-arrow { display: none; }
+.row-arrow { width: 36px; height: 36px; border: 1px solid #9ca3af33; border-radius: 999px; transition: transform .15s, background .15s; }
+.row-arrow:hover:not(:disabled) { transform: scale(1.04); }
+.row-arrow:active:not(:disabled) { transform: scale(.96); }
 .discover-empty { display: grid; place-items: center; min-width: 100%; height: 441px; color: var(--fg-muted); font-size: 14px; }
 .discover-row-track > .discover-card { flex: 0 0 250px; margin: 32px 8px 0; }
 .discover-card { position: relative; min-width: 0; user-select: none; }
@@ -78,8 +81,12 @@
 .discover-row[data-dragging] { cursor: grabbing; }
 @media (max-width: 1023px) {
   .discover-content { padding-top: 16px; }
-  /* 窄屏靠手指拖动翻页，分页点只会挤占标题行（seanime 在 md 以下同样不画）。 */
-  .discover-row .row-controls--dots { display: none; }
+  /* 窄屏不画分页点（seanime 在 md 以下同样不画），改由前后箭头翻页 —— 拖拽对单指点按的
+     用户不可用。暂停按钮留下并常显：自动轮播还在跑，用户必须有地方停下它。 */
+  .discover-row .row-controls--dots { gap: 8px; }
+  .discover-row .row-controls--dots .row-dot { display: none; }
+  .discover-row .row-controls--dots .row-arrow { display: inline-flex; }
+  .discover-row .row-controls--dots .row-pause { opacity: 1; }
   .discover-tabs { position: static; transform: none; width: fit-content; margin: 0 auto 32px; }
   .discover-card-popup { display: none; }
 }
@@ -87,6 +94,10 @@
   .discover-content { padding-inline: 16px; }
   .discover-genre-arrow { display: none; }
   .discover-row-track > .discover-card { flex-basis: 200px; }
+}
+/* 触屏没有 hover，暂停按钮不能靠悬停才现身 */
+@media (hover: none) {
+  .row-pause { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .row-dot > span, .row-pause, .discover-genres button, .discover-card-cover img, .discover-card-popup { transition: none; }

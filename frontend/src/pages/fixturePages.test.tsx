@@ -9,8 +9,9 @@ import { DiscoverPage } from './DiscoverPage'
 import { ListsPage } from './ListsPage'
 import { SchedulePage } from './SchedulePage'
 import { MediaCard } from '../components/media/MediaCard'
-import { FAKE_LISTS } from '../lib/fixtures/library'
+import { FAKE_DISCOVER, FAKE_LISTS } from '../lib/fixtures/library'
 import { DISCOVER_EXIT_MS } from '../components/media/useDiscoverCarousel'
+import { fetchDiscover } from '../lib/media'
 
 // jsdom 没有布局；这一组只验证页面内容，拖拽与分页在浏览器验收。
 vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
@@ -65,6 +66,19 @@ describe('假数据页面', () => {
     for (const row of rows) {
       expect(row.querySelectorAll('.poster').length).toBeGreaterThan(0)
     }
+    await unmount()
+  })
+
+  it('发现：上游整段为空的板块不画（空行里那句「暂无某分类」是写给类型筛选的）', async () => {
+    vi.mocked(fetchDiscover).mockResolvedValueOnce([
+      { key: 'trending', title: 'animego 上在看最多', items: FAKE_DISCOVER.trending },
+      { key: 'recent', title: '最近已播出', items: [] },
+      { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
+    ])
+    const { container, unmount } = await mount(<DiscoverPage />)
+    const titles = [...container.querySelectorAll('.row-title')].map((el) => el.textContent)
+    expect(titles).toEqual(['animego 上在看最多', '本季新番'])
+    expect(container.textContent).not.toContain('暂无「全部」分类')
     await unmount()
   })
 

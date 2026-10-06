@@ -9,6 +9,7 @@ import {
   formatEpisode,
   formatPublished,
   formatRate,
+  parsePublished,
   formatVersion,
   normalizeVersion,
   progressPercent,
@@ -173,6 +174,20 @@ describe('formatPublished', () => {
 
   it('解析不了的原样返回，不吞信息', () => {
     expect(formatPublished('3 天前')).toBe('3 天前')
+  })
+})
+
+describe('parsePublished', () => {
+  it('带时区的时间戳按原时区解析', () => {
+    expect(parsePublished('2026-07-03T16:38:00.000Z')).toBe(Date.UTC(2026, 6, 3, 16, 38))
+  })
+
+  it('只有日期的写法按本地午夜算，月初那天在西半球不会掉到上个月', () => {
+    expect(parsePublished('2026-09-01')).toBe(new Date(2026, 8, 1).getTime())
+  })
+
+  it('解析不了返回 null', () => {
+    expect(parsePublished('3 天前')).toBeNull()
   })
 })
 

@@ -133,6 +133,17 @@ export function formatDateTime(epoch: number): string {
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 /**
+ * 磁力结果的发布时间 → 毫秒时间戳；解析不了返回 null。
+ * 只有日期的写法（`2026-09-01`）按【本地】午夜算：`Date.parse` 对它按 UTC 午夜，
+ * 在 UTC 以西的时区会落到前一天，月份边界上就显示成上个月。
+ */
+export function parsePublished(raw: string): number | null {
+  const text = raw.trim()
+  const ms = Date.parse(DATE_ONLY_PATTERN.test(text) ? `${text}T00:00:00` : text)
+  return Number.isNaN(ms) ? null : ms
+}
+
+/**
  * 磁力结果的发布时间 → 本地 `YYYY-MM-DD HH:MM`。
  * 规则把上游写法原样转交过来：ISO（`2026-07-03T16:38:00.000Z`，UTC）、RFC 822 都有。
  * 能解析的统一换算到本机时区；只有日期的、解析不了的原样返回 —— 宁可难看，不能丢信息。

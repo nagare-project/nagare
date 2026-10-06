@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../ui/Icon'
 import { MediaArtwork } from '../media/MediaArtwork'
-import { MAX_ROW_DOTS } from '../media/carousel-dots'
 import { MediaPreview } from '../media/MediaPreview'
 import { useReducedMotionPreference } from '../media/useReducedMotionPreference'
 import type { ScheduleEpisode } from './types'
@@ -51,7 +50,7 @@ export function ScheduleEpisodeStrip({ title, items, missing = false, now }: { t
     onFocusCapture={() => setFocused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}>
     <header className="schedule-section-heading"><div><h2>{missing && <Icon name="lists" size={28} />}{title}</h2>
       {!missing && <p>按本机时区显示近期放送安排</p>}</div>
-      {positions.length > 1 && positions.length <= MAX_ROW_DOTS && <div className="schedule-strip-dots" aria-label={`${title}翻页`}>
+      {positions.length > 1 && <div className="schedule-strip-dots" aria-label={`${title}翻页`}>
         {positions.map((left, i) => <button type="button" key={left} className={active === i ? 'schedule-strip-dot schedule-strip-dot--on' : 'schedule-strip-dot'} aria-label={`${title}第 ${i + 1} 页`} aria-pressed={active === i}
           onClick={() => row.current?.scrollTo({ left, behavior: reduced ? 'instant' : 'smooth' })} />)}
         {!reduced && <button type="button" className="schedule-strip-pause" aria-label={`${paused ? '播放' : '暂停'}${title}轮播`} aria-pressed={paused} onClick={() => setPaused(!paused)}><Icon name={paused ? 'play' : 'pause'} size={13} /></button>}
