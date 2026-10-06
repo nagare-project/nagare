@@ -307,7 +307,7 @@ function FoldersCard({
               {state.data.folders.map((folder) => (
                 <li key={folder.id} className="folder-row">
                   <span className="folder-path" style={mono} title={folder.path}>
-                    {folder.path}
+                    <bdi>{folder.path}</bdi>
                   </span>
                   <span className="folder-date" style={mono}>
                     {formatDate(folder.addedAt)}
