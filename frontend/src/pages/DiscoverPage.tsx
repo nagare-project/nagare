@@ -50,7 +50,9 @@ export function DiscoverPage() {
             {tab === 'schedule' ? <SchedulePage embedded /> : <>
               {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={() => setAttempt(value => value + 1)}>重新加载</button></p>}
               {!data && !error && <section aria-label="正在加载榜单" aria-busy="true"><div className="discover-loading-title" /><div className="discover-loading-cards">{[0, 1, 2, 3].map(i => <div key={i} />)}</div></section>}
-              {data?.map(section => <Section key={section.key} title={section.title} items={section.items} filters={['trending', 'thisSeason', 'pastSeason'].includes(section.key)} arrows={section.key === 'recent'} initialGenre={section.key === 'trending' ? initialGenre : '全部'} error={section.error} retry={() => setAttempt(value => value + 1)} />)}
+              {/* 上游这一板块整段为空（如「最近已播出」恰好没有到点的集数）时整行不画：
+                  空行里那句「暂无某分类」是写给类型筛选的，放在这里是错话。 */}
+              {data?.filter(section => section.items.length || section.error).map(section => <Section key={section.key} title={section.title} items={section.items} filters={['trending', 'thisSeason', 'pastSeason'].includes(section.key)} arrows={section.key === 'recent'} initialGenre={section.key === 'trending' ? initialGenre : '全部'} error={section.error} retry={() => setAttempt(value => value + 1)} />)}
               {data && !data.some(section => section.items.length || section.error) && <p className="result" role="status">暂时没有可显示的作品。</p>}
             </>}
           </m.div>

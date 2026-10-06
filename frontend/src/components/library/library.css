@@ -15,7 +15,6 @@
   gap: 24px;
   width: 100%;
   max-width: 1800px;
-  min-height: calc(100dvh - 80px);
   margin-inline: auto;
   padding: 16px var(--page-gutter) 48px;
 }

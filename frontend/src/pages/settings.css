@@ -11,7 +11,6 @@
   gap: 32px;
   width: 100%;
   max-width: 1440px;
-  min-height: calc(100dvh - 80px);
   margin-inline: auto;
   padding: 24px 32px 64px;
 }
@@ -107,7 +106,12 @@
   background: var(--sunken);
 }
 
+/* 路径放不下时省略号放在开头：最能认出是哪个文件夹的是末尾的目录名，从尾巴截掉就只剩
+   「/Volumes/Samsung_…」。外层 rtl 让溢出发生在左侧，路径本身包在 <bdi> 里按自身方向排，
+   放得下时 text-align:left 仍然左对齐。 */
 .folder-path {
+  direction: rtl;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -124,6 +128,17 @@
   grid-column: 1 / -1;
   font-size: 0.82rem;
   color: var(--warn);
+}
+
+/* 手机宽度下把添加日期让给路径：日期占掉近一半宽度，路径只剩十来个字 */
+@media (max-width: 480px) {
+  .folder-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .folder-date {
+    display: none;
+  }
 }
 
 /* 账号卡里的已知限制说明：比正文重、比错误轻 —— 它不是失败，是登录前该知道的事实。 */

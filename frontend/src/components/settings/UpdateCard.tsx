@@ -155,8 +155,7 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
             </label>
           </div>
           <p className="page-notice-copy update-note">
-            开启后每天最多向 GitHub 查询一次最新发布，只发送版本号；发现新版本时页面顶部会提示，
-            不会自动下载或替换程序。
+            开启后每天最多向 GitHub 查询一次最新发布，只发送版本号；发现新版本时页面顶部会提示，不会自动下载或替换程序。
           </p>
         </>
       )}

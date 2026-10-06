@@ -5,6 +5,13 @@ import Autoplay from 'embla-carousel-autoplay'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
+/**
+ * 分页点的上限（与 seanime CarouselDotButtons 相同）。自由拖拽下每张卡一个吸附点，
+ * 本季/上季动辄一百部，一百个点会把整页撑出横向滚动；超过上限就换成前后翻页箭头 ——
+ * 不能什么都不画：拖拽和滚轮对只能单指点按的用户（语音控制、开关设备）不可用。
+ */
+export const MAX_ROW_DOTS = 30
+
 /** 与 seanime 共用 Embla 的自由拖拽、惯性和逐张分页。 */
 export function CarouselRow({ title, children, filters, autoPlay = false, arrows = false }: {
   title: string; children: ReactNode; filters?: ReactNode; autoPlay?: boolean; arrows?: boolean
@@ -59,6 +66,11 @@ export function CarouselRow({ title, children, filters, autoPlay = false, arrows
     element.addEventListener('wheel', onWheel, { passive: false })
     return () => element.removeEventListener('wheel', onWheel)
   }, [api, reduced])
+  const overCap = snaps.length > MAX_ROW_DOTS
+  const arrowButtons = <>
+    <button type="button" className="icon-button row-arrow" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}><Icon name="left" size={20} /></button>
+    <button type="button" className="icon-button row-arrow" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}><Icon name="right" size={20} /></button>
+  </>
   return <section className="row discover-row" aria-label={title} data-filtered={!!filters || undefined} data-arrows={arrows || undefined} data-dragging={dragging || undefined}
     onPointerEnter={event => { if (event.pointerType !== 'touch') setHovered(true) }} onPointerLeave={() => setHovered(false)}
     onPointerDownCapture={() => { pointerFocus.current = true; setFocused(false) }}
@@ -66,14 +78,15 @@ export function CarouselRow({ title, children, filters, autoPlay = false, arrows
     onFocusCapture={event => setFocused(!pointerFocus.current || !!event.target.closest('dialog[open]'))}
     onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
     <div className="row-head"><h2 className="row-title">{title}</h2>
-      <div className={arrows ? 'row-controls' : 'row-controls row-controls--dots'}>
+      <div className={arrows ? 'row-controls' : overCap ? 'row-controls row-controls--arrows' : 'row-controls row-controls--dots'}>
         {autoPlay && !reduced && snaps.length > 1 && <button type="button" className="row-pause" aria-label={`${paused ? '播放' : '暂停'}${title}轮播`} aria-pressed={paused}
           onClick={() => setPaused(!paused)}><Icon name={paused ? 'play' : 'pause'} size={14} /></button>}
-        {arrows ? <>
-          <button type="button" className="icon-button" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}><Icon name="left" size={20} /></button>
-          <button type="button" className="icon-button" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}><Icon name="right" size={20} /></button>
-        </> : snaps.map((_, index) => <button type="button" key={index} className="row-dot" aria-label={`${title}第 ${index + 1} 页`}
-          aria-pressed={selected === index} aria-controls={id} onClick={() => api?.scrollTo(index, reduced)}><span /></button>)}
+        {/* 分页点模式也带一对箭头：窄屏把点藏起来时由箭头接手（CSS 按宽度二选一） */}
+        {arrows || overCap ? arrowButtons : snaps.length > 1 && <>
+          {snaps.map((_, index) => <button type="button" key={index} className="row-dot" aria-label={`${title}第 ${index + 1} 页`}
+            aria-pressed={selected === index} aria-controls={id} onClick={() => api?.scrollTo(index, reduced)}><span /></button>)}
+          {arrowButtons}
+        </>}
       </div>
     </div>
     {filters}

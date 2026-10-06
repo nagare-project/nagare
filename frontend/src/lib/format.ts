@@ -94,16 +94,24 @@ function toDate(epoch: number): Date {
   return new Date(epoch < EPOCH_MS_THRESHOLD ? epoch * 1000 : epoch)
 }
 
+/** Date → 本地 `HH:MM` */
+function clockText(date: Date): string {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
+/** Date → 本地 `YYYY-MM-DD` */
+function dateText(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+}
+
 /** 时间戳 → 本地 `HH:MM`（scannedAt 这类「今天几点扫的」场景） */
 export function formatClock(epoch: number): string {
-  const date = toDate(epoch)
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+  return clockText(toDate(epoch))
 }
 
 /** 时间戳 → 本地 `YYYY-MM-DD`（addedAt 这类「哪天加的」场景） */
 export function formatDate(epoch: number): string {
-  const date = toDate(epoch)
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+  return dateText(toDate(epoch))
 }
 
 /**
@@ -119,6 +127,34 @@ export function errorText(err: unknown, fallback: string): string {
 /** 时间戳 → 本地 `YYYY-MM-DD HH:MM`（「上次检查更新」这类既要日期也要时刻的场景） */
 export function formatDateTime(epoch: number): string {
   return `${formatDate(epoch)} ${formatClock(epoch)}`
+}
+
+/** 只有日期没有时刻（`2026-08-30`）：按 UTC 午夜解析会在西半球显示成前一天，这种写法原样保留 */
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * 磁力结果的发布时间 → 毫秒时间戳；解析不了返回 null。
+ * 只有日期的写法（`2026-09-01`）按【本地】午夜算：`Date.parse` 对它按 UTC 午夜，
+ * 在 UTC 以西的时区会落到前一天，月份边界上就显示成上个月。
+ */
+export function parsePublished(raw: string): number | null {
+  const text = raw.trim()
+  const ms = Date.parse(DATE_ONLY_PATTERN.test(text) ? `${text}T00:00:00` : text)
+  return Number.isNaN(ms) ? null : ms
+}
+
+/**
+ * 磁力结果的发布时间 → 本地 `YYYY-MM-DD HH:MM`。
+ * 规则把上游写法原样转交过来：ISO（`2026-07-03T16:38:00.000Z`，UTC）、RFC 822 都有。
+ * 能解析的统一换算到本机时区；只有日期的、解析不了的原样返回 —— 宁可难看，不能丢信息。
+ */
+export function formatPublished(raw: string): string {
+  const text = raw.trim()
+  if (DATE_ONLY_PATTERN.test(text)) return text
+  const ms = Date.parse(text)
+  if (Number.isNaN(ms)) return raw
+  const date = new Date(ms)
+  return `${dateText(date)} ${clockText(date)}`
 }
 
 /**

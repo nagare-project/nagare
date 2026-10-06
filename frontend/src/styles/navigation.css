@@ -11,7 +11,10 @@
 .app-rail-item:hover .app-rail-tooltip, .app-rail-item:focus-visible .app-rail-tooltip { opacity: 1; transform: translateX(0); }
 .app-rail-account { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: 12px auto 0; border-radius: 50%; color: var(--fg-muted); background: var(--paper-raised); text-decoration: none; }
 .app-rail-account:hover { color: var(--fg); }
-.app-main { min-height: calc(100dvh - 80px); padding-left: var(--rail-w); }
+/* 横幅（新版本 / 后台提示）与页面同在这一列：页面靠 flex 吃掉余下的高度，而不是各自再声明
+   一遍「视口高 - 顶栏」—— 那样只要有横幅，内容再少的页面也会多出横幅那么高的滚动。 */
+.app-main { display: flex; flex-direction: column; min-height: calc(100dvh - 80px); padding-left: var(--rail-w); }
+.app-main > main { flex: 1 0 auto; }
 .app-topbar { position: relative; display: flex; align-items: center; gap: 12px; height: 80px; padding: 0 16px; margin-left: var(--rail-w); z-index: 10; }
 .app-top-links { display: flex; align-items: center; gap: 0; }
 .app-top-links a { padding: 0 8px; color: var(--fg-muted); font-size: 18.4px; line-height: 24px; font-weight: 600; text-decoration: none; }

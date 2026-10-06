@@ -12,7 +12,6 @@
   gap: 1.1rem;
   width: 100%;
   max-width: 1600px;
-  min-height: calc(100dvh - 80px);
   margin-inline: auto;
   padding: 24px var(--page-gutter) 48px;
 }
@@ -186,7 +185,10 @@ button.src-chip:disabled {
   transition: opacity var(--duration-fast) var(--ease);
 }
 
+/* position: relative 不能省：行里的读屏状态文字（.visually-hidden）是绝对定位，
+   包含块若落到 body 上就不受这里的横向裁切，窄屏会把整页撑出横向滚动。 */
 .res-wrap {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -268,8 +270,18 @@ td.res-actions {
   white-space: nowrap;
 }
 
-td.res-actions .btn + .res-play-wrap {
-  margin-left: 0.4rem;
+/* 操作列钉在右缘：半屏/分屏宽度下表格要横向滚动，主操作「播放」不能跟着滚出视野。
+   钉住的格子要有不透明底，否则滚到底下的标题会透出来；悬停行的底色也要跟着叠上。 */
+.res-table th.res-actions,
+.res-table td.res-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--bg);
+}
+
+.res-row:hover td.res-actions {
+  background: linear-gradient(var(--brand-wash), var(--brand-wash)), var(--bg);
 }
 
 .res-copy {
@@ -281,8 +293,11 @@ td.res-actions .btn + .res-play-wrap {
   color: var(--err);
 }
 
+/* 与「复制磁力」之间的间距直接写在自己身上：两者之间还夹着一个读屏用的隐藏 span，
+   `.btn + .res-play-wrap` 这种相邻选择器永远匹配不上。 */
 .res-play-wrap {
   display: inline-block;
+  margin-left: 0.4rem;
 }
 
 .res-play {
@@ -363,6 +378,21 @@ td.res-actions .btn + .res-play-wrap {
 
   .res-title {
     min-width: 12rem;
+  }
+
+  /* 两个按钮上下叠放，钉住的操作列只占一个按钮宽，给标题多留出位置 */
+  td.res-actions {
+    white-space: normal;
+  }
+
+  td.res-actions .btn,
+  .res-play-wrap {
+    display: block;
+    width: 100%;
+  }
+
+  .res-play-wrap {
+    margin: 0.35rem 0 0;
   }
 }
 

@@ -5,7 +5,7 @@ import type { UpdateView } from '../lib/endpoints'
 import { formatVersion } from '../lib/format'
 import { selfUpdateStatus } from '../lib/selfUpdateText'
 import { isHttpUrl } from '../lib/url'
-import { label } from '../theme'
+import { Icon } from './ui/Icon'
 import './update-banner.css'
 
 /** 「忽略此版本」记在 localStorage 里的键；值是被忽略的 latest 原文 */
@@ -45,8 +45,8 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
   return (
     <aside className="update-banner" role="status" aria-live="polite">
       <div className="update-banner-inner">
-        <span className="update-banner-tag" style={label}>
-          update
+        <span className="update-banner-icon" aria-hidden="true">
+          <Icon name="refresh" size={16} />
         </span>
         {selfUpdate.busy && <span className="update-banner-dot" aria-hidden="true" />}
         {/* 整条 aside 是 live region，所以每秒都在变的秒数必须 aria-hidden，

@@ -32,8 +32,7 @@ export function DebridPage() {
       <section className="panel settings-card">
         <h2 className="panel-heading">API 密钥</h2>
         <p className="page-notice-copy">
-          Debrid 是第三方付费服务：种子在它那边下好，再给你一条 HTTP 直链。
-          它能省掉本机的下载与做种，代价是<strong>播放链路多一个可以单方面掐断的中间人</strong>。
+          Debrid 是第三方付费服务：种子在它那边下好，再给你一条 HTTP 直链。它能省掉本机的下载与做种，代价是<strong>播放链路多一个可以单方面掐断的中间人</strong>。
         </p>
 
         <label htmlFor="debrid-key" style={label}>

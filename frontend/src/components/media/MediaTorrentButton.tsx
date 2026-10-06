@@ -4,7 +4,7 @@ import type { FormEvent } from 'react'
 import { useTorrentPlayback } from '../torrent/TorrentPlayContext'
 import { fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
 import type { SearchItem, SearchResult, SourceOutcome, SourcesData } from '../../lib/endpoints'
-import { errorText } from '../../lib/format'
+import { errorText, parsePublished } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import type { MediaSummary } from './types'
 import './media-play.css'
@@ -300,8 +300,8 @@ function ResourceResults({ state, busy, mediaId, mediaTitle, onPlay }: {
 
 /** 发布日期只显示到月；老发布（两年以上）标出来，提醒用户可能已经没人做种。 */
 export function publishedLabel(date: string | null | undefined): string | null {
-  const ms = Date.parse(date ?? '')
-  if (!ms) return null
+  const ms = date == null ? null : parsePublished(date)
+  if (ms === null) return null
   const d = new Date(ms)
   const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   return Date.now() - ms > 2 * 365 * 24 * 3600 * 1000 ? `${label} 发布（较旧，可能无人做种）` : `${label} 发布`

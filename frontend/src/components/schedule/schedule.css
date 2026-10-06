@@ -1,7 +1,8 @@
 /* seanime Schedule：宽幅缺集卡 + 月历 + 即将播出。 */
 .schedule-shell { gap: 40px; padding: 24px 32px 48px; }
 .schedule-shell > .fixture-notice { margin-bottom: -20px; }
-.schedule-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
+/* 放不下时整组分页点换到下一行，标题不收缩 —— 中文标题一收缩就会被挤成一字一行的竖排。 */
+.schedule-section-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 20px; margin-bottom: 16px; }
 .schedule-section-heading h2 { display: flex; align-items: center; gap: 12px; font-size: 28px; font-weight: 650; line-height: 1.25; letter-spacing: -.03em; }
 .schedule-section-heading p { color: var(--fg-muted); font-size: 15px; margin-top: 8px; }
 .schedule-strip { min-width: 0; }
@@ -17,7 +18,7 @@
 .schedule-episode-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 3px; font-size: 16px; font-weight: 500; }
 .schedule-episode-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-episode-meta time { color: var(--fg-muted); font-size: 13px; white-space: nowrap; font-weight: 400; }
-.schedule-strip-dots { display: flex; align-items: center; gap: 5px; padding-bottom: 4px; }
+.schedule-strip-dots { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 5px; margin-left: auto; padding-bottom: 4px; }
 .schedule-strip-dot { position: relative; width: 14px; height: 7px; padding: 0; border: 0; border-radius: 99px; background: #ffffff20; cursor: pointer; transition: background-color .25s; }
 .schedule-strip-dot::before { content: ''; position: absolute; inset: -8px -2px; }
 .schedule-strip-dot--on { background: #ffffff80; }
@@ -113,6 +114,10 @@
   .calendar-empty { display: none; }
   .schedule-release > .schedule-section-heading { display: none; }
   .schedule-agenda--discover .schedule-event-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  /* 窄屏靠手指横滑翻页，与发现页一样不画分页点；暂停按钮留下，自动轮播还在跑。 */
+  .schedule-strip-dot { display: none; }
 }
 @media (max-width: 640px) {
   .schedule-shell { padding: 16px 16px 32px; }
