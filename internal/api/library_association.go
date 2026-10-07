@@ -96,6 +96,21 @@ func (s *LibraryService) ClusterFiles(clusterKey string) ([]string, bool) {
 	return ids, found
 }
 
+// AssociationFor 返回某个文件所在作品分组的手动关联（播放器经 player.Options.Association 调用）。
+// 按 clusterKey 查而不是按关联记下的成员查：成员最多只记 64 个，长篇后面的集查不到。
+//
+// 查 store 时仍持读锁：重扫在同一把锁的写锁里迁移关联、换索引，读到的键与关联一定是同一次扫描的
+// （锁序 s.mu → store.mu，与 Rescan 一致）。
+func (s *LibraryService) AssociationFor(fileID string) (store.Association, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key, ok := s.fileCluster[fileID]
+	if !ok {
+		return store.Association{}, false
+	}
+	return s.st.Association(key)
+}
+
 // withRescanLock 让 fn 与重扫串行。
 func (s *LibraryService) withRescanLock(fn func()) {
 	s.rescanMu.Lock()
@@ -330,11 +345,16 @@ func (h *Handler) manualAssociation(w http.ResponseWriter, r *http.Request, anil
 	if len(cover) > maxAssocCoverBytes || !h.remoteArt.Allowed(cover) {
 		cover = ""
 	}
+	episodes := 0
+	if raw.Episodes != nil && *raw.Episodes > 0 {
+		episodes = *raw.Episodes
+	}
 	return &store.Association{
 		Mode:      store.AssociationManual,
 		AnilistID: anilistID,
 		Title:     truncateRunes(catalogTitle(raw), maxAssocTitleRunes),
 		CoverURL:  cover,
+		Episodes:  episodes,
 	}, true
 }
 
