@@ -23,8 +23,13 @@ func firstText(values ...string) string {
 func plainDescription(s string) string {
 	return strings.TrimSpace(html.UnescapeString(descriptionTags.ReplaceAllString(descriptionScripts.ReplaceAllString(s, ""), "")))
 }
+
+// catalogTitle 是作品的显示标题：中文名优先，依次回落。
+func catalogTitle(r animego.CatalogMedia) string {
+	return firstText(r.TitleChinese, r.TitleRomaji, r.TitleNative, r.TitleEnglish, r.Title)
+}
 func (s *DiscoverService) summary(r animego.CatalogMedia) SummaryMedia {
-	m := SummaryMedia{AnilistID: r.AnilistID, Title: firstText(r.TitleChinese, r.TitleRomaji, r.TitleNative, r.TitleEnglish, r.Title), TitleNative: r.TitleNative, TitleEnglish: r.TitleEnglish,
+	m := SummaryMedia{AnilistID: r.AnilistID, Title: catalogTitle(r), TitleNative: r.TitleNative, TitleEnglish: r.TitleEnglish,
 		Cover: s.art.Register(r.CoverImageURL), Banner: s.art.Register(r.BannerImageURL), Year: r.SeasonYear, Season: map[string]string{"WINTER": "冬", "SPRING": "春", "SUMMER": "夏", "FALL": "秋"}[r.Season], Episodes: r.Episodes, Score: int(math.Round(r.AverageScore)), Genres: append([]string{}, r.Genres...), Description: plainDescription(firstText(r.DescriptionCn, r.Description)), Status: r.Status, Format: r.Format, Duration: r.Duration, Source: r.Source, StartDate: r.StartDate, Studios: append([]string{}, r.Studios...)}
 	id, site := r.TrailerID, r.TrailerSite
 	if r.Trailer != nil {

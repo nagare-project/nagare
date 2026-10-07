@@ -51,18 +51,24 @@ func NewDiscoverService(source CatalogReader, art *RemoteArt) *DiscoverService {
 func (s *DiscoverService) schedule(ctx context.Context) (animego.ScheduleData, error) {
 	return cachedRead(ctx, s.cache, "schedule", 30*time.Minute, s.source.Schedule)
 }
-func (s *DiscoverService) Detail(ctx context.Context, id int) (SummaryMedia, error) {
 
-	raw, err := cachedRead(ctx, s.cache, fmt.Sprintf("detail:%d", id), 10*time.Minute, func(ctx context.Context) (animego.CatalogMedia, error) {
+// detailRaw 取作品详情的上游原始数据（与 Detail 共用 detail:<id> 缓存）。
+// 媒体库关联要存封面的原始地址，投影之后就只剩 /art 键了。
+func (s *DiscoverService) detailRaw(ctx context.Context, id int) (animego.CatalogMedia, error) {
+	return cachedRead(ctx, s.cache, fmt.Sprintf("detail:%d", id), 10*time.Minute, func(ctx context.Context) (animego.CatalogMedia, error) {
 		raw, err := s.source.Detail(ctx, id)
 		if err != nil {
 			return raw, err
 		}
-		if raw.AnilistID != id || firstText(raw.TitleChinese, raw.TitleRomaji, raw.TitleNative, raw.TitleEnglish, raw.Title) == "" {
+		if raw.AnilistID != id || catalogTitle(raw) == "" {
 			return raw, &animego.Error{Kind: animego.ErrDecode, Op: "detail", Err: fmt.Errorf("作品详情 ID 不一致或缺少标题")}
 		}
 		return raw, nil
 	})
+}
+
+func (s *DiscoverService) Detail(ctx context.Context, id int) (SummaryMedia, error) {
+	raw, err := s.detailRaw(ctx, id)
 	if err != nil {
 		return SummaryMedia{}, err
 	}

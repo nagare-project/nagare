@@ -42,14 +42,21 @@ func (a *RemoteArt) SetPrefix(prefix string) {
 	defer a.mu.Unlock()
 	a.prefix = strings.TrimRight(prefix, "/") + "/remote/"
 }
-func (a *RemoteArt) Register(source string) string {
+
+// Allowed 判断一个图片地址能不能经 /art 转发：只接 https、不带 userinfo 与 fragment，
+// 且是已核实的海报图床、AniZip 使用的 TVDB 截图图床或配置的元数据站点。
+// 落盘的封面地址（作品关联）也走这一道，上游数据被污染时不会变成长期的外联信标。
+func (a *RemoteArt) Allowed(source string) bool {
 	u, err := url.Parse(source)
-	// 只接已核实的海报图床、AniZip 使用的 TVDB 截图图床及配置的元数据站点。
 	if err != nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" || u.Host == "" {
-		return ""
+		return false
 	}
 	host := strings.ToLower(u.Host)
-	if host != "s4.anilist.co" && host != "artworks.thetvdb.com" && host != a.upstreamHost {
+	return host == "s4.anilist.co" || host == "artworks.thetvdb.com" || host == a.upstreamHost
+}
+
+func (a *RemoteArt) Register(source string) string {
+	if !a.Allowed(source) {
 		return ""
 	}
 	key := fmt.Sprintf("%x", sha256.Sum256([]byte(source)))

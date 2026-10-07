@@ -70,25 +70,36 @@ type SourcePluginConfig struct {
 	Root       string `json:"root,omitempty"`
 }
 
+// SchemaVersion 是状态文件的格式版本。旧文件没有这个字段（按 1 算）；
+// 第一次以不同版本打开时先备份一份再改写（见 backupBeforeUpgrade）。
+//
+// 2：加入 Associations（作品分组的手动关联）。
+const SchemaVersion = 2
+
 // Data 是落盘的全部状态。
 type Data struct {
-	Folders      []Folder            `json:"folders"`
-	Hashes       map[string]string   `json:"hashes"`   // fileID → 16MB MD5（懒算缓存）
-	Bindings     map[string]Binding  `json:"bindings"` // fileID → 匹配
-	Progress     map[string]Progress `json:"progress"` // fileID → 进度
-	Animego      AnimegoSession      `json:"animego"`
-	Rules        RulesConfig         `json:"rules"`
-	SourcePlugin SourcePluginConfig  `json:"sourcePlugin"`
+	SchemaVersion int                 `json:"schemaVersion"`
+	Folders       []Folder            `json:"folders"`
+	Hashes        map[string]string   `json:"hashes"`   // fileID → 16MB MD5（懒算缓存）
+	Bindings      map[string]Binding  `json:"bindings"` // fileID → 匹配
+	Progress      map[string]Progress `json:"progress"` // fileID → 进度
+	Animego       AnimegoSession      `json:"animego"`
+	Rules         RulesConfig         `json:"rules"`
+	SourcePlugin  SourcePluginConfig  `json:"sourcePlugin"`
 	// Torrent 存指针：nil = 从未配置过，读取时回落到 DefaultTorrentConfig。
 	Torrent *TorrentConfig `json:"torrent,omitempty"`
+	// Associations：clusterKey → 用户手动认定的目录作品（见 associations.go）。
+	Associations map[string]Association `json:"associations"`
 }
 
 func emptyData() Data {
 	return Data{
-		Folders:  []Folder{},
-		Hashes:   map[string]string{},
-		Bindings: map[string]Binding{},
-		Progress: map[string]Progress{},
+		SchemaVersion: SchemaVersion,
+		Folders:       []Folder{},
+		Hashes:        map[string]string{},
+		Bindings:      map[string]Binding{},
+		Progress:      map[string]Progress{},
+		Associations:  map[string]Association{},
 	}
 }
 
@@ -109,6 +120,8 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("读取状态文件 %s: %w", path, err)
 	}
+	// 版本号以文件里写的为准：旧文件没有这个字段，不能沿用 emptyData 预填的当前版本。
+	s.data.SchemaVersion = 0
 	if err := json.Unmarshal(raw, &s.data); err != nil {
 		return nil, fmt.Errorf("解析状态文件 %s（如需放弃旧状态请手动删除该文件）: %w", path, err)
 	}
@@ -124,6 +137,18 @@ func Open(path string) (*Store, error) {
 	}
 	if s.data.Folders == nil {
 		s.data.Folders = []Folder{}
+	}
+	if s.data.Associations == nil {
+		s.data.Associations = map[string]Association{}
+	}
+	// 版本不同就先备份：升级时留住旧格式；从更新的版本降级回来时，下一次写入会丢掉
+	// 这个版本不认识的字段，同样要留一份。
+	if s.data.SchemaVersion != SchemaVersion {
+		from := max(s.data.SchemaVersion, 1)
+		if err := backupBeforeUpgrade(path, raw, from); err != nil {
+			return nil, err
+		}
+		s.data.SchemaVersion = SchemaVersion
 	}
 	return s, nil
 }
@@ -179,11 +204,16 @@ func (s *Store) Snapshot() Data {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := Data{
-		Folders:  append([]Folder{}, s.data.Folders...),
-		Hashes:   map[string]string{},
-		Bindings: map[string]Binding{},
-		Progress: map[string]Progress{},
-		Animego:  s.data.Animego,
+		SchemaVersion: s.data.SchemaVersion,
+		Folders:       append([]Folder{}, s.data.Folders...),
+		Hashes:        map[string]string{},
+		Bindings:      map[string]Binding{},
+		Progress:      map[string]Progress{},
+		Animego:       s.data.Animego,
+		Associations:  map[string]Association{},
+	}
+	for k, a := range s.data.Associations {
+		out.Associations[k] = a.clone()
 	}
 	for k, v := range s.data.Hashes {
 		out.Hashes[k] = v

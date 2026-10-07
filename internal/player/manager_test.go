@@ -446,10 +446,13 @@ func syncFixture(t *testing.T, client AnimegoClient) (*Manager, *session, string
 	require.NoError(t, st.SetProgress(item.FileID, store.Progress{
 		PositionSec: 1400, DurationSec: 1400, Completed: true, Synced: false,
 	}))
+	binding := store.Binding{AnilistID: 42, Episode: 3, Title: "测试番剧"}
+	// 与真实流程一致：开播时的匹配既在会话里，也落了盘
+	require.NoError(t, st.SetBinding(item.FileID, binding))
 	sess := &session{
 		item:     item,
 		finished: make(chan struct{}),
-		binding:  store.Binding{AnilistID: 42, Episode: 3, Title: "测试番剧"},
+		binding:  binding,
 	}
 	return m, sess, dir
 }
@@ -512,4 +515,47 @@ func TestSyncSilentWhenNothingWrong(t *testing.T) {
 	m, sess, _ := syncFixture(t, &fakeClient{loggedIn: true})
 	m.syncWatched(sess)
 	assert.Nil(t, m.Status().Sync)
+}
+
+// 停止播放之后、收尾回写之前，用户在媒体库改了作品关联（匹配被作废）：不能再写到旧作品上。
+func TestSyncSkipsWhenAssociationChangedBeforeWriteback(t *testing.T) {
+	client := &fakeClient{loggedIn: true}
+	m, sess, _ := syncFixture(t, client)
+	_, err := m.opts.Store.ApplyAssociation("k", &store.Association{Mode: store.AssociationManual, AnilistID: 7}, []string{sess.item.FileID})
+	require.NoError(t, err)
+
+	m.syncWatched(sess)
+
+	assert.Empty(t, client.marked, "匹配已作废，不能按开播时的快照回写")
+	p, _ := m.opts.Store.Progress(sess.item.FileID)
+	assert.False(t, p.Synced)
+	assert.Nil(t, m.Status().Sync, "这不是回写失败，不该挂失败横幅")
+}
+
+// changingClient 在回写请求「途中」改掉作品关联。
+type changingClient struct {
+	fakeClient
+	during func()
+}
+
+func (c *changingClient) MarkWatched(ctx context.Context, id int, ep int) error {
+	c.during()
+	return c.fakeClient.MarkWatched(ctx, id, ep)
+}
+
+// 回写途中关联被改：这一集已经写到了旧作品上，但不能标成「已回写」，重看看完时要按新关联再写一次。
+func TestSyncDoesNotMarkSyncedWhenAssociationChangesMidway(t *testing.T) {
+	client := &changingClient{fakeClient: fakeClient{loggedIn: true}}
+	m, sess, _ := syncFixture(t, client)
+	client.during = func() {
+		_, err := m.opts.Store.ApplyAssociation("k", &store.Association{Mode: store.AssociationNone}, []string{sess.item.FileID})
+		require.NoError(t, err)
+	}
+
+	m.syncWatched(sess)
+
+	assert.Equal(t, []int{3}, client.marked)
+	p, _ := m.opts.Store.Progress(sess.item.FileID)
+	assert.True(t, p.Completed)
+	assert.False(t, p.Synced)
 }

@@ -324,6 +324,12 @@ func (m *Manager) syncWatched(sess *session) {
 	if b.AnilistID <= 0 || b.Episode <= 0 || m.opts.Client == nil || !m.opts.Client.LoggedIn() {
 		return
 	}
+	// 会话里的匹配是开播时的快照。收尾跑在停止播放之后，这期间用户可能已经在媒体库里
+	// 改了作品关联（它会作废这条匹配）—— 那就不能再按旧匹配回写到旧作品上。
+	if !m.bindingStillCurrent(sess.item.FileID, b) {
+		log.Printf("player: 作品关联已改，不按旧匹配回写（anilistId=%d 第%d集）", b.AnilistID, b.Episode)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), markWatchedTimeout)
 	defer cancel()
@@ -351,9 +357,26 @@ func (m *Manager) syncWatched(sess *session) {
 	}
 	// 成功就把上一次的失败留痕清掉，横幅跟着消失，不用用户手动关。
 	m.setSyncFailure(nil)
+	// 回写途中关联被改了：这一集已经写到了旧作品上，但不能标成「已回写」——
+	// 否则重看这一集看完时也不会再按新关联写一次。
+	if !m.bindingStillCurrent(sess.item.FileID, b) {
+		log.Printf("player: 回写途中作品关联已改，这一集不标记为已回写")
+		return
+	}
+	// 重读一次再置位：网络请求期间进度可能被别处改过，不能用开头那份整个盖回去
+	if latest, ok := m.opts.Store.Progress(sess.item.FileID); ok {
+		p = latest
+	}
 	p.Synced = true
 	if err := m.opts.Store.SetProgress(sess.item.FileID, p); err != nil {
 		log.Printf("player: 记录同步状态失败：%v", err)
 	}
 	log.Printf("player: 已回写 animego：anilistId=%d 第%d集", b.AnilistID, b.Episode)
+}
+
+// bindingStillCurrent：store 里这个文件的匹配仍是会话开播时那一条（同一部作品、同一集）。
+// 改作品关联会作废不一致的匹配，作废之后这里就是 false。
+func (m *Manager) bindingStillCurrent(fileID string, b store.Binding) bool {
+	cur, ok := m.opts.Store.Binding(fileID)
+	return ok && cur.AnilistID == b.AnilistID && cur.Episode == b.Episode
 }
