@@ -47,7 +47,7 @@ func (h *assocHarness) watchedThenSync(t *testing.T, b store.Binding) {
 }
 
 func frierenAssoc() *store.Association {
-	return &store.Association{Mode: store.AssociationManual, AnilistID: frieren, Title: "葬送的芙莉莲", CoverURL: "https://s4.anilist.co/c.jpg", Episodes: 28}
+	return &store.Association{Mode: store.AssociationManual, AnilistID: frieren, Title: "葬送的芙莉莲", CoverURL: "https://s4.anilist.co/c.jpg"}
 }
 
 func matchFor(anilistID, episode int) animego.MatchResult {
@@ -155,8 +155,8 @@ func TestProgressOnlyBindingUpgradesWhenDanmakuMatches(t *testing.T) {
 	assert.Equal(t, b, stored)
 }
 
-// animego 认出了 X 却说没有这一集，或集号超出 X 的总集数（绝对集号的文件配上分季条目）：
-// 不能只凭关联把第 27 集写进账号。
+// animego 认出了 X 却说没有这一集：不能只凭关联把第 27 集写进账号。
+// （集号超出总集数的在回写时按作品的集号空间判断，见 episodes_test.go。）
 func TestAssociatedDoesNotWriteEpisodesTheWorkDoesNotHave(t *testing.T) {
 	t.Run("匹配结果里没有这一集", func(t *testing.T) {
 		client := &fakeClient{loggedIn: true, matchRes: matchFor(frieren, 12)}
@@ -170,27 +170,6 @@ func TestAssociatedDoesNotWriteEpisodesTheWorkDoesNotHave(t *testing.T) {
 		assert.Equal(t, "匹配结果里没有第 27 集；看完不回写进度", dan.Reason)
 		_, ok := h.st.Binding(h.item.FileID)
 		assert.False(t, ok)
-	})
-	t.Run("超出总集数", func(t *testing.T) {
-		h := newAssocHarness(t, &fakeClient{loggedIn: true}, frierenAssoc())
-		ep := 29
-		h.item.Episode = &ep
-
-		b, dan := h.ensure()
-
-		assert.Equal(t, store.Binding{}, b)
-		assert.Contains(t, dan.Reason, "只有 28 集")
-	})
-	t.Run("总集数未知（还在播）照样回写", func(t *testing.T) {
-		assoc := frierenAssoc()
-		assoc.Episodes = 0
-		h := newAssocHarness(t, &fakeClient{loggedIn: true}, assoc)
-		ep := 29
-		h.item.Episode = &ep
-
-		b, _ := h.ensure()
-
-		assert.Equal(t, 29, b.Episode)
 	})
 }
 

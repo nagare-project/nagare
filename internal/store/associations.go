@@ -35,9 +35,6 @@ type Association struct {
 	Title     string `json:"title,omitempty"`
 	// CoverURL 是目录作品的封面原始地址，只在服务端用（经 /art 能力 URL 转发），不发给客户端。
 	CoverURL string `json:"coverUrl,omitempty"`
-	// Episodes 是目录里这部作品的总集数，0 = 未知（比如还在播）。弹幕匹配不上、只凭关联回写进度时，
-	// 用它挡住超出范围的集号（绝对集号的文件配上分季条目）。
-	Episodes int `json:"episodes,omitempty"`
 	// Members 是设定（或最近一次重扫）时分组里的文件 fileId，最多 MaxAssociationMembers 个；
 	// MemberCount 是那时分组的文件总数（不受上限约束），迁键时用来判断新分组是不是大了一圈。
 	Members     []string `json:"members,omitempty"`
@@ -119,11 +116,15 @@ func (s *Store) ApplyAssociation(clusterKey string, a *Association, fileIDs []st
 		if !ok || !p.Synced {
 			continue
 		}
-		if p.Completed && b.AnilistID > 0 && b.Episode > 0 {
-			synced = mergeSynced(synced, b.AnilistID, b.Title, b.Episode)
+		written := b.Episode
+		if p.SyncedEpisode > 0 {
+			written = p.SyncedEpisode // 回写时换算过（跨季连续编号）：用实际写进账号的那个集号
+		}
+		if p.Completed && b.AnilistID > 0 && written > 0 {
+			synced = mergeSynced(synced, b.AnilistID, b.Title, written)
 		}
 		oldProgress[id] = p
-		p.Synced = false
+		p.Synced, p.SyncedEpisode = false, 0
 		s.data.Progress[id] = p
 	}
 

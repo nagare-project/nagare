@@ -73,6 +73,12 @@ type Options struct {
 	// Association 查某个文件所在作品分组的手动关联（媒体库按 clusterKey 存，见 association.go）。
 	// 可为 nil：不在媒体库里的源（磁力、在线候选）本来就没有关联，一律走自动匹配。
 	Association func(fileID string) (store.Association, bool)
+	// GroupEpisodes 返回文件所在作品分组里全部正片的集号（判断跨季连续编号要看整组，见 episodes.go）。
+	// 可为 nil，不在媒体库里的源返回空。
+	GroupEpisodes func(fileID string) []int
+	// EpisodeSpace 查目录作品的总集数与集号偏移，「看完」回写前把文件里的集号换成作品集号。
+	// 可为 nil：不换算，按文件里的集号回写。
+	EpisodeSpace func(ctx context.Context, anilistID int) (EpisodeSpace, error)
 }
 
 // DanmakuInfo 是弹幕链路的结果状态 —— 失败必须可见（CQ3：不静默）。
@@ -289,6 +295,9 @@ func (m *Manager) resolveDanmaku(sess *session) {
 		}
 	}
 	sess.applyDanmaku(binding, pickTitle(binding, sess.item), assPath, dan)
+	if binding.Episode > 0 {
+		m.warmEpisodeSpace(binding.AnilistID)
+	}
 }
 
 // ensureBinding 取（或建立）文件与 dandanplay 剧集的绑定；一并返回弹幕链路状态。

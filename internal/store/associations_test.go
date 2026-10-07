@@ -359,3 +359,18 @@ func TestDismissSyncedElsewhereRollsBackWhenSaveFails(t *testing.T) {
 	a, _ := s.Association("k")
 	assert.Len(t, a.SyncedElsewhere, 1)
 }
+
+// 回写时换算过集号（文件里 38 → 第 10 集）：改关联时列出的是写进账号的 10；清掉「已回写」时一起清掉。
+func TestApplyAssociationUsesTheSyncedEpisode(t *testing.T) {
+	s, _ := newStore(t)
+	require.NoError(t, s.SetBinding("ep", Binding{AnilistID: 182255, Episode: 38, Title: "芙莉莲 第二季"}))
+	require.NoError(t, s.SetProgress("ep", Progress{Completed: true, Synced: true, SyncedEpisode: 10}))
+
+	got, err := s.ApplyAssociation("k", &Association{Mode: AssociationManual, AnilistID: 1}, []string{"ep"})
+	require.NoError(t, err)
+
+	assert.Equal(t, []SyncedRecord{{AnilistID: 182255, Title: "芙莉莲 第二季", Episodes: []int{10}}}, got.SyncedElsewhere)
+	p, _ := s.Progress("ep")
+	assert.False(t, p.Synced)
+	assert.Zero(t, p.SyncedEpisode)
+}
