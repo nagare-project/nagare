@@ -19,7 +19,7 @@ import { useSettings } from '../hooks/useSettings'
 import { useSources } from '../hooks/useSources'
 import { useUpdateContext } from '../hooks/useUpdate'
 import { animegoLogin, animegoLogout } from '../lib/endpoints'
-import type { AnimegoInfo } from '../lib/endpoints'
+import type { AnimegoInfo, Platform } from '../lib/endpoints'
 import type { LibraryState } from '../hooks/useLibrary'
 import { errorText, formatDate } from '../lib/format'
 import { label, mono } from '../theme'
@@ -97,7 +97,8 @@ export function SettingsPage() {
         <div className="settings-section" hidden={section.id !== 'update'}><UpdateCard update={update} selfUpdate={selfUpdate} /></div>
         <div className="settings-section" hidden={section.id !== 'sources'}><SourcePluginCard plugin={sourcePlugin} /><SourcesCard sources={sources} /></div>
         <div className="settings-section" hidden={section.id !== 'folders'}>
-          <FoldersCard state={library.state} onAdd={library.addFolder} onRemove={library.removeFolder} onRetry={() => void library.reload()} />
+          <FoldersCard state={library.state} onAdd={library.addFolder} onRemove={library.removeFolder} onRetry={() => void library.reload()}
+            platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined} />
         </div>
         <div className="settings-section" hidden={section.id !== 'about'}>
           {settings.state.phase === 'ready' && <AboutCard settings={settings.state.data} />}
@@ -251,11 +252,13 @@ function FoldersCard({
   onAdd,
   onRemove,
   onRetry,
+  platform,
 }: {
   state: LibraryState
   onAdd: ReturnType<typeof useLibrary>['addFolder']
   onRemove: (id: string) => Promise<void>
   onRetry: () => void
+  platform?: Platform
 }) {
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
@@ -335,7 +338,7 @@ function FoldersCard({
               {removeError}
             </p>
           )}
-          <AddFolderForm onAdd={onAdd} />
+          <AddFolderForm onAdd={onAdd} platform={platform} />
         </>
       )}
     </section>

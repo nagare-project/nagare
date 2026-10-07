@@ -9,6 +9,7 @@ import { TOKEN_STORAGE_KEY } from '../lib/token'
 import { router } from '../routes'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
+import { SKIP_FOLDERS_KEY } from '../components/library/onboardingSkip'
 
 const LIBRARY: LibraryData = {
   continueWatching: [],
@@ -208,8 +209,20 @@ describe('LibraryPage（整页冒烟）', () => {
   })
 
   /** 库为空 + 未配规则仓库：最"空"的首次运行状态 */
-  function stubFirstRun(): void {
-    const empty: LibraryData = { folders: [], clusters: [], continueWatching: [], scannedAt: null }
+  function stubFirstRun(
+    settings: SettingsData = SETTINGS,
+    detected: SettingsData['mpv'] = settings.mpv,
+    pluginReady = false,
+  ): ReturnType<typeof vi.fn> {
+    // scannedAt 有值：删光文件夹时后端会重扫一次，空库也带着扫描时间（「上次扫描」要藏得住）
+    const empty: LibraryData = { folders: [], clusters: [], continueWatching: [], scannedAt: 1_756_500_000 }
+    let current = settings
+    // 目录浏览的桩：常用位置 → 主目录 → 一个番剧文件夹
+    const listings: Record<string, unknown> = {
+      '': { path: '', parent: '', dirs: [{ name: '主目录', path: '/Users/you' }], truncated: false },
+      '/Users/you': { path: '/Users/you', parent: '/Users', dirs: [{ name: 'Anime', path: '/Users/you/Anime' }], truncated: false },
+      '/Users/you/Anime': { path: '/Users/you/Anime', parent: '/Users/you', dirs: [], truncated: false },
+    }
     const noSources = {
       sources: [],
       rules: {
@@ -224,16 +237,26 @@ describe('LibraryPage（整页冒烟）', () => {
     }
     const impl = async (input: RequestInfo | URL): Promise<Response> => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-      const path = new URL(url, 'http://127.0.0.1').pathname
+      const parsed = new URL(url, 'http://127.0.0.1')
+      const path = parsed.pathname
+      if (path === '/api/mpv/detect') current = { ...current, mpv: detected }
       const data =
         path === '/api/library'
           ? empty
+          : path === '/api/fs/dirs'
+            ? listings[parsed.searchParams.get('path') ?? '']
+          : path === '/api/library/folders'
+            ? { folder: { id: 'f-1', path: '/Users/you/Anime', addedAt: 1 }, stats: { videos: 0, clusters: 0 } }
+          : path === '/api/mpv/detect'
+            ? detected
           : path === '/api/settings'
-            ? SETTINGS
+            ? current
             : path === '/api/sources'
               ? noSources
               : path === '/api/source-plugin'
-                ? { config: { enabled: false, executable: '', root: '' }, status: { phase: 'disabled' }, sources: [] }
+                ? pluginReady
+                  ? { config: { enabled: true, executable: '/x', root: '/y' }, status: { phase: 'ready' }, sources: [{ id: 'garden', name: 'Anime Garden', kind: 'bt', enabled: true }] }
+                  : { config: { enabled: false, executable: '', root: '' }, status: { phase: 'disabled' }, sources: [] }
                 : path === '/api/update'
                   ? UPDATE
                   : PLAYER
@@ -242,7 +265,27 @@ describe('LibraryPage（整页冒烟）', () => {
         headers: { 'Content-Type': 'application/json' },
       })
     }
-    vi.stubGlobal('fetch', vi.fn(impl))
+    const mock = vi.fn(impl)
+    vi.stubGlobal('fetch', mock)
+    return mock
+  }
+
+  /** 让在途的 fetch 与随后的 setState 都落地 */
+  async function settle(): Promise<void> {
+    for (let i = 0; i < 5; i++) await act(async () => { await Promise.resolve() })
+  }
+
+  function calledPaths(mock: ReturnType<typeof vi.fn>): string[] {
+    return mock.mock.calls.map(([input]) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      return new URL(url, 'http://127.0.0.1').pathname
+    })
+  }
+
+  function buttonByText(container: HTMLElement, text: string): HTMLButtonElement {
+    const button = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(text))
+    if (button === undefined) throw new Error(`找不到按钮：${text}`)
+    return button
   }
 
   it('库为空时显示引导屏，四个准备项齐全', async () => {
@@ -391,6 +434,117 @@ describe('LibraryPage（整页冒烟）', () => {
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     const alerts = [...container.querySelectorAll('.alert-warn')].map((e) => e.textContent ?? '')
     expect(alerts.filter((t) => t.includes('animego 账号'))).toEqual([])
+    await unmount()
+  })
+
+  it('库为空时不显示「重新扫描」「上次扫描」，mpv 缺失也只在引导卡里讲一次', async () => {
+    stubFirstRun(MPV_MISSING)
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    expect(container.textContent).not.toContain('重新扫描')
+    expect(container.textContent).not.toContain('上次扫描')
+    // 顶部那条长警示与引导卡讲的是同一件事
+    expect(container.querySelector('.lib-shell > .alert-warn')).toBeNull()
+    await unmount()
+  })
+
+  it('mpv 缺失：安装命令与「重新检测」就在引导卡里，切回页面会自动再检测', async () => {
+    const mock = stubFirstRun(MPV_MISSING, SETTINGS.mpv)
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const step = container.querySelector('.onboard-step')!
+    expect(step.textContent).toContain('brew install mpv')
+    // 不再跳去设置页：新用户跳走之后很难自己找回首页
+    expect(step.querySelector('a[href="/settings#player"]')).toBeNull()
+
+    // 用户在终端装完、切回浏览器：窗口重新获得焦点时自动检测，绿点亮起
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    await settle()
+    expect(calledPaths(mock)).toContain('/api/mpv/detect')
+    expect(container.querySelector('.onboard-step .onboard-dot--done')).not.toBeNull()
+    await unmount()
+  })
+
+  it('「浏览…」逐层选目录，点「添加这个文件夹」直接添加，不用手敲绝对路径', async () => {
+    const mock = stubFirstRun()
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    await act(async () => { buttonByText(container, '浏览…').click() })
+    await settle()
+    // 常用位置不能直接添加：先点进具体的文件夹
+    expect(buttonByText(container, '添加这个文件夹').disabled).toBe(true)
+    await act(async () => { buttonByText(container, '主目录').click() })
+    await settle()
+    await act(async () => { buttonByText(container, 'Anime').click() })
+    await settle()
+    await act(async () => { buttonByText(container, '添加这个文件夹').click() })
+    await settle()
+
+    const add = mock.mock.calls.find(([input]) => String(input).includes('/api/library/folders'))
+    expect(add).toBeDefined()
+    expect(JSON.parse(String((add![1] as RequestInit).body))).toEqual({ path: '/Users/you/Anime' })
+    await unmount()
+  })
+
+  it('只用磁力的人可以跳过本地文件夹；mpv 没装好之前不给跳过', async () => {
+    stubFirstRun()
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    await act(async () => { buttonByText(container, '先不添加本地文件夹').click() })
+    expect(container.querySelector('.onboard')).toBeNull()
+    expect(container.textContent).toContain('本地媒体库还是空的')
+    // 想加的时候表单就在这里
+    expect(container.querySelector('input[name="path"]')).not.toBeNull()
+
+    await act(async () => { buttonByText(container, '显示新手引导').click() })
+    expect(container.querySelector('.onboard')).not.toBeNull()
+    await unmount()
+
+    stubFirstRun(MPV_MISSING)
+    const second = await mount(<RouterProvider router={router} />)
+    expect(second.container.textContent).not.toContain('先不添加本地文件夹')
+    await second.unmount()
+  })
+
+  it('有磁力来源但引擎没起来时不能说「已就绪」，要指向磁力播放设置', async () => {
+    stubFirstRun({ ...SETTINGS, torrent: { ...SETTINGS.torrent, enabled: false } }, SETTINGS.mpv, true)
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    await settle()
+    const magnet = [...container.querySelectorAll('.onboard-step')].find((el) => el.textContent?.includes('磁力搜索'))!
+    expect(magnet.textContent).toContain('磁力引擎没有启动')
+    expect(magnet.querySelector('.onboard-dot--done')).toBeNull()
+    expect(magnet.querySelector('a[href="/settings#torrent"]')).not.toBeNull()
+    await unmount()
+  })
+
+  it('跳过记在本机：刷新后仍是简洁空库；但 mpv 没装好时照样显示引导', async () => {
+    window.localStorage.setItem(SKIP_FOLDERS_KEY, '1')
+    stubFirstRun()
+    const first = await mount(<RouterProvider router={router} />)
+    await settle()
+    expect(first.container.querySelector('.library-empty')).not.toBeNull()
+    expect(first.container.querySelector('.onboard')).toBeNull()
+    await first.unmount()
+
+    stubFirstRun(MPV_MISSING)
+    const second = await mount(<RouterProvider router={router} />)
+    await settle()
+    expect(second.container.querySelector('.onboard')).not.toBeNull()
+    expect(second.container.querySelector('.library-empty')).toBeNull()
+    await second.unmount()
+  })
+
+  it('找到了 mpv 却用不了（版本过低）时，原因写在引导卡里，而不是只给安装命令', async () => {
+    const tooOld: SettingsData = {
+      ...MPV_MISSING,
+      mpv: { ...MPV_MISSING.mpv, hint: 'mpv 版本过低：当前 0.29.1，最低要求 0.32.0。请用发行版包管理器升级 mpv' },
+    }
+    stubFirstRun(tooOld)
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    await settle()
+    expect(container.querySelector('.onboard-step')?.textContent).toContain('版本过低')
     await unmount()
   })
 

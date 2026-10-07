@@ -545,6 +545,17 @@
 .onboard-form { margin-top: 16px; }
 .onboard-form .add-folder-row { flex-wrap: wrap; }
 .onboard-form .add-folder-row .input { flex-basis: 100%; }
+/* 引导卡里的 mpv 安装方法：沿用设置页的命令块，只收紧上下间距 */
+.onboard-mpv { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.onboard-mpv .mpv-install { margin: 0; }
+/* 浏览面板展开时卡片会变很高：这一行不再等高拉伸，免得旁边的卡片成了一个空框 */
+.onboard-list:has(.folder-browser) { align-items: start; }
+/* 「先不添加本地文件夹」：给只用磁力的人一个出口，弱化成文字链接 */
+.onboard-skip { margin-top: 20px; text-align: center; color: var(--fg-muted); font-size: 14px; }
+.onboard-skip-btn { margin-left: 6px; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.library-empty { max-width: 640px; }
+.library-empty-form { width: 100%; margin-top: 8px; text-align: left; }
+.library-empty .page-notice-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 @media (max-width: 700px) {
   .onboard-list { grid-template-columns: minmax(0, 1fr); }
   .onboard-title { font-size: 26px; }
