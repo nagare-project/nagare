@@ -1,9 +1,11 @@
 package api
 
 import (
-	"github.com/nagare-project/nagare/internal/httpserver"
 	"net/http"
 	"strconv"
+
+	"github.com/nagare-project/nagare/internal/httpserver"
+	"github.com/nagare-project/nagare/internal/store"
 )
 
 func (h *Handler) SetCatalogArtPrefix(prefix string) { h.remoteArt.SetPrefix(prefix) }
@@ -63,9 +65,16 @@ func (h *Handler) catalogSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 	known := map[int]bool{}
 	if h.deps.Store != nil {
-		for _, b := range h.deps.Store.Snapshot().Bindings {
+		snap := h.deps.Store.Snapshot()
+		for _, b := range snap.Bindings {
 			if b.AnilistID > 0 {
 				known[b.AnilistID] = true
+			}
+		}
+		// 手动认定的作品也算在库：改关联会作废旧匹配，要等播过才会有新的
+		for _, a := range snap.Associations {
+			if a.Mode == store.AssociationManual && a.AnilistID > 0 {
+				known[a.AnilistID] = true
 			}
 		}
 	}

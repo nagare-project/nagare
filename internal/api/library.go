@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -65,8 +66,11 @@ type ViewCluster struct {
 	// Cover 是可以直接放进 <img src> 的本机地址，空串表示还没有图。
 	// 「还没有图」是常态而非异常：封面来自播放前的 animego 匹配，
 	// 一部从未播过的番就是没有。界面必须有无图版式，不能把空串当错误。
-	Cover  string      `json:"cover,omitempty"`
-	Groups []ViewGroup `json:"groups"`
+	Cover string `json:"cover,omitempty"`
+	// Association 是用户手动认定的目录作品；nil 表示没认过，走自动匹配。
+	// 认定为某部作品时 Cover 用那部作品的封面。
+	Association *ViewAssociation `json:"association,omitempty"`
+	Groups      []ViewGroup      `json:"groups"`
 }
 
 // ViewContinue 是「继续观看」的一张卡片。
@@ -169,6 +173,10 @@ type clusterEntry struct {
 type LibraryService struct {
 	st *store.Store
 
+	// rescanMu 让重扫串行：扫描结果与关联迁移分两步写进内存和 store，两次重扫交错时
+	// 关联可能按一份结果迁、媒体库却装上另一份。
+	rescanMu sync.Mutex
+
 	mu        sync.RWMutex
 	folders   []ViewFolder
 	clusters  []clusterEntry
@@ -201,11 +209,12 @@ func (s *LibraryService) SetArtPrefix(prefix string) {
 //
 // 给客户端的是 fileId 而不是真实图床地址：客户端只知道键，地址留在服务端 ——
 // 这样客户端侧压根没有「让 nagare 去请求任意地址」的入口（SSRF）。
+// 封面按 immutable 缓存，而改关联会作废匹配、重新匹配到别的作品：地址带上匹配时间。
 func artURL(prefix, fileID string, b store.Binding) string {
 	if prefix == "" || b.CoverURL == "" {
 		return ""
 	}
-	return prefix + "/" + url.PathEscape(fileID)
+	return prefix + "/" + url.PathEscape(fileID) + "?v=" + strconv.FormatInt(b.MatchedAt, 10)
 }
 
 // NewLibraryService 构造服务（不自动扫描；调用方决定时机）。
@@ -219,6 +228,8 @@ func NewLibraryService(st *store.Store) *LibraryService {
 
 // Rescan 重扫全部库目录。单个目录失败只标注该目录，不影响其他目录（CQ3 降级）。
 func (s *LibraryService) Rescan() Stats {
+	s.rescanMu.Lock()
+	defer s.rescanMu.Unlock()
 	folders := s.st.Snapshot().Folders
 
 	var (
@@ -265,6 +276,7 @@ func (s *LibraryService) Rescan() Stats {
 		fviews = append(fviews, fv)
 	}
 	stats.Clusters = len(clusters)
+	s.syncAssociations(clusters)
 
 	s.mu.Lock()
 	s.folders = fviews
@@ -329,7 +341,7 @@ func (s *LibraryService) SubtitlePath(fileID string) string {
 func (s *LibraryService) View() LibraryView {
 	// 一次性取快照：千集规模下逐条目加锁读会把 store 的互斥锁打成热点。
 	snap := s.st.Snapshot()
-	progress, bindings := snap.Progress, snap.Bindings
+	progress, bindings, assocs := snap.Progress, snap.Bindings, snap.Associations
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -377,6 +389,10 @@ func (s *LibraryService) View() LibraryView {
 				break
 			}
 		}
+		if a, ok := assocs[c.ClusterKey]; ok {
+			vc.Association = toViewAssociation(a)
+			vc.Cover = associatedCover(prefix, c.ClusterKey, a, vc.Cover)
+		}
 		for _, g := range c.Groups {
 			vg := ViewGroup{GroupKey: g.GroupKey, Label: g.Label, SortMode: g.SortMode, Items: []ViewItem{}}
 			for _, it := range g.Items {
@@ -402,7 +418,7 @@ func (s *LibraryService) View() LibraryView {
 		}
 		view.Clusters = append(view.Clusters, vc)
 	}
-	view.ContinueWatching = s.continueWatching(prefix, progress, bindings)
+	view.ContinueWatching = s.continueWatching(prefix, progress, bindings, assocs)
 	return view
 }
 
@@ -413,6 +429,7 @@ func (s *LibraryService) continueWatching(
 	prefix string,
 	progress map[string]store.Progress,
 	bindings map[string]store.Binding,
+	assocs map[string]store.Association,
 ) []ViewContinue {
 	// 集数取自所属簇：Binding 里没有总集数，而「第 5 集 / 共 13 集」
 	// 里的分母正是用户判断还剩多少的依据。
@@ -445,7 +462,12 @@ func (s *LibraryService) continueWatching(
 				continue
 			}
 			b := bindings[it.FileID]
-			title := b.Title
+			title, cover := b.Title, artURL(prefix, it.FileID, b)
+			// 手动认定的作品优先：自动匹配的标题与封面可能正是认错的那部
+			if a, ok := assocs[ce.cluster.ClusterKey]; ok {
+				title = a.Title
+				cover = associatedCover(prefix, ce.cluster.ClusterKey, a, cover)
+			}
 			if title == "" {
 				title = clusterTitle(ce.cluster)
 			}
@@ -455,7 +477,7 @@ func (s *LibraryService) continueWatching(
 				EpisodeTitle: b.EpisodeTitle,
 				Episode:      it.Episode,
 				EpisodeCount: total[it.FileID],
-				Cover:        artURL(prefix, it.FileID, b),
+				Cover:        cover,
 				PositionSec:  p.PositionSec,
 				DurationSec:  p.DurationSec,
 				UpdatedAt:    p.UpdatedAt,
