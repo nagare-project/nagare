@@ -38,7 +38,23 @@ const animeRoute = createRoute({
 
 /** 元数据目录与账号收藏。 */
 const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists', component: ListsPage })
-const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: lazyRouteComponent(() => import('./pages/DiscoverPage'), 'DiscoverPage') })
+/** `/discover?q=` 时显示作品搜索结果；genre 是热门板块的初始类型筛选（从作品页的类型标签跳过来） */
+export interface DiscoverRouteParams {
+  q?: string
+  genre?: string
+}
+const discoverRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/discover',
+  validateSearch: (search: Record<string, unknown>): DiscoverRouteParams => {
+    const out: DiscoverRouteParams = {}
+    const q = coerceQuery(search.q)
+    if (q !== undefined) out.q = q
+    if (typeof search.genre === 'string' && search.genre !== '') out.genre = search.genre
+    return out
+  },
+  component: lazyRouteComponent(() => import('./pages/DiscoverPage'), 'DiscoverPage'),
+})
 const entryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/entry', validateSearch: (search: Record<string, unknown>) => ({ id: Number.isSafeInteger(Number(search.id)) && Number(search.id) > 0 ? Number(search.id) : 0 }), component: lazyRouteComponent(() => import('./pages/EntryPage'), 'EntryPage') })
 const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
 

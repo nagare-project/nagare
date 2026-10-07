@@ -56,3 +56,22 @@ func TestCatalogRejectsMissingMalformedAndNullData(t *testing.T) {
 		})
 	}
 }
+
+func TestCatalogSearchSendsKeywordAndDecodesPagedEnvelope(t *testing.T) {
+	rec := &recorder{}
+	client := newTestClient(t, rec, func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/anime/search", r.URL.Path)
+		require.Equal(t, "葬送的芙莉莲", r.URL.Query().Get("q"))
+		require.Equal(t, "1", r.URL.Query().Get("page"))
+		require.Equal(t, "20", r.URL.Query().Get("perPage"))
+		// 搜索响应比其余目录多一个 pagination；只要 data
+		respond(w, 200, `{"data":[{"anilistId":154587,"titleChinese":"葬送的芙莉莲"}],"pagination":{"page":1,"perPage":20,"total":1,"totalPages":1}}`)
+	})
+
+	rows, err := client.Search(context.Background(), "葬送的芙莉莲")
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, 154587, rows[0].AnilistID)
+	require.Equal(t, "葬送的芙莉莲", rows[0].TitleChinese)
+}

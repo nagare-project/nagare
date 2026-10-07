@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,9 @@ type DiscoverService struct {
 	source CatalogReader
 	art    *RemoteArt
 	cache  *readCache
+	// 目录搜索的全局节流（见 catalog_search.go）
+	searchMu   sync.Mutex
+	lastSearch time.Time
 }
 
 func NewDiscoverService(source CatalogReader, art *RemoteArt) *DiscoverService {

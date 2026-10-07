@@ -134,3 +134,15 @@
 @media (max-width: 1023px) { .discover-card-title { font-size: 14px; } }
 
 .discover-airing[data-status=NOT_YET_RELEASED] { background: #3f3f46; color: #e4e4e7; }
+
+/* 作品搜索框：发现页「动画」标签的最上方；结果沿用季度页的作品卡网格 */
+.catalog-search { display: flex; align-items: center; gap: 8px; max-width: 640px; margin: 0 auto 40px; }
+.catalog-search-icon { display: inline-flex; flex: none; color: var(--fg-muted); }
+.catalog-search-input { flex: 1; min-width: 0; }
+.catalog-search-results .row-title { margin-bottom: 16px; }
+@media (max-width: 767px) {
+  .catalog-search { flex-wrap: wrap; margin-bottom: 28px; }
+  .catalog-search-input { flex-basis: calc(100% - 30px); }
+}
+/* 浏览器自带的 × 只清空文字、不回到榜单，与旁边的「清除」意思不同，去掉免得混淆 */
+.catalog-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }

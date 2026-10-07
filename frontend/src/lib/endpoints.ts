@@ -1042,6 +1042,14 @@ export interface SeasonalData { season: SeasonName; year: number; items: Summary
 export const fetchSeasonalData = (season: SeasonName, year: number, signal?: AbortSignal) =>
   apiFetch<SeasonalData>(`/api/seasonal?season=${season}&year=${year}`, { signal })
 export const fetchMediaData = (id: number, signal?: AbortSignal) => apiFetch<SummaryMediaData>(`/api/anime/${id}`, { signal })
+/** GET /api/catalog/search 的 data 载荷：后端已把关键词收拢空白（query 是实际搜的词） */
+export interface CatalogSearchData { query: string; items: SummaryMediaData[] }
+/**
+ * 按作品名搜目录。上游 animego 的这个端点不在限速豁免区（约每秒一次）且会打到 AniList：
+ * 只在用户提交时调，后端缓存十分钟并做节流。
+ */
+export const fetchCatalogSearchData = (q: string, signal?: AbortSignal) =>
+  apiFetch<CatalogSearchData>(`/api/catalog/search?q=${encodeURIComponent(q)}`, { signal })
 export const fetchCollection = () => apiFetch<CollectionData>('/api/lists')
 export const saveCollection = (id: number, data: CollectionEdit) => apiFetch<CollectionEntry>(`/api/lists/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: data.status, currentEpisode: data.progress, score: data.score }) })
 export const deleteCollection = (id: number) => apiFetch(`/api/lists/${id}`, { method: 'DELETE' })
