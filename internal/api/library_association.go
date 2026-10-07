@@ -152,6 +152,32 @@ func (s *LibraryService) AssociationFor(fileID string) (store.Association, bool)
 	return s.st.Association(key)
 }
 
+// GroupEpisodes 返回文件所在作品分组里全部正片的集号（去重、升序），播放器据此判断
+// 这组文件是不是跨季连续编号（见 internal/player/episodes.go）。不在媒体库里的文件返回 nil。
+func (s *LibraryService) GroupEpisodes(fileID string) []int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key, ok := s.fileCluster[fileID]
+	if !ok {
+		return nil
+	}
+	seen := map[int]bool{}
+	var out []int
+	for _, ce := range s.clusters {
+		if ce.cluster.ClusterKey != key {
+			continue
+		}
+		for _, it := range ce.cluster.Items {
+			if it.ParsedKind == "main" && it.Episode != nil && *it.Episode > 0 && !seen[*it.Episode] {
+				seen[*it.Episode] = true
+				out = append(out, *it.Episode)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // withRescanLock 让 fn 与重扫串行。
 func (s *LibraryService) withRescanLock(fn func()) {
 	s.rescanMu.Lock()
@@ -413,16 +439,11 @@ func (h *Handler) manualAssociation(w http.ResponseWriter, r *http.Request, anil
 	if len(cover) > maxAssocCoverBytes || !h.remoteArt.Allowed(cover) {
 		cover = ""
 	}
-	episodes := 0
-	if raw.Episodes != nil && *raw.Episodes > 0 {
-		episodes = *raw.Episodes
-	}
 	return &store.Association{
 		Mode:      store.AssociationManual,
 		AnilistID: anilistID,
 		Title:     truncateRunes(catalogTitle(raw), maxAssocTitleRunes),
 		CoverURL:  cover,
-		Episodes:  episodes,
 	}, true
 }
 

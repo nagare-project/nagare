@@ -2,7 +2,6 @@ package player
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 // 媒体库里的手动作品关联在播放时的作用（用户 2026-10-07 定：按作品分组认）：
 //   - 认定为作品 X：缓存的匹配只有指向 X 才沿用；重新匹配时先用 X 的标题、结果必须对上 X；
 //     弹幕匹配不上也照样按 X 回写进度 —— 关联是用户认定的事实，弹幕只是附带的。
-//     但 animego 已经说了「X 没有这一集」、或集号超出 X 的总集数时不回写（多半是绝对集号）；
+//     但 animego 已经说了「X 没有这一集」时不回写；跨季连续编号的集号在回写时换算（episodes.go）；
 //     特典 / OVA / NCOP 这类附加内容在分组里，却不是 X 的第 N 集：不匹配弹幕、不回写。
 //   - 标为 none：不匹配、不拉弹幕、不回写。
 //   - 关联随时可能被改，而匹配在后台跑：落盘前、回写前后都再核对一次。
@@ -85,7 +84,7 @@ func (m *Manager) ensureAssociatedBinding(ctx context.Context, src MediaSource, 
 	if full, ok := m.fullBinding(item.FileID, a); ok {
 		return full, DanmakuInfo{State: "ok"}
 	}
-	if ok, why := progressOnlyAllowed(a, episode, missing); !ok {
+	if ok, why := progressOnlyAllowed(episode, missing); !ok {
 		if why != "" {
 			dan.Reason += "；" + why
 		}
@@ -101,15 +100,14 @@ func (m *Manager) fullBinding(fileID string, a store.Association) (store.Binding
 }
 
 // progressOnlyAllowed：弹幕没匹配上时，能不能只凭关联回写这一集；不能时附一句给用户看的原因
-// （集号认不出来的原因已经写在弹幕状态里，不再重复）。
-func progressOnlyAllowed(a store.Association, episode int, missing bool) (bool, string) {
+// （集号认不出来的原因已经写在弹幕状态里，不再重复）。集号超出总集数的不在这里拦：
+// 跨季连续编号的「38」换算之后可能正是第 10 集，回写时再按作品的集号空间判断（episodes.go）。
+func progressOnlyAllowed(episode int, missing bool) (bool, string) {
 	switch {
 	case episode <= 0:
 		return false, "" // 不猜第 1 集
 	case missing:
 		return false, "看完不回写进度" // 「匹配结果里没有第 N 集」已经写在弹幕状态里
-	case a.Episodes > 0 && episode > a.Episodes:
-		return false, fmt.Sprintf("「%s」只有 %d 集，第 %d 集看完不回写进度", a.Title, a.Episodes, episode)
 	}
 	return true, ""
 }

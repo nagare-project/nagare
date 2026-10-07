@@ -45,6 +45,9 @@ type Progress struct {
 	Completed   bool    `json:"completed"`
 	// Synced：完成标记是否已回写 animego（避免每次退出重复调接口）。
 	Synced bool `json:"synced"`
+	// SyncedEpisode 是实际写进账号的作品集号。跨季连续编号的文件会换算（文件里 38 → 第 10 集），
+	// 改关联时列「写到了别的作品上的集」要用这个，而不是文件里的集号。0 = 没记（旧数据）。
+	SyncedEpisode int `json:"syncedEpisode,omitempty"`
 }
 
 // AnimegoSession 是 animego 账号会话（access 15 分钟 + refresh cookie 7 天）。

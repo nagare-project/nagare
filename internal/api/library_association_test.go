@@ -579,26 +579,6 @@ func TestAssociationForFollowsKeyMigration(t *testing.T) {
 	assert.Equal(t, 154587, a.AnilistID)
 }
 
-// 认定时记下目录里的总集数（只凭关联回写进度时用来挡住超出范围的集号）。
-func TestManualAssociationRecordsEpisodeCount(t *testing.T) {
-	env := newAssocEnv(t, &episodesStub{episodes: 28})
-	key := env.cluster(t).ClusterKey
-	decodeAssoc(t, env.put(t, assocBody(t, key, "manual", 154587)))
-	stored, _ := env.store.Association(key)
-	assert.Equal(t, 28, stored.Episodes)
-}
-
-type episodesStub struct {
-	detailStub
-	episodes int
-}
-
-func (f *episodesStub) Detail(ctx context.Context, id int) (animego.CatalogMedia, error) {
-	m, err := f.detailStub.Detail(ctx, id)
-	m.Episodes = &f.episodes
-	return m, err
-}
-
 // 没认过的分组带上自动匹配到的作品（簇内匹配最多的那一部）；认定过就不再给。
 func TestViewExposesAutoMatchedWorkUntilAssociated(t *testing.T) {
 	env := newAssocEnv(t, nil)
@@ -682,4 +662,19 @@ func TestDismissSyncedElsewhereEndpoint(t *testing.T) {
 	} {
 		assert.Equal(t, http.StatusBadRequest, dismiss(body).Code, body)
 	}
+}
+
+// 同组正片集号：去重、升序，只算正片（OVA、SP 的编号不参与判断），不在媒体库里的文件返回 nil。
+func TestGroupEpisodes(t *testing.T) {
+	dir := makeMediaDir(t)
+	show := filepath.Join(dir, "葬送的芙莉莲")
+	for _, name := range []string{"[Sub] Frieren - 03 [1080p].mkv", "[Sub] Frieren - OVA 30 [1080p].mkv", "[Sub] Frieren - SP 40 [1080p].mkv"} {
+		require.NoError(t, os.WriteFile(filepath.Join(show, name), make([]byte, 1<<20), 0o644))
+	}
+	env := newAssocEnv(t, nil, dir)
+	ids, ok := env.lib.ClusterFiles(env.cluster(t).ClusterKey)
+	require.True(t, ok)
+
+	assert.Equal(t, []int{1, 2, 3}, env.lib.GroupEpisodes(ids[0]))
+	assert.Nil(t, env.lib.GroupEpisodes("magnet-file|1|1"))
 }

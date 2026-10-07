@@ -31,6 +31,7 @@ type fakeClient struct {
 	matchIn    []animego.MatchInput
 	loggedIn   bool
 	marked     []int
+	ensured    int
 }
 
 func (f *fakeClient) Match(_ context.Context, in animego.MatchInput) (animego.MatchResult, error) {
@@ -44,7 +45,7 @@ func (f *fakeClient) Match(_ context.Context, in animego.MatchInput) (animego.Ma
 	return f.matchRes, f.matchErr
 }
 func (f *fakeClient) Comments(context.Context, int64) ([]danmaku.Comment, error) { return nil, nil }
-func (f *fakeClient) EnsureSubscription(context.Context, int) error              { return nil }
+func (f *fakeClient) EnsureSubscription(context.Context, int) error              { f.ensured++; return nil }
 func (f *fakeClient) MarkWatched(_ context.Context, _ int, ep int) error {
 	f.marked = append(f.marked, ep)
 	return nil

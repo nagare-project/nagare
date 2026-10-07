@@ -365,14 +365,18 @@ func buildServices(configDir string) (*services, error) {
 		log.Printf("磁力播放不可用（不影响本地文件播放）：%v", err)
 	}
 
-	// 媒体库先建（扫描仍在下面）：播放要按它查作品关联
+	// 媒体库先建（扫描仍在下面）：播放要按它查作品关联与同组集号
 	lib := api.NewLibraryService(st)
+	// 「看完」回写前把跨季连续编号的集号换成作品集号（总集数 + 偏移，都来自 animego 元数据）
+	spaces := api.NewEpisodeSpaces(client)
 	mgr := player.New(player.Options{
-		Store:       st,
-		Client:      client,
-		MPV:         mpvRT,
-		RuntimeDir:  runtimeDir,
-		Association: lib.AssociationFor,
+		Store:         st,
+		Client:        client,
+		MPV:           mpvRT,
+		RuntimeDir:    runtimeDir,
+		Association:   lib.AssociationFor,
+		GroupEpisodes: lib.GroupEpisodes,
+		EpisodeSpace:  spaces.Lookup,
 		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
 		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
 		OnSessionEnd: func() {

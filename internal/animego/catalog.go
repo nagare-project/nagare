@@ -136,3 +136,22 @@ func (c *Client) Detail(ctx context.Context, id int) (CatalogMedia, error) {
 	}
 	return catalogGet[CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/%d", id))
 }
+
+// EpisodeOffset 是一部作品之前（沿 AniList 的前作关系）一共有多少集 TV 正片。
+// 字幕组常常跨季连续编号：前作 28 集时，第二季的第 10 集在文件名里叫 38。
+//
+// Known 为 false 表示 animego 算不出来（前作没缓存、有两个前作、链太深、某个前作缺集数）。
+// 这与「前面没有作品」（Known=true、Offset=0）是两回事，绝不能当 0 用：
+// 拿一个没人确认过的起点去换算集号，正是这个接口要防的错。
+type EpisodeOffset struct {
+	Known  bool `json:"known"`
+	Offset int  `json:"offset"`
+}
+
+// EpisodeOffset 读 GET /api/anime/{id}/episode-offset（公开元数据，不带登录凭证）。
+func (c *Client) EpisodeOffset(ctx context.Context, id int) (EpisodeOffset, error) {
+	if id < 1 || id > 2147483647 {
+		return EpisodeOffset{}, &Error{Kind: ErrBadRequest, Op: "episode-offset", Err: fmt.Errorf("无效作品 ID")}
+	}
+	return catalogGet[EpisodeOffset](ctx, c, fmt.Sprintf("/api/anime/%d/episode-offset", id))
+}

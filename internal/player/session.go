@@ -278,6 +278,8 @@ func progressUpdate(prev store.Progress, hadPrev bool, st mpv.State, endedByEOF 
 		UpdatedAt:   nowMs,
 		Completed:   completed,
 		Synced:      hadPrev && prev.Synced,
+		// 写进账号的是哪一集跟着「已回写」一起保留（改关联时要列出来）
+		SyncedEpisode: syncedEpisodeOf(prev, hadPrev),
 	}, true
 }
 
@@ -333,23 +335,28 @@ func (m *Manager) syncWatched(sess *session) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), markWatchedTimeout)
 	defer cancel()
-	err := m.opts.Client.EnsureSubscription(ctx, b.AnilistID)
-	if err == nil {
-		err = m.opts.Client.MarkWatched(ctx, b.AnilistID, b.Episode)
+	// 文件里的集号 → 作品自己的集号（跨季连续编号的第二季「38」是第 10 集）
+	place := m.placeEpisode(ctx, sess.item.FileID, b.AnilistID, b.Episode)
+	if place.Episode <= 0 {
+		recovery := "先确认它是作品的第几集，再在 animego 网站上手动标记（不要按文件里的编号标）"
+		if place.Retry {
+			recovery = "重看这一集看完时会再试"
+		}
+		m.reportSync(b, place.Reason, recovery)
+		log.Printf("player: 集号无法换算成作品集号，不回写（anilistId=%d 文件里第%d集）", b.AnilistID, b.Episode)
+		return
 	}
-	if err != nil {
+	// 查集数可能等了一阵，再核对一次：这期间关联被改了就不写
+	if !m.bindingStillCurrent(sess.item.FileID, b) {
+		log.Printf("player: 作品关联已改，不按旧匹配回写（anilistId=%d 第%d集）", b.AnilistID, b.Episode)
+		return
+	}
+	if err := m.markWatched(ctx, b.AnilistID, place.Episode); err != nil {
 		// 只记日志是不够的：这条失败发生在 mpv 已经退出之后，用户面前
 		// 什么都不会变 —— 他以为这一集记上了，下次打开网站才发现没有，
 		// 而那时已经不知道是哪一集丢的。挂进 Status 让界面说出来。
 		reason, recovery := classifySyncErr(err)
-		m.setSyncFailure(&SyncInfo{
-			State:    "failed",
-			Title:    b.Title,
-			Episode:  b.Episode,
-			Reason:   reason,
-			Recovery: recovery,
-			At:       time.Now().UnixMilli(),
-		})
+		m.reportSync(b, reason, recovery)
 		// 措辞不再写「下次退出时重试」——那是过度承诺。重试只发生在
 		// 重看【这一集】并再次看完时（上面那个 p.Synced 判断只在那一集的会话里跑）。
 		log.Printf("player: 回写看完标记失败（重看这一集看完时会再试）：%v", err)
@@ -363,15 +370,54 @@ func (m *Manager) syncWatched(sess *session) {
 		log.Printf("player: 回写途中作品关联已改，这一集不标记为已回写")
 		return
 	}
-	// 重读一次再置位：网络请求期间进度可能被别处改过，不能用开头那份整个盖回去
-	if latest, ok := m.opts.Store.Progress(sess.item.FileID); ok {
-		p = latest
+	m.recordSynced(sess.item.FileID, place.Episode)
+	if place.Episode != b.Episode {
+		log.Printf("player: 已回写 animego：anilistId=%d 第%d集（文件里是第%d集）", b.AnilistID, place.Episode, b.Episode)
+	} else {
+		log.Printf("player: 已回写 animego：anilistId=%d 第%d集", b.AnilistID, place.Episode)
 	}
-	p.Synced = true
-	if err := m.opts.Store.SetProgress(sess.item.FileID, p); err != nil {
+}
+
+// markWatched 先确保订阅存在，再标记这一集看完（episode 是作品集号）。
+func (m *Manager) markWatched(ctx context.Context, anilistID, episode int) error {
+	if err := m.opts.Client.EnsureSubscription(ctx, anilistID); err != nil {
+		return err
+	}
+	return m.opts.Client.MarkWatched(ctx, anilistID, episode)
+}
+
+// reportSync 把「这一集没记到账号」挂进 Status，媒体库页据此出横幅。
+// Episode 是文件里的集号 —— 用户在界面上看到的是它。
+func (m *Manager) reportSync(b store.Binding, reason, recovery string) {
+	m.setSyncFailure(&SyncInfo{
+		State:    "failed",
+		Title:    b.Title,
+		Episode:  b.Episode,
+		Reason:   reason,
+		Recovery: recovery,
+		At:       time.Now().UnixMilli(),
+	})
+}
+
+// recordSynced 标记这一集已回写，并记下写进账号的作品集号。重读一次再置位：
+// 网络请求期间进度可能被别处改过，不能用开头那份整个盖回去。
+func (m *Manager) recordSynced(fileID string, episode int) {
+	p, ok := m.opts.Store.Progress(fileID)
+	if !ok {
+		return
+	}
+	p.Synced, p.SyncedEpisode = true, episode
+	if err := m.opts.Store.SetProgress(fileID, p); err != nil {
 		log.Printf("player: 记录同步状态失败：%v", err)
 	}
-	log.Printf("player: 已回写 animego：anilistId=%d 第%d集", b.AnilistID, b.Episode)
+}
+
+// syncedEpisodeOf：进度更新时，「写进账号的是哪一集」跟着「已回写」一起保留。
+func syncedEpisodeOf(prev store.Progress, hadPrev bool) int {
+	if hadPrev && prev.Synced {
+		return prev.SyncedEpisode
+	}
+	return 0
 }
 
 // bindingStillCurrent：store 里这个文件的匹配仍是会话开播时那一条（同一部作品、同一集），

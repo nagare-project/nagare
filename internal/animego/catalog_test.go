@@ -75,3 +75,33 @@ func TestCatalogSearchSendsKeywordAndDecodesPagedEnvelope(t *testing.T) {
 	require.Equal(t, 154587, rows[0].AnilistID)
 	require.Equal(t, "葬送的芙莉莲", rows[0].TitleChinese)
 }
+
+// 集号偏移：公开读、不带凭证；known 与 offset 原样带回（known=false 不能变成 0）。
+func TestEpisodeOffsetReadsKnownFlag(t *testing.T) {
+	rec := &recorder{}
+	client := newTestClient(t, rec, func(w http.ResponseWriter, r *http.Request) {
+		require.Empty(t, r.Header.Get("Authorization"))
+		switch r.URL.Path {
+		case "/api/anime/182255/episode-offset":
+			respond(w, 200, `{"data":{"known":true,"offset":28}}`)
+		case "/api/anime/9/episode-offset":
+			respond(w, 200, `{"data":{"known":false,"offset":0}}`)
+		default:
+			respond(w, 404, `{"error":"not found"}`)
+		}
+	})
+	client.RestoreSession(animego.Session{AccessToken: "must-stay-private"})
+
+	got, err := client.EpisodeOffset(context.Background(), 182255)
+	require.NoError(t, err)
+	require.Equal(t, animego.EpisodeOffset{Known: true, Offset: 28}, got)
+
+	got, err = client.EpisodeOffset(context.Background(), 9)
+	require.NoError(t, err)
+	require.False(t, got.Known)
+
+	_, err = client.EpisodeOffset(context.Background(), 0)
+	var classified *animego.Error
+	require.ErrorAs(t, err, &classified)
+	require.Equal(t, animego.ErrBadRequest, classified.Kind)
+}
