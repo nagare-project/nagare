@@ -1,16 +1,21 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nagare-project/nagare/internal/httpserver"
 )
 
 func browseEnv() *testEnv {
@@ -129,4 +134,98 @@ func TestBrowseWithoutPathReturnsPlaces(t *testing.T) {
 	assert.Equal(t, "", listing.Path)
 	assert.Equal(t, "", listing.Parent)
 	assert.NotNil(t, listing.Dirs)
+}
+
+func TestBrowseKeepsTrailingSpacesInServerProducedPaths(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root, "Anime ", "Anime")
+	mkdirs(t, filepath.Join(root, "Anime "), "inner")
+
+	code, listing, _ := getListing(t, filepath.Join(root, "Anime "))
+
+	// 修掉尾部空格会列出（并添加）隔壁那个「Anime」
+	require.Equal(t, http.StatusOK, code)
+	assert.Equal(t, filepath.Join(root, "Anime "), listing.Path)
+	require.Len(t, listing.Dirs, 1)
+	assert.Equal(t, "inner", listing.Dirs[0].Name)
+}
+
+func TestBrowseTimesOutInsteadOfHangingOnADeadMount(t *testing.T) {
+	orig := browseTimeout
+	browseTimeout = 30 * time.Millisecond
+	t.Cleanup(func() { browseTimeout = orig })
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+
+	_, err := withBrowseTimeout(context.Background(), func() (dirListing, error) {
+		<-release // 模拟卡在离线网络盘上的 stat / readdir
+		return dirListing{}, nil
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "超时")
+}
+
+func TestBrowseRefusesWhenStuckReadsUseEverySlot(t *testing.T) {
+	for i := 0; i < cap(browseSlots); i++ {
+		browseSlots <- struct{}{}
+	}
+	t.Cleanup(func() {
+		for i := 0; i < cap(browseSlots); i++ {
+			<-browseSlots
+		}
+	})
+
+	_, err := withBrowseTimeout(context.Background(), func() (dirListing, error) {
+		t.Fatal("名额用完时不该再开新的读取")
+		return dirListing{}, nil
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "卡着没回来")
+}
+
+func TestBrowseStopsReadingHugeDirectoriesEarly(t *testing.T) {
+	orig := maxScanEntries
+	maxScanEntries = 10
+	t.Cleanup(func() { maxScanEntries = orig })
+	root := t.TempDir()
+	for i := 0; i < 600; i++ {
+		require.NoError(t, os.Mkdir(filepath.Join(root, fmt.Sprintf("d%04d", i)), 0o755))
+	}
+
+	listing, err := listDir(root)
+
+	require.NoError(t, err)
+	assert.True(t, listing.Truncated)
+	// 分批读（每批 512），读满上限就停，不会把 600 项全读进来
+	assert.Less(t, len(listing.Dirs), 600)
+}
+
+func TestBrowseRejectsWindowsDeviceNamespacePaths(t *testing.T) {
+	assert.True(t, deviceNamespace(`\\.\C:`))
+	assert.True(t, deviceNamespace(`\\?\UNC\nas\share`))
+	// 普通网络共享照常放行：NAS 上放番很常见
+	assert.False(t, deviceNamespace(`\\nas\share\Anime`))
+	assert.False(t, deviceNamespace("/Volumes/nas"))
+}
+
+// 这条走真实的 httpserver 处理链，钉住「目录浏览挂在鉴权链之内」：
+// 只在裸 mux 上测的话，哪天注册位置挪到鉴权链外面，测试照样全绿。
+func TestBrowseRequiresTokenThroughTheRealServerChain(t *testing.T) {
+	const token = "9f86d081884c7d659a2feaa0c55ad015"
+	srv := httpserver.New(httpserver.Options{Token: token, Port: 8590, RegisterAPI: New(Deps{}).Register})
+	call := func(withToken bool) int {
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8590/api/fs/dirs?path=", nil)
+		req.Host = "127.0.0.1:8590"
+		if withToken {
+			req.Header.Set("X-Nagare-Token", token)
+		}
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	assert.Equal(t, http.StatusUnauthorized, call(false))
+	assert.Equal(t, http.StatusOK, call(true))
 }
