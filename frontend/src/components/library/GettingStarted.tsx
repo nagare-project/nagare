@@ -92,7 +92,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
               : 'nagare 自己不解码，播放全部交给 mpv。没有它两条路都播不了。'
           }
         >
-          {mpv !== null && !mpv.found && <MpvSetup install={mpv.install} onReload={onReloadSettings} />}
+          {mpv !== null && !mpv.found && <MpvSetup hint={mpv.hint} install={mpv.install} onReload={onReloadSettings} />}
         </Step>
 
         <Step
@@ -157,25 +157,34 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
  *
  * 装 mpv 的人多半是切到终端敲完命令再切回来，所以页面重新可见 / 窗口重新获得焦点时
  * 自动检测一次；检测到了设置随之刷新，这张卡片变成绿点「已就绪」。
+ * 自动检测是静默的：不禁用按钮、不出失败提示；用户此时点了按钮，就在这次结束后告诉他结果。
  */
-function MpvSetup({ install, onReload }: { install?: MpvInstallGuide; onReload: () => Promise<void> }) {
+function MpvSetup({ hint, install, onReload }: { hint?: string; install?: MpvInstallGuide; onReload: () => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const running = useRef(false)
+  const manualWaiting = useRef(false)
 
   const detect = useCallback(
     async (manual: boolean) => {
-      if (running.current) return
+      if (manual) setMessage(null) // 清掉再写：同一句失败提示连写两次，读屏不会再念
+      if (running.current) {
+        if (manual) manualWaiting.current = true
+        return
+      }
       running.current = true
-      setBusy(true)
+      if (manual) setBusy(true)
       try {
         const info = await redetectMpv()
-        await onReload()
-        // 安装方法就在上面，不再重复后端那句长提示
-        if (!info.found && manual) setMessage('还是没找到 mpv。确认安装命令已经跑完，再点一次「重新检测」。')
+        const report = manual || manualWaiting.current
+        manualWaiting.current = false
+        // 只在找到时刷新设置：没变化就不碰它，刷新失败会让整张引导屏退回加载失败
+        if (info.found) await onReload()
+        else if (report) setMessage(failureReason(info.hint) ?? '还是没找到 mpv。确认安装命令已经跑完，再点一次「重新检测」。')
       } catch (err) {
         console.error('重新检测 mpv 失败', err)
-        if (manual) setMessage(errorText(err, '重新检测失败'))
+        if (manual || manualWaiting.current) setMessage(errorText(err, '重新检测失败'))
+        manualWaiting.current = false
       } finally {
         running.current = false
         setBusy(false)
@@ -196,8 +205,15 @@ function MpvSetup({ install, onReload }: { install?: MpvInstallGuide; onReload: 
     }
   }, [detect])
 
+  const reason = failureReason(hint)
   return (
     <div className="onboard-mpv">
+      {/* 「找到了但用不了」（版本过低、无法执行）光看安装命令是看不出来的，原因必须写在这里 */}
+      {reason !== null && (
+        <p className="alert-warn" role="alert">
+          {reason}
+        </p>
+      )}
       {install !== undefined && <InstallGuide install={install} />}
       <div className="form-actions">
         <button type="button" className="btn btn--sm btn--primary" onClick={() => void detect(true)} disabled={busy}>
@@ -209,6 +225,16 @@ function MpvSetup({ install, onReload }: { install?: MpvInstallGuide; onReload: 
       </p>
     </div>
   )
+}
+
+/**
+ * 后端提示里值得单独亮出来的原因。「未找到 mpv（已检查…）：请先安装…」与下面的安装方法是同一件事，
+ * 不再重复；版本过低、找到了却无法执行这类，安装命令解释不了，必须原样给出。
+ * （按后端 internal/mpv/detect.go 的措辞前缀区分。）
+ */
+function failureReason(hint: string | undefined): string | null {
+  if (hint === undefined || hint === '' || hint.startsWith('未找到 mpv')) return null
+  return hint
 }
 
 interface StepProps {

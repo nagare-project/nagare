@@ -340,6 +340,8 @@ function LibraryBody({
   const { folders, clusters, continueWatching } = state.data
 
   if (folders.length === 0) {
+    // 设置还在读：不知道 mpv 装没装。选过跳过的人先别闪一整屏引导
+    if (skipFolders && settingsState.phase === 'loading') return null
     // mpv 是必需项：没装好之前，跳过也照样显示引导
     const mpvFound = settingsState.phase === 'ready' && settingsState.data.mpv.found
     if (skipFolders && mpvFound) {

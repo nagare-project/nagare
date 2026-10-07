@@ -9,6 +9,7 @@ import { TOKEN_STORAGE_KEY } from '../lib/token'
 import { router } from '../routes'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
+import { SKIP_FOLDERS_KEY } from '../components/library/onboardingSkip'
 
 const LIBRARY: LibraryData = {
   continueWatching: [],
@@ -213,7 +214,8 @@ describe('LibraryPage（整页冒烟）', () => {
     detected: SettingsData['mpv'] = settings.mpv,
     pluginReady = false,
   ): ReturnType<typeof vi.fn> {
-    const empty: LibraryData = { folders: [], clusters: [], continueWatching: [], scannedAt: null }
+    // scannedAt 有值：删光文件夹时后端会重扫一次，空库也带着扫描时间（「上次扫描」要藏得住）
+    const empty: LibraryData = { folders: [], clusters: [], continueWatching: [], scannedAt: 1_756_500_000 }
     let current = settings
     // 目录浏览的桩：常用位置 → 主目录 → 一个番剧文件夹
     const listings: Record<string, unknown> = {
@@ -513,6 +515,36 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(magnet.textContent).toContain('磁力引擎没有启动')
     expect(magnet.querySelector('.onboard-dot--done')).toBeNull()
     expect(magnet.querySelector('a[href="/settings#torrent"]')).not.toBeNull()
+    await unmount()
+  })
+
+  it('跳过记在本机：刷新后仍是简洁空库；但 mpv 没装好时照样显示引导', async () => {
+    window.localStorage.setItem(SKIP_FOLDERS_KEY, '1')
+    stubFirstRun()
+    const first = await mount(<RouterProvider router={router} />)
+    await settle()
+    expect(first.container.querySelector('.library-empty')).not.toBeNull()
+    expect(first.container.querySelector('.onboard')).toBeNull()
+    await first.unmount()
+
+    stubFirstRun(MPV_MISSING)
+    const second = await mount(<RouterProvider router={router} />)
+    await settle()
+    expect(second.container.querySelector('.onboard')).not.toBeNull()
+    expect(second.container.querySelector('.library-empty')).toBeNull()
+    await second.unmount()
+  })
+
+  it('找到了 mpv 却用不了（版本过低）时，原因写在引导卡里，而不是只给安装命令', async () => {
+    const tooOld: SettingsData = {
+      ...MPV_MISSING,
+      mpv: { ...MPV_MISSING.mpv, hint: 'mpv 版本过低：当前 0.29.1，最低要求 0.32.0。请用发行版包管理器升级 mpv' },
+    }
+    stubFirstRun(tooOld)
+
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    await settle()
+    expect(container.querySelector('.onboard-step')?.textContent).toContain('版本过低')
     await unmount()
   })
 

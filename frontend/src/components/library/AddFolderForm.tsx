@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { AddFolderData, Platform } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
@@ -36,34 +36,55 @@ export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin' }:
   const [path, setPath] = useState('')
   const [state, setState] = useState<SubmitState>({ phase: 'idle' })
   const [browsing, setBrowsing] = useState(false)
+  const browseRef = useRef<HTMLButtonElement>(null)
+  const returnFocus = useRef(false)
+  const panelId = useId()
+
+  // 面板收起后把焦点还给「浏览…」。要等这次渲染完：添加进行中按钮是禁用的，禁用的按钮拿不到焦点
+  useEffect(() => {
+    if (browsing || state.phase === 'busy' || !returnFocus.current) return
+    returnFocus.current = false
+    browseRef.current?.focus()
+  }, [browsing, state.phase])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     await submit(path)
   }
 
-  /** 在浏览面板里选定目录：路径回填进输入框（让人看见加的是哪个），随即添加 */
+  /**
+   * 在浏览面板里选定目录：路径回填进输入框（让人看见加的是哪个），随即添加。
+   * 加成功才收起面板 —— 失败时用户还停在那一层，不必从「常用位置」重新点起。
+   */
   async function handleChoose(chosen: string): Promise<void> {
-    setBrowsing(false)
     setPath(chosen)
-    await submit(chosen)
+    if (await submit(chosen)) closeBrowser()
   }
 
-  async function submit(raw: string): Promise<void> {
+  /** 收起面板并把焦点还给「浏览…」，键盘用户不会被甩回页面顶部 */
+  function closeBrowser(): void {
+    returnFocus.current = true
+    setBrowsing(false)
+  }
+
+  /** 返回是否添加成功 */
+  async function submit(raw: string): Promise<boolean> {
     const trimmed = raw.trim()
     if (trimmed === '') {
       setState({ phase: 'error', message: '请输入文件夹的绝对路径，或点「浏览…」选择' })
-      return
+      return false
     }
     setState({ phase: 'busy' })
     try {
       const result = await onAdd(trimmed)
       setState({ phase: 'ok', videos: result.stats.videos, clusters: result.stats.clusters })
       setPath('')
+      return true
     } catch (err) {
       // 错误不静默：控制台留全量上下文，界面透出信封中文文案
       console.error('添加文件夹失败', err)
       setState({ phase: 'error', message: errorText(err, '添加文件夹失败') })
+      return false
     }
   }
 
@@ -86,10 +107,12 @@ export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin' }:
           disabled={state.phase === 'busy'}
         />
         <button
+          ref={browseRef}
           type="button"
           className="btn btn--sm"
-          onClick={() => setBrowsing(!browsing)}
+          onClick={() => (browsing ? closeBrowser() : setBrowsing(true))}
           aria-expanded={browsing}
+          aria-controls={browsing ? panelId : undefined}
           disabled={state.phase === 'busy'}
         >
           浏览…
@@ -104,8 +127,9 @@ export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin' }:
       </div>
       {browsing && (
         <FolderBrowser
+          id={panelId}
           onChoose={(chosen) => void handleChoose(chosen)}
-          onCancel={() => setBrowsing(false)}
+          onCancel={closeBrowser}
           busy={state.phase === 'busy'}
         />
       )}
