@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { PosterGrid } from './PosterGrid'
 import { Icon } from '../ui/Icon'
 import type { LibraryCluster } from '../../lib/endpoints'
+import { clusterDisplayTitle } from '../../lib/associations'
 
 /** 只筛选已扫描的真实文件，筛选与排序不修改库或播放进度。 */
 export function LibraryCollection({ clusters }: { clusters: LibraryCluster[] }) {
@@ -10,14 +11,16 @@ export function LibraryCollection({ clusters }: { clusters: LibraryCluster[] }) 
   const [sort, setSort] = useState('default')
   const visible = useMemo(() => {
     const matches = clusters.filter((cluster) => {
-      if (!cluster.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) return false
+      // 认定过作品的分组，作品名和文件夹里的标题都能搜到
+      const q = query.trim().toLocaleLowerCase()
+      if (![cluster.title, clusterDisplayTitle(cluster)].some((t) => t.toLocaleLowerCase().includes(q))) return false
       const items = cluster.groups.flatMap((g) => g.items)
       if (filter === 'watching') return items.some((i) => i.progress && (i.progress.completed || i.progress.positionSec > 0)) && items.some((i) => !i.progress?.completed)
       if (filter === 'unwatched') return items.every((i) => !i.progress || (!i.progress.completed && i.progress.positionSec === 0))
       if (filter === 'completed') return items.length > 0 && items.every((i) => i.progress?.completed)
       return true
     })
-    if (sort === 'title') matches.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+    if (sort === 'title') matches.sort((a, b) => clusterDisplayTitle(a).localeCompare(clusterDisplayTitle(b), 'zh-CN'))
     if (sort === 'episodes') matches.sort((a, b) => b.episodeCount - a.episodeCount)
     return matches
   }, [clusters, query, filter, sort])

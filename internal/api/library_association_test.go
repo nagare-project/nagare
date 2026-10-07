@@ -19,6 +19,7 @@ import (
 
 	"github.com/nagare-project/nagare/internal/animego"
 	"github.com/nagare-project/nagare/internal/artcache"
+	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/store"
 )
@@ -596,4 +597,89 @@ func (f *episodesStub) Detail(ctx context.Context, id int) (animego.CatalogMedia
 	m, err := f.detailStub.Detail(ctx, id)
 	m.Episodes = &f.episodes
 	return m, err
+}
+
+// 没认过的分组带上自动匹配到的作品（簇内匹配最多的那一部）；认定过就不再给。
+func TestViewExposesAutoMatchedWorkUntilAssociated(t *testing.T) {
+	env := newAssocEnv(t, nil)
+	ids := env.fileIDs(t)
+	assert.Nil(t, env.cluster(t).Matched, "没播过就没有自动匹配")
+
+	require.NoError(t, env.store.SetBinding(ids[0], store.Binding{AnilistID: 7, Title: "多的那部"}))
+	require.NoError(t, env.store.SetBinding(ids[1], store.Binding{AnilistID: 7, Title: "多的那部"}))
+	assert.Equal(t, &ViewMatch{AnilistID: 7, Title: "多的那部"}, env.cluster(t).Matched)
+
+	// 认过之后（不论 none 还是 manual）就算又有匹配写进来，也不再给自动匹配
+	for _, mode := range []string{"none", "manual"} {
+		env := newAssocEnv(t, &detailStub{})
+		key := env.cluster(t).ClusterKey
+		decodeAssoc(t, env.put(t, assocBody(t, key, mode, 7)))
+		require.NoError(t, env.store.SetBinding(env.fileIDs(t)[0], store.Binding{AnilistID: 7, Title: "多的那部"}))
+		assert.Nil(t, env.cluster(t).Matched, mode)
+	}
+}
+
+func TestMatchedWork(t *testing.T) {
+	main := func(id string) library.Item { return library.Item{FileID: id, ParsedKind: "main"} }
+	ova := library.Item{FileID: "ova", ParsedKind: "ova"}
+	cases := []struct {
+		name     string
+		items    []library.Item
+		bindings map[string]store.Binding
+		want     *ViewMatch
+	}{
+		{"多数票", []library.Item{main("a"), main("b"), main("c"), main("d")},
+			map[string]store.Binding{"a": {AnilistID: 9, Title: "少"}, "b": {AnilistID: 5, Title: "多"}, "c": {AnilistID: 5}},
+			&ViewMatch{AnilistID: 5, Title: "多"}},
+		{"平票取 ID 小的", []library.Item{main("a"), main("b")},
+			map[string]store.Binding{"a": {AnilistID: 9}, "b": {AnilistID: 5}}, &ViewMatch{AnilistID: 5}},
+		{"OVA 不与正片同票", []library.Item{main("a"), ova},
+			map[string]store.Binding{"a": {AnilistID: 100, Title: "正片"}, "ova": {AnilistID: 50, Title: "OVA"}},
+			&ViewMatch{AnilistID: 100, Title: "正片"}},
+		{"只有 OVA 匹配过：照样给建议", []library.Item{main("a"), ova},
+			map[string]store.Binding{"ova": {AnilistID: 50, Title: "OVA"}}, &ViewMatch{AnilistID: 50, Title: "OVA"}},
+		{"没有匹配", []library.Item{main("a")}, map[string]store.Binding{"a": {AnilistID: 0}}, nil},
+		{"空分组", nil, nil, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, matchedWork(tc.items, tc.bindings))
+		})
+	}
+}
+
+// 改完旧作品的进度后，去掉那一条记录。
+func TestDismissSyncedElsewhereEndpoint(t *testing.T) {
+	env := newAssocEnv(t, &detailStub{})
+	ids := env.fileIDs(t)
+	require.NoError(t, env.store.SetBinding(ids[0], store.Binding{AnilistID: 999, Episode: 1, Title: "认错的番"}))
+	require.NoError(t, env.store.SetProgress(ids[0], store.Progress{Completed: true, Synced: true}))
+	key := env.cluster(t).ClusterKey
+	require.NotEmpty(t, decodeAssoc(t, env.put(t, assocBody(t, key, "manual", 154587))).SyncedElsewhere)
+
+	dismiss := func(body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		env.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/library/association/dismiss-synced", strings.NewReader(body)))
+		return rec
+	}
+	a := decodeAssoc(t, dismiss(`{"clusterKey":`+string(mustJSON(t, key))+`,"anilistId":999}`))
+	assert.Empty(t, a.SyncedElsewhere)
+	assert.Equal(t, 154587, a.AnilistID)
+
+	// 不在清单里的作品：照常返回，关联不变
+	a = decodeAssoc(t, dismiss(`{"clusterKey":`+string(mustJSON(t, key))+`,"anilistId":12345}`))
+	assert.Equal(t, 154587, a.AnilistID)
+
+	rec := dismiss(`{"clusterKey":"gone","anilistId":999}`)
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, decode(t, rec).Error, "已经没有作品关联")
+	for _, body := range []string{
+		`{"clusterKey":"gone","anilistId":0}`,
+		`{"clusterKey":"","anilistId":1}`,
+		`{"clusterKey":"` + strings.Repeat("k", maxClusterKeyBytes+1) + `","anilistId":1}`,
+		`{"clusterKey":"k","anilistId":4294967296}`,
+		`{`,
+	} {
+		assert.Equal(t, http.StatusBadRequest, dismiss(body).Code, body)
+	}
 }

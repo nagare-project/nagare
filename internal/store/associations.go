@@ -205,3 +205,28 @@ func (s *Store) UpdateAssociations(mutate func(all map[string]Association) bool)
 	}
 	return nil
 }
+
+// DismissSyncedElsewhere 去掉「已回写到别的作品」里某部作品的记录（用户去那部作品改完进度之后）。
+// 第二个返回值为 false 表示这个分组没有关联。
+func (s *Store) DismissSyncedElsewhere(clusterKey string, anilistID int) (Association, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prev, ok := s.data.Associations[clusterKey]
+	if !ok {
+		return Association{}, false, nil
+	}
+	next := prev.clone()
+	next.SyncedElsewhere = slices.DeleteFunc(next.SyncedElsewhere, func(r SyncedRecord) bool { return r.AnilistID == anilistID })
+	if len(next.SyncedElsewhere) == len(prev.SyncedElsewhere) {
+		return prev.clone(), true, nil
+	}
+	if len(next.SyncedElsewhere) == 0 {
+		next.SyncedElsewhere = nil
+	}
+	s.data.Associations[clusterKey] = next
+	if err := s.save(); err != nil {
+		s.data.Associations[clusterKey] = prev
+		return Association{}, true, err
+	}
+	return next.clone(), true, nil
+}
