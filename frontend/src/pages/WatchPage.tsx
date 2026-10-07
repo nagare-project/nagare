@@ -3,7 +3,8 @@ import { Link, useParams } from '@tanstack/react-router'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { mono } from '../theme'
-import type { LibraryItem } from '../lib/endpoints'
+import { clusterDisplayTitle } from '../lib/associations'
+import type { LibraryCluster, LibraryItem } from '../lib/endpoints'
 import '../components/library/library.css'
 import '../components/media/media.css'
 
@@ -133,14 +134,14 @@ function Unplayable({ reason, clusterKey }: { reason: string; clusterKey: string
 
 /** 在所有作品簇里按 fileId 找条目，顺带带出它所属的簇（用于返回链接） */
 function findItem(
-  clusters: { clusterKey: string; title: string; groups: { items: LibraryItem[] }[] }[],
+  clusters: LibraryCluster[],
   fileId: string,
 ): { item: LibraryItem; clusterKey: string; title: string } | null {
   for (const c of clusters) {
     for (const g of c.groups) {
       for (const item of g.items) {
         if (item.fileId === fileId) {
-          return { item, clusterKey: c.clusterKey, title: c.title }
+          return { item, clusterKey: c.clusterKey, title: clusterDisplayTitle(c) }
         }
       }
     }
