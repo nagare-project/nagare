@@ -25,9 +25,17 @@ const maxSearchRunes = 64
 // searchCacheTTL 与 animego 自己的搜索缓存同为十分钟：同一个词再搜不再出站。
 const searchCacheTTL = 10 * time.Minute
 
-// searchMinInterval 是向 animego 发出两次搜索之间的最短间隔。animego 对这个端点按 IP
-// 每秒放行约一次，超了回 429；在这里先挡住，用户看到的是「搜得太快了」而不是一个上游错误。
+// searchMinInterval 是向 animego 发出两次搜索之间的最短间隔。animego 对这个端点按 IP 限速
+// （令牌桶，每秒补 1 个、最多攒 60 个），没命中它自己的库时还会打到 AniList。
+// 不到间隔就【等】到点再发，而不是拒绝：偶尔连搜两次根本不会被限，拒绝只会让人多点一次。
 const searchMinInterval = time.Second
+
+// maxSearchWait 是排队等出站的上限。同时堆了好几个不同关键词才会超过它，那时直接说「搜得太快了」。
+const maxSearchWait = 3 * time.Second
+
+// 真实客户端必须满足 CatalogSearcher：搜索是靠类型断言接上的，签名一漂移，
+// 每次真实搜索都会变成「不支持搜索」而替身测试照样全绿 —— 让编译器来守。
+var _ CatalogSearcher = (*animego.Client)(nil)
 
 // CatalogSearchView 是 GET /api/catalog/search 的响应。
 type CatalogSearchView struct {
@@ -49,8 +57,8 @@ func (s *DiscoverService) Search(ctx context.Context, raw string) (CatalogSearch
 		return CatalogSearchView{}, errs.New(errs.CategoryInternal, "catalog.search", "这个版本不支持搜索作品", "")
 	}
 	rows, err := cachedRead(ctx, s.cache, "search:"+strings.ToLower(q), searchCacheTTL, func(ctx context.Context) ([]animego.CatalogMedia, error) {
-		if !s.allowSearch() {
-			return nil, errs.New(errs.CategoryUpstream, "catalog.search", "搜得太快了", "稍等一两秒再搜")
+		if err := s.waitSearchTurn(ctx); err != nil {
+			return nil, err
 		}
 		return searcher.Search(ctx, q)
 	})
@@ -60,16 +68,23 @@ func (s *DiscoverService) Search(ctx context.Context, raw string) (CatalogSearch
 	return CatalogSearchView{Query: q, Items: s.summaries(rows)}, nil
 }
 
-// allowSearch 是全局节流：距上一次出站不足 searchMinInterval 就拒绝。命中缓存的搜索不经过这里。
-func (s *DiscoverService) allowSearch() bool {
+// waitSearchTurn 是全局节流：给这次出站预约一个与上一次至少隔 searchMinInterval 的时刻，
+// 不到点就等；要等的时间超过 maxSearchWait 就拒绝。命中缓存的搜索不经过这里。
+func (s *DiscoverService) waitSearchTurn(ctx context.Context) error {
 	s.searchMu.Lock()
-	defer s.searchMu.Unlock()
 	now := s.cache.now()
-	if !s.lastSearch.IsZero() && now.Sub(s.lastSearch) < searchMinInterval {
-		return false
+	slot := now
+	if next := s.lastSearch.Add(searchMinInterval); !s.lastSearch.IsZero() && next.After(now) {
+		slot = next
 	}
-	s.lastSearch = now
-	return true
+	wait := slot.Sub(now)
+	if wait > maxSearchWait {
+		s.searchMu.Unlock()
+		return errs.New(errs.CategoryUpstream, "catalog.search", "搜得太快了", "稍等几秒再搜")
+	}
+	s.lastSearch = slot
+	s.searchMu.Unlock()
+	return s.sleep(ctx, wait)
 }
 
 func (h *Handler) catalogSearch(w http.ResponseWriter, r *http.Request) {

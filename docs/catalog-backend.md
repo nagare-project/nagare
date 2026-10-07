@@ -38,3 +38,15 @@
 ## `GET /api/seasonal`
 
 参数 `season`（WINTER / SPRING / SUMMER / FALL，不分大小写）与 `year`（1990–2100）。响应 `{ season, year, items: SummaryMedia[], fetchedAt }`，items 是 animego `/api/anime/seasonal` 一页 200 条的投影，按 `seasonal:<季>:<年>` 缓存十分钟并合并同键在途请求；放送快照已在缓存时补 `nextAiring` / `recentAiring`。参数不合法返回 400。
+
+## 作品搜索（2026-10-07）
+
+`GET /api/catalog/search?q=<作品名>` → `{ query, items: SummaryMedia[] }`
+
+- 上游是 animego `GET /api/anime/search?q=&page=1&perPage=20`。它**不在限速豁免区**（令牌桶：每 IP 每秒补 1、最多攒 60），
+  没命中 animego 自己的库时还会打到 AniList，所以：
+  - 前端只在提交时搜（发现页顶部搜索框，关键词进地址栏 `/discover?q=`），不边打字边搜；
+  - 后端按「收拢空白 + 小写」后的关键词缓存十分钟，同键并发合并成一次出站；
+  - 全局节流：两次出站至少隔 1 秒，不到点就等（排队超过 3 秒才回「搜得太快了」）；
+  - 关键词最长 64 个字（按字计）。
+- 只返回元数据（与其余目录读取同一份 SummaryMedia 投影），**不涉及任何资源 / 磁力**（红线 2）。

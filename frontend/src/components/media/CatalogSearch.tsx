@@ -58,7 +58,7 @@ type SearchState =
   | { phase: 'error'; message: string }
 
 /** 搜索结果：与季度页同一种作品卡网格，点进作品页再选集播放 */
-export function CatalogSearchResults({ query }: { query: string }) {
+export function CatalogSearchResults({ query, run = 0 }: { query: string; run?: number }) {
   const [state, setState] = useState<SearchState>({ phase: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -75,7 +75,7 @@ export function CatalogSearchResults({ query }: { query: string }) {
         setState({ phase: 'error', message: errorText(err, '搜索失败') })
       })
     return () => abort.abort()
-  }, [query, attempt])
+  }, [query, attempt, run])
 
   return (
     <section className="catalog-search-results" aria-label={`「${query}」的搜索结果`} aria-busy={state.phase === 'loading'}>

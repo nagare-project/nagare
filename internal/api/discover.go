@@ -24,13 +24,29 @@ type DiscoverService struct {
 	source CatalogReader
 	art    *RemoteArt
 	cache  *readCache
-	// 目录搜索的全局节流（见 catalog_search.go）
+	// 目录搜索的全局节流（见 catalog_search.go）；sleep 可在测试里换掉
 	searchMu   sync.Mutex
 	lastSearch time.Time
+	sleep      func(context.Context, time.Duration) error
+}
+
+// sleepCtx 等 d 或等到 ctx 结束（浏览器关掉了页面就不必再等着出站）。
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func NewDiscoverService(source CatalogReader, art *RemoteArt) *DiscoverService {
-	return &DiscoverService{source: source, art: art, cache: newReadCache()}
+	return &DiscoverService{source: source, art: art, cache: newReadCache(), sleep: sleepCtx}
 }
 func (s *DiscoverService) schedule(ctx context.Context) (animego.ScheduleData, error) {
 	return cachedRead(ctx, s.cache, "schedule", 30*time.Minute, s.source.Schedule)
