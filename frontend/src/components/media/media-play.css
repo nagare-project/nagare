@@ -82,3 +82,11 @@
  .media-fansub-browser .media-fansub-detail { padding: 16px; }
 }
 @media (max-width: 480px) { .media-release-search { align-items: stretch; flex-direction: column; } }
+/* 已对应别的作品的行：不可选。双类名提高优先级，不依赖样式表的加载顺序 */
+.media-play-choice.media-play-choice--taken { cursor: default; border-style: dashed; color: var(--fg-muted); }
+.media-play-choice.media-play-choice--taken:hover { background: transparent; }
+.media-play-choice--taken > .link { flex: none; font-size: 13px; }
+.media-play-selection { flex-wrap: wrap; }
+.media-play-selection-title { flex: 1 1 200px; min-width: 0; }
+.media-play-selection-title h3 { font-size: 16px; overflow-wrap: anywhere; }
+.media-play-via { margin-top: 4px; color: var(--fg-muted); font-size: 13px; }
