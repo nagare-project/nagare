@@ -94,6 +94,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/library/folders", h.addFolder)
 	mux.HandleFunc("DELETE /api/library/folders/{id}", h.removeFolder)
 	mux.HandleFunc("POST /api/library/rescan", h.rescan)
+	mux.HandleFunc("GET /api/fs/dirs", h.browseDirs)
 	mux.HandleFunc("POST /api/play", h.play)
 	mux.HandleFunc("GET /api/player/status", h.playerStatus)
 	mux.HandleFunc("POST /api/player/stop", h.playerStop)

@@ -3,7 +3,9 @@ import { Link } from '@tanstack/react-router'
 import { ContinueSection } from '../components/library/ContinueSection'
 import { LibraryCollection } from '../components/library/LibraryCollection'
 import { Icon } from '../components/ui/Icon'
+import { AddFolderForm } from '../components/library/AddFolderForm'
 import { GettingStarted } from '../components/library/GettingStarted'
+import { readSkipFolders, writeSkipFolders } from '../components/library/onboardingSkip'
 import { NowPlayingBar } from '../components/library/NowPlayingBar'
 import { ScanDrops } from '../components/library/ScanDrops'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
@@ -12,7 +14,7 @@ import { usePlayerStatus } from '../hooks/usePlayerStatus'
 import { useSettings } from '../hooks/useSettings'
 import { pausePlayer, playFile, stopPlayer } from '../lib/endpoints'
 import type { LibraryState } from '../hooks/useLibrary'
-import type { PlayerStatus } from '../lib/endpoints'
+import type { Platform, PlayerStatus } from '../lib/endpoints'
 import type { SettingsState } from '../hooks/useSettings'
 import { errorText, formatClock } from '../lib/format'
 import { mono } from '../theme'
@@ -118,8 +120,9 @@ export function LibraryPage() {
   }
 
   const playing = player.status?.playing === true ? player.status : null
-  const canRescan =
-    library.state.phase === 'ready' && library.state.data.folders.length > 0 && !rescanBusy
+  // 一个文件夹都没有时由引导屏接管：「重新扫描」无物可扫，mpv 缺失也已在引导卡里讲清
+  const noFolders = library.state.phase === 'ready' && library.state.data.folders.length === 0
+  const canRescan = library.state.phase === 'ready' && !noFolders && !rescanBusy
   const statusLine = pickStatusLine(notice, player.error, library.state)
 
   return (
@@ -132,18 +135,20 @@ export function LibraryPage() {
         <span className="page-head-spacer" />
         <div className="page-head-actions">
           <Link to="/settings" hash="folders" className="icon-button" aria-label="管理文件夹" title="管理文件夹"><Icon name="folder" /></Link>
-          <button
-            type="button"
-            className="btn btn--sm"
-            onClick={() => void handleRescan()}
-            disabled={!canRescan}
-          >
-            <Icon name="refresh" size={16} />{rescanBusy ? '扫描中 …' : '重新扫描'}
-          </button>
+          {!noFolders && (
+            <button
+              type="button"
+              className="btn btn--sm"
+              onClick={() => void handleRescan()}
+              disabled={!canRescan}
+            >
+              <Icon name="refresh" size={16} />{rescanBusy ? '扫描中 …' : '重新扫描'}
+            </button>
+          )}
         </div>
       </header>
 
-      <MpvAlert state={settings.state} />
+      {!noFolders && <MpvAlert state={settings.state} />}
       <SyncAlert status={player.status} />
 
       <p
@@ -171,6 +176,7 @@ export function LibraryPage() {
         settingsState={settings.state}
         onRetry={() => void library.reload()}
         onAdd={library.addFolder}
+        onReloadSettings={settings.reload}
         onPlay={(fileId) => void handlePlay(fileId)}
         activeFileId={playing?.fileId ?? null}
         pendingFileId={pendingFileId}
@@ -254,9 +260,39 @@ interface LibraryBodyProps {
   settingsState: SettingsState
   onRetry: () => void
   onAdd: ReturnType<typeof useLibrary>['addFolder']
+  /** 引导屏里重新检测 mpv 之后刷新设置 */
+  onReloadSettings: () => Promise<void>
   onPlay: (fileId: string) => void
   activeFileId: string | null
   pendingFileId: string | null
+}
+
+/**
+ * 选了「先不添加本地文件夹」之后的首页：一张小卡片代替整屏欢迎页。
+ * 想加的时候表单就在这里；想重看引导也有入口（跳过只是本机浏览器里的一个记号）。
+ */
+function EmptyLibrary({ onAdd, onShowGuide, platform }: { onAdd: LibraryBodyProps['onAdd']; onShowGuide: () => void; platform?: Platform }) {
+  return (
+    <section className="page-notice library-empty" aria-labelledby="library-empty-heading">
+      <h2 id="library-empty-heading" className="page-notice-title">
+        本地媒体库还是空的
+      </h2>
+      <p className="page-notice-copy">
+        磁力看番不需要本地文件夹。想把硬盘里的番也交给 nagare 整理，随时可以在这里添加。
+      </p>
+      <div className="library-empty-form">
+        <AddFolderForm onAdd={onAdd} platform={platform} />
+      </div>
+      <p className="page-notice-actions">
+        <Link to="/discover" className="btn btn--sm btn--primary">
+          去发现页选番
+        </Link>
+        <button type="button" className="btn btn--sm" onClick={onShowGuide}>
+          显示新手引导
+        </button>
+      </p>
+    </section>
+  )
 }
 
 /** 主体三态：loading / error / ready（ready 内再分空态、无视频、簇列表） */
@@ -265,10 +301,18 @@ function LibraryBody({
   settingsState,
   onRetry,
   onAdd,
+  onReloadSettings,
   onPlay,
   activeFileId,
   pendingFileId,
 }: LibraryBodyProps) {
+  const [skipFolders, setSkipFolders] = useState(readSkipFolders)
+
+  function chooseSkip(skip: boolean): void {
+    writeSkipFolders(skip)
+    setSkipFolders(skip)
+  }
+
   if (state.phase === 'loading') {
     return (
       <p className="result result--dim" style={mono}>
@@ -296,8 +340,20 @@ function LibraryBody({
   const { folders, clusters, continueWatching } = state.data
 
   if (folders.length === 0) {
+    // mpv 是必需项：没装好之前，跳过也照样显示引导
+    const mpvFound = settingsState.phase === 'ready' && settingsState.data.mpv.found
+    if (skipFolders && mpvFound) {
+      return <EmptyLibrary onAdd={onAdd} onShowGuide={() => chooseSkip(false)} platform={settingsState.data.platform} />
+    }
     // 首次运行：不把「添加文件夹」摆成唯一入口（磁力那条路不需要它）
-    return <GettingStarted settings={settingsState} onAdd={onAdd} />
+    return (
+      <GettingStarted
+        settings={settingsState}
+        onAdd={onAdd}
+        onReloadSettings={onReloadSettings}
+        onSkipFolders={mpvFound ? () => chooseSkip(true) : undefined}
+      />
+    )
   }
 
   if (clusters.length === 0) {
@@ -342,7 +398,7 @@ function pickStatusLine(
 ): Notice | null {
   if (notice !== null) return notice
   if (playerError !== null) return { tone: 'err', text: playerError }
-  if (libState.phase === 'ready' && libState.data.scannedAt !== null) {
+  if (libState.phase === 'ready' && libState.data.folders.length > 0 && libState.data.scannedAt !== null) {
     return { tone: 'dim', text: `上次扫描 ${formatClock(libState.data.scannedAt)}` }
   }
   return null

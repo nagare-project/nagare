@@ -370,6 +370,27 @@ export function animegoLogout(): Promise<void> {
   return requestJson<Record<string, never>>('/api/animego/logout', 'POST').then(() => undefined)
 }
 
+/** GET /api/fs/dirs 的一项：只有目录名与绝对路径，后端从不列文件 */
+export interface DirEntry {
+  name: string
+  path: string
+}
+
+/** GET /api/fs/dirs 的 data 载荷；path 为空表示「常用位置」（主目录、影片、下载、外接硬盘） */
+export interface DirListing {
+  path: string
+  /** 上一级；已在常用位置或文件系统根时为空串 */
+  parent: string
+  dirs: DirEntry[]
+  /** 子目录超过上限被截断 */
+  truncated: boolean
+}
+
+/** 本机目录浏览：添加媒体库文件夹时逐层点选，不必手敲绝对路径 */
+export function browseDirs(path: string, signal?: AbortSignal): Promise<DirListing> {
+  return apiFetch<DirListing>(`/api/fs/dirs?path=${encodeURIComponent(path)}`, { signal })
+}
+
 /** 重新探测 mpv（用户装完后不用重启）；返回与 settings.mpv 同构的结果 */
 export function redetectMpv(): Promise<MpvInfo> {
   return requestJson<MpvInfo>('/api/mpv/detect', 'POST')

@@ -119,7 +119,7 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
 }
 
 /** 安装指引：一行说明 + 等宽命令块（可复制；windows 没有命令）+ 外链 */
-function InstallGuide({ install }: { install: MpvInstallGuide }) {
+export function InstallGuide({ install }: { install: MpvInstallGuide }) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const timerRef = useRef<number | null>(null)
 

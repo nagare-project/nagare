@@ -1,17 +1,24 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { AddFolderData } from '../../lib/endpoints'
+import type { AddFolderData, Platform } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { mono } from '../../theme'
+import { FolderBrowser } from './FolderBrowser'
 import './library.css'
 
-/** macOS 惯例的示例路径（M1 验收平台），提示「要绝对路径」 */
-const PATH_PLACEHOLDER = '/Users/you/Movies/Anime'
+/** 各平台惯例的示例路径，提示「要绝对路径」；平台未知时按 macOS（M1 验收平台） */
+const PATH_PLACEHOLDER: Record<Platform, string> = {
+  darwin: '/Users/you/Movies/Anime',
+  windows: 'D:\\Anime',
+  linux: '/home/you/Videos/Anime',
+}
 
 export interface AddFolderFormProps {
   /** 提交回调（useLibrary.addFolder）；失败抛信封中文错误，由本组件就地展示 */
   onAdd: (path: string) => Promise<AddFolderData>
   autoFocus?: boolean
+  /** 后端所在平台（决定示例路径的写法） */
+  platform?: Platform
 }
 
 /** 表单结果行状态机 */
@@ -22,18 +29,30 @@ type SubmitState =
   | { phase: 'error'; message: string }
 
 /**
- * 添加库文件夹：绝对路径文本输入 + 提交。
+ * 添加库文件夹：绝对路径文本输入 + 提交，或者点「浏览…」逐层选目录（不用手敲路径）。
  * 成功展示本次扫描统计并清空输入；失败透出后端信封里的中文错误。
  */
-export function AddFolderForm({ onAdd, autoFocus = false }: AddFolderFormProps) {
+export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin' }: AddFolderFormProps) {
   const [path, setPath] = useState('')
   const [state, setState] = useState<SubmitState>({ phase: 'idle' })
+  const [browsing, setBrowsing] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-    const trimmed = path.trim()
+    await submit(path)
+  }
+
+  /** 在浏览面板里选定目录：路径回填进输入框（让人看见加的是哪个），随即添加 */
+  async function handleChoose(chosen: string): Promise<void> {
+    setBrowsing(false)
+    setPath(chosen)
+    await submit(chosen)
+  }
+
+  async function submit(raw: string): Promise<void> {
+    const trimmed = raw.trim()
     if (trimmed === '') {
-      setState({ phase: 'error', message: '请输入文件夹的绝对路径' })
+      setState({ phase: 'error', message: '请输入文件夹的绝对路径，或点「浏览…」选择' })
       return
     }
     setState({ phase: 'busy' })
@@ -59,13 +78,22 @@ export function AddFolderForm({ onAdd, autoFocus = false }: AddFolderFormProps) 
           name="path"
           value={path}
           onChange={(event) => setPath(event.target.value)}
-          placeholder={PATH_PLACEHOLDER}
+          placeholder={PATH_PLACEHOLDER[platform]}
           aria-label="文件夹绝对路径"
           autoFocus={autoFocus}
           spellCheck={false}
           autoComplete="off"
           disabled={state.phase === 'busy'}
         />
+        <button
+          type="button"
+          className="btn btn--sm"
+          onClick={() => setBrowsing(!browsing)}
+          aria-expanded={browsing}
+          disabled={state.phase === 'busy'}
+        >
+          浏览…
+        </button>
         <button
           type="submit"
           className="btn btn--sm btn--primary"
@@ -74,6 +102,13 @@ export function AddFolderForm({ onAdd, autoFocus = false }: AddFolderFormProps) 
           {state.phase === 'busy' ? '扫描中 …' : '添加'}
         </button>
       </div>
+      {browsing && (
+        <FolderBrowser
+          onChoose={(chosen) => void handleChoose(chosen)}
+          onCancel={() => setBrowsing(false)}
+          busy={state.phase === 'busy'}
+        />
+      )}
       {/* 结果行常驻占位，出现/消失不推挤布局 */}
       <p
         className={view === null ? 'result' : `result result--${view.tone}`}
