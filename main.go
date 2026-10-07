@@ -365,11 +365,14 @@ func buildServices(configDir string) (*services, error) {
 		log.Printf("磁力播放不可用（不影响本地文件播放）：%v", err)
 	}
 
+	// 媒体库先建（扫描仍在下面）：播放要按它查作品关联
+	lib := api.NewLibraryService(st)
 	mgr := player.New(player.Options{
-		Store:      st,
-		Client:     client,
-		MPV:        mpvRT,
-		RuntimeDir: runtimeDir,
+		Store:       st,
+		Client:      client,
+		MPV:         mpvRT,
+		RuntimeDir:  runtimeDir,
+		Association: lib.AssociationFor,
 		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
 		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
 		OnSessionEnd: func() {
@@ -392,7 +395,6 @@ func buildServices(configDir string) (*services, error) {
 		su.SweepOldFiles() // 清掉上次更新留下的 .old 残留
 	}
 
-	lib := api.NewLibraryService(st)
 	if stats := lib.Rescan(); stats.Videos > 0 {
 		log.Printf("媒体库就绪：%d 个视频，%d 个剧集簇", stats.Videos, stats.Clusters)
 	}

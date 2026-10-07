@@ -177,12 +177,14 @@ type LibraryService struct {
 	// 关联可能按一份结果迁、媒体库却装上另一份。
 	rescanMu sync.Mutex
 
-	mu        sync.RWMutex
-	folders   []ViewFolder
-	clusters  []clusterEntry
-	items     map[string]library.Item
-	subs      map[string]library.SubtitleRef
-	scannedAt int64 // 0 = 从未扫描
+	mu       sync.RWMutex
+	folders  []ViewFolder
+	clusters []clusterEntry
+	items    map[string]library.Item
+	subs     map[string]library.SubtitleRef
+	// fileCluster：fileId → 所在作品分组的 clusterKey（播放时按它查手动关联）
+	fileCluster map[string]string
+	scannedAt   int64 // 0 = 从未扫描
 
 	// artPrefix 形如 /art/<能力段>；空串表示封面端点未挂载，视图里一律不给封面地址。
 	// 由启动流程注入（能力段归 httpserver 生成），不在这里自己造。
@@ -276,13 +278,25 @@ func (s *LibraryService) Rescan() Stats {
 		fviews = append(fviews, fv)
 	}
 	stats.Clusters = len(clusters)
-	s.syncAssociations(clusters)
+
+	fileCluster := map[string]string{}
+	for _, ce := range clusters {
+		for _, it := range ce.cluster.Items {
+			if _, dup := fileCluster[it.FileID]; !dup {
+				fileCluster[it.FileID] = ce.cluster.ClusterKey
+			}
+		}
+	}
 
 	s.mu.Lock()
+	// 关联迁到新键与换上新的分组索引在同一把锁里：否则这中间开播的文件按旧键查，
+	// 关联已经搬走了，就会落回自动匹配（锁序 s.mu → store.mu，store 从不回调这里）。
+	s.syncAssociations(clusters)
 	s.folders = fviews
 	s.clusters = clusters
 	s.items = items
 	s.subs = subs
+	s.fileCluster = fileCluster
 	s.scannedAt = time.Now().UnixMilli()
 	s.mu.Unlock()
 	return stats
@@ -383,13 +397,19 @@ func (s *LibraryService) View() LibraryView {
 		}
 		// 簇封面取簇内【任意一个】已匹配条目的封面：同一部番的每一集
 		// 匹配回来的都是同一张图，取第一个有的即可，不必挑「代表集」。
+		// 认定过作品时只看与它一致的匹配（后台匹配迟到时可能写回一条指向别处的）。
+		a, hasAssoc := assocs[c.ClusterKey]
 		for _, it := range c.Items {
-			if u := artURL(prefix, it.FileID, bindings[it.FileID]); u != "" {
+			b := bindings[it.FileID]
+			if hasAssoc && b.AnilistID != a.AnilistID {
+				continue
+			}
+			if u := artURL(prefix, it.FileID, b); u != "" {
 				vc.Cover = u
 				break
 			}
 		}
-		if a, ok := assocs[c.ClusterKey]; ok {
+		if hasAssoc {
 			vc.Association = toViewAssociation(a)
 			vc.Cover = associatedCover(prefix, c.ClusterKey, a, vc.Cover)
 		}
@@ -462,8 +482,11 @@ func (s *LibraryService) continueWatching(
 				continue
 			}
 			b := bindings[it.FileID]
+			// 手动认定的作品优先：自动匹配的标题、集标题与封面可能正是认错的那部
+			if a, ok := assocs[ce.cluster.ClusterKey]; ok && b.AnilistID != a.AnilistID {
+				b = store.Binding{}
+			}
 			title, cover := b.Title, artURL(prefix, it.FileID, b)
-			// 手动认定的作品优先：自动匹配的标题与封面可能正是认错的那部
 			if a, ok := assocs[ce.cluster.ClusterKey]; ok {
 				title = a.Title
 				cover = associatedCover(prefix, ce.cluster.ClusterKey, a, cover)

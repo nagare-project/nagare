@@ -515,3 +515,85 @@ func TestScheduleCountsAssociatedWorksAsInLibrary(t *testing.T) {
 	require.NotEmpty(t, v.Airings)
 	assert.True(t, v.Airings[0].InLibrary)
 }
+
+// 播放时按文件查关联：按所在分组查，不在任何分组里的文件（磁力、在线候选）没有关联。
+func TestAssociationForLooksUpByCluster(t *testing.T) {
+	env := newAssocEnv(t, nil)
+	ids := env.fileIDs(t)
+	decodeAssoc(t, env.put(t, assocBody(t, env.cluster(t).ClusterKey, "none", 0)))
+	// 成员只记前 64 个，长篇后面的集靠分组索引查：把成员清空也照样查得到
+	require.NoError(t, env.store.UpdateAssociations(func(all map[string]store.Association) bool {
+		for k, a := range all {
+			a.Members = nil
+			all[k] = a
+		}
+		return true
+	}))
+
+	for _, id := range ids {
+		a, ok := env.lib.AssociationFor(id)
+		require.True(t, ok)
+		assert.Equal(t, store.AssociationNone, a.Mode)
+	}
+	_, ok := env.lib.AssociationFor("magnet-file|1|1")
+	assert.False(t, ok)
+}
+
+// 认定过作品的分组：后台匹配迟到时写回的、指向别处的匹配，不能借它的封面与集标题。
+func TestViewIgnoresStrayBindingsForAssociatedCluster(t *testing.T) {
+	env := newAssocEnv(t, &detailStub{})
+	ids := env.fileIDs(t)
+	key := env.cluster(t).ClusterKey
+	decodeAssoc(t, env.put(t, assocBody(t, key, "manual", pollutedWork))) // 封面被白名单滤掉
+	require.NoError(t, env.store.SetBinding(ids[0], store.Binding{AnilistID: 999, Episode: 1, EpisodeTitle: "别的番的集标题", CoverURL: "https://s4.anilist.co/wrong.jpg", MatchedAt: 1}))
+	require.NoError(t, env.store.SetProgress(ids[0], store.Progress{PositionSec: 300, DurationSec: 1400, UpdatedAt: 1}))
+
+	assert.Empty(t, env.cluster(t).Cover)
+	cw := env.lib.View().ContinueWatching
+	require.Len(t, cw, 1)
+	assert.Empty(t, cw[0].Cover)
+	assert.Empty(t, cw[0].EpisodeTitle)
+
+	// 与认定作品一致的匹配照用
+	require.NoError(t, env.store.SetBinding(ids[0], store.Binding{AnilistID: pollutedWork, Episode: 1, EpisodeTitle: "第1话", CoverURL: frierenCover, MatchedAt: 2}))
+	assert.NotEmpty(t, env.cluster(t).Cover)
+	assert.Equal(t, "第1话", env.lib.View().ContinueWatching[0].EpisodeTitle)
+}
+
+// 重扫把关联迁到新键之后，播放按文件查到的是迁过去的那条（索引与迁移一起换上）。
+func TestAssociationForFollowsKeyMigration(t *testing.T) {
+	env := newAssocEnv(t, nil)
+	ids := env.fileIDs(t)
+	require.NoError(t, env.store.UpdateAssociations(func(all map[string]store.Association) bool {
+		all["旧的键"] = store.Association{Mode: store.AssociationManual, AnilistID: 154587, Members: ids, MemberCount: len(ids)}
+		return true
+	}))
+	_, ok := env.lib.AssociationFor(ids[0])
+	require.False(t, ok, "迁移之前按新键查不到")
+
+	env.lib.Rescan()
+
+	a, ok := env.lib.AssociationFor(ids[0])
+	require.True(t, ok)
+	assert.Equal(t, 154587, a.AnilistID)
+}
+
+// 认定时记下目录里的总集数（只凭关联回写进度时用来挡住超出范围的集号）。
+func TestManualAssociationRecordsEpisodeCount(t *testing.T) {
+	env := newAssocEnv(t, &episodesStub{episodes: 28})
+	key := env.cluster(t).ClusterKey
+	decodeAssoc(t, env.put(t, assocBody(t, key, "manual", 154587)))
+	stored, _ := env.store.Association(key)
+	assert.Equal(t, 28, stored.Episodes)
+}
+
+type episodesStub struct {
+	detailStub
+	episodes int
+}
+
+func (f *episodesStub) Detail(ctx context.Context, id int) (animego.CatalogMedia, error) {
+	m, err := f.detailStub.Detail(ctx, id)
+	m.Episodes = &f.episodes
+	return m, err
+}

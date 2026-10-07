@@ -374,9 +374,10 @@ func (m *Manager) syncWatched(sess *session) {
 	log.Printf("player: 已回写 animego：anilistId=%d 第%d集", b.AnilistID, b.Episode)
 }
 
-// bindingStillCurrent：store 里这个文件的匹配仍是会话开播时那一条（同一部作品、同一集）。
-// 改作品关联会作废不一致的匹配，作废之后这里就是 false。
+// bindingStillCurrent：store 里这个文件的匹配仍是会话开播时那一条（同一部作品、同一集），
+// 并且与文件现在的作品关联不冲突。改关联会作废不一致的匹配；后台匹配迟到时
+// 又可能把它写回来，所以关联本身也要再看一眼。
 func (m *Manager) bindingStillCurrent(fileID string, b store.Binding) bool {
 	cur, ok := m.opts.Store.Binding(fileID)
-	return ok && cur.AnilistID == b.AnilistID && cur.Episode == b.Episode
+	return ok && cur.AnilistID == b.AnilistID && cur.Episode == b.Episode && m.agreesWithAssociation(fileID, b)
 }

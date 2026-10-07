@@ -70,6 +70,9 @@ type Options struct {
 	// 没有任何 API 请求发生，没有这个回调，种子会一直挂在那里下载和上传。
 	// 播放层不认识磁力，装配层决定要不要收掉引擎。可为 nil。
 	OnSessionEnd func()
+	// Association 查某个文件所在作品分组的手动关联（媒体库按 clusterKey 存，见 association.go）。
+	// 可为 nil：不在媒体库里的源（磁力、在线候选）本来就没有关联，一律走自动匹配。
+	Association func(fileID string) (store.Association, bool)
 }
 
 // DanmakuInfo 是弹幕链路的结果状态 —— 失败必须可见（CQ3：不静默）。
@@ -289,61 +292,138 @@ func (m *Manager) resolveDanmaku(sess *session) {
 }
 
 // ensureBinding 取（或建立）文件与 dandanplay 剧集的绑定；一并返回弹幕链路状态。
-// 任何失败都只影响 DanmakuInfo，不影响播放。
+// 任何失败都只影响 DanmakuInfo，不影响播放。媒体库里手动认定过作品的文件
+// 按关联走（见 association.go）。
 //
 // item 是调用方持有的 src.Item() 快照，一并传进来是为了不在这里重复取。
 func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item library.Item) (store.Binding, DanmakuInfo) {
+	if a, ok := m.association(item.FileID); ok {
+		if a.Mode != store.AssociationManual {
+			return store.Binding{}, DanmakuInfo{State: "none", Reason: "已在媒体库标为不是目录里的作品：不匹配弹幕，也不回写进度"}
+		}
+		return m.ensureAssociatedBinding(ctx, src, item, a)
+	}
 	if b, ok := m.opts.Store.Binding(item.FileID); ok && b.DandanEpisodeID != 0 {
 		return b, DanmakuInfo{State: "ok"}
 	}
-	if m.opts.Client == nil {
-		return store.Binding{}, DanmakuInfo{State: "none", Reason: "未配置 animego 服务"}
+	b, dan, _ := m.matchBinding(ctx, src, item, autoQuery(src, item))
+	if dan.State == "ok" {
+		m.saveBinding(item.FileID, b)
 	}
+	return b, dan
+}
 
-	hash := m.opts.Store.Hash(item.FileID)
-	if hash == "" {
-		h, err := src.Hash16M(ctx)
-		switch {
-		case errors.Is(err, ErrNoFingerprint):
-			// 在线媒体没有指纹：hash 留空，服务端只能靠文件名/关键词（见 MatchInput.FileHash）。
-		case err != nil:
-			return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: "计算文件指纹失败，弹幕匹配跳过"}
-		default:
-			hash = h
-			if err := m.opts.Store.SetHash(item.FileID, hash); err != nil {
-				// 缓存写失败不致命：下次再算一遍。
-				log.Printf("player: 缓存 hash 失败：%v", err)
-			}
-		}
-	}
-
-	// 集号无法识别时【不猜 1】：猜错会把剧场版/OVA/特典当"第1集"匹配，
-	// 播完还会拿 MarkWatched(anilistId, 1) 污染用户真实的 animego 账号。
-	episode := 0
+// episodeNumber 取文件的集号；认不出来返回 0。
+//
+// 集号无法识别时【不猜 1】：猜错会把剧场版/OVA/特典当"第1集"匹配，
+// 播完还会拿 MarkWatched(anilistId, 1) 污染用户真实的 animego 账号。
+func episodeNumber(item library.Item) int {
 	if item.Episode != nil {
-		episode = *item.Episode
-	} else if item.ParsedNumber != nil {
-		episode = *item.ParsedNumber
+		return *item.Episode
 	}
-	if episode <= 0 {
-		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: "无法识别集号，弹幕匹配跳过"}
+	if item.ParsedNumber != nil {
+		return *item.ParsedNumber
 	}
-	keyword := ""
+	return 0
+}
+
+func parsedTitle(item library.Item) string {
 	if item.ParsedTitle != nil {
-		keyword = *item.ParsedTitle
+		return *item.ParsedTitle
 	}
-	// 目录里已知作品身份的源（在线候选）带来两样东西：校验用的 anilistId，
-	// 和主标题失手时可以再试的别名（原名/英文名）。本地文件没有这些，只试一次。
-	wantAnilist, keywords := 0, []string{keyword}
+	return ""
+}
+
+// matchQuery 是一次匹配的作品身份约束：wantAnilist > 0 时结果必须是这部作品，
+// keywords 按顺序试（空关键词也照发：服务端能靠文件指纹命中；列表为空则不发请求）。
+type matchQuery struct {
+	wantAnilist int
+	keywords    []string
+}
+
+// autoQuery 是没有手动关联时的匹配条件。目录里已知作品身份的源（在线候选）带来两样东西：
+// 校验用的 anilistId，和主标题失手时可以再试的别名（原名/英文名）；本地文件没有这些，
+// 只用文件名里的标题试一次。
+func autoQuery(src MediaSource, item library.Item) matchQuery {
+	title := parsedTitle(item)
 	if hinted, ok := src.(matchHinted); ok {
-		var alts []string
-		wantAnilist, alts = hinted.MatchHints()
-		keywords = appendUniqueKeywords(keywords, alts)
+		want, alts := hinted.MatchHints()
+		return matchQuery{wantAnilist: want, keywords: appendUniqueKeywords([]string{title}, alts)}
+	}
+	return matchQuery{keywords: []string{title}}
+}
+
+// matchBinding 向 animego 匹配这个文件，不落盘。第三个返回值：作品认出来了，
+// 但匹配结果里没有这一集（绝对集号配上分季条目时常见）。
+func (m *Manager) matchBinding(ctx context.Context, src MediaSource, item library.Item, q matchQuery) (store.Binding, DanmakuInfo, bool) {
+	if m.opts.Client == nil {
+		return store.Binding{}, DanmakuInfo{State: "none", Reason: "未配置 animego 服务"}, false
+	}
+	hash, ok := m.fileHash(ctx, src, item)
+	if !ok {
+		return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: "计算文件指纹失败，弹幕匹配跳过"}, false
+	}
+	episode := episodeNumber(item)
+	if episode <= 0 {
+		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: "无法识别集号，弹幕匹配跳过"}, false
 	}
 
-	var res animego.MatchResult
-	matched, strayAnilist := false, 0
-	for _, kw := range keywords {
+	res, stray, err := m.firstMatch(ctx, item, hash, episode, q)
+	if err != nil {
+		return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: classifyAnimegoErr(err)}, false
+	}
+	if !res.Matched {
+		if stray > 0 {
+			return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: fmt.Sprintf("关键词只匹配到另一部作品（anilistId %d），弹幕已跳过", stray)}, false
+		}
+		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: "未匹配到对应剧集，弹幕不可用"}, false
+	}
+	ref, ok := res.EpisodeMap[episode]
+	if !ok {
+		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: fmt.Sprintf("匹配结果里没有第 %d 集", episode)}, true
+	}
+
+	anilistID := res.AnilistID
+	if anilistID == 0 {
+		// phase1 命中可能不带 anilistId；作品身份已知时用它，进度才能回写到正确的作品。
+		anilistID = q.wantAnilist
+	}
+	return store.Binding{
+		AnilistID:       anilistID,
+		DandanEpisodeID: ref.DandanEpisodeID,
+		Episode:         episode,
+		Title:           firstNonEmpty(res.TitleChinese, res.TitleNative, parsedTitle(item)),
+		EpisodeTitle:    ref.Title,
+		CoverURL:        res.CoverImageURL,
+		MatchedAt:       time.Now().UnixMilli(),
+	}, DanmakuInfo{State: "ok"}, false
+}
+
+// fileHash 取（懒算并缓存）文件首 16MB 指纹；在线媒体没有指纹时返回空串。
+// 第二个返回值为 false 表示算的时候出错了。
+func (m *Manager) fileHash(ctx context.Context, src MediaSource, item library.Item) (string, bool) {
+	if hash := m.opts.Store.Hash(item.FileID); hash != "" {
+		return hash, true
+	}
+	hash, err := src.Hash16M(ctx)
+	switch {
+	case errors.Is(err, ErrNoFingerprint):
+		// 在线媒体没有指纹：hash 留空，服务端只能靠文件名/关键词（见 MatchInput.FileHash）。
+		return "", true
+	case err != nil:
+		return "", false
+	}
+	if err := m.opts.Store.SetHash(item.FileID, hash); err != nil {
+		// 缓存写失败不致命：下次再算一遍。
+		log.Printf("player: 缓存 hash 失败：%v", err)
+	}
+	return hash, true
+}
+
+// firstMatch 按顺序试关键词，返回第一个命中（且作品身份对得上）的结果；都没命中时
+// res.Matched 为 false，stray 是被身份校验挡掉的那部作品。
+func (m *Manager) firstMatch(ctx context.Context, item library.Item, hash string, episode int, q matchQuery) (res animego.MatchResult, stray int, err error) {
+	for _, kw := range q.keywords {
 		r, err := m.opts.Client.Match(ctx, animego.MatchInput{
 			FileName: item.FileName,
 			FileHash: hash,
@@ -352,49 +432,20 @@ func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item libra
 			Keyword:  kw,
 		})
 		if err != nil {
-			return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: classifyAnimegoErr(err)}
+			return animego.MatchResult{}, 0, err
 		}
 		if !r.Matched {
 			continue
 		}
 		// 关键词匹配对同名不同代/同系列不同季会命中别的作品：弹幕会错，播完还会把
 		// 错的作品标成已看。目录身份已知时必须对上，对不上就换下一个关键词。
-		if wantAnilist > 0 && r.AnilistID > 0 && r.AnilistID != wantAnilist {
-			strayAnilist = r.AnilistID
+		if q.wantAnilist > 0 && r.AnilistID > 0 && r.AnilistID != q.wantAnilist {
+			stray = r.AnilistID
 			continue
 		}
-		res, matched = r, true
-		break
+		return r, 0, nil
 	}
-	if !matched {
-		if strayAnilist > 0 {
-			return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: fmt.Sprintf("关键词只匹配到另一部作品（anilistId %d），弹幕已跳过", strayAnilist)}
-		}
-		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: "未匹配到对应剧集，弹幕不可用"}
-	}
-	ref, ok := res.EpisodeMap[episode]
-	if !ok {
-		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: fmt.Sprintf("匹配结果里没有第 %d 集", episode)}
-	}
-
-	anilistID := res.AnilistID
-	if anilistID == 0 {
-		// phase1 命中可能不带 anilistId；目录身份已知时用它，进度才能回写到正确的作品。
-		anilistID = wantAnilist
-	}
-	b := store.Binding{
-		AnilistID:       anilistID,
-		DandanEpisodeID: ref.DandanEpisodeID,
-		Episode:         episode,
-		Title:           firstNonEmpty(res.TitleChinese, res.TitleNative, keyword),
-		EpisodeTitle:    ref.Title,
-		CoverURL:        res.CoverImageURL,
-		MatchedAt:       time.Now().UnixMilli(),
-	}
-	if err := m.opts.Store.SetBinding(item.FileID, b); err != nil {
-		log.Printf("player: 保存匹配结果失败：%v", err)
-	}
-	return b, DanmakuInfo{State: "ok"}
+	return animego.MatchResult{}, stray, nil
 }
 
 // writeDanmakuASS 拉取弹幕并写到 path（每会话唯一，避免并发解析互相覆盖），
