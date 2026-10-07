@@ -49,7 +49,9 @@ for arch in "${archs[@]}"; do
   if [ ! -f "$file" ] || [ "$(sha256_of "$file")" != "$want" ]; then
     echo "==> 下载：$url"
     part="$file.part.$$"
-    curl -fL --retry 3 --retry-delay 2 -o "$part" "$url"
+    # -sS：不打进度条（出错照样报）。它用 \r 重画的输出在 goreleaser 钩子日志里触发过 panic
+    # （goreleaser 2.18.2 / caarlos0/log 0.6.2，index out of range [-1]）
+    curl -fsSL --retry 3 --retry-delay 2 -o "$part" "$url"
     got=$(sha256_of "$part")
     if [ "$got" != "$want" ]; then
       rm -f "$part"
