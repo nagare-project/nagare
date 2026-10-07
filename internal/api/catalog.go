@@ -11,6 +11,7 @@ func (h *Handler) RemoteArtwork() RemoteArtSource    { return h.remoteArt }
 func (h *Handler) registerCatalog(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/discover", h.catalogDiscover)
 	mux.HandleFunc("GET /api/seasonal", h.catalogSeasonal)
+	mux.HandleFunc("GET /api/catalog/search", h.catalogSearch)
 	mux.HandleFunc("GET /api/anime/{id}", h.catalogDetail)
 	mux.HandleFunc("GET /api/anime/{id}/episodes", h.catalogEpisodes)
 	mux.HandleFunc("GET /api/schedule", h.catalogSchedule)

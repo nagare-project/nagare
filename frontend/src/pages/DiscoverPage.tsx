@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'motion/react'
 import { CarouselRow } from '../components/media/CarouselRow'
+import { CatalogSearchForm, CatalogSearchResults } from '../components/media/CatalogSearch'
 import { DiscoverHero } from '../components/media/DiscoverHero'
 import { DiscoverCard } from '../components/media/DiscoverCard'
 import { DiscoverGenres, genreLabel, genreQuery } from '../components/media/DiscoverGenres'
@@ -23,7 +25,13 @@ export function DiscoverPage() {
   const [data, setData] = useState<DiscoverSections>()
   const [error, setError] = useState<string>()
   const [attempt, setAttempt] = useState(0)
-  const initialGenre = genreLabel(new URLSearchParams(window.location.search).get('genre') || '')
+  const search = useSearch({ from: '/discover' })
+  const navigate = useNavigate({ from: '/discover' })
+  // 根路由不校验参数，地址栏原样的 q 会一路传下来（?q=%20%20 到这里是两个空格）：在这里再收一次
+  const query = (search.q ?? '').trim()
+  // 同一个词再点「搜索」时地址栏不变：用这个序号让结果重新拉一次（后端有缓存，不会多打上游）
+  const [searchRun, setSearchRun] = useState(0)
+  const initialGenre = genreLabel(search.genre ?? '')
   const reduced = useReducedMotionPreference()
   useEffect(() => {
     const abort = new AbortController()
@@ -48,12 +56,19 @@ export function DiscoverPage() {
           <m.div key={tab} className={tab === 'anime' ? 'discover-panel discover-anime-panel' : 'discover-panel'} initial={reduced ? false : { opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: reduced ? 1 : .99 }} transition={{ duration: reduced ? 0 : .35 }}>
             {tab === 'schedule' ? <SchedulePage embedded /> : <>
+              <CatalogSearchForm query={query} onSearch={(q) => {
+                setSearchRun(n => n + 1)
+                void navigate({ search: (prev) => ({ ...prev, q: q === '' ? undefined : q }) })
+              }} />
+              {/* 有关键词时只显示搜索结果；榜单不卸载数据，清除关键词就回来 */}
+              {query !== '' ? <CatalogSearchResults query={query} run={searchRun} /> : <>
               {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={() => setAttempt(value => value + 1)}>重新加载</button></p>}
               {!data && !error && <section aria-label="正在加载榜单" aria-busy="true"><div className="discover-loading-title" /><div className="discover-loading-cards">{[0, 1, 2, 3].map(i => <div key={i} />)}</div></section>}
               {/* 上游这一板块整段为空（如「最近已播出」恰好没有到点的集数）时整行不画：
                   空行里那句「暂无某分类」是写给类型筛选的，放在这里是错话。 */}
               {data?.filter(section => section.items.length || section.error).map(section => <Section key={section.key} title={section.title} items={section.items} filters={['trending', 'thisSeason', 'pastSeason'].includes(section.key)} arrows={section.key === 'recent'} initialGenre={section.key === 'trending' ? initialGenre : '全部'} error={section.error} retry={() => setAttempt(value => value + 1)} />)}
               {data && !data.some(section => section.items.length || section.error) && <p className="result" role="status">暂时没有可显示的作品。</p>}
+              </>}
             </>}
           </m.div>
         </AnimatePresence>

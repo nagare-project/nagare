@@ -55,7 +55,8 @@ export function AppRail() {
       <button type="button" className="icon-button app-menu-button" aria-label="打开导航"
         aria-expanded={open} onClick={toggleDrawer}><Icon name="menu" /></button>
       <nav className="app-top-links" aria-label="页面导航">
-        {ITEMS.slice(0, 4).map(({ to, label }) => <Link key={to} to={to} activeOptions={{ exact: true }}>{label}</Link>)}
+        {/* includeSearch:false —— /discover?q= 也算在「发现」里，不能因为带了查询参数就不高亮 */}
+        {ITEMS.slice(0, 4).map(({ to, label }) => <Link key={to} to={to} activeOptions={{ exact: true, includeSearch: false }}>{label}</Link>)}
       </nav>
       <Link to="/search" className="icon-button app-top-search" aria-label="搜索资源"><Icon name="search" size={20} /></Link>
     </header>

@@ -11,15 +11,22 @@ import { SchedulePage } from './SchedulePage'
 import { MediaCard } from '../components/media/MediaCard'
 import { FAKE_DISCOVER, FAKE_LISTS } from '../lib/fixtures/library'
 import { DISCOVER_EXIT_MS } from '../components/media/useDiscoverCarousel'
-import { fetchDiscover } from '../lib/media'
+import { fetchCatalogSearch, fetchDiscover } from '../lib/media'
 
 // jsdom 没有布局；这一组只验证页面内容，拖拽与分页在浏览器验收。
 vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
 
+// 发现页读 /discover 的地址栏参数（?q= 作品搜索）。这组测试不挂路由，用可控的替身代替
+let discoverSearch: { q?: string; genre?: string } = {}
+vi.mock('@tanstack/react-router', async importOriginal => {
+  const original = await importOriginal<typeof import('@tanstack/react-router')>()
+  return { ...original, useSearch: () => discoverSearch, useNavigate: () => () => Promise.resolve() }
+})
+
 vi.mock('../lib/media', async importOriginal => {
   const original = await importOriginal<typeof import('../lib/media')>()
   const { FAKE_DISCOVER } = await import('../lib/fixtures/library')
-  return { ...original, fetchDiscover: vi.fn(async () => [
+  return { ...original, fetchCatalogSearch: vi.fn(async (q: string) => q === '没有这部' ? [] : [FAKE_DISCOVER.trending[0]!]), fetchDiscover: vi.fn(async () => [
     { key: 'trending', title: 'animego 上在看最多', items: FAKE_DISCOVER.trending },
     { key: 'recent', title: '最近已播出', items: FAKE_DISCOVER.recent },
     { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
@@ -80,6 +87,34 @@ describe('假数据页面', () => {
     expect(titles).toEqual(['animego 上在看最多', '本季新番'])
     expect(container.textContent).not.toContain('暂无「全部」分类')
     await unmount()
+  })
+
+  it('发现：带关键词时只显示作品搜索结果，榜单让位', async () => {
+    discoverSearch = { q: '芙莉莲' }
+    try {
+      const { container, unmount } = await mount(<DiscoverPage />)
+      await act(async () => { await Promise.resolve() })
+      expect(container.textContent).toContain('搜索「芙莉莲」')
+      expect(vi.mocked(fetchCatalogSearch)).toHaveBeenCalledWith('芙莉莲', expect.anything())
+      expect(container.querySelectorAll('.catalog-search-results .poster').length).toBeGreaterThan(0)
+      // 榜单不显示
+      expect(container.textContent).not.toContain('animego 上在看最多')
+      await unmount()
+    } finally {
+      discoverSearch = {}
+    }
+  })
+
+  it('发现：搜不到时说清楚，并提示换个叫法', async () => {
+    discoverSearch = { q: '没有这部' }
+    try {
+      const { container, unmount } = await mount(<DiscoverPage />)
+      await act(async () => { await Promise.resolve() })
+      expect(container.textContent).toContain('没有找到「没有这部」相关的作品')
+      await unmount()
+    } finally {
+      discoverSearch = {}
+    }
   })
 
   it('发现：hero 切换等待退场，未悬停时不加载预告片', async () => {

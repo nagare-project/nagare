@@ -1,4 +1,4 @@
-import { fetchDiscoverData, fetchMediaData, fetchSeasonalData } from './endpoints'
+import { fetchCatalogSearchData, fetchDiscoverData, fetchMediaData, fetchSeasonalData } from './endpoints'
 import type { CollectionEntry, CollectionStatus, SeasonName, SummaryMediaData } from './endpoints'
 export type { SeasonName } from './endpoints'
 import type { MediaSummary } from '../components/media/types'
@@ -19,5 +19,6 @@ export function toSummary(media: SummaryMediaData): MediaSummary {
 export type DiscoverSections = { key: string; title: string; items: MediaSummary[]; error?: string }[]
 export async function fetchDiscover(signal?: AbortSignal): Promise<DiscoverSections> { return (await fetchDiscoverData(signal)).sections.map(section => ({ ...section, items: section.items.map(toSummary) })) }
 export async function fetchMedia(id: number, signal?: AbortSignal): Promise<MediaSummary> { return toSummary(await fetchMediaData(id, signal)) }
+export async function fetchCatalogSearch(q: string, signal?: AbortSignal): Promise<MediaSummary[]> { return (await fetchCatalogSearchData(q, signal)).items.map(toSummary) }
 export async function fetchSeasonal(season: SeasonName, year: number, signal?: AbortSignal): Promise<MediaSummary[]> { return (await fetchSeasonalData(season, year, signal)).items.map(toSummary) }
 export function collectionMedia(entry: CollectionEntry): MediaSummary { return { ...toSummary(entry.media), watched: entry.currentEpisode } }

@@ -113,6 +113,14 @@ func (c *Client) Seasonal(ctx context.Context, season string, year int) ([]Catal
 	q := url.Values{"season": {season}, "year": {strconv.Itoa(year)}, "perPage": {"200"}, "page": {"1"}}
 	return catalogGet[[]CatalogMedia](ctx, c, "/api/anime/seasonal?"+q.Encode())
 }
+
+// Search 按关键词搜目录（GET /api/anime/search），只取第一页 20 条。
+// 这个端点不在 animego 的限速豁免区（每 IP 约 1 次/秒），而且会打到 AniList ——
+// 调用方必须缓存，并且只在用户提交时调，不能边打字边搜。
+func (c *Client) Search(ctx context.Context, keyword string) ([]CatalogMedia, error) {
+	q := url.Values{"q": {keyword}, "page": {"1"}, "perPage": {"20"}}
+	return catalogGet[[]CatalogMedia](ctx, c, "/api/anime/search?"+q.Encode())
+}
 func (c *Client) Gems(ctx context.Context) ([]CatalogMedia, error) {
 	return catalogGet[[]CatalogMedia](ctx, c, "/api/anime/completed-gems?limit=20")
 }
