@@ -78,6 +78,47 @@ type associationResult struct {
 	Association *ViewAssociation `json:"association"`
 }
 
+// ViewMatch 是自动匹配到的作品。
+type ViewMatch struct {
+	AnilistID int    `json:"anilistId"`
+	Title     string `json:"title,omitempty"`
+}
+
+// matchedWork 取簇内匹配到最多集的那部作品；票数相同时取 ID 小的（结果可复现）。
+// 只让正片投票：OVA、特典自动匹配时常常落到它们自己的条目上，与正片平票时
+// 会把 OVA 那部推荐成「自动匹配」，一键确认就把整组记错了。没有正片匹配过才看全部。
+func matchedWork(items []library.Item, bindings map[string]store.Binding) *ViewMatch {
+	if m := tallyMatches(items, bindings, true); m != nil {
+		return m
+	}
+	return tallyMatches(items, bindings, false)
+}
+
+func tallyMatches(items []library.Item, bindings map[string]store.Binding, mainOnly bool) *ViewMatch {
+	votes := map[int]int{}
+	titles := map[int]string{}
+	for _, it := range items {
+		b := bindings[it.FileID]
+		if b.AnilistID <= 0 || (mainOnly && it.ParsedKind != "main") {
+			continue
+		}
+		votes[b.AnilistID]++
+		if titles[b.AnilistID] == "" {
+			titles[b.AnilistID] = b.Title
+		}
+	}
+	best := 0
+	for id, n := range votes {
+		if best == 0 || n > votes[best] || (n == votes[best] && id < best) {
+			best = id
+		}
+	}
+	if best == 0 {
+		return nil
+	}
+	return &ViewMatch{AnilistID: best, Title: titles[best]}
+}
+
 // ClusterFiles 返回作品分组当前的全部 fileId（去重）；同一个 clusterKey 出现在多个库目录里
 // （同一部番分在两块盘上）时合并。第二个返回值为 false 表示这次扫描里没有这个分组。
 func (s *LibraryService) ClusterFiles(clusterKey string) ([]string, bool) {
@@ -327,6 +368,33 @@ func (h *Handler) commitAssociation(w http.ResponseWriter, clusterKey string, a 
 		a.SetAt = time.Now().UnixMilli()
 	}
 	h.applyAssociation(w, clusterKey, a, files)
+}
+
+// dismissSyncedElsewhere 去掉「已回写到别的作品」里某部作品的记录：
+//
+//	{"clusterKey": "...", "anilistId": 999}
+func (h *Handler) dismissSyncedElsewhere(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ClusterKey string `json:"clusterKey"`
+		AnilistID  int    `json:"anilistId"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if req.ClusterKey == "" || len(req.ClusterKey) > maxClusterKeyBytes || req.AnilistID < 1 || req.AnilistID > math.MaxInt32 {
+		writeErr(w, errs.New(errs.CategoryInput, "library.association", "缺少作品分组或作品 ID", ""))
+		return
+	}
+	a, ok, err := h.deps.Store.DismissSyncedElsewhere(req.ClusterKey, req.AnilistID)
+	switch {
+	case err != nil:
+		writeErr(w, errs.Wrap(errs.CategoryStorage, "library.association", "保存作品关联失败", "", err))
+	case !ok:
+		// 比如另一个标签页刚把它改回了自动匹配
+		httpserver.WriteError(w, http.StatusConflict, "这个分组已经没有作品关联了，刷新页面后再试")
+	default:
+		httpserver.WriteJSON(w, http.StatusOK, associationResult{Association: toViewAssociation(a)})
+	}
 }
 
 func writeVanished(w http.ResponseWriter) {

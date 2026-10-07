@@ -1,11 +1,13 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Icon } from '../components/ui/Icon'
+import { AssociationPanel } from '../components/library/AssociationPanel'
 import { LibraryEpisodeCards } from '../components/library/LibraryEpisodeCards'
 import { nextLibraryEpisode } from '../components/media/MediaPlayButton'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { usePlayerStatus } from '../hooks/usePlayerStatus'
+import { clusterDisplayTitle } from '../lib/associations'
 import { playFile } from '../lib/endpoints'
 import { errorText } from '../lib/format'
 import { mono } from '../theme'
@@ -105,6 +107,9 @@ export function AnimePage() {
         </p>
       )}
 
+      {/* 同一个路由组件在作品之间切换时会复用：按分组重置面板状态 */}
+      <AssociationPanel key={cluster.clusterKey} cluster={cluster} onChanged={library.reload} />
+
       <div className="anime-library-label"><Icon name="lists" size={18} />本地媒体库<span>{cluster.episodeCount} 集已入库</span></div>
       <LibraryEpisodeCards cluster={cluster} next={next} pending={pendingFileId !== null} activeFileId={playing?.fileId} onPlay={item => void handlePlay(item.fileId)} />
 
@@ -114,21 +119,23 @@ export function AnimePage() {
 
 /** 顶部横幅：封面模糊铺底 + 清晰海报 + 标题与元信息 */
 function AnimeHero({ cluster, onPlay, pending, resume }: { cluster: LibraryCluster; onPlay?: () => void; pending: boolean; resume: boolean }) {
-  const [failed, setFailed] = useState(false)
-  const { title, season, episodeCount, cover } = cluster
-  const hasCover = cover !== undefined && !failed
+  // 记下的是哪个地址加载失败：改了对应作品之后封面换了地址，旧的失败不该把新图也藏起来
+  const [failedSrc, setFailedSrc] = useState<string>()
+  const { season, episodeCount, cover } = cluster
+  const title = clusterDisplayTitle(cluster)
+  const hasCover = cover !== undefined && failedSrc !== cover
 
   return (
     <header className="anime-hero">
       {hasCover && (
         <div className="anime-hero-bg" aria-hidden="true">
-          <img src={cover} alt="" onError={() => setFailed(true)} />
+          <img src={cover} alt="" onError={() => setFailedSrc(cover)} />
         </div>
       )}
       <div className="anime-hero-body">
         <span className="anime-hero-art">
           {hasCover ? (
-            <img src={cover} alt="" onError={() => setFailed(true)} />
+            <img src={cover} alt="" onError={() => setFailedSrc(cover)} />
           ) : (
             <span className="poster-art-blank" aria-hidden="true">
               流
@@ -143,6 +150,7 @@ function AnimeHero({ cluster, onPlay, pending, resume }: { cluster: LibraryClust
           <p className="anime-meta">
             {season !== null ? `第 ${season} 季 · ` : ''}
             {episodeCount} 集
+            {title !== cluster.title && ` · 文件夹：${cluster.title}`}
           </p>
           <div className="anime-hero-actions">
             <button className="btn btn--primary" type="button" disabled={!onPlay || pending} onClick={onPlay}>

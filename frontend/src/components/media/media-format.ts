@@ -7,3 +7,6 @@ export function airingDistance(at: number, now = Date.now()) {
   const amount = seconds >= 86400 ? `${Math.max(1, Math.round(seconds / 86400))} 天` : seconds >= 3600 ? `${Math.max(1, Math.round(seconds / 3600))} 小时` : `${Math.max(1, Math.round(seconds / 60))} 分钟`
   return amount + (at * 1000 >= now ? '后' : '前')
 }
+
+/** 作品类型（AniList format）的中文写法 */
+export const FORMAT_LABELS: Record<string, string> = { TV: 'TV', TV_SHORT: '短篇动画', MOVIE: '剧场版', SPECIAL: '特别篇', OVA: 'OVA', ONA: '网络动画' }

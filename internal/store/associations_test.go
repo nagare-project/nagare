@@ -316,3 +316,46 @@ func TestMergeSynced(t *testing.T) {
 		{AnilistID: 1, Title: "甲", Episodes: []int{2}},
 	}, got)
 }
+
+// 去掉一部作品的「已回写到别处」记录：只动那一条，其余与关联本身不变；没有关联时报 false。
+func TestDismissSyncedElsewhere(t *testing.T) {
+	s, path := newStore(t)
+	require.NoError(t, s.UpdateAssociations(func(all map[string]Association) bool {
+		all["k"] = Association{Mode: AssociationManual, AnilistID: 1, SyncedElsewhere: []SyncedRecord{
+			{AnilistID: 2, Episodes: []int{1}}, {AnilistID: 3, Episodes: []int{2}},
+		}}
+		return true
+	}))
+
+	got, ok, err := s.DismissSyncedElsewhere("k", 2)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, []SyncedRecord{{AnilistID: 3, Episodes: []int{2}}}, got.SyncedElsewhere)
+	assert.Equal(t, 1, got.AnilistID)
+
+	got, _, err = s.DismissSyncedElsewhere("k", 3)
+	require.NoError(t, err)
+	assert.Nil(t, got.SyncedElsewhere)
+	re, err := Open(path)
+	require.NoError(t, err)
+	persisted, _ := re.Association("k")
+	assert.Nil(t, persisted.SyncedElsewhere)
+
+	_, ok, err = s.DismissSyncedElsewhere("missing", 2)
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestDismissSyncedElsewhereRollsBackWhenSaveFails(t *testing.T) {
+	s, path := newStore(t)
+	require.NoError(t, s.UpdateAssociations(func(all map[string]Association) bool {
+		all["k"] = Association{Mode: AssociationNone, SyncedElsewhere: []SyncedRecord{{AnilistID: 2, Episodes: []int{1}}}}
+		return true
+	}))
+	defer blockSave(t, path)()
+
+	_, _, err := s.DismissSyncedElsewhere("k", 2)
+	require.Error(t, err)
+	a, _ := s.Association("k")
+	assert.Len(t, a.SyncedElsewhere, 1)
+}

@@ -1,0 +1,50 @@
+/* 作品页「对应作品」面板与选作品对话框 */
+
+.assoc-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--paper); }
+.assoc-panel-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.assoc-panel-row > svg { flex: none; color: var(--fg-muted); }
+.assoc-panel-status { flex: 1 1 280px; min-width: 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.assoc-panel-status:focus { outline: none; }
+.assoc-panel-status:focus-visible { outline: 2px solid var(--brand-line); outline-offset: 2px; border-radius: var(--radius-sm); }
+.assoc-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.assoc-confirm,
+.assoc-synced { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px; border-radius: var(--radius); font-size: 14px; line-height: 1.6; }
+.assoc-confirm { border: 1px solid var(--err-line); background: var(--err-wash); }
+.assoc-synced { border: 1px solid var(--warn-line); background: var(--warn-wash); }
+.assoc-confirm > p,
+.assoc-synced > p { flex: 1 1 280px; min-width: 0; }
+
+/* 标题与搜索框固定，只有结果列表滚动：手机上往下翻结果时关闭按钮和搜索框不跟着滚走 */
+.assoc-dialog { position: fixed; inset: 0; width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid #ffffff20; border-radius: 16px; background: var(--paper-raised); color: var(--fg); overflow: hidden; }
+.assoc-dialog::backdrop { background: #000b; backdrop-filter: blur(8px); }
+.assoc-dialog-body { position: relative; display: flex; flex-direction: column; gap: 16px; max-height: calc(100dvh - 50px); padding: 32px; }
+.assoc-dialog-body h2 { font-size: 22px; line-height: 1.3; }
+.assoc-dialog-close { position: absolute; top: 12px; right: 12px; }
+.assoc-hint { color: var(--fg-muted); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.assoc-search { display: flex; gap: 12px; }
+.assoc-search input { flex: 1; min-width: 0; }
+.assoc-search .btn { flex: none; }
+
+.assoc-results { display: flex; flex: 1 1 auto; flex-direction: column; gap: 4px; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.assoc-result { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; border: 1px solid transparent; border-radius: var(--radius); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease); }
+.assoc-result:hover:not(:disabled),
+.assoc-result:focus-visible { border-color: var(--brand-line); background: var(--subtle-hover); }
+.assoc-result:disabled { cursor: default; opacity: .7; }
+.assoc-result-art { flex: none; display: grid; place-items: center; width: 48px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: var(--radius-sm); background: var(--subtle); color: var(--fg-subtle); }
+.assoc-result-art img { width: 100%; height: 100%; object-fit: cover; }
+.assoc-result-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.assoc-result-title { font-weight: 600; overflow-wrap: anywhere; }
+.assoc-result-sub { color: var(--fg-muted); font-size: 13px; overflow-wrap: anywhere; }
+
+.assoc-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--border-dim); color: var(--fg-muted); font-size: 14px; }
+
+@media (max-width: 480px) {
+  .assoc-dialog-body { padding: 24px 16px; }
+}
+
+/* 矮视口（横屏手机、400% 缩放）：固定头尾会把结果挤没，改成整体滚动 */
+@media (max-height: 520px) {
+  .assoc-dialog-body { overflow-y: auto; }
+  .assoc-results { flex: none; overflow: visible; }
+}

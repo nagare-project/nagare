@@ -10,14 +10,13 @@ import { useMediaDetails } from '../components/media/useMediaDetails'
 import { useEpisodeMetadata } from '../components/media/useEpisodeMetadata'
 import { useCollection } from '../components/media/CollectionContext'
 import type { MediaSummary } from '../components/media/types'
-import { airingDistance } from '../components/media/media-format'
+import { airingDistance, FORMAT_LABELS } from '../components/media/media-format'
 import { nextEpisodeAiring } from '../components/media/episode-metadata'
 import { Icon } from '../components/ui/Icon'
 import { Tabs, Tab } from '../components/ui'
 import '../components/media/media-preview.css'
 import './entry.css'
 
-const FORMATS: Record<string, string> = { TV: 'TV', TV_SHORT: '短篇动画', MOVIE: '剧场版', SPECIAL: '特别篇', OVA: 'OVA', ONA: '网络动画' }
 const SOURCES: Record<string, string> = { ORIGINAL: '原创', MANGA: '漫画', LIGHT_NOVEL: '轻小说', NOVEL: '小说', VIDEO_GAME: '游戏', VISUAL_NOVEL: '视觉小说', WEB_NOVEL: '网络小说', OTHER: '其他' }
 const TAB_LABELS: Record<string, string> = { local: '本地媒体库', torrent: '磁力播放', online: '在线播放' }
 
@@ -82,7 +81,7 @@ function EntryContent({ media }: { media: MediaSummary }) {
       <SourcePanel active={tab === 'torrent'}><MediaTorrentButton media={playbackMedia} inline /></SourcePanel>
       <SourcePanel active={tab === 'online'}><MediaSourceButton media={playbackMedia} inline /></SourcePanel>
       <dialog ref={information} className="media-description-dialog catalog-entry-information" aria-label="作品信息" onClick={event => { if (event.target === information.current) information.current.close() }}><button type="button" className="icon-button" aria-label="关闭作品信息" onClick={() => information.current?.close()}><Icon name="close" /></button><h2>作品信息</h2><dl className="catalog-entry-facts">
-        {Object.entries({ '类型': FORMATS[media.format ?? ''] || media.format, '原作': SOURCES[media.source ?? ''] || media.source, '集数': media.episodes, '单集时长': media.duration ? `${media.duration} 分钟` : undefined, '首播日期': media.startDate, '制作公司': media.studios?.join(' / '), '原名': media.titleNative }).map(([label, value]) => value ? <div key={label}><dt>{label}</dt><dd>{value}</dd></div> : null)}
+        {Object.entries({ '类型': FORMAT_LABELS[media.format ?? ''] || media.format, '原作': SOURCES[media.source ?? ''] || media.source, '集数': media.episodes, '单集时长': media.duration ? `${media.duration} 分钟` : undefined, '首播日期': media.startDate, '制作公司': media.studios?.join(' / '), '原名': media.titleNative }).map(([label, value]) => value ? <div key={label}><dt>{label}</dt><dd>{value}</dd></div> : null)}
       </dl></dialog>
     </section>
     <MediaRelations media={media} />

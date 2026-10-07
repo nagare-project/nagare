@@ -70,7 +70,10 @@ type ViewCluster struct {
 	// Association 是用户手动认定的目录作品；nil 表示没认过，走自动匹配。
 	// 认定为某部作品时 Cover 用那部作品的封面。
 	Association *ViewAssociation `json:"association,omitempty"`
-	Groups      []ViewGroup      `json:"groups"`
+	// Matched 是没认过的分组里自动匹配到的作品（簇内匹配最多的那一部）；没播过、没匹配上时省略。
+	// 界面据此显示「自动匹配：X」并让用户一键确认或更换。
+	Matched *ViewMatch  `json:"matched,omitempty"`
+	Groups  []ViewGroup `json:"groups"`
 }
 
 // ViewContinue 是「继续观看」的一张卡片。
@@ -412,6 +415,8 @@ func (s *LibraryService) View() LibraryView {
 		if hasAssoc {
 			vc.Association = toViewAssociation(a)
 			vc.Cover = associatedCover(prefix, c.ClusterKey, a, vc.Cover)
+		} else {
+			vc.Matched = matchedWork(c.Items, bindings)
 		}
 		for _, g := range c.Groups {
 			vg := ViewGroup{GroupKey: g.GroupKey, Label: g.Label, SortMode: g.SortMode, Items: []ViewItem{}}

@@ -1,3 +1,4 @@
+import type { LibraryAssociation, LibraryMatch } from './associations'
 import { ApiError, apiFetch, apiStream } from './api'
 
 /**
@@ -86,7 +87,7 @@ export interface LibraryCluster {
   clusterKey: string
   title: string
   season: number | null
-  /** 归簇置信度 0–1；低于阈值时界面标「低置信」 */
+  /** 归簇置信度 0–1；低于阈值且没认过作品时界面标「待确认」 */
   confidence: number
   episodeCount: number
   /**
@@ -95,6 +96,10 @@ export interface LibraryCluster {
    * 从没播过的番就是没有。界面必须有无图版式。
    */
   cover?: string
+  /** 用户手动认定的目录作品；缺省表示没认过，走自动匹配 */
+  association?: LibraryAssociation
+  /** 没认过时，自动匹配到的作品；没播过、没匹配上时缺省 */
+  matched?: LibraryMatch
   groups: LibraryGroup[]
 }
 

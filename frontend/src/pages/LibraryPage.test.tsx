@@ -145,6 +145,31 @@ afterEach(() => {
 })
 
 describe('LibraryPage（整页冒烟）', () => {
+  it('低置信又没认过的作品标「待确认」；认过作品就不标，并改用作品名、两种名字都能搜到', async () => {
+    const library = structuredClone(LIBRARY)
+    const unsure = { ...structuredClone(library.clusters[0]!), clusterKey: 'unsure', title: 'Unsure Show', confidence: 0.4 }
+    const chosen = { ...structuredClone(library.clusters[0]!), clusterKey: 'chosen', title: 'Chosen Folder', confidence: 0.4, association: { mode: 'manual' as const, anilistId: 7, title: '认定的作品', setAt: 1 } }
+    library.clusters = [unsure, chosen]
+    stubFetch(SETTINGS, library)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+
+    const posters = [...container.querySelectorAll('.poster')]
+    const titleOf = (el: Element) => el.querySelector('.poster-title')?.textContent
+    expect(posters.map(titleOf)).toEqual(['Unsure Show', '认定的作品'])
+    expect(posters[0]!.querySelector('.poster-flag')?.textContent).toBe('待确认')
+    expect(posters[1]!.querySelector('.poster-flag')).toBeNull()
+
+    const search = container.querySelector<HTMLInputElement>('input[aria-label="筛选媒体库"]')!
+    for (const q of ['Chosen Folder', '认定的']) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, q)
+        search.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      expect([...container.querySelectorAll('.poster')].map(titleOf)).toEqual(['认定的作品'])
+    }
+    await unmount()
+  })
+
   it('看完一集、下一集尚未开始的作品仍归入在看', async () => {
     const library = structuredClone(LIBRARY)
     library.clusters[0]!.groups[0]!.items[0]!.progress = { positionSec: 1420, durationSec: 1420, completed: true }
@@ -180,12 +205,12 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(container.querySelector('.mpv-dot--ok')).not.toBeNull()
     expect(container.querySelector('.alert-warn')).toBeNull()
 
-    // 海报卡：标题 + 季 + 集数；置信度 0.93 不出「低置信」
+    // 海报卡：标题 + 季 + 集数；置信度 0.93 不出「待确认」
     const poster = container.querySelector('.poster')
     expect(poster?.querySelector('.poster-title')?.textContent).toBe('葬送的芙莉莲')
     expect(poster?.querySelector('.poster-meta')?.textContent).toContain('第 1 季')
     expect(poster?.querySelector('.poster-meta')?.textContent).toContain('2 集')
-    expect(container.textContent).not.toContain('低置信')
+    expect(container.textContent).not.toContain('待确认')
 
     // 剧集列表【不】在库页上：它住在 /anime/$clusterKey，卡片链过去
     expect(container.querySelectorAll('.ep-row')).toHaveLength(0)
