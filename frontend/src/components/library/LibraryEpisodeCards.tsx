@@ -3,6 +3,7 @@ import type { EpisodeMetadata } from '../media/types'
 import { Link } from '@tanstack/react-router'
 import type { LibraryCluster, LibraryItem } from '../../lib/endpoints'
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
+import type { LibraryVersion } from '../../lib/librarySeries'
 import { Icon } from '../ui/Icon'
 import { displayGroups } from './displayGroups'
 import './episode-cards.css'
@@ -16,11 +17,13 @@ interface Props {
   cover?: string
   pending: boolean
   activeFileId?: string
+  /** 同一部作品有多个版本时：主版本 fileId → 同一集的其他版本（列在那一集下面，点了直接播放） */
+  versions?: Map<string, LibraryVersion[]>
   onPlay: (item: LibraryItem) => void
 }
 
 /** File-backed episode cards. Number artwork is used until real episode stills are available. */
-export function LibraryEpisodeCards({ cluster, next, totalEpisodes, titles, banner, cover, pending, activeFileId, onPlay }: Props) {
+export function LibraryEpisodeCards({ cluster, next, totalEpisodes, titles, banner, cover, pending, activeFileId, versions, onPlay }: Props) {
   const metadata = new Map(titles?.map(item => [item.episode, item]))
   const titleByEpisode = new Map(titles?.map(item => [item.episode, item.title]))
   const main = cluster.groups.flatMap(group => group.items)
@@ -30,6 +33,8 @@ export function LibraryEpisodeCards({ cluster, next, totalEpisodes, titles, bann
   const featured = nextIndex >= 0 ? main.slice(nextIndex, nextIndex + 2) : []
   const title = (item: LibraryItem) => (item.episode !== null ? titleByEpisode.get(item.episode) : undefined) || item.fileName
   const episode = (item: LibraryItem) => item.episode === null ? '本地视频' : `第 ${formatEpisode(item.episode)} 集`
+  const others = (item: LibraryItem) => versions?.get(item.fileId) ?? []
+  const isActive = (item: LibraryItem) => activeFileId !== undefined && (item.fileId === activeFileId || others(item).some(alt => alt.item.fileId === activeFileId))
   return <div className="library-episodes">
     {!!featured.length && <div className="episode-featured" aria-label="接下来观看">
       {featured.map((item, index) => <button type="button" className="episode-feature" key={item.fileId} disabled={pending} onClick={() => onPlay(item)}>
@@ -40,12 +45,13 @@ export function LibraryEpisodeCards({ cluster, next, totalEpisodes, titles, bann
     </div>}
     {displayGroups(cluster).map(group => <section className="episode-card-group" key={group.groupKey}>
       <h3>{group.label && group.label !== cluster.title ? group.label : '剧集'}<span>{group.items.length}</span></h3>
-      <ul className="episode-card-grid">{group.items.map(item => <li key={item.fileId} className={item.fileId === activeFileId ? 'episode-card episode-card--active' : 'episode-card'}>
+      <ul className="episode-card-grid">{group.items.map(item => <li key={item.fileId} className={isActive(item) ? 'episode-card episode-card--active' : 'episode-card'}>
         <button type="button" className="episode-card-action" disabled={pending} aria-label={`播放 ${item.fileName}`} onClick={() => onPlay(item)}>
           <span className="episode-card-art" aria-hidden="true"><EpisodeArtwork image={metadata.get(item.episode ?? -1)?.image} banner={banner} cover={cover ?? cluster.cover} /></span>
-          <span className="episode-card-copy"><span className="episode-card-meta">{episode(item)}<span>{item.resolution}</span></span><strong title={title(item)}>{title(item)}</strong>{metadata.get(item.episode ?? -1)?.description && <span className="episode-card-description">{metadata.get(item.episode ?? -1)?.description}</span>}{title(item) !== item.fileName && <small title={item.fileName}>{item.fileName}</small>}<span className="episode-card-meta">{formatBytes(item.sizeBytes)}<span>{item.fileId === activeFileId ? '正在播放' : item.progress?.completed ? '已看完' : item.progress?.positionSec ? `已观看 ${progressPercent(item.progress.positionSec, item.progress.durationSec)}%` : '未观看'}</span></span></span>
+          <span className="episode-card-copy"><span className="episode-card-meta">{episode(item)}<span>{[item.group, item.resolution].filter(Boolean).join(' · ')}</span></span><strong title={title(item)}>{title(item)}</strong>{metadata.get(item.episode ?? -1)?.description && <span className="episode-card-description">{metadata.get(item.episode ?? -1)?.description}</span>}{title(item) !== item.fileName && <small title={item.fileName}>{item.fileName}</small>}<span className="episode-card-meta">{formatBytes(item.sizeBytes)}<span>{item.fileId === activeFileId ? '正在播放' : item.progress?.completed ? '已看完' : item.progress?.positionSec ? `已观看 ${progressPercent(item.progress.positionSec, item.progress.durationSec)}%` : '未观看'}</span></span></span>
           <Icon name={item.progress?.completed ? 'check' : 'play'} size={18} />
         </button>
+        {others(item).length > 0 && <div className="episode-card-versions" role="group" aria-label={`${episode(item)}的其他版本`}><span aria-hidden="true">其他版本</span>{others(item).map(alt => <button type="button" key={alt.item.fileId} className="link" disabled={pending} aria-label={`播放${episode(item)}的其他版本：${alt.label}${alt.item.progress?.completed ? '（已看完）' : ''}`} title={alt.item.fileName} onClick={() => onPlay(alt.item)}>{alt.label}{alt.item.progress?.completed ? ' ✓' : ''}</button>)}</div>}
         {item.stream && <Link to="/watch/$fileId" params={{ fileId: item.fileId }} className="episode-card-browser link" aria-label={`在浏览器里播放 ${episode(item)}`}>在浏览器里播放<Icon name="right" size={14} /></Link>}
       </li>)}</ul>
     </section>)}

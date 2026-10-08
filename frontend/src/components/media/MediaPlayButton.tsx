@@ -2,7 +2,7 @@ import { MissingEpisodeCards } from '../library/MissingEpisodeCards'
 import { LibraryEpisodeCards } from '../library/LibraryEpisodeCards'
 import { displayGroups } from '../library/displayGroups'
 import { PlaybackSurface } from './PlaybackSurface'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../../lib/api'
 import { fetchLibrary, playFile, stopPlayer } from '../../lib/endpoints'
 import type { LibraryCluster, LibraryData, LibraryItem } from '../../lib/endpoints'
@@ -13,6 +13,7 @@ import { Icon } from '../ui/Icon'
 import { LibraryAnimeLink } from '../library/LibraryAnimeLink'
 import { forgetLegacyChoice, isAssociatedWith, readLegacyChoice, resolveLocalCluster } from './localAssociation'
 import type { LocalResolution } from './localAssociation'
+import { mergeSeries } from '../../lib/librarySeries'
 import type { MediaSummary } from './types'
 import './media-play.css'
 
@@ -27,8 +28,10 @@ export function nextLibraryEpisode(cluster: LibraryCluster): LibraryItem | undef
 
 /**
  * 目录作品页的本地播放。本地作品分组与这部作品的对应关系存在后端（媒体库的作品关联）：
- * 认定过就直接显示那个分组的真实剧集；没认定过时由用户挑一个，点播放时一并认定。
- * 不按标题猜：自动匹配到的分组只代选、不自动播放，播放时才算用户确认。
+ * 认定过、或扫描后自动认出是这部作品的分组直接显示真实剧集 —— 同一部番的几个版本
+ * （不同字幕组、不同文件夹）合并成一张剧集表，同一集的其他版本挂在那一集下面。
+ * 都没有时由用户挑一个，点播放时一并认定。自动认出的只代选、不自动播放，播放时才算用户确认
+ * （认定的是那一集所在的分组）。
  */
 export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false }: { media: MediaSummary; onOpenChange?: (open: boolean) => void; inline?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -37,7 +40,8 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
   const playing = useRef(false)
   const headingId = useId()
   const [library, setLibrary] = useState<LibraryData | null>(null)
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  /** 选中的本地分组（同一部作品的多个版本一起选中） */
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [query, setQuery] = useState(media.title)
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
@@ -121,7 +125,7 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
     setError(null)
     setLaunched(false)
     setLibrary(null)
-    setSelectedKey(null)
+    setSelectedKeys([])
     setNotice(null)
     setVia(undefined)
     try {
@@ -129,7 +133,7 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
       if (version !== requestVersion.current) return
       const found = resolveLocalCluster(data, media.id, readLegacyChoice(media.id))
       if (found.dropLegacy) forgetLegacyChoice(media.id)
-      let cluster = found.selected
+      let cluster = found.via === 'legacy' ? found.selected[0] : undefined
       let shown = data
       let migrationFailed = false
       if (cluster && found.via === 'legacy') {
@@ -148,18 +152,21 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
       }
       // 迁移结束后才把列表摆出来：迁移期间列表可点的话，用户点了别的，选中项会在他手里跳回去
       setLibrary(shown)
-      if (cluster) {
-        setSelectedKey(cluster.clusterKey)
-        setVia(cluster.association ? 'manual' : found.via)
-        const next = nextLibraryEpisode(cluster)
+      const keys = found.selected.map(c => c.clusterKey)
+      const chosen = keys.map(key => shown.clusters.find(c => c.clusterKey === key)).filter((c): c is LibraryCluster => c !== undefined)
+      if (chosen.length > 0) {
+        setSelectedKeys(keys)
+        setVia(found.via === 'legacy' && cluster?.association ? 'manual' : found.via)
+        const merged = mergeSeries(chosen)
+        const next = nextLibraryEpisode(merged.cluster)
         setResume(!!next?.progress?.positionSec && !next.progress.completed)
-        // 自动匹配到的不算用户确认过：只代选，不自动播放
-        if (autoplay && next && found.via !== 'matched') await start(cluster, next, version, migrationFailed)
+        // 自动认出的不算用户确认过：只代选，不自动播放。看的是下一集【所在的分组】认定过没有 ——
+        // 认定过的版本旁边多了个自动认出的版本，不该让一键续播失效
+        const owner = next ? merged.owner.get(next.fileId) ?? chosen[0]! : undefined
+        if (autoplay && next && owner && (found.via === 'legacy' || isAssociatedWith(owner, media.id))) await start(owner, next, version, migrationFailed)
       } else if (found.legacyMissing) {
         setQuery('')
         setError('之前选择的本地作品已不在媒体库中，请重新选择。')
-      } else if (found.associated.length > 1) {
-        setQuery('')
       }
     } catch (err) {
       if (version === requestVersion.current) setError(errorText(err, '读取媒体库失败'))
@@ -172,7 +179,13 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
     if (inline) void load(false)
   }, [inline, media.id])
 
-  const selected = library?.clusters.find(cluster => cluster.clusterKey === selectedKey)
+  const chosen = useMemo(() => selectedKeys.map(key => library?.clusters.find(c => c.clusterKey === key)).filter((c): c is LibraryCluster => c !== undefined), [library, selectedKeys])
+  const merged = useMemo(() => (chosen.length > 0 ? mergeSeries(chosen) : undefined), [chosen])
+  const selected = merged?.cluster
+  /** 播放某个文件时要认定的是它所在的分组（合并显示时不一定是第一个） */
+  const ownerOf = (item: LibraryItem) => merged?.owner.get(item.fileId) ?? chosen[0]!
+  // 选中的里面有自动认出、还没确认的分组（用户自己从列表里挑的不算「自动认出」）
+  const autoMatched = chosen.some(c => c.association === undefined && c.matched?.anilistId === media.id)
   const next = selected ? nextLibraryEpisode(selected) : undefined
   const q = query.trim().toLocaleLowerCase()
   // 认定为这部作品的排在前面；文件夹名与认定的作品名都能搜到
@@ -211,23 +224,24 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
             {query && <button type="button" className="btn btn--sm" onClick={() => setQuery('')}>显示全部</button>}
           </div>
           {visible.length ? <ul className="media-play-choices">{visible.map(cluster => <li key={cluster.clusterKey}>
-            <LocalChoice cluster={cluster} mediaId={media.id} onChoose={() => { setSelectedKey(cluster.clusterKey); setVia(isAssociatedWith(cluster, media.id) ? 'manual' : undefined); setError(null); setNotice(null) }} />
+            <LocalChoice cluster={cluster} mediaId={media.id} onChoose={() => { setSelectedKeys([cluster.clusterKey]); setVia(isAssociatedWith(cluster, media.id) ? 'manual' : undefined); setError(null); setNotice(null) }} />
           </li>)}</ul> : <p className="media-play-hint" role="status">{library.clusters.length ? '没有找到同名的本地作品。可以显示全部，按文件夹中的名称选择。' : '媒体库里还没有视频，请先导入本地文件。'}</p>}
           <a className="link" href="/">管理媒体库</a>
         </>}
         {selected && <>
           <div className="media-play-selection">
-            <div className="media-play-selection-title"><h3>{clusterDisplayTitle(selected)}</h3>{via === 'matched' && <p className="media-play-via">自动匹配到的本地作品，播放时会记住</p>}</div>
+            <div className="media-play-selection-title"><h3>{clusterDisplayTitle(selected)}</h3>{autoMatched && via !== 'legacy' && <p className="media-play-via">自动认出的本地作品，播放时会记住</p>}</div>
             <LibraryAnimeLink clusterKey={selected.clusterKey} className="btn btn--sm">在媒体库中打开</LibraryAnimeLink>
-            <button type="button" className="btn btn--sm" disabled={busy} onClick={() => { setSelectedKey(null); setQuery(''); setLaunched(false); setNotice(null) }}>更换作品</button>
+            <button type="button" className="btn btn--sm" disabled={busy} onClick={() => { setSelectedKeys([]); setQuery(''); setLaunched(false); setNotice(null) }}>更换作品</button>
           </div>
-          {next && <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start(selected, next)}>
+          {chosen.length > 1 && <p className="media-play-versions">本地有 {chosen.length} 个版本，同一集的其他版本列在那一集下面：{chosen.map((c, i) => <span key={c.clusterKey}>{i > 0 && '、'}<LibraryAnimeLink clusterKey={c.clusterKey} className="link">{c.title}（{c.episodeCount} 集）</LibraryAnimeLink></span>)}</p>}
+          {next && <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start(ownerOf(next), next)}>
             <Icon name="play" size={18} />{next.progress?.positionSec && !next.progress.completed ? '继续观看' : '播放'} {next.episode === null ? next.fileName : `第 ${formatEpisode(next.episode)} 集`}
           </button>}
-          {inline ? <LibraryEpisodeCards cluster={selected} next={next} totalEpisodes={media.episodes} titles={media.episodeTitles} banner={media.banner} cover={media.cover} pending={busy} onPlay={item => void start(selected, item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
-            <h4>{group.label || '剧集'}</h4><ul className="media-play-choices">{group.items.map(item => <li key={item.fileId}>
-              <button type="button" className="media-play-episode" disabled={busy} onClick={() => void start(selected, item)} aria-label={`播放 ${item.fileName}`}>
-                <span>{item.episode === null ? '—' : formatEpisode(item.episode)}</span><span>{item.fileName}</span><Icon name="play" size={18} />
+          {inline ? <LibraryEpisodeCards cluster={selected} next={next} totalEpisodes={media.episodes} titles={media.episodeTitles} banner={media.banner} cover={media.cover} pending={busy} versions={merged?.versions} onPlay={item => void start(ownerOf(item), item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
+            <h4>{group.label || '剧集'}</h4><ul className="media-play-choices">{group.items.flatMap(item => [{ item, label: '' }, ...(merged?.versions.get(item.fileId) ?? [])]).map(({ item, label }) => <li key={item.fileId}>
+              <button type="button" className="media-play-episode" disabled={busy} onClick={() => void start(ownerOf(item), item)} aria-label={`播放 ${item.fileName}`}>
+                <span>{item.episode === null ? '—' : formatEpisode(item.episode)}</span><span>{label ? `其他版本（${label}）：${item.fileName}` : item.fileName}</span><Icon name="play" size={18} />
               </button>
             </li>)}</ul>
           </section>)}
@@ -244,10 +258,12 @@ function LocalChoice({ cluster, mediaId, onChoose }: { cluster: LibraryCluster; 
   const meta = `${cluster.season === null ? '' : `第 ${cluster.season} 季 · `}${cluster.episodeCount} 集`
   const { association } = cluster
   const title = clusterDisplayTitle(cluster)
+  // 认出了作品时标题是作品名：两个文件夹认成同一部会长得一模一样，附上文件夹原名才分得清
+  const folder = title !== cluster.title ? `文件夹：${cluster.title} · ` : ''
   if (association && !isAssociatedWith(cluster, mediaId)) {
     const taken = association.mode === 'none' ? '已标为不是目录里的作品' : `已对应「${association.title || `作品 ${association.anilistId}`}」`
     return <div className="media-play-choice media-play-choice--taken">
-      <Icon name="folder" size={20} /><span>{title}<small>{meta} · {taken}</small></span>
+      <Icon name="folder" size={20} /><span>{title}<small>{folder}{meta} · {taken}</small></span>
       <LibraryAnimeLink clusterKey={cluster.clusterKey} className="link" aria-label={`去「${title}」的作品页更改对应作品`}>去作品页更改</LibraryAnimeLink>
     </div>
   }
@@ -256,6 +272,6 @@ function LocalChoice({ cluster, mediaId, onChoose }: { cluster: LibraryCluster; 
     : cluster.matched?.anilistId === mediaId ? '自动匹配到这部作品'
     : cluster.matched ? `自动匹配到「${cluster.matched.title || `作品 ${cluster.matched.anilistId}`}」` : ''
   return <button type="button" className="media-play-choice" onClick={onChoose}>
-    <Icon name="folder" size={20} /><span>{title}<small>{meta}{hint && ` · ${hint}`}</small></span><Icon name="right" size={18} />
+    <Icon name="folder" size={20} /><span>{title}<small>{folder}{meta}{hint && ` · ${hint}`}</small></span><Icon name="right" size={18} />
   </button>
 }

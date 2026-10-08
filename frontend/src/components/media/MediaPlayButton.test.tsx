@@ -207,6 +207,9 @@ describe('Discover 播放入口', () => {
     const mine: LibraryCluster = { ...cluster, clusterKey: 'mine', title: 'Frieren', association: { mode: 'manual', anilistId: 900, title: '芙莉莲', setAt: 1 } }
     vi.mocked(fetchLibrary).mockResolvedValue(withClusters(s2, mine, { ...mine, clusterKey: 'mine2' }))
     const { container, unmount } = await mount(<MediaPlayButton media={{ ...media, title: 'Frieren' }} inline />)
+    // 认定过的两个版本先被合并选中；「更换作品」回到列表
+    const change = [...container.querySelectorAll<HTMLButtonElement>('.media-play-selection button')].find(b => b.textContent === '更换作品')!
+    await act(async () => change.click())
     const rows = [...container.querySelectorAll('.media-play-choice')].map(el => el.textContent)
     expect(rows.find(text => text?.includes('自动匹配到「第二季」'))).toBeTruthy()
     const search = container.querySelector<HTMLInputElement>('.media-play-search input')!
@@ -232,22 +235,77 @@ describe('Discover 播放入口', () => {
     const { container, unmount } = await mount(<MediaPlayButton media={media} onOpenChange={() => {}} />)
     await click(container, '.discover-card-play')
     expect(playFile).not.toHaveBeenCalled()
-    expect(container.querySelector('.media-play-selection')?.textContent).toContain('自动匹配到的本地作品')
+    expect(container.querySelector('.media-play-selection')?.textContent).toContain('自动认出的本地作品')
     await click(container, '.btn--primary')
     expect(setAssociation).toHaveBeenCalledExactlyOnceWith('real-cluster', { mode: 'manual', anilistId: 900 })
     expect(playFile).toHaveBeenCalledExactlyOnceWith('ep2')
     await unmount()
   })
 
-  it('同一部作品认定了不止一个本地分组：让用户挑，已认定的排在前面', async () => {
-    const other: LibraryCluster = { ...associated, clusterKey: 'bd-cluster', title: 'BD 版文件夹' }
+  /** 另一个字幕组的同一批集：文件不同、集号相同 */
+  const otherVersion = (base: LibraryCluster, key: string, title: string): LibraryCluster => ({
+    ...base, clusterKey: key, title,
+    groups: base.groups.map(g => ({ ...g, items: g.items.map(item => ({ ...item, fileId: `${item.fileId}-${key}`, fileName: `[${title}] ${item.fileName}`, group: title, progress: null })) })),
+  })
+
+  it('同一部作品有几个本地版本：合并成一张剧集表，同一集的其他版本列在那一集下面', async () => {
+    const other = otherVersion(associated, 'bd-cluster', 'BD')
     const unrelated: LibraryCluster = { ...cluster, clusterKey: 'unrelated', title: '无关的番' }
     vi.mocked(fetchLibrary).mockResolvedValue(withClusters(unrelated, associated, other))
     const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
-    expect(container.querySelector('.episode-feature')).toBeNull()
-    const choices = [...container.querySelectorAll('.media-play-choice')].map(el => el.textContent)
-    expect(choices.slice(0, 2).every(text => text?.includes('已对应这部作品'))).toBe(true)
-    expect(choices[2]).toContain('无关的番')
+    expect(container.querySelector('.media-play-choice')).toBeNull()
+    expect(container.querySelector('.media-play-versions')?.textContent).toContain('2 个版本')
+    // 每个集号一张卡（不是两张），另一个版本挂在卡下面；进度在哪个版本上就以哪个为主
+    const cards = [...container.querySelectorAll('.episode-card-grid')[0]!.querySelectorAll('.episode-card')]
+    expect(cards).toHaveLength(3)
+    expect(container.querySelectorAll('.episode-card-versions')).toHaveLength(3)
+    expect(container.querySelector('.episode-feature-meta')?.textContent).toContain('第 02 集')
+    const alt = [...container.querySelectorAll<HTMLButtonElement>('.episode-card-versions button')].find(b => b.getAttribute('aria-label')?.includes('第 03 集'))!
+    await act(async () => alt.click())
+    expect(playFile).toHaveBeenCalledExactlyOnceWith('ep3-bd-cluster')
+    expect(setAssociation).not.toHaveBeenCalled()
+    await unmount()
+  })
+
+  it('认定过的版本旁边多了一个自动认出的版本：下一集在认定过的版本里，一键续播照常', async () => {
+    const auto = { ...otherVersion(cluster, 'auto-cluster', 'ANi'), matched: { anilistId: 900, title: '目录里的作品名' } }
+    vi.mocked(fetchLibrary).mockResolvedValue(withClusters(associated, auto))
+    const { container, unmount } = await mount(<MediaPlayButton media={media} onOpenChange={() => {}} />)
+    await click(container, '.discover-card-play')
+    expect(playFile).toHaveBeenCalledExactlyOnceWith('ep2')
+    expect(setAssociation).not.toHaveBeenCalled()
+    await unmount()
+  })
+
+  it('弹窗里的剧集列表也列出同一集的其他版本', async () => {
+    const auto = { ...otherVersion(cluster, 'auto-cluster', 'ANi'), matched: { anilistId: 900, title: '目录里的作品名' } }
+    vi.mocked(fetchLibrary).mockResolvedValue(withClusters({ ...cluster, matched: { anilistId: 900 } }, auto))
+    const { container, unmount } = await mount(<MediaPlayButton media={media} onOpenChange={() => {}} />)
+    await click(container, '.discover-card-play')
+    const rows = [...container.querySelectorAll('.media-play-episode')].map(b => b.textContent ?? '')
+    expect(rows.some(text => text.includes('其他版本（ANi · 1080p）'))).toBe(true)
+    await unmount()
+  })
+
+  it('用户自己从列表里挑的分组不说成「自动认出」', async () => {
+    vi.mocked(fetchLibrary).mockResolvedValue(withClusters(cluster))
+    // 列表默认按作品名筛选：作品名与文件夹名一致，才列得出来
+    const { container, unmount } = await mount(<MediaPlayButton media={{ ...media, title: '本地文件夹名称' }} inline />)
+    await click(container, '.media-play-choice')
+    expect(container.querySelector('.media-play-selection')).not.toBeNull()
+    expect(container.querySelector('.media-play-via')).toBeNull()
+    await unmount()
+  })
+
+  it('合并显示时播放自动认出的那个版本：认定的是那一集所在的分组', async () => {
+    const auto = { ...otherVersion(cluster, 'auto-cluster', 'ANi'), matched: { anilistId: 900, title: '目录里的作品名' } }
+    vi.mocked(fetchLibrary).mockResolvedValue(withClusters(associated, auto))
+    const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
+    expect(container.querySelector('.media-play-selection')?.textContent).toContain('自动认出的本地作品')
+    const alt = [...container.querySelectorAll<HTMLButtonElement>('.episode-card-versions button')].find(b => b.getAttribute('aria-label')?.includes('第 03 集'))!
+    await act(async () => alt.click())
+    expect(setAssociation).toHaveBeenCalledExactlyOnceWith('auto-cluster', { mode: 'manual', anilistId: 900 })
+    expect(playFile).toHaveBeenCalledExactlyOnceWith('ep3-auto-cluster')
     await unmount()
   })
 
