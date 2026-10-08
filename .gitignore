@@ -55,3 +55,6 @@ docs/discover-lists-schedule.md
 # 不是对外说明。代码里的 FIXME(Gn) 编号仍然指得到它 —— 对维护者是活的，
 # 对公开仓库不存在。
 todos.md
+
+# Claude Code 的本地设置与 agent 工作树（整份仓库的副本）
+/.claude/
