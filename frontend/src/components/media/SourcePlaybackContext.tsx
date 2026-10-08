@@ -16,6 +16,7 @@ import type {
   TorrentPlayRequest,
 } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
+import { catalogIdentity } from './releaseEpisodes'
 import type { MediaSummary } from './types'
 
 const PLAYER_MONITOR_INTERVAL_MS = 1000
@@ -154,9 +155,11 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     session.activeFileID = undefined
     session.activeCandidateID = candidate.id
     const title = playbackTitle(candidate, session.request)
+    // 作品身份随磁力播放留在本机：弹幕匹配据此校验没有认成别的作品（与在线候选同一套）
+    const identity = catalogIdentity(session.request.media)
     const torrentRequest: TorrentPlayRequest = 'magnet' in locator
-      ? { magnet: locator.magnet, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex }
-      : { torrentUrl: locator.torrentUrl, title, episodeHint: session.request.episode, fileIndex: candidate.transport.fileIndex }
+      ? { magnet: locator.magnet, title, episodeHint: session.request.episode, suggestedFileIndex: candidate.transport.fileIndex, ...identity }
+      : { torrentUrl: locator.torrentUrl, title, episodeHint: session.request.episode, suggestedFileIndex: candidate.transport.fileIndex, ...identity }
     torrentRef.current.play(
       torrentRequest,
       title,

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchTorrentStatus, startTorrentPlay, stopTorrent } from '../lib/endpoints'
+import { fetchPlayerStatus, fetchTorrentStatus, startTorrentPlay, stopTorrent } from '../lib/endpoints'
 import type {
   DanmakuStatus,
+  PlayerStatus,
   TorrentFile,
   TorrentPlayData,
   TorrentPlayRequest,
@@ -21,7 +22,8 @@ export type TorrentPlayState =
   | { phase: 'idle' }
   | { phase: 'starting'; magnet: string; title: string }
   | { phase: 'selecting'; magnet: string; title: string; files: TorrentFile[] }
-  | { phase: 'streaming'; magnet: string; title: string; danmaku: DanmakuStatus }
+  /** fileId 是这次播放会话的标识：会话结束时据此认领 /api/player/status 里属于它的失败 */
+  | { phase: 'streaming'; magnet: string; title: string; danmaku: DanmakuStatus; fileId?: string }
   | { phase: 'error'; magnet: string; title: string; message: string }
 
 export interface UseTorrentPlayOptions {
@@ -29,6 +31,8 @@ export interface UseTorrentPlayOptions {
   start?: (request: TorrentPlayRequest, signal?: AbortSignal) => Promise<TorrentPlayData>
   poll?: () => Promise<TorrentStatus>
   stop?: () => Promise<void>
+  /** 播放会话结束时查它有没有异常收场（磁力流中途断了） */
+  playerStatus?: () => Promise<PlayerStatus>
   /** 轮询间隔毫秒（测试可调小）；默认 1 秒 */
   intervalMs?: number
 }
@@ -55,6 +59,25 @@ export interface UseTorrentPlayResult {
   cancel: () => Promise<void>
 }
 
+/** 查播放结束状态最多等多久：这段等待占着轮询互斥，后端卡住时不能把状态条一起卡住 */
+const ENDED_STATUS_TIMEOUT_MS = 5000
+
+/** 这次播放会话异常收场的原因；查不到、超时或不属于它就是 undefined（查询失败不打断收摊）。 */
+async function endedFailure(playerStatus: () => Promise<PlayerStatus>, fileId: string): Promise<string | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), ENDED_STATUS_TIMEOUT_MS) })
+  try {
+    const status = await Promise.race([playerStatus(), timeout])
+    const failure = status?.playbackFailure
+    return failure !== undefined && failure.fileId === fileId ? failure.reason : undefined
+  } catch (err) {
+    console.error('读取播放结束状态失败', err)
+    return undefined
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** 播放流程占着后端的三个阶段（此期间不允许发起第二条磁力） */
 function isBusyPhase(phase: TorrentPlayState['phase']): boolean {
   return phase === 'starting' || phase === 'selecting' || phase === 'streaming'
@@ -72,6 +95,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
     start = startTorrentPlay,
     poll = fetchTorrentStatus,
     stop = stopTorrent,
+    playerStatus = fetchPlayerStatus,
     intervalMs = TORRENT_POLL_INTERVAL_MS,
   } = options
 
@@ -80,10 +104,10 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
   const [zeroPeerTicks, setZeroPeerTicks] = useState(0)
 
   // 注入的函数走 ref：调用方每次渲染传新的函数字面量也不会重启轮询 effect
-  const depsRef = useRef({ start, poll, stop })
+  const depsRef = useRef({ start, poll, stop, playerStatus })
   useEffect(() => {
-    depsRef.current = { start, poll, stop }
-  }, [start, poll, stop])
+    depsRef.current = { start, poll, stop, playerStatus }
+  }, [start, poll, stop, playerStatus])
 
   // 稳定回调里要读到当前状态（选集 / 重试都要用状态里带的 magnet）
   const stateRef = useRef(state)
@@ -130,10 +154,20 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
       // 播放中后端说会话没了（从库页停了播放、或播放结束清理掉了）→ 界面收摊。
       // 只在 streaming 判定：starting 期间后端可能还没建好会话就先返回 active=false，
       // 那时权威的是 POST /play 的返回值，不是轮询。
-      if (!next.active && stateRef.current.phase === 'streaming') {
-        setState({ phase: 'idle' })
+      const ended = stateRef.current
+      if (!next.active && ended.phase === 'streaming') {
+        // 磁力流中途断了供给时 mpv 也是「正常」退出：这一集没有记为看完，
+        // 不说出来用户只会看到窗口没了、状态条也没了
+        const failure = ended.fileId === undefined ? undefined : await endedFailure(depsRef.current.playerStatus, ended.fileId)
+        if (gen !== genRef.current) return
         setStatus(null)
         setZeroPeerTicks(0)
+        if (failure !== undefined) {
+          // 保留 requestRef：重试要重发同一个完整请求（后端会从记下的位置接着播）
+          setState({ phase: 'error', magnet: ended.magnet, title: ended.title, message: failure + '。可以点「重试」再播一次。' })
+          return
+        }
+        setState({ phase: 'idle' })
         requestRef.current = null
       }
     } catch (err) {
@@ -183,6 +217,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
           magnet: locator,
           title: data.title,
           danmaku: data.danmaku,
+          ...(data.fileId ? { fileId: data.fileId } : {}),
         })
       } catch (err) {
         // 用户取消 / 组件卸载导致的 abort 不是错误，别弹「无法连接到后端」

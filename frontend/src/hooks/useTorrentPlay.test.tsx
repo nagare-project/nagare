@@ -2,7 +2,7 @@
 // 轮询 + 阻塞请求 + 取消，用 jsdom + fake timers 测状态机与定时器清理。
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TorrentPlayData, TorrentPlayRequest, TorrentStatus } from '../lib/endpoints'
+import type { PlayerStatus, TorrentPlayData, TorrentPlayRequest, TorrentStatus } from '../lib/endpoints'
 import { mountHook } from '../test/harness'
 import { useTorrentPlay } from './useTorrentPlay'
 
@@ -46,6 +46,7 @@ function makeDeps() {
     start: vi.fn<(request: TorrentPlayRequest, signal?: AbortSignal) => Promise<TorrentPlayData>>(),
     poll: vi.fn<() => Promise<TorrentStatus>>().mockResolvedValue(makeStatus()),
     stop: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    playerStatus: vi.fn<() => Promise<PlayerStatus>>().mockResolvedValue({ playing: false }),
   }
 }
 
@@ -194,6 +195,86 @@ describe('useTorrentPlay · 正常路径', () => {
     await advance(INTERVAL * 5)
     expect(deps.poll).toHaveBeenCalledTimes(calls) // 已停表
 
+    await hook.unmount()
+  })
+
+  it('磁力流中途断了（这一集没记为看完）：会话结束时说出来，重试重发同一个请求', async () => {
+    const deps = makeDeps()
+    const request: TorrentPlayRequest = { magnet: MAGNET, title: TITLE, episodeHint: 3, anilistId: 7, titles: ['测试动画'] }
+    deps.start.mockResolvedValue({ ...PLAYING, fileId: 't:abc/2' })
+    deps.playerStatus.mockResolvedValue({ playing: false, playbackFailure: { fileId: 't:abc/2', reason: '媒体流在播完前就断了（下载停滞或连接中断），这一集没有记为看完', at: 1 } })
+    const hook = await mountPlay(deps)
+    await act(async () => {
+      hook.result.current.play(request, TITLE)
+    })
+    expect(hook.result.current.state).toMatchObject({ phase: 'streaming', fileId: 't:abc/2' })
+
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toMatchObject({ phase: 'error', title: 'Frieren - 01' })
+    expect(hook.result.current.state.phase === 'error' && hook.result.current.state.message).toContain('没有记为看完')
+    expect(hook.result.current.busy).toBe(false)
+    const calls = deps.poll.mock.calls.length
+    await advance(INTERVAL * 3)
+    expect(deps.poll).toHaveBeenCalledTimes(calls)
+
+    await act(async () => {
+      hook.result.current.retry()
+    })
+    expect(deps.start).toHaveBeenNthCalledWith(2, request, expect.any(AbortSignal))
+    await hook.unmount()
+  })
+
+  it('查播放结束状态卡住时最多等 5 秒就收摊，不把状态条一起卡住；没有 fileId 时不去查', async () => {
+    const deps = makeDeps()
+    deps.start.mockResolvedValue({ ...PLAYING, fileId: 't:abc/2' })
+    deps.playerStatus.mockReturnValue(new Promise<PlayerStatus>(() => {}))
+    const hook = await mountPlay(deps)
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state.phase).toBe('streaming')
+    await advance(5000)
+    expect(hook.result.current.state).toEqual({ phase: 'idle' })
+
+    deps.playerStatus.mockClear()
+    deps.start.mockResolvedValue(PLAYING)
+    deps.poll.mockResolvedValue(makeStatus())
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toEqual({ phase: 'idle' })
+    expect(deps.playerStatus).not.toHaveBeenCalled()
+    await hook.unmount()
+  })
+
+  it('会话正常结束或失败属于别的会话：照常收摊，不报错', async () => {
+    const deps = makeDeps()
+    deps.start.mockResolvedValue({ ...PLAYING, fileId: 't:abc/2' })
+    deps.playerStatus.mockResolvedValue({ playing: false, playbackFailure: { fileId: 'remote|other', reason: '在线媒体提前结束', at: 1 } })
+    const hook = await mountPlay(deps)
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toEqual({ phase: 'idle' })
+    expect(deps.playerStatus).toHaveBeenCalledOnce()
+
+    // 查不到结束状态也照常收摊（只是少一句说明）
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    deps.poll.mockResolvedValue(makeStatus())
+    deps.playerStatus.mockRejectedValue(new Error('断线'))
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toEqual({ phase: 'idle' })
     await hook.unmount()
   })
 

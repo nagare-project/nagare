@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { seasonOfTitle } from './MediaTorrentButton'
+import { seasonOfTitle } from './releaseEpisodes'
 
 describe('seasonOfTitle', () => {
   it('识别中文、S/Season、罗马数字与序数写法；没写就返回 undefined', () => {
