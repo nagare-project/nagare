@@ -330,23 +330,24 @@ func TestProgressUpdate(t *testing.T) {
 }
 
 func TestPlaybackFailureOnlyMarksAbnormalSessionEnd(t *testing.T) {
+	remote := NewRemoteSource(RemoteSourceOptions{SourceID: "s", CandidateID: "c", URL: "https://example.test/a.mp4", Title: "t", Episode: 1})
 	for _, reason := range []string{"", "eof", "stop", "quit", "redirect"} {
-		assert.Nil(t, playbackFailureFor("remote|a", reason, nil, false, 123), reason)
+		assert.Nil(t, playbackFailureFor(remote, "remote|a", reason, nil, false, 123), reason)
 	}
-	failure := playbackFailureFor("remote|a", "error", nil, false, 123)
+	failure := playbackFailureFor(remote, "remote|a", "error", nil, false, 123)
 	require.NotNil(t, failure)
 	assert.Equal(t, "remote|a", failure.FileID)
 	assert.Equal(t, int64(123), failure.At)
 	assert.NotEmpty(t, failure.Reason)
-	assert.NotNil(t, playbackFailureFor("remote|b", "", errors.New("mpv died"), false, 124))
+	assert.NotNil(t, playbackFailureFor(remote, "remote|b", "", errors.New("mpv died"), false, 124))
 
 	// 在线流提前到达 eof 是来源故障，要进自动换源通道，而不是当成正常播完。
-	premature := playbackFailureFor("remote|c", "eof", nil, true, 125)
+	premature := playbackFailureFor(remote, "remote|c", "eof", nil, true, 125)
 	require.NotNil(t, premature)
 	assert.Contains(t, premature.Reason, "提前结束")
 }
 
-func TestPrematureEOFOnlyForRemoteWithKnownDuration(t *testing.T) {
+func TestPrematureEOFOnlyForNetworkStreamsWithKnownDuration(t *testing.T) {
 	remote := NewRemoteSource(RemoteSourceOptions{SourceID: "s", CandidateID: "c", URL: "https://example.test/a.mp4", Title: "t", Episode: 1})
 	local := NewLocalSource(library.Item{FileID: "local|1", FileName: "a.mkv"})
 	assert.True(t, prematureEOF(remote, mpv.State{TimePos: 20, Duration: 1400}, true))

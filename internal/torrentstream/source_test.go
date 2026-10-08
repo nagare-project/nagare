@@ -85,6 +85,27 @@ func TestSourceItemCarriesParsedFields(t *testing.T) {
 	assert.Zero(t, item.MTimeMs)
 }
 
+// 作品身份挂在副本上：原来的 Source 不受影响，副本仍指向同一条流。
+func TestSourceWithMatchHintsReturnsCopy(t *testing.T) {
+	src := newDetachedSource(t, "http://127.0.0.1:8590/stream/deadbeef")
+	titles := []string{"葬送的芙莉莲", "Sousou no Frieren"}
+	hinted := src.WithMatchHints(154587, titles)
+	titles[0] = "被改掉了"
+
+	id, got := hinted.MatchHints()
+	assert.Equal(t, 154587, id)
+	assert.Equal(t, []string{"葬送的芙莉莲", "Sousou no Frieren"}, got, "调用方之后改切片不影响已交出的身份")
+	got[1] = "也被改掉了"
+	_, again := hinted.MatchHints()
+	assert.Equal(t, "Sousou no Frieren", again[1], "交出去的是副本")
+
+	id, got = src.MatchHints()
+	assert.Zero(t, id, "原 Source 不带身份")
+	assert.Empty(t, got)
+	assert.Equal(t, src.MPVPath(), hinted.MPVPath())
+	assert.Equal(t, src.Item(), hinted.Item())
+}
+
 func TestSourceProbeFailsWhenSessionGone(t *testing.T) {
 	src := newDetachedSource(t, "http://127.0.0.1:8590/stream/deadbeef")
 	err := src.Probe(context.Background())

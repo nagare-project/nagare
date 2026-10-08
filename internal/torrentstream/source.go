@@ -19,6 +19,24 @@ type Source struct {
 	item     library.Item
 	infohash string
 	index    int
+	// anilistID / titles 是用户在哪部目录作品里点的播放（从搜索页播放时为零值）。
+	// 播放管线拿它校验弹幕匹配没有认成别的作品；只在本机用，磁力本身从不随它发往任何地方。
+	anilistID int
+	titles    []string
+}
+
+// WithMatchHints 返回带上目录作品身份的副本（Source 构造后只读，不就地改）。
+func (s *Source) WithMatchHints(anilistID int, titles []string) *Source {
+	out := *s
+	out.anilistID = anilistID
+	out.titles = append([]string(nil), titles...)
+	return &out
+}
+
+// MatchHints 交出目录作品身份：anilistID 用来校验关键词匹配没有命中别的作品，
+// titles 是文件名里的标题失手后可以再试的目录标题。结构性满足播放管线的 player.MatchHinted。
+func (s *Source) MatchHints() (int, []string) {
+	return s.anilistID, append([]string(nil), s.titles...)
 }
 
 // newSource 由会话在缓冲完成后构造。

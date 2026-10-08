@@ -312,10 +312,18 @@ func (m *Manager) ensureBinding(ctx context.Context, src MediaSource, item libra
 		}
 		return m.ensureAssociatedBinding(ctx, src, item, a)
 	}
-	if b, ok := m.opts.Store.Binding(item.FileID); ok && b.DandanEpisodeID != 0 {
+	q := autoQuery(src, item)
+	if b, ok := m.opts.Store.Binding(item.FileID); ok && b.DandanEpisodeID != 0 && q.accepts(b) {
 		return b, DanmakuInfo{State: "ok"}
 	}
-	b, dan, _ := m.matchBinding(ctx, src, item, autoQuery(src, item))
+	b, dan, missing := m.matchBinding(ctx, src, item, q)
+	if missing {
+		// 作品认出来了却没有这一集：跨季连续编号的文件（第二季的「15」）在分季条目里
+		// 找不到，换成作品自己的集号再试一次
+		if local, ok := m.seasonLocalEpisode(ctx, q.wantAnilist, episodeNumber(item)); ok {
+			b, dan, _ = m.matchBindingAt(ctx, src, item, q, local)
+		}
+	}
 	if dan.State == "ok" {
 		m.saveBinding(item.FileID, b)
 	}
@@ -350,14 +358,27 @@ type matchQuery struct {
 	keywords    []string
 }
 
-// autoQuery 是没有手动关联时的匹配条件。目录里已知作品身份的源（在线候选）带来两样东西：
-// 校验用的 anilistId，和主标题失手时可以再试的别名（原名/英文名）；本地文件没有这些，
-// 只用文件名里的标题试一次。
+// accepts：缓存的匹配能不能沿用。没有作品身份时什么都沿用（与改动前一致）；带着身份来的
+// 播放只认同一部作品 —— 之前没有身份时（从搜索页播、或旧版本）匹配错的作品会被缓存下来，
+// 不拦的话此后每次都沿用：弹幕是别的番的，看完还记到别的番上。
+func (q matchQuery) accepts(b store.Binding) bool {
+	return q.wantAnilist <= 0 || b.AnilistID == q.wantAnilist
+}
+
+// autoQuery 是没有手动关联时的匹配条件。知道自己在目录里是哪部作品的源（在线候选、从作品页
+// 播放的磁力）带来两样东西：校验用的 anilistId，和文件名标题失手时可以再试的目录标题；
+// 本地文件和不带身份的源没有这些，只用文件名里的标题试一次（标题解析不出来也照发空关键词）。
 func autoQuery(src MediaSource, item library.Item) matchQuery {
 	title := parsedTitle(item)
-	if hinted, ok := src.(matchHinted); ok {
-		want, alts := hinted.MatchHints()
-		return matchQuery{wantAnilist: want, keywords: appendUniqueKeywords([]string{title}, alts)}
+	if hinted, ok := src.(MatchHinted); ok {
+		if want, alts := hinted.MatchHints(); want > 0 || len(alts) > 0 {
+			keywords := appendUniqueKeywords([]string{title}, alts)
+			if len(keywords) == 0 {
+				// 一个能用的标题都没有：照发一次空关键词，服务端还能靠文件指纹命中
+				keywords = []string{""}
+			}
+			return matchQuery{wantAnilist: want, keywords: keywords}
+		}
 	}
 	return matchQuery{keywords: []string{title}}
 }
@@ -365,6 +386,13 @@ func autoQuery(src MediaSource, item library.Item) matchQuery {
 // matchBinding 向 animego 匹配这个文件，不落盘。第三个返回值：作品认出来了，
 // 但匹配结果里没有这一集（绝对集号配上分季条目时常见）。
 func (m *Manager) matchBinding(ctx context.Context, src MediaSource, item library.Item, q matchQuery) (store.Binding, DanmakuInfo, bool) {
+	return m.matchBindingAt(ctx, src, item, q, episodeNumber(item))
+}
+
+// matchBindingAt 按指定集号向 animego 要弹幕：通常就是文件里的集号，跨季连续编号时是换算后的
+// 作品集号。换算后的集号只用于这次请求与查弹幕那一集；绑定里记的仍是文件里的集号 ——
+// 回写前 placeEpisode 统一把它换成作品集号，绑定里已经换过一次就会被再换一次。
+func (m *Manager) matchBindingAt(ctx context.Context, src MediaSource, item library.Item, q matchQuery, episode int) (store.Binding, DanmakuInfo, bool) {
 	if m.opts.Client == nil {
 		return store.Binding{}, DanmakuInfo{State: "none", Reason: "未配置 animego 服务"}, false
 	}
@@ -372,7 +400,6 @@ func (m *Manager) matchBinding(ctx context.Context, src MediaSource, item librar
 	if !ok {
 		return store.Binding{}, DanmakuInfo{State: "unavailable", Reason: "计算文件指纹失败，弹幕匹配跳过"}, false
 	}
-	episode := episodeNumber(item)
 	if episode <= 0 {
 		return store.Binding{}, DanmakuInfo{State: "unmatched", Reason: "无法识别集号，弹幕匹配跳过"}, false
 	}
@@ -400,7 +427,7 @@ func (m *Manager) matchBinding(ctx context.Context, src MediaSource, item librar
 	return store.Binding{
 		AnilistID:       anilistID,
 		DandanEpisodeID: ref.DandanEpisodeID,
-		Episode:         episode,
+		Episode:         episodeNumber(item),
 		Title:           firstNonEmpty(res.TitleChinese, res.TitleNative, parsedTitle(item)),
 		EpisodeTitle:    ref.Title,
 		CoverURL:        res.CoverImageURL,
@@ -585,9 +612,10 @@ func pickTitle(b store.Binding, item library.Item) string {
 	return item.FileName
 }
 
-// matchHinted 由知道自己在目录里是哪部作品的媒体源实现（在线候选）。
+// MatchHinted 由知道自己在目录里是哪部作品的媒体源实现（在线候选、从作品页播放的磁力）。
 // anilistID 用于校验关键词匹配没有命中别的作品；alt 是主标题失手后可再试的别名。
-type matchHinted interface {
+// 两样都只在本机用来核对 animego 的匹配结果，不会把媒体地址或磁力带给 animego。
+type MatchHinted interface {
 	MatchHints() (anilistID int, alt []string)
 }
 

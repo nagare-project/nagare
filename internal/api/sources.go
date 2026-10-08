@@ -5,14 +5,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/releasetitle"
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/rulesync"
 	"github.com/nagare-project/nagare/internal/store"
@@ -241,6 +240,12 @@ type SearchItemView struct {
 	TorrentURL string `json:"torrentUrl,omitempty"`
 	// Season 是标题里解析出的季数（第二季 / S2 / II…）；没写就为 nil，界面按第 1 季理解。
 	Season *int `json:"season,omitempty"`
+	// EpisodeRange 是合集标题里写明的集号区间（Kind 为 batch 时才可能有）。界面据此判断
+	// 合集含不含用户选的那一集 —— 不在前端再解析一遍标题，两套写法迟早对不上。
+	EpisodeRange *releasetitle.Range `json:"episodeRange,omitempty"`
+	// FileIndex 是来源插件指明的种子内文件下标（合集里的哪一个文件就是这一集）；
+	// 播放时原样交给 /api/torrent/play，跳过选集弹窗。
+	FileIndex *int `json:"fileIndex,omitempty"`
 }
 
 // SearchView 是 GET /api/search 的响应。
@@ -252,7 +257,12 @@ type SearchView struct {
 
 // Search 聚合搜索并补齐解析字段。
 func (s *SourcesService) Search(ctx context.Context, q string) SearchView {
-	res := s.reg.Search(ctx, q)
+	return s.SearchTitles(ctx, []string{q})
+}
+
+// SearchTitles 用同一部作品的几种写法（第一个是主搜索词）各搜一次再合并，见 rules.Registry.SearchMany。
+func (s *SourcesService) SearchTitles(ctx context.Context, titles []string) SearchView {
+	res := s.reg.SearchMany(ctx, titles)
 	view := SearchView{Query: res.Query, Items: make([]SearchItemView, 0, len(res.Items)), Sources: res.Sources}
 	for _, item := range res.Items {
 		view.Items = append(view.Items, enrichSearchItem(item))
@@ -260,27 +270,16 @@ func (s *SourcesService) Search(ctx context.Context, q string) SearchView {
 	return view
 }
 
-// batchRangePattern 认合集标题里的集号范围：[01-25全]、[1-12 Fin]、01~13 合集。
-// 本机解析链是给单个文件名用的，会把「01-25」读成第 1 集；发布标题得先排除合集。
-var batchRangePattern = regexp.MustCompile(`(?i)(?:^|[\[\s【])(\d{1,3})\s*[-~～]\s*(\d{1,3})\s*(?:全|Fin|END|完)?\s*(?:$|[\]\s】])`)
-
-// IsBatchTitle 判断发布标题是不是整季 / 区间合集。
-func IsBatchTitle(title string) bool {
-	m := batchRangePattern.FindStringSubmatch(title)
-	if m == nil {
-		return false
-	}
-	low, _ := strconv.Atoi(m[1])
-	high, _ := strconv.Atoi(m[2])
-	return low > 0 && high > low && high <= 999
-}
-
 func enrichSearchItem(item rules.Item) SearchItemView {
 	meta := library.ParseEpisodeMeta(item.Title)
 	out := SearchItemView{Item: item, Episode: meta.Number, Kind: meta.Kind, Season: meta.Season}
-	if IsBatchTitle(item.Title) {
-		// 合集没有单集号；播放时由种子内选集处理
+	// 本机解析链是给单个文件名用的，会把「01-25」读成第 1 集、「全12集」读成第 12 集；
+	// 发布标题得先认出合集。合集没有单集号，播放时由种子内选集处理。
+	if releasetitle.IsBatch(item.Title) {
 		out.Episode, out.Kind = nil, "batch"
+		if r, ok := releasetitle.BatchRange(item.Title); ok {
+			out.EpisodeRange = &r
+		}
 	}
 	if meta.Resolution != nil {
 		out.Resolution = *meta.Resolution

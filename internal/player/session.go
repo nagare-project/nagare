@@ -145,11 +145,11 @@ func (m *Manager) watch(sess *session) {
 			fileLoaded = true
 			maybeArrange()
 		case <-sess.player.Done():
-			// 在线流被服务器掐断时 mpv 同样报 eof：这种 eof 不能算看完
+			// 在线流被服务器掐断、磁力流断了供给时 mpv 同样报 eof：这种 eof 不能算看完
 			// （否则会把账号标成已看），而是一次来源故障。
 			premature := prematureEOF(sess.src, sess.player.State(), endedByEOF)
 			m.finalize(sess, endedByEOF && !premature)
-			if failure := playbackFailureFor(sess.item.FileID, endedReason, sess.player.Err(), premature, time.Now().UnixMilli()); failure != nil {
+			if failure := playbackFailureFor(sess.src, sess.item.FileID, endedReason, sess.player.Err(), premature, time.Now().UnixMilli()); failure != nil {
 				m.setPlaybackFailure(failure)
 			}
 			// mpv 自然退出（播完/用户关窗）时收敛 current，Status 不再误报在播。
@@ -169,9 +169,14 @@ func (m *Manager) watch(sess *session) {
 	}
 }
 
-func playbackFailureFor(fileID, endedReason string, playerErr error, premature bool, at int64) *PlaybackFailure {
+func playbackFailureFor(src MediaSource, fileID, endedReason string, playerErr error, premature bool, at int64) *PlaybackFailure {
 	if premature {
-		return &PlaybackFailure{FileID: fileID, Reason: "在线媒体提前结束，已停止当前来源", At: at}
+		reason := "媒体流在播完前就断了（下载停滞或连接中断），这一集没有记为看完"
+		if _, online := src.(*remoteSource); online {
+			// 在线候选的自动换源靠这条失败接着试下一个来源，措辞照旧
+			reason = "在线媒体提前结束，已停止当前来源"
+		}
+		return &PlaybackFailure{FileID: fileID, Reason: reason, At: at}
 	}
 	if endedReason != "error" && playerErr == nil {
 		return nil
@@ -183,11 +188,12 @@ func playbackFailureFor(fileID, endedReason string, playerErr error, premature b
 	}
 }
 
-// prematureEOF 判定在线流是否在远未播完时就到达 eof —— 服务器掐断连接、HLS 分片
-// 缺失时 mpv 不报错而是正常结束。只对在线媒体判定：本地文件时长估计偶有偏差，
+// prematureEOF 判定网络流是否在远未播完时就到达 eof —— 服务器掐断连接、HLS 分片缺失、
+// 磁力流断了供给（分享者走光、写盘失败停了下载、会话被收掉）时，mpv 不报错而是正常结束。
+// 只对经 HTTP 交给 mpv 的流判定（在线候选与磁力边下边播）：本地文件时长估计偶有偏差，
 // 误报会让用户看到一条并不存在的故障。
 func prematureEOF(src MediaSource, st mpv.State, endedByEOF bool) bool {
-	if _, online := src.(*remoteSource); !online || !endedByEOF || st.Duration <= 0 {
+	if !isNetworkStream(src.MPVPath()) || !endedByEOF || st.Duration <= 0 {
 		return false
 	}
 	return st.TimePos < completionRatio*st.Duration

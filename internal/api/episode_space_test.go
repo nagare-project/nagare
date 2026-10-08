@@ -2,7 +2,10 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -91,4 +94,42 @@ func TestEpisodeSpacesFailsWithoutTotal(t *testing.T) {
 	assert.Error(t, err)
 	_, err = NewEpisodeSpaces(nil).Lookup(context.Background(), 1)
 	assert.Error(t, err)
+}
+
+// GET /api/anime/{id}/episode-offset：选集界面靠它认出跨季连续编号的发布。
+// animego 说算不出来时如实回 known=false（偏移字段归零，绝不能被当成「前面没有作品」）；
+// 上游查不到时报 502，界面按未知处理。
+func TestEpisodeOffsetEndpoint(t *testing.T) {
+	stub := &spaceStub{offset: animego.EpisodeOffset{Known: true, Offset: 12}}
+	mux := http.NewServeMux()
+	New(Deps{EpisodeSpaces: NewEpisodeSpaces(stub)}).Register(mux)
+	get := func(target string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		return rec
+	}
+
+	rec := get("/api/anime/182255/episode-offset")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var got animego.EpisodeOffset
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &got))
+	assert.Equal(t, animego.EpisodeOffset{Known: true, Offset: 12}, got)
+
+	stub.offset = animego.EpisodeOffset{Known: false, Offset: 7}
+	rec = get("/api/anime/9/episode-offset")
+	require.Equal(t, http.StatusOK, rec.Code)
+	got = animego.EpisodeOffset{}
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &got))
+	assert.Equal(t, animego.EpisodeOffset{}, got)
+
+	stub.offsetErr = errors.New("timeout")
+	rec = get("/api/anime/10/episode-offset")
+	assert.Equal(t, http.StatusBadGateway, rec.Code)
+	assert.Equal(t, http.StatusBadRequest, get("/api/anime/0/episode-offset").Code)
+
+	mux = http.NewServeMux()
+	New(Deps{}).Register(mux)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/anime/1/episode-offset", nil))
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }

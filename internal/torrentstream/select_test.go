@@ -207,3 +207,85 @@ func TestSingleVideoMustRespectRequestedEpisode(t *testing.T) {
 		require.False(t, chosen.Need)
 	}
 }
+
+// 合集标题不派生集号：解析链会把「[01-03]」读成第 1 集、「全3集」读成第 3 集，
+// 不拦的话点了合集就自动开播一个用户从没选过的文件（还会被记成看过）。
+func TestSelectFileNeverDerivesHintFromBatchTitle(t *testing.T) {
+	list := entries(yuruCamp(1), yuruCamp(2), yuruCamp(3))
+	for _, title := range []string{
+		"[DBD-Raws][摇曳露营△][01-03][1080P][BDRip][HEVC-10bit][FLAC]",
+		"[DBD-Raws][摇曳露营△][全3集][1080P][BDRip]",
+		"[DBD-Raws][摇曳露营△][合集][1080P]",
+	} {
+		got, err := selectFile(list, req(0, -1, title))
+		require.NoError(t, err)
+		assert.True(t, got.Need, "合集标题 %q 不能替用户选文件", title)
+		assert.Len(t, got.Files, 3)
+	}
+}
+
+// 用户在作品页选了第 3 集再点合集：集号由调用方给，合集照样能自动选中那一集。
+func TestSelectFileBatchWithExplicitHint(t *testing.T) {
+	list := entries(yuruCamp(1), yuruCamp(2), yuruCamp(3))
+	got, err := selectFile(list, req(3, -1, "[DBD-Raws][摇曳露营△][01-03][1080P][BDRip]"))
+	require.NoError(t, err)
+	require.False(t, got.Need)
+	assert.Equal(t, 2, got.Index)
+}
+
+// 来源插件指明的文件只是建议：在候选里就直接用（哪怕集号提示指向别的文件）；
+// 指向花絮或越界时当没给，照常按集号选或交给用户，而不是报「选中的文件不在这条资源里」。
+func TestSelectFileSuggestedIndexIsSoft(t *testing.T) {
+	list := entries(yuruCamp(1), yuruCampNCOP, yuruCamp(2), yuruCamp(3))
+	at := func(i int) *int { return &i }
+
+	got, err := selectFile(list, PrepareRequest{EpisodeHint: 3, SuggestedFileIndex: at(2), FileIndex: -1})
+	require.NoError(t, err)
+	require.False(t, got.Need)
+	assert.Equal(t, 2, got.Index, "插件指明的文件优先于集号提示")
+
+	for _, bad := range []int{1, 9} {
+		got, err = selectFile(list, PrepareRequest{EpisodeHint: 3, SuggestedFileIndex: at(bad), FileIndex: -1})
+		require.NoError(t, err, "下标 %d 只是建议，不该报错", bad)
+		require.False(t, got.Need)
+		assert.Equal(t, 3, got.Index, "退回按集号选")
+
+		got, err = selectFile(list, PrepareRequest{SuggestedFileIndex: at(bad), FileIndex: -1})
+		require.NoError(t, err)
+		assert.True(t, got.Need, "没有集号提示就交给用户")
+	}
+
+	// 用户手选的仍然最优先
+	got, err = selectFile(list, PrepareRequest{SuggestedFileIndex: at(2), FileIndex: 0})
+	require.NoError(t, err)
+	assert.Equal(t, 0, got.Index)
+}
+
+// 跨季连续编号：第二季第 3 集在合集里叫 15。两种编号都给时，种子里只有其中一种就自动选；
+// 两种都在（前作与本季装在一个合集里）就交给用户。
+func TestSelectFileAltEpisodeHintForContinuousNumbering(t *testing.T) {
+	continuous := entries(yuruCamp(13), yuruCamp(14), yuruCamp(15))
+	r := PrepareRequest{EpisodeHint: 3, AltEpisodeHint: 15, FileIndex: -1}
+	got, err := selectFile(continuous, r)
+	require.NoError(t, err)
+	require.False(t, got.Need)
+	assert.Equal(t, 2, got.Index)
+	require.NotNil(t, got.Item.Episode)
+	assert.Equal(t, 15, *got.Item.Episode)
+
+	seasonal := entries(yuruCamp(1), yuruCamp(2), yuruCamp(3))
+	got, err = selectFile(seasonal, r)
+	require.NoError(t, err)
+	require.False(t, got.Need)
+	assert.Equal(t, 2, got.Index, "按季编号的合集照样命中第 3 集")
+
+	both := entries(yuruCamp(3), yuruCamp(15))
+	got, err = selectFile(both, r)
+	require.NoError(t, err)
+	assert.True(t, got.Need, "两种编号同时命中时分不清哪个才是这一集")
+
+	// 另一种编号只是 EpisodeHint 的补充：单独给它不起作用
+	got, err = selectFile(continuous, PrepareRequest{AltEpisodeHint: 15, FileIndex: -1})
+	require.NoError(t, err)
+	assert.True(t, got.Need)
+}

@@ -86,6 +86,8 @@ type services struct {
 	torrentCacheDir string
 	// streamBase 是流地址前缀的延迟绑定，见 streamBaseHolder。
 	streamBase *streamBaseHolder
+	// episodeSpaces 是作品集号空间的查询（播放回写与选集界面共用一份缓存）。
+	episodeSpaces *api.EpisodeSpaces
 	// selfUpdate 为 nil 表示这个构建不带自更新（没配更新公钥，或构造失败）。
 	selfUpdate *selfupdate.Updater
 	// restartWanted 由 /api/update/apply 在装好新版本后置位：退出收尾跑完之后
@@ -434,7 +436,7 @@ func buildServices(configDir string) (*services, error) {
 	return &services{
 		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, sources: sources, sourcePlugin: pluginService,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
-		selfUpdate: su,
+		selfUpdate: su, episodeSpaces: spaces,
 	}, nil
 }
 
@@ -586,6 +588,7 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 		LogPath:         logfile.Path(configDir),
 		BackgroundMode:  string(mode),
 		TorrentCacheDir: svc.torrentCacheDir,
+		EpisodeSpaces:   svc.episodeSpaces,
 	}
 	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
 	// 「非 nil 接口包着 nil 指针」，降级判断会失效并在调用时 panic。
