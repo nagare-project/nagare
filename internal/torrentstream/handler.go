@@ -27,6 +27,10 @@ const (
 type streamTarget struct {
 	name string
 	open func(ctx context.Context, startAt int64) (io.ReadSeekCloser, error)
+	// openHead 开一个只读文件头 n 字节的 reader（弹幕哈希用）：它的优先级窗口与预读
+	// 都不越过 n，续播时不会拿 16MB 之后用不上的字节去和 mpv 的读位置抢带宽。
+	// 流处理器用不到它，测试替身可以不填。
+	openHead func(ctx context.Context, n int64) (io.ReadSeekCloser, error)
 }
 
 // streamSource 把「怎么找到文件与 reader」收成一个窄接口：
@@ -143,20 +147,31 @@ func (s *session) target(infohash string, index int) *streamTarget {
 	return &streamTarget{
 		name: name,
 		open: func(ctx context.Context, startAt int64) (io.ReadSeekCloser, error) {
-			return openReader(ctx, file, pm, startAt), nil
+			return openReader(ctx, file, pm, startAt, 0), nil
+		},
+		openHead: func(ctx context.Context, n int64) (io.ReadSeekCloser, error) {
+			return openReader(ctx, file, pm, 0, n), nil
 		},
 	}
 }
 
-// openReader 开一个跟随优先级窗口的种子 reader。
-func openReader(ctx context.Context, file *torrent.File, pm *priorityManager, startAt int64) io.ReadSeekCloser {
+// openReader 开一个跟随优先级窗口的种子 reader。end > 0 时它最多读到 end（不含）。
+func openReader(ctx context.Context, file *torrent.File, pm *priorityManager, startAt, end int64) io.ReadSeekCloser {
 	r := file.NewReader()
 	r.SetContext(ctx)
 	r.SetResponsive()
-	r.SetReadahead(readerReadahead)
+	if end > 0 {
+		// anacrolix 自己也会按预读把读位置之后的分片抬到 Readahead；有上界的 reader
+		// 预读到上界为止，否则读到 16MB 附近时还会去要后面 5MB 用不上的数据。
+		r.SetReadaheadFunc(func(rc torrent.ReadaheadContext) int64 {
+			return max(min(readerReadahead, end-rc.CurrentPos), 1)
+		})
+	} else {
+		r.SetReadahead(readerReadahead)
+	}
 	tracked := &trackedReader{inner: r, pm: pm}
 	if pm != nil {
-		tracked.id = pm.addReader(startAt)
+		tracked.id = pm.addReaderUpTo(startAt, end)
 	}
 	return tracked
 }

@@ -62,8 +62,9 @@ func (s *session) refresh() {
 	read := stats.BytesReadData.Int64()
 	written := stats.BytesWrittenData.Int64()
 	var buffered, progress float64
+	var open bool
 	if file != nil {
-		buffered = bufferedFraction(tor, file)
+		buffered, open = gateProgress(tor, file)
 		progress = fileProgress(file)
 	}
 
@@ -71,7 +72,7 @@ func (s *session) refresh() {
 	defer s.mu.Unlock()
 	s.peers = stats.ActivePeers
 	s.seeders = stats.ConnectedSeeders
-	s.buffered, s.progress = buffered, progress
+	s.buffered, s.gateOpen, s.progress = buffered, open, progress
 	if s.sampleAt.IsZero() {
 		s.sampleAt, s.lastRead, s.lastWrite = now, read, written
 		return
@@ -83,10 +84,25 @@ func (s *session) refresh() {
 	}
 }
 
-func (s *session) bufferedFraction() float64 {
+// refreshGate 只复查起播门槛（缓冲期的快速轮询用）：不取种子统计，不算整集进度。
+func (s *session) refreshGate() {
+	s.mu.Lock()
+	tor, file := s.tor, s.file
+	s.mu.Unlock()
+	if tor == nil || file == nil {
+		return
+	}
+	buffered, open := gateProgress(tor, file)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.buffered
+	s.buffered, s.gateOpen = buffered, open
+}
+
+// gateReady 报告最近一次 refresh 时起播门槛是否已经放行。
+func (s *session) gateReady() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.gateOpen
 }
 
 // fill 把会话状态填进快照。
@@ -107,52 +123,48 @@ func (s *session) fill(st *Status) {
 	}
 }
 
-// bufferedFraction 返回起播缓冲的完成比例（0..1）。
-//
-// 按【整分片】计而不是按可读字节：SetResponsive 让读可以在分片校验前返回，
-// 但「够不够起播」这个判断必须保守，否则 mpv 起来后立刻就卡住。
-func bufferedFraction(tor *torrent.Torrent, file *torrent.File) float64 {
-	target := min64(bufferStartBytes, file.Length())
-	if target <= 0 {
-		return 1
-	}
-	done := completedBytesIn(tor, file, target)
-	if done >= target {
-		return 1
-	}
-	return float64(done) / float64(target)
-}
+// pendingGateCap 是门槛还没放行时界面进度的上限：按块估出来的进度可能先到 100%
+// （块都到了、分片还在校验或还差别处的块），显示 100% 却不起播会被当成卡死。
+const pendingGateCap = 0.99
 
-// completedBytesIn 统计文件 [0, n) 区间内落在已完成分片里的字节数。
-func completedBytesIn(tor *torrent.Torrent, file *torrent.File, n int64) int64 {
+// gateProgress 返回起播门槛（文件头 bufferStartBytes）的进度。
+//
+// 两个返回值刻意分开：
+//   - open 按【整分片】判定：门槛覆盖的每一片都没有缺块才放行。SetResponsive 让读
+//     可以在分片校验前返回，但「够不够起播」必须保守，否则 mpv 起来后立刻就卡住。
+//   - fraction 给界面看，把未完成分片里已经到手的块也按比例算进去。只数整片的话，
+//     16MB 分片的合集要下满第一片进度条才会动一下，等待的几十秒里一直显示 0%，
+//     看起来和卡死一样。anacrolix 只公开每片缺多少字节、不公开缺的是哪几块，
+//     所以按比例摊到门槛内的那一段上 —— 这是估计，只用于显示。
+func gateProgress(tor *torrent.Torrent, file *torrent.File) (fraction float64, open bool) {
+	target := min(bufferStartBytes, file.Length())
 	info := tor.Info()
-	if info == nil || info.PieceLength <= 0 || n <= 0 {
-		return 0
+	if target <= 0 {
+		return 1, true
+	}
+	if info == nil || info.PieceLength <= 0 {
+		return 0, false
 	}
 	pieceLen := info.PieceLength
 	begin := file.Offset()
-	end := begin + n
+	end := begin + target
 	total := tor.NumPieces()
-	var done int64
-	for idx := int(begin / pieceLen); idx <= int((end-1)/pieceLen); idx++ {
-		if idx < 0 || idx >= total {
-			break
-		}
-		if tor.PieceBytesMissing(idx) != 0 {
+	var whole, partial int64
+	for idx := int(begin / pieceLen); idx <= int((end-1)/pieceLen) && idx < total; idx++ {
+		lo, hi := max(int64(idx)*pieceLen, begin), min(int64(idx+1)*pieceLen, end)
+		missing := tor.PieceBytesMissing(idx)
+		if missing == 0 {
+			whole += hi - lo
 			continue
 		}
-		lo, hi := int64(idx)*pieceLen, int64(idx+1)*pieceLen
-		if lo < begin {
-			lo = begin
-		}
-		if hi > end {
-			hi = end
-		}
-		if hi > lo {
-			done += hi - lo
+		if size := info.Piece(idx).Length(); size > 0 && missing < size {
+			partial += (hi - lo) * (size - missing) / size
 		}
 	}
-	return done
+	if whole >= target {
+		return 1, true
+	}
+	return min(float64(whole+partial)/float64(target), pendingGateCap), false
 }
 
 func fileProgress(file *torrent.File) float64 {
