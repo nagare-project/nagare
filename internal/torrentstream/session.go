@@ -40,7 +40,12 @@ type PrepareRequest struct {
 	TorrentURL  string // Plugin API v1 的 .torrent 地址；与 Magnet 二选一
 	Title       string // 搜索结果标题，用于派生集号提示；可空
 	EpisodeHint int    // <=0 表示未指定
-	FileIndex   int    // <0 表示用户还没手选
+	// AltEpisodeHint 是同一集的另一种编号（跨季连续编号：第二季第 3 集在合集里叫 15）；
+	// <=0 表示没有。只在 EpisodeHint 也给了时才有意义，见 select.go。
+	AltEpisodeHint int
+	FileIndex      int // <0 表示用户还没手选
+	// SuggestedFileIndex 是来源插件指明的文件（nil 表示没有）。只是建议：不在候选里就当没给。
+	SuggestedFileIndex *int
 }
 
 // FileChoice 是交给用户手选的一个候选文件。

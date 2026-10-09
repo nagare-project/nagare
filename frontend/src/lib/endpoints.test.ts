@@ -19,6 +19,7 @@ import {
   updateSourcePluginConfig,
   updateRulesConfig,
 } from './endpoints'
+import { fetchEpisodeOffset, usableOffset } from './episodeOffset'
 import { TOKEN_STORAGE_KEY } from './token'
 import { installLocalStorage } from '../test/storage'
 
@@ -79,6 +80,36 @@ describe('searchMagnets', () => {
     const result = { query: 'x', items: [], sources: [] }
     stubFetch(result)
     await expect(searchMagnets('x')).resolves.toEqual(result)
+  })
+
+  it('作品上下文：连续编号只在与集号不同时才带，别名逐个编码', async () => {
+    const { calls } = stubFetch({ query: '', items: [], sources: [] })
+    await searchMagnets('某作品', { episode: 3, absolute: 15, anilistId: 7, year: 2026, altTitles: ['A&B'] })
+    await searchMagnets('某作品', { episode: 3, absolute: 3 })
+    const first = new URL(calls[0]!.url, 'http://127.0.0.1').searchParams
+    expect([first.get('episode'), first.get('absolute'), first.get('anilist'), first.get('year'), first.getAll('title')]).toEqual(['3', '15', '7', '2026', ['A&B']])
+    expect(new URL(calls[1]!.url, 'http://127.0.0.1').searchParams.has('absolute')).toBe(false)
+  })
+})
+
+describe('fetchEpisodeOffset', () => {
+  it('known=false 一律当未知（偏移字段归零），已知的原样给出', async () => {
+    const { calls } = stubFetch({ known: true, offset: 12 })
+    await expect(fetchEpisodeOffset(182255)).resolves.toEqual({ known: true, offset: 12 })
+    expect(calls[0]).toMatchObject({ url: '/api/anime/182255/episode-offset', method: 'GET' })
+    stubFetch({ known: false, offset: 9 })
+    await expect(fetchEpisodeOffset(1)).resolves.toEqual({ known: false, offset: 0 })
+    stubFetch({ known: true, offset: -3 })
+    await expect(fetchEpisodeOffset(1)).resolves.toEqual({ known: false, offset: 0 })
+    stubFetch({ offset: 12 })
+    await expect(fetchEpisodeOffset(1)).rejects.toThrow('格式无效')
+  })
+
+  it('usableOffset 只认已知且大于 0 的偏移', () => {
+    expect(usableOffset({ known: true, offset: 12 })).toBe(12)
+    expect(usableOffset({ known: true, offset: 0 })).toBeUndefined()
+    expect(usableOffset({ known: false, offset: 12 })).toBeUndefined()
+    expect(usableOffset(null)).toBeUndefined()
   })
 })
 

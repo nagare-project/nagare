@@ -58,6 +58,8 @@ type Deps struct {
 	Torrent TorrentAPI
 	// TorrentCacheDir 展示给用户：分片落在哪，清空缓存清的是哪个目录。
 	TorrentCacheDir string
+	// EpisodeSpaces 查作品的集号空间（与播放管线共用一份缓存）；nil 时集号偏移端点报 503。
+	EpisodeSpaces *EpisodeSpaces
 	// Shutdown 触发整个进程退出（主进程的根 cancel）；nil 表示不支持从界面退出。
 	Shutdown func()
 	// DataDir / LogPath 展示给用户：数据在哪、出问题看哪个文件。
@@ -344,15 +346,18 @@ func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
 
 // search 聚合本机规则的结果；带 episode 时再向来源插件要 BT 候选（只要 torrent，
 // 不会触发浏览器嗅探），让只装了插件、没配规则的用户也能在磁力选集里看到资源。
+// title 是同一部作品的其他写法（原名、英文名）：本机规则与插件都按「q + 这些写法」各搜一次再合并。
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 	q := params.Get("q")
-	view := h.deps.Sources.Search(r.Context(), q)
-	if episode, err := strconv.Atoi(params.Get("episode")); err == nil && episode > 0 {
+	titles := append([]string{q}, params["title"]...)
+	view := h.deps.Sources.SearchTitles(r.Context(), titles)
+	if episode, err := strconv.Atoi(params.Get("episode")); err == nil && episode > 0 && episode <= maxEpisodeNumber {
 		anilist, _ := strconv.Atoi(params.Get("anilist"))
 		year, _ := strconv.Atoi(params.Get("year"))
-		titles := append([]string{q}, params["title"]...)
-		h.deps.SourcePlugin.appendPluginTorrents(r.Context(), &view, pluginTorrentQuery{Titles: titles, Episode: episode, AnilistID: anilist, Year: year})
+		// 与本端点其余可选参数一样宽松：不合法的连续编号当作没给
+		absolute, _ := optionalEpisodeParam(params.Get("absolute"))
+		h.deps.SourcePlugin.appendPluginTorrents(r.Context(), &view, pluginTorrentQuery{Titles: titles, Episode: episode, Absolute: absolute, AnilistID: anilist, Year: year})
 	}
 	httpserver.WriteJSON(w, http.StatusOK, view)
 }

@@ -7,10 +7,12 @@ package torrentstream
 
 import (
 	"math"
+	"slices"
 	"sort"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/library"
+	"github.com/nagare-project/nagare/internal/releasetitle"
 )
 
 // maxTorrentFiles 是选集阶段接受的文件数上限。
@@ -57,7 +59,7 @@ type selection struct {
 	Need  bool
 }
 
-// selectFile 按「过滤 → 唯一 → 集号命中 → 交给用户」四级决定播哪个文件。
+// selectFile 按「过滤 → 手选 → 插件指明 → 唯一 → 集号命中 → 交给用户」决定播哪个文件。
 func selectFile(entries []fileEntry, req PrepareRequest) (selection, error) {
 	if len(entries) > maxTorrentFiles {
 		return selection{}, errs.New(errs.CategoryInput, "torrentstream.select",
@@ -86,16 +88,28 @@ func selectFile(entries []fileEntry, req PrepareRequest) (selection, error) {
 			"选中的文件不在这条资源里", "重新打开选集列表再选一次")
 	}
 
-	if len(cands) == 1 && episodeHint(req) == 0 {
+	// 来源插件指明的文件：在候选里就用它；不在（被认成花絮、下标越界）就当没给，照常往下选 ——
+	// 用户从没见过选集列表，不能拿「选中的文件不在这条资源里」去回他。
+	if suggested := req.SuggestedFileIndex; suggested != nil {
+		for _, c := range cands {
+			if c.index == *suggested {
+				return selection{Index: c.index, Item: c.item}, nil
+			}
+		}
+	}
+
+	hints := episodeHints(req)
+	if len(cands) == 1 && len(hints) == 0 {
 		return selection{Index: cands[0].index, Item: cands[0].item}, nil
 	}
 
 	// 集号命中且【唯一】才自动选。多个命中说明种子里同一集有多个版本
-	// （不同分辨率/字幕组），替用户猜一个不如让用户自己挑。
-	if hint := episodeHint(req); hint > 0 {
+	// （不同分辨率/字幕组），或者同一集按季编号与连续编号各有一份 ——
+	// 替用户猜一个不如让用户自己挑。
+	if len(hints) > 0 {
 		var matched []candidate
 		for _, c := range cands {
-			if c.item.Episode != nil && *c.item.Episode == hint {
+			if c.item.Episode != nil && slices.Contains(hints, *c.item.Episode) {
 				matched = append(matched, c)
 			}
 		}
@@ -153,18 +167,25 @@ func episodeOrLast(ep *int) int {
 	return *ep
 }
 
-// episodeHint 取调用方给的集号；没给就从搜索结果标题里派生。
-func episodeHint(req PrepareRequest) int {
+// episodeHints 是用来自动选文件的集号：调用方给的集号，连同它在跨季连续编号下的另一种
+// 写法（第二季第 3 集在合集里可能叫 15）。调用方没给就从搜索结果标题派生 —— 但合集标题
+// 一律不派生：解析链会把「[01-28]」读成第 1 集、「全12集」读成第 12 集，自动选中的就是
+// 一个用户从没点过的文件，播完还会把那一集记成看过。
+func episodeHints(req PrepareRequest) []int {
 	if req.EpisodeHint > 0 {
-		return req.EpisodeHint
+		hints := []int{req.EpisodeHint}
+		if req.AltEpisodeHint > 0 && req.AltEpisodeHint != req.EpisodeHint {
+			hints = append(hints, req.AltEpisodeHint)
+		}
+		return hints
 	}
-	if req.Title == "" {
-		return 0
+	if req.Title == "" || releasetitle.IsBatch(req.Title) {
+		return nil
 	}
 	if n := library.ParseEpisodeNumber(req.Title); n != nil {
-		return *n
+		return []int{*n}
 	}
-	return 0
+	return nil
 }
 
 func toChoices(cands []candidate) []FileChoice {

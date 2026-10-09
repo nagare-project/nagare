@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -128,6 +129,75 @@ func TestTorrentPlayAbsentFileIndexMeansUnselected(t *testing.T) {
 	rec := env.do(t, http.MethodPost, "/api/torrent/play", `{"magnet":"magnet:?xt=urn:btih:abc"}`)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, -1, env.torrent.lastReq.FileIndex)
+}
+
+// 从作品页播放：作品身份跟着磁力来源进播放管线（只在本机校验弹幕匹配），
+// 连续编号的另一种集号交给引擎选文件，fileId 回给界面认领会话结束时的失败。
+func TestTorrentPlayCarriesCatalogIdentity(t *testing.T) {
+	env := newEnv(t)
+	env.torrent.prepareRes = torrentstream.PrepareResult{Source: &torrentstream.Source{}}
+	env.player.playRes = player.PlayResult{FileID: "t:abc/2", Title: "葬送的芙莉莲 第3集"}
+
+	rec := env.do(t, http.MethodPost, "/api/torrent/play",
+		`{"magnet":"magnet:?xt=urn:btih:abc","title":"[G] 合集 [01-28]","episodeHint":3,"altEpisodeHint":15,"suggestedFileIndex":4,"anilistId":154587,"titles":["葬送的芙莉莲"," Frieren ","","FRIEREN"]}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	assert.Equal(t, 3, env.torrent.lastReq.EpisodeHint)
+	assert.Equal(t, 15, env.torrent.lastReq.AltEpisodeHint)
+	require.NotNil(t, env.torrent.lastReq.SuggestedFileIndex)
+	assert.Equal(t, 4, *env.torrent.lastReq.SuggestedFileIndex, "插件指明的文件只是建议，与用户手选分开传")
+	assert.Equal(t, -1, env.torrent.lastReq.FileIndex)
+	assert.Equal(t, 154587, env.player.lastAnilist)
+	assert.Equal(t, []string{"葬送的芙莉莲", "Frieren"}, env.player.lastAlts, "去空白、不分大小写去重、保序")
+	var got struct {
+		FileID string `json:"fileId"`
+	}
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &got))
+	assert.Equal(t, "t:abc/2", got.FileID)
+}
+
+// 搜索页播放没有作品身份：来源不挂任何身份，弹幕照旧按文件名匹配。
+// 只有标题、没有作品 ID 的身份同样不挂 —— 它什么都校验不了，只会把匹配关键词放宽。
+func TestTorrentPlayWithoutCatalogIDCarriesNoHints(t *testing.T) {
+	for _, body := range []string{
+		`{"magnet":"magnet:?xt=urn:btih:abc","title":"[G] Show - 03"}`,
+		`{"magnet":"magnet:?xt=urn:btih:abc","titles":["Show"]}`,
+	} {
+		env := newEnv(t)
+		env.torrent.prepareRes = torrentstream.PrepareResult{Source: &torrentstream.Source{}}
+		rec := env.do(t, http.MethodPost, "/api/torrent/play", body)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Zero(t, env.player.lastAnilist, body)
+		assert.Empty(t, env.player.lastAlts, body)
+	}
+}
+
+// 引擎既没要求选集、又没交出来源：说清楚并收掉种子，不能拿空来源去起 mpv。
+// 负数的建议下标当没给（它只是建议，不值得为它挡住播放）。
+func TestTorrentPlayGuardsMissingSourceAndIgnoresNegativeSuggestion(t *testing.T) {
+	env := newEnv(t)
+	rec := env.do(t, http.MethodPost, "/api/torrent/play", `{"magnet":"magnet:?xt=urn:btih:abc","suggestedFileIndex":-3}`)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Nil(t, env.torrent.lastReq.SuggestedFileIndex)
+	assert.Equal(t, []string{"player.stop", "torrent.prepare", "torrent.stop"}, *env.calls, "不能起 mpv，种子要收掉")
+}
+
+func TestTorrentPlayRejectsInvalidIdentityAndEpisode(t *testing.T) {
+	long := strings.Repeat("长", 201)
+	for _, body := range []string{
+		`{"magnet":"magnet:?xt=urn:btih:abc","anilistId":-1}`,
+		`{"magnet":"magnet:?xt=urn:btih:abc","anilistId":2147483648}`,
+		`{"magnet":"magnet:?xt=urn:btih:abc","anilistId":1,"titles":["a","b","c","d","e"]}`,
+		`{"magnet":"magnet:?xt=urn:btih:abc","anilistId":1,"titles":["` + long + `"]}`,
+		`{"magnet":"magnet:?xt=urn:btih:abc","episodeHint":-2}`,
+		`{"magnet":"magnet:?xt=urn:btih:abc","episodeHint":3,"altEpisodeHint":100000}`,
+	} {
+		env := newEnv(t)
+		env.torrent.prepareRes = torrentstream.PrepareResult{Source: &torrentstream.Source{}}
+		rec := env.do(t, http.MethodPost, "/api/torrent/play", body)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, body)
+		assert.Empty(t, *env.calls, "校验失败时不能停掉正在播的会话，也不能去准备种子")
+	}
 }
 
 func TestTorrentPlayAcceptsPluginTorrentURL(t *testing.T) {

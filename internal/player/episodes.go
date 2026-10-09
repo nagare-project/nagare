@@ -129,6 +129,25 @@ func (m *Manager) placeEpisode(ctx context.Context, fileID string, anilistID, ep
 	return placement{Reason: fmt.Sprintf("暂时查不到这部作品的集数，确认不了文件里的第 %d 集是作品的第几集", episode), Retry: true}
 }
 
+// seasonLocalEpisode 把跨季连续编号的集号换成作品自己的集号（前作 12 集时，第二季的「15」
+// 是第 3 集），给弹幕匹配用：animego 的分季条目里没有第 15 集，按 3 才找得到这一集的弹幕。
+// 只在知道是哪部作品时换算；偏移未知（animego 算不出、这次没查到）时不换 —— 拿一个没人
+// 确认过的起点去换算集号，正是偏移接口要防的错。
+func (m *Manager) seasonLocalEpisode(ctx context.Context, anilistID, episode int) (int, bool) {
+	if anilistID <= 0 || episode <= 0 || m.opts.EpisodeSpace == nil {
+		return 0, false
+	}
+	space, err := m.opts.EpisodeSpace(ctx, anilistID)
+	if err != nil || !space.OffsetKnown || space.Offset <= 0 {
+		return 0, false
+	}
+	local := episode - space.Offset
+	if local < 1 || (space.Total > 0 && local > space.Total) {
+		return 0, false
+	}
+	return local, true
+}
+
 // warmEpisodeSpace 在开播、匹配出作品之后预先查好集号空间：回写跑在收尾里、有总超时，
 // 别让它在那时才去等两个上游请求。
 func (m *Manager) warmEpisodeSpace(anilistID int) {

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nagare-project/nagare/internal/releasetitle"
 	"github.com/nagare-project/nagare/internal/rules"
 )
 
@@ -91,7 +92,36 @@ func TestEnrichSearchItemParsesEpisodeGroupAndResolution(t *testing.T) {
 	assert.Equal(t, "batch", got.Kind)
 	got = enrichSearchItem(rules.Item{Title: "[VCB-Studio] Haikyuu!! [1-12 Fin][Ma10p_1080p]"})
 	assert.Equal(t, "batch", got.Kind)
-	assert.False(t, IsBatchTitle("[Sub] Show - 05 [1920x1080] [2024-2025]"), "年份区间、分辨率不是集号范围")
+	require.NotNil(t, got.EpisodeRange, "写明区间的合集要把区间交给界面")
+	assert.Equal(t, releasetitle.Range{Low: 1, High: 12}, *got.EpisodeRange)
+	got = enrichSearchItem(rules.Item{Title: "[Sub] Show - 05 [1920x1080] [2024-2025]"})
+	assert.Equal(t, "main", got.Kind, "年份区间、分辨率不是集号范围")
+	assert.Nil(t, got.EpisodeRange)
+
+	// 「全12集」：解析链会读成第 12 集，播放端随即按第 12 集自动开播
+	got = enrichSearchItem(rules.Item{Title: "[Group] 某作品 第二季 全12集 [1080P]"})
+	assert.Nil(t, got.Episode)
+	assert.Equal(t, "batch", got.Kind)
+	require.NotNil(t, got.EpisodeRange)
+	assert.Equal(t, releasetitle.Range{Low: 1, High: 12}, *got.EpisodeRange)
+}
+
+// 作品页按几种写法搜本机规则：主搜索词没有结果、别名有，合并后照样拿到；
+// 不带集号时不去问插件。
+func TestSearchQueriesLocalRulesWithEveryTitle(t *testing.T) {
+	env := newEnv(t)
+	_, dir := fakeSource(t)
+	rec := env.do(t, http.MethodPost, "/api/sources/config", `{"localDir":`+string(mustJSON(t, dir))+`}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	env.plugin.status.Phase = "ready"
+
+	var res SearchView
+	require.NoError(t, json.Unmarshal(decode(t, env.do(t, http.MethodGet, "/api/search?q=nothing&title=Frieren&title=%20", "")).Data, &res))
+	assert.Equal(t, "nothing", res.Query)
+	require.Len(t, res.Items, 1, "别名搜到的发布要合并进来")
+	require.Len(t, res.Sources, 1, "每个源一个结论")
+	assert.Equal(t, rules.StateOK, res.Sources[0].State)
+	assert.Empty(t, env.plugin.requests, "没有集号不问插件")
 }
 
 func TestSourcesLocalDirSearchAndToggle(t *testing.T) {

@@ -189,7 +189,7 @@ describe('目录作品的本地插件找源', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
     await act(async () => {})
     expect(shared.play).toHaveBeenCalledWith(
-      { magnet: expect.stringContaining('magnet:?xt=urn%3Abtih%3A0123456789abcdef'), title: '测试动画', episodeHint: 2, fileIndex: undefined },
+      { magnet: expect.stringContaining('magnet:?xt=urn%3Abtih%3A0123456789abcdef'), title: '测试动画', episodeHint: 2, suggestedFileIndex: undefined, anilistId: 7, titles: ['测试动画', 'テスト'] },
       '测试动画',
     )
     expect(playSourceCandidate).not.toHaveBeenCalled()
@@ -207,7 +207,7 @@ describe('目录作品的本地插件找源', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
     await act(async () => {})
     expect(shared.play).toHaveBeenCalledWith(
-      { torrentUrl: 'https://tracker.invalid/release.torrent', title: '测试动画', episodeHint: 2, fileIndex: undefined },
+      { torrentUrl: 'https://tracker.invalid/release.torrent', title: '测试动画', episodeHint: 2, suggestedFileIndex: undefined, anilistId: 7, titles: ['测试动画', 'テスト'] },
       '测试动画',
     )
     await unmount()

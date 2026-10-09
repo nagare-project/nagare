@@ -3,7 +3,6 @@ package rules
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 )
 
@@ -81,39 +80,7 @@ func (g *Registry) Enabled(id string) bool {
 // Search 并发查询全部启用的源，按注册顺序合并，再去重、排序。
 // 空关键词直接返回空结果，不打任何上游。
 func (g *Registry) Search(ctx context.Context, query string) SearchResult {
-	query = strings.TrimSpace(query)
-	res := SearchResult{Query: query, Items: []Item{}, Sources: []Outcome{}}
-	if query == "" {
-		return res
-	}
-	rules := g.Rules()
-	outcomes := make([]Outcome, len(rules))
-	var wg sync.WaitGroup
-	for i, r := range rules {
-		if !g.Enabled(r.ID) {
-			outcomes[i] = Outcome{Source: r.ID, State: StateDisabled}
-			continue
-		}
-		wg.Add(1)
-		go func(i int, r *Rule) {
-			defer wg.Done()
-			outcomes[i] = g.fetcher.Run(ctx, r, query)
-		}(i, r)
-	}
-	wg.Wait()
-
-	var enabled []*Rule
-	var merged []Item
-	for i, r := range rules {
-		if outcomes[i].State != StateDisabled {
-			enabled = append(enabled, r)
-		}
-		merged = append(merged, outcomes[i].Items...)
-	}
-	ranks := sourceRanks(enabled)
-	res.Items = rankItems(dedupByInfohash(merged, ranks), ranks)
-	res.Sources = outcomes
-	return res
+	return g.SearchMany(ctx, []string{query})
 }
 
 // SelfCheck 用规则自带的自检关键词探测该源是否活着（零结果时按需触发，CQ3）。

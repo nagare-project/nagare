@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/player"
 )
 
@@ -58,9 +60,7 @@ func (s *EpisodeSpaces) Lookup(ctx context.Context, anilistID int) (player.Episo
 		return player.EpisodeSpace{}, err
 	}
 	space := player.EpisodeSpace{Total: total}
-	offset, err := cachedRead(ctx, s.cache, fmt.Sprintf("offset:%d", anilistID), episodeSpaceTTL, func(ctx context.Context) (animego.EpisodeOffset, error) {
-		return s.source.EpisodeOffset(ctx, anilistID)
-	})
+	offset, err := s.Offset(ctx, anilistID)
 	switch {
 	case err != nil:
 		log.Printf("api: 查集号偏移失败（anilistId=%d），这次按未知处理：%v", anilistID, err)
@@ -69,4 +69,46 @@ func (s *EpisodeSpaces) Lookup(ctx context.Context, anilistID int) (player.Episo
 		space.Offset, space.OffsetKnown = offset.Offset, true
 	}
 	return space, nil
+}
+
+// Offset 只查集号偏移（与 Lookup 共用缓存）。作品页的磁力选集靠它认出跨季连续编号的发布：
+// 第二季第 3 集在字幕组那里可能叫 15。Known 为 false 时调用方不能当 0 用。
+func (s *EpisodeSpaces) Offset(ctx context.Context, anilistID int) (animego.EpisodeOffset, error) {
+	if s.source == nil {
+		return animego.EpisodeOffset{}, errors.New("作品目录不可用")
+	}
+	return cachedRead(ctx, s.cache, fmt.Sprintf("offset:%d", anilistID), episodeSpaceTTL, func(ctx context.Context) (animego.EpisodeOffset, error) {
+		return s.source.EpisodeOffset(ctx, anilistID)
+	})
+}
+
+// episodeOffsetTimeout：选集窗口等它决定要不要多问一种编号，上游慢时宁可当「未知」也不拖住找源。
+const episodeOffsetTimeout = 5 * time.Second
+
+// catalogEpisodeOffset 是 GET /api/anime/{id}/episode-offset：公开元数据（只读 animego 的
+// 元数据线，不带任何磁力信息）。查不到时如实报错，界面按「未知」处理、照常列出全部发布。
+func (h *Handler) catalogEpisodeOffset(w http.ResponseWriter, r *http.Request) {
+	id, ok := catalogID(w, r)
+	if !ok {
+		return
+	}
+	if h.deps.EpisodeSpaces == nil {
+		httpserver.WriteError(w, http.StatusServiceUnavailable, "作品目录暂不可用")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), episodeOffsetTimeout)
+	defer cancel()
+	offset, err := h.deps.EpisodeSpaces.Offset(ctx, id)
+	if err != nil {
+		if r.Context().Err() != nil {
+			return // 浏览器已经不等了
+		}
+		log.Printf("api: 查集号偏移失败（anilistId=%d）：%v", id, err)
+		httpserver.WriteError(w, http.StatusBadGateway, "暂时查不到这部作品的跨季编号")
+		return
+	}
+	if !offset.Known || offset.Offset < 0 {
+		offset = animego.EpisodeOffset{}
+	}
+	httpserver.WriteJSON(w, http.StatusOK, offset)
 }

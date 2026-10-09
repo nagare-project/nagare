@@ -500,6 +500,10 @@ export interface SearchItem {
   torrentUrl?: string
   /** 标题里解析出的季数；没写则缺席（按第 1 季理解） */
   season?: number
+  /** 合集标题写明的集号区间（kind 为 batch 时才可能有；编号是发布自己的，跨季连续编号要换算） */
+  episodeRange?: { low: number; high: number }
+  /** 来源插件指明的种子内文件下标：合集里哪个文件就是这一集，播放时跳过选集 */
+  fileIndex?: number
 }
 
 /** GET /api/search?q= 的 data 载荷 */
@@ -565,10 +569,29 @@ export interface RulesConfigPatch {
 /** 磁力选集附带的作品身份：有集号时后端会再向来源插件要 BT 候选（只要 torrent） */
 export interface MagnetSearchContext {
   episode: number
+  /** 这一集在跨季连续编号下的编号（第二季第 3 集在字幕组那里可能叫 15）；后端按两种编号各问一次插件 */
+  absolute?: number
   anilistId?: number
   year?: number
   /** 目录里的其他标题（原名/英文名），插件按它们再搜一遍 */
   altTitles?: string[]
+}
+
+/** 只搜本机规则时的选项：altTitles 是同一部作品的其他写法，规则按每种写法各搜一次再合并 */
+export interface MagnetTitleOptions {
+  altTitles?: string[]
+}
+
+function magnetContextParams(context: MagnetSearchContext | MagnetTitleOptions): string[] {
+  const params: string[] = []
+  if ('episode' in context) {
+    params.push(`episode=${context.episode}`)
+    if (context.absolute !== undefined && context.absolute !== context.episode) params.push(`absolute=${context.absolute}`)
+    if (context.anilistId !== undefined) params.push(`anilist=${context.anilistId}`)
+    if (context.year !== undefined) params.push(`year=${context.year}`)
+  }
+  for (const title of context.altTitles ?? []) params.push(`title=${encodeURIComponent(title)}`)
+  return params
 }
 
 /** GET /api/search/plugin 的 NDJSON 事件：条目 / 来源结果 / 结束 */
@@ -587,10 +610,7 @@ export async function streamPluginMagnets(
   onEvent: (event: PluginSearchEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const params = [`q=${encodeURIComponent(query)}`, `episode=${context.episode}`]
-  if (context.anilistId !== undefined) params.push(`anilist=${context.anilistId}`)
-  if (context.year !== undefined) params.push(`year=${context.year}`)
-  for (const title of context.altTitles ?? []) params.push(`title=${encodeURIComponent(title)}`)
+  const params = [`q=${encodeURIComponent(query)}`, ...magnetContextParams(context)]
   const response = await apiStream(`/api/search/plugin?${params.join('&')}`, { signal })
   if (!response.headers.get('Content-Type')?.toLowerCase().includes('application/x-ndjson') || response.body === null) {
     throw new ApiError('插件搜索返回了意外的响应格式', response.status)
@@ -617,14 +637,8 @@ export async function streamPluginMagnets(
   consume(pending)
 }
 
-export function searchMagnets(query: string, context?: MagnetSearchContext): Promise<SearchResult> {
-  const params = [`q=${encodeURIComponent(query)}`]
-  if (context !== undefined) {
-    params.push(`episode=${context.episode}`)
-    if (context.anilistId !== undefined) params.push(`anilist=${context.anilistId}`)
-    if (context.year !== undefined) params.push(`year=${context.year}`)
-    for (const title of context.altTitles ?? []) params.push(`title=${encodeURIComponent(title)}`)
-  }
+export function searchMagnets(query: string, context?: MagnetSearchContext | MagnetTitleOptions): Promise<SearchResult> {
+  const params = [`q=${encodeURIComponent(query)}`, ...(context === undefined ? [] : magnetContextParams(context))]
   return apiFetch<SearchResult>(`/api/search?${params.join('&')}`)
 }
 
@@ -952,13 +966,23 @@ export interface TorrentStatus {
 export type TorrentPlayRequest = ({ magnet: string; torrentUrl?: never } | { magnet?: never; torrentUrl: string }) & {
   title?: string
   /**
-   * 合集里定位文件用的集号。**当前搜索页不传**：`SearchItem` 没有集号字段，
-   * 而后端在缺席时会用同一条解析链从 `title` 里派生，效果一样且少一处会漂移的重复。
-   * 留着这个字段是给将来「用户在界面上直接指定第几集」用的。
+   * 合集里定位文件用的集号：作品页按用户选的那一集、单集发布按条目自己的集号给。
+   * 缺席时后端从 `title` 派生（合集标题除外：「[01-28]」会被读成第 1 集）。
    */
   episodeHint?: number
+  /** 同一集在跨季连续编号下的编号（第二季第 3 集在合集里叫 15）；只与 episodeHint 一起用 */
+  altEpisodeHint?: number
   /** 用户在选集弹窗里选定的文件序号（第二次请求才带） */
   fileIndex?: number
+  /** 来源插件指明的文件序号：只是建议，指得不对时后端照常按集号选或弹选集 */
+  suggestedFileIndex?: number
+  /**
+   * 用户在哪部目录作品里点的播放：只在本机用来校验弹幕匹配没有认成别的作品。
+   * 磁力本身从不发给 animego。搜索页播放不带。
+   */
+  anilistId?: number
+  /** 那部作品的目录标题（主标题、原名、英文名），文件名里的标题匹配失手时再试 */
+  titles?: string[]
 }
 
 /**
@@ -967,7 +991,8 @@ export type TorrentPlayRequest = ({ magnet: string; torrentUrl?: never } | { mag
  */
 export type TorrentPlayData =
   | { needSelection: true; files: TorrentFile[] }
-  | { needSelection: false; title: string; danmaku: DanmakuStatus }
+  /** fileId 用来认领播放会话结束时 /api/player/status 里属于这一次的失败 */
+  | { needSelection: false; fileId?: string; title: string; danmaku: DanmakuStatus }
 
 /** 磁力配置与缓存占用（GET /api/settings 的 torrent 字段） */
 export interface TorrentSettings {

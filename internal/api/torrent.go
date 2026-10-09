@@ -9,8 +9,8 @@ package api
 import (
 	"context"
 	"net/http"
-	"strings"
 
+	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/store"
@@ -33,6 +33,9 @@ type TorrentAPI interface {
 // 接口一旦漂移，编译在这一行就断，而不是等到运行时才发现磁力播不了。
 var _ player.MediaSource = (*torrentstream.Source)(nil)
 
+// 从作品页播放的磁力带着作品身份去校验弹幕匹配：靠的是这个可选接缝，漂移了同样在这里断。
+var _ player.MatchHinted = (*torrentstream.Source)(nil)
+
 // torrentUnavailable 在未启用磁力引擎时统一作答（引擎初始化失败时降级运行）。
 // 降级必须可见：界面据此禁用播放按钮并指向日志，而不是让按钮点了没反应。
 func (h *Handler) torrentUnavailable(w http.ResponseWriter) bool {
@@ -49,37 +52,21 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 	if h.torrentUnavailable(w) {
 		return
 	}
-	var req struct {
-		Magnet      string `json:"magnet"`
-		TorrentURL  string `json:"torrentUrl"`
-		Title       string `json:"title"`
-		EpisodeHint int    `json:"episodeHint"`
-		// FileIndex 用指针：0 是合法下标，零值分不出「用户选了第 0 个」与「还没选」。
-		FileIndex *int `json:"fileIndex"`
-	}
+	var req torrentPlayRequest
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	if (strings.TrimSpace(req.Magnet) == "") == (strings.TrimSpace(req.TorrentURL) == "") {
-		httpserver.WriteError(w, http.StatusBadRequest, "需要提供磁力链接或种子文件地址")
+	prep, titles, problem := req.prepare()
+	if problem != "" {
+		httpserver.WriteError(w, http.StatusBadRequest, problem)
 		return
-	}
-	fileIndex := -1
-	if req.FileIndex != nil {
-		fileIndex = *req.FileIndex
 	}
 
 	// 先停掉现有播放会话，再准备新种子。顺序不能反：Player.Stop 会触发会话终结
 	// 回调去停磁力引擎，若放在 Prepare 之后，旧会话的收尾会把刚建好的新种子掐掉。
 	h.deps.Player.Stop()
 
-	res, err := h.deps.Torrent.Prepare(r.Context(), torrentstream.PrepareRequest{
-		Magnet:      req.Magnet,
-		TorrentURL:  req.TorrentURL,
-		Title:       req.Title,
-		EpisodeHint: req.EpisodeHint,
-		FileIndex:   fileIndex,
-	})
+	res, err := h.deps.Torrent.Prepare(r.Context(), prep)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -93,8 +80,18 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if res.Source == nil {
+		h.deps.Torrent.Stop()
+		writeErr(w, errs.New(errs.CategoryInternal, "api.torrent.play", "磁力引擎没有交出可播放的文件", "重新点一次播放"))
+		return
+	}
 
-	pr, err := h.deps.Player.Play(r.Context(), res.Source, "")
+	source := res.Source
+	if req.AnilistID > 0 {
+		// 只有带着作品 ID 才挂身份：没有 ID 的标题既校验不了什么，又会把匹配关键词放宽
+		source = source.WithMatchHints(req.AnilistID, titles)
+	}
+	pr, err := h.deps.Player.Play(r.Context(), source, "")
 	if err != nil {
 		// mpv 起不来就别把种子挂着继续占带宽和磁盘。
 		h.deps.Torrent.Stop()
@@ -103,8 +100,11 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{
 		"needSelection": false,
-		"title":         pr.Title,
-		"danmaku":       pr.Danmaku,
+		// fileId 让界面在播放会话结束时认出 /api/player/status 里属于这一次的失败
+		// （磁力流中途断了 → 这一集没记为看完）。
+		"fileId":  pr.FileID,
+		"title":   pr.Title,
+		"danmaku": pr.Danmaku,
 	})
 }
 

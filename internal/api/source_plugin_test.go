@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,12 +19,17 @@ import (
 )
 
 type fakeSourcePluginRuntime struct {
-	status      sourceplugin.Status
-	started     sourceplugin.LaunchConfig
-	startErr    error
-	stopped     bool
-	sources     []sourceplugin.Source
-	events      []sourceplugin.Event
+	status   sourceplugin.Status
+	started  sourceplugin.LaunchConfig
+	startErr error
+	stopped  bool
+	sources  []sourceplugin.Source
+	events   []sourceplugin.Event
+	// eventsFor 非空时按请求分派事件（磁力选集可能并发发两个集号请求）
+	eventsFor func(sourceplugin.ResolveRequest) []sourceplugin.Event
+
+	mu          sync.Mutex
+	requests    []sourceplugin.ResolveRequest
 	lastRequest sourceplugin.ResolveRequest
 }
 
@@ -52,8 +58,15 @@ func (f *fakeSourcePluginRuntime) Sources(context.Context) ([]sourceplugin.Sourc
 }
 
 func (f *fakeSourcePluginRuntime) Candidates(_ context.Context, request sourceplugin.ResolveRequest, emit func(sourceplugin.Event) error) error {
+	f.mu.Lock()
 	f.lastRequest = request
-	for _, event := range f.events {
+	f.requests = append(f.requests, request)
+	events := f.events
+	if f.eventsFor != nil {
+		events = f.eventsFor(request)
+	}
+	f.mu.Unlock()
+	for _, event := range events {
 		if err := emit(event); err != nil {
 			return err
 		}
