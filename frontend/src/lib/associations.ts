@@ -55,9 +55,15 @@ export async function dismissSyncedElsewhere(clusterKey: string, anilistId: numb
   return (await sendJson('/api/library/association/dismiss-synced', 'POST', { clusterKey, anilistId })).association
 }
 
-/** 作品分组显示用的标题：认定过作品就用作品名，否则用从文件名解析出的标题 */
+/**
+ * 作品分组显示用的标题：认定过作品用作品名；没认定过但自动认出了作品，也用作品名
+ * （文件名里的标题常常是罗马音、繁体或干脆是字幕组名）；都没有时才用从文件名解析出的标题。
+ */
 export function clusterDisplayTitle(cluster: LibraryCluster): string {
-  return cluster.association?.mode === 'manual' && cluster.association.title ? cluster.association.title : cluster.title
+  const { association, matched } = cluster
+  if (association?.mode === 'manual' && association.title) return association.title
+  if (association === undefined && matched?.title) return matched.title
+  return cluster.title
 }
 
 /** 归组可能不准、用户还没确认过对应作品 */

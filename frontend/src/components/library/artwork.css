@@ -38,6 +38,7 @@
 .poster-flag { position: absolute; top: 8px; left: 8px; }
 .poster-title { margin-top: 8px; font-size: 16px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .poster-meta { margin-top: 4px; color: var(--fg-muted); font-size: 13px; }
+.poster-versions { position: absolute; right: 8px; top: 8px; padding: 3px 7px; border-radius: 5px; background: #000b; color: #fff; font-size: 12px; backdrop-filter: blur(8px); }
 .poster-episodes { position: absolute; left: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 5px; background: #000b; color: #fff; font-size: 12px; backdrop-filter: blur(8px); }
 .poster-hover-play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: #0003; opacity: 0; transition: opacity 150ms; }
 .poster-hit:hover .poster-hover-play, .poster-hit:focus-visible .poster-hover-play { opacity: 1; }

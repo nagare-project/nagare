@@ -252,7 +252,7 @@ func classifyStatus(op string, res *httpResult, authed bool) error {
 		// 5xx 与其他意外状态码都按「暂时不可达」处理，稍后重试。
 		kind = ErrUnavailable
 	}
-	return &Error{Kind: kind, Op: op, Err: cause}
+	return &Error{Kind: kind, Op: op, Err: cause, Status: res.status}
 }
 
 // serverMessage 尽力从响应体里捞出服务端错误信息。animego 有两种错误信封：

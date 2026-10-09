@@ -45,6 +45,10 @@ type Error struct {
 	Kind ErrKind
 	Op   string // 出错的操作，如 "login" / "match" / "comments" / "mark-watched"
 	Err  error  // 底层原因；含服务端错误信封里的信息（若有）
+	// Status 是服务端答的 HTTP 状态码；网络失败、响应解析失败这类没有状态码的为 0。
+	// 同是 ErrBadRequest，400 说的是「这一次请求的内容不对」，403/404 说的是「这个接口
+	// 现在整体不让用」—— 后台批量请求的调用方要据此决定是跳过这一条还是整体暂停。
+	Status int
 }
 
 // Error 输出中文描述，并告诉用户能做什么 —— 「错误不静默」的另一半是

@@ -333,9 +333,11 @@ func TestClusterFilesDeduplicatesAcrossFolders(t *testing.T) {
 		}
 	}
 	env := newAssocEnv(t, nil, a, b)
+	// 每个库目录各自成簇、键相同；视图按键并成一张海报，一模一样的副本只算一份
 	view := env.lib.View()
-	require.Len(t, view.Clusters, 2, "每个库目录各自成簇")
-	require.Equal(t, view.Clusters[0].ClusterKey, view.Clusters[1].ClusterKey)
+	require.Len(t, view.Clusters, 1)
+	require.Len(t, view.Clusters[0].Groups, 1)
+	assert.Len(t, view.Clusters[0].Groups[0].Items, 2)
 
 	ids, ok := env.lib.ClusterFiles(view.Clusters[0].ClusterKey)
 	require.True(t, ok)
