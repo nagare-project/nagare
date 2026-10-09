@@ -83,6 +83,9 @@ func applyPluginMetadata(out *SearchItemView, candidate sourceplugin.Candidate) 
 	// 只有老插件不给原始标题时，才退回 match.episodeNumber（那是请求里的目标集，不是条目自己的）。
 	switch {
 	case out.Kind == "batch":
+	case meta.Episode > 0 && meta.Episode != math.Trunc(meta.Episode):
+		// 12.5 这类总集篇不是第 12 集也不是第 13 集：不给集号，不会被当成哪一集排到前面
+		out.Episode = nil
 	case meta.Episode > 0:
 		episode := int(math.Round(meta.Episode))
 		out.Episode = &episode

@@ -21,9 +21,14 @@ type LocalState =
   | { phase: 'ready'; query: string; result: SearchResult; sources: SourcesData; engineDown: boolean }
   | { phase: 'error'; message: string }
 
-/** 插件 BT 来源的结果：插件按集号精确筛选，换集就要重问 */
+/**
+ * 插件 BT 来源的结果。scope 由插件流的首行告知：all 是按作品搜回的全部发布（与 animego 一样，
+ * 换集只重新排序）；episode 是老插件按集号精确筛的结果，换集就要重问；null 是还没收到首行。
+ */
 interface PluginState {
+  /** 这次请求是按哪一集发的：只用来丢弃过期的流（scope=all 时与界面上选的集无关） */
   episode: number
+  scope: 'all' | 'episode' | null
   items: SearchItem[]
   outcomes: SourceOutcome[]
   pending: boolean
@@ -37,7 +42,7 @@ interface PluginState {
 type OffsetState = { status: 'idle' } | { status: 'unknown' } | { status: 'known'; offset: number } | { status: 'failed' }
 
 /**
- * 目录作品的磁力入口：先选集数，再按字幕组浏览这一集的发布（含覆盖这一集的合集），最后选版本。
+ * 目录作品的磁力入口：先选集数，再按字幕组浏览发布（这一集的单集与含它的合集排在最前），最后选版本。
  * 作品 ID 不参与找源：磁力始终来自用户自己装的插件与本机规则；ID 只随播放请求留在本机，
  * 用来校验弹幕匹配没有认成别的作品，从不拿它去 animego 换磁力。
  */
@@ -56,7 +61,6 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
   // 没点过就跟着观看进度走（进度是异步载入的）；点过就以用户选的为准
   const [picked, setPicked] = useState<number | null>(null)
   const [episodeInput, setEpisodeInput] = useState('')
-  const [showAll, setShowAll] = useState(false)
   const [local, setLocal] = useState<LocalState>({ phase: 'idle' })
   const [plugin, setPlugin] = useState<PluginState | null>(null)
   const [offset, setOffset] = useState<OffsetState>({ status: 'idle' })
@@ -67,7 +71,6 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
     setQuery(media.title)
     setPicked(null)
     setEpisodeInput('')
-    setShowAll(false)
     requestVersion.current++
     pluginAbort.current?.abort()
     offsetRequest.current = null
@@ -106,7 +109,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
     pluginAbort.current = controller
     const live = () => pluginAbort.current === controller && !controller.signal.aborted
     const update = (change: (state: PluginState) => PluginState) => setPlugin(state => (state === null || state.episode !== targetEpisode ? state : change(state)))
-    setPlugin({ episode: targetEpisode, items: [], outcomes: [], pending: true, error: null })
+    setPlugin({ episode: targetEpisode, scope: null, items: [], outcomes: [], pending: true, error: null })
     // 插件按作品身份找：目录里的其他写法照带（与本机规则同一份去重后的标题）
     const altTitles = (catalogIdentity(media).titles ?? []).filter(title => title.toLowerCase() !== searchQuery.toLowerCase())
     const context: MagnetSearchContext = {
@@ -117,7 +120,8 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
     try {
       await streamPluginMagnets(searchQuery, context, event => {
         if (!live()) return
-        if (event.event === 'item') update(state => ({ ...state, items: [...state.items, event.item] }))
+        if (event.event === 'scope') update(state => ({ ...state, scope: event.scope }))
+        else if (event.event === 'item') update(state => ({ ...state, items: [...state.items, event.item] }))
         else if (event.event === 'outcome') update(state => ({ ...state, outcomes: [...state.outcomes, event.outcome] }))
         else update(state => ({ ...state, pending: false }))
       }, controller.signal)
@@ -139,7 +143,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
     const token = ++pluginRequest.current
     const version = requestVersion.current
     pluginAbort.current?.abort()
-    setPlugin({ episode: targetEpisode, items: [], outcomes: [], pending: true, error: null })
+    setPlugin({ episode: targetEpisode, scope: null, items: [], outcomes: [], pending: true, error: null })
     void offsetPromise.then(offsetValue => {
       if (token === pluginRequest.current && version === requestVersion.current) void searchPlugin(targetEpisode, searchQuery, offsetValue)
     })
@@ -180,12 +184,18 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
   function selectEpisode(next: number): void {
     if (!Number.isSafeInteger(next) || next < 1 || next > MAX_EPISODE) return
     setPicked(next)
-    setShowAll(false)
     if (local.phase !== 'ready') {
       void findReleases(next)
       return
     }
-    // 本机规则的结果与集号无关，只重问插件
+    // 本机规则的结果与集号无关；插件按作品搜回的也与集号无关（在途的照常收完），换集只重新排序。
+    // 老插件按集号筛的结果要重问；按作品搜完却一条都没有时也借换集重问一次（失败的来源不缓存，等于重试）
+    const wholeWork = plugin?.scope === 'all' && plugin.error === null && (plugin.pending || plugin.items.length > 0)
+    if (wholeWork) {
+      // 跨季编号上次没查到时借换集再查一次（查到了就是缓存，不发请求）
+      void loadOffset()
+      return
+    }
     queuePluginSearch(next, local.query, loadOffset())
   }
 
@@ -242,8 +252,8 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
   const episodeTitle = media.episodeTitles?.find(item => item.episode === episode)?.title
   const offsetNote = offsetValue !== undefined
     ? `跨季连续编号：标题写第 ${episode + offsetValue} 集的发布也算这一集。`
-    : offset.status === 'failed' ? '暂时查不到跨季编号，连续编号的发布可能没有归到这一集，可用「显示全部发布」查看。'
-      : offset.status === 'unknown' ? '无法确认前作一共有几集，跨季连续编号的发布可能没有归到这一集，可用「显示全部发布」查看。' : null
+    : offset.status === 'failed' ? '暂时查不到跨季编号，连续编号的发布可能没有排到前面，请在下方列表中查找。'
+      : offset.status === 'unknown' ? '无法确认前作一共有几集，跨季连续编号的发布可能没有排到前面，请在下方列表中查找。' : null
   const items = local.phase === 'ready' ? [...local.result.items, ...(plugin?.items ?? [])] : []
   const outcomes = local.phase === 'ready' ? [...local.result.sources, ...(plugin?.outcomes ?? [])] : []
 
@@ -269,7 +279,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
         {!inline && <button type="button" className="icon-button media-play-close" aria-label="关闭磁力资源" onClick={() => dialog.current?.close()}><Icon name="close" /></button>}
         <p className="media-play-kicker">磁力边下边播</p>
         <h2>{inline ? '字幕组与版本' : media.title}</h2>
-        <p className="media-play-hint">{isMovie ? '先选择字幕组，再挑选清晰度。合集会在播放前展开文件列表。' : '先选集数，再按字幕组挑选这一集的发布或含这一集的合集。合集会在播放前自动定位到这一集，认不准时展开文件列表。'}</p>
+        <p className="media-play-hint">{isMovie ? '先选择字幕组，再挑选清晰度。合集会在播放前展开文件列表。' : '选好集数，每个字幕组里这一集的发布与含这一集的合集排在最前，其余发布照常列出。合集会在播放前自动定位到这一集，认不准时展开文件列表。'}</p>
         <form className="media-release-search" onSubmit={submitSearch}>
           <label className="media-torrent-query"><span>作品名称</span><input className="input" type="search" value={query} onChange={event => setQuery(event.target.value)} spellCheck={false} /></label>
           <button type="submit" className="btn btn--primary" disabled={local.phase === 'searching'}><Icon name="search" size={18} />{local.phase === 'searching' ? '搜索中…' : '查找字幕组'}</button>
@@ -287,13 +297,13 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
           </form>}
           <p className="torrent-episode-note" role="status">第 {episode} 集{episodeTitle ? ` · ${episodeTitle}` : ''}{offsetNote ? ` · ${offsetNote}` : ''}</p>
         </section>}
-        {local.phase === 'idle' && <div className="media-fansub-empty"><Icon name="download" size={32} /><h3>选择你喜欢的字幕版本</h3><p>{isMovie ? '搜索这部作品，按字幕组浏览全部发布。' : '选好集数后搜索，按字幕组浏览这一集的发布。'}</p></div>}
+        {local.phase === 'idle' && <div className="media-fansub-empty"><Icon name="download" size={32} /><h3>选择你喜欢的字幕版本</h3><p>{isMovie ? '搜索这部作品，按字幕组浏览全部发布。' : '搜索后按字幕组浏览全部发布，选中的这一集排在最前。'}</p></div>}
         {local.phase === 'searching' && <p className="result result--dim" role="status">正在查找字幕组与发布版本…</p>}
         {local.phase === 'error' && <p className="result result--err" role="alert">{local.message} <button type="button" className="link" onClick={() => void findReleases(episode)}>重试</button></p>}
         {local.phase === 'ready' && <TorrentReleaseResults key={`${episode}-${local.query}`} items={items} outcomes={outcomes} sources={local.sources}
           engineDown={local.engineDown} pluginPending={plugin?.pending ?? true} pluginError={plugin?.error ?? null}
           busy={torrent.busy} mediaId={media.id} {...(season === undefined ? {} : { wantedSeason: season })} target={target}
-          showAll={showAll} onShowAll={setShowAll} onRetryPlugin={retryPlugin} onPlay={start} />}
+          onRetryPlugin={retryPlugin} onPlay={start} />}
       </div>
     </PlaybackSurface>
   </>

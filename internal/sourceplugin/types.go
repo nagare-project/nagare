@@ -144,4 +144,5 @@ type Runtime interface {
 	Status() Status
 	Sources(context.Context) ([]Source, error)
 	Candidates(context.Context, ResolveRequest, func(Event) error) error
+	Releases(context.Context, ReleaseSearchRequest, func(ReleaseEvent) error) error
 }

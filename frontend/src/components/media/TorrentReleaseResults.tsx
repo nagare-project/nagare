@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { SearchItem, SourceOutcome, SourcesData } from '../../lib/endpoints'
 import { parsePublished } from '../../lib/format'
-import { episodeFit, fitRank, isBatchRelease, releasesForEpisode } from './releaseEpisodes'
+import { episodeFit, fitRank, isBatchRelease, matchesEpisode } from './releaseEpisodes'
 import type { EpisodeTarget } from './releaseEpisodes'
 
 const MAX_RESOURCE_RESULTS = 80
@@ -18,6 +18,22 @@ function rememberFansub(mediaId: number, group: string): void {
 
 interface FansubGroup { name: string; items: SearchItem[] }
 
+/**
+ * 同一个种子从多个来源各来一次时留哪一条：照 animego —— 有做种数的胜过没有的，做种多的胜过少的，
+ * 再按来源优先级（AnimeTosho > Anime Garden > ACG.RIP > Nyaa > 動漫花園 > Mikan）。
+ * 本机规则与插件的来源 id 同名（插件的带 plugin: 前缀），一起比。
+ */
+const SOURCE_SCORE = new Map([['tosho', 6], ['garden', 5], ['acg', 4], ['nyaa', 3], ['dmhy', 2], ['mikan', 1]])
+const sourceScore = (item: SearchItem) => SOURCE_SCORE.get(item.source.replace(/^plugin:/, '')) ?? 0
+
+function betterRelease(candidate: SearchItem, incumbent: SearchItem): boolean {
+  const a = typeof candidate.seeders === 'number' ? candidate.seeders : null
+  const b = typeof incumbent.seeders === 'number' ? incumbent.seeders : null
+  if (a !== null && b !== null && a !== b) return a > b
+  if ((a === null) !== (b === null)) return a !== null
+  return sourceScore(candidate) > sourceScore(incumbent)
+}
+
 /** 同一个种子会从多个来源（Anime Garden / 動漫花園 / Mikan…）各来一次，按 infohash 折叠。 */
 export function releaseKey(item: SearchItem): string {
   const hash = item.infohash?.toLowerCase() || /btih:([0-9a-z]{32,40})/i.exec(item.magnet)?.[1]?.toLowerCase()
@@ -27,25 +43,28 @@ export function releaseKey(item: SearchItem): string {
 export interface FansubGroupingOptions {
   /** 目录作品的季数；说不准时缺省，组内就不按季数排 */
   wantedSeason?: number
-  /** 选定的集：给了就按「这一集的单集 → 含这一集的合集 → 说不准的合集」排组内顺序 */
+  /** 选定的集：给了就把有这一集的字幕组排在前面，组内按「这一集的单集 → 含这一集的合集 → 说不准的合集 → 别的」排 */
   target?: EpisodeTarget
 }
 
 export function groupByFansub(items: SearchItem[], remembered: string | null, options: FansubGroupingOptions = {}): FansubGroup[] {
   const { wantedSeason, target } = options
   const byName = new Map<string, FansubGroup>()
-  const seen = new Map<string, SearchItem>()
+  // 键 → 在 deduped 里的位置（换成更好的那一条时原地替换，不改变先来后到）
+  const seen = new Map<string, number>()
   const deduped: SearchItem[] = []
   for (const item of items) {
     const key = releaseKey(item)
-    const existing = seen.get(key)
-    if (existing === undefined) {
-      seen.set(key, item)
+    const index = seen.get(key)
+    if (index === undefined) {
+      seen.set(key, deduped.length)
       deduped.push(item)
-    } else if (typeof item.seeders === 'number' && typeof existing.seeders !== 'number') {
-      // 同一种子以带做种数的那条为准（排序靠它）；插件指明的文件下标不能在折叠时丢掉
-      deduped[deduped.indexOf(existing)] = { ...item, group: existing.group ?? item.group, fileIndex: item.fileIndex ?? existing.fileIndex }
-      seen.set(key, item)
+      continue
+    }
+    const existing = deduped[index]!
+    if (betterRelease(item, existing)) {
+      // 字幕组名与插件指明的文件下标不能在折叠时丢掉
+      deduped[index] = { ...item, group: existing.group ?? item.group, fileIndex: item.fileIndex ?? existing.fileIndex }
     }
   }
   for (const item of deduped) {
@@ -62,7 +81,9 @@ export function groupByFansub(items: SearchItem[], remembered: string | null, op
   for (const group of byName.values()) {
     group.items.sort((a, b) => rank(a) - rank(b) || Number(currentSeason(b)) - Number(currentSeason(a)) || Number(isBatchRelease(b)) - Number(isBatchRelease(a)) || seeders(b) - seeders(a) || (Date.parse(b.date ?? '') || 0) - (Date.parse(a.date ?? '') || 0))
   }
-  return [...byName.values()].sort((a, b) => Number(b.name === remembered) - Number(a.name === remembered) || b.items.length - a.items.length || a.name.localeCompare(b.name, 'zh'))
+  // 组按「最贴近这一集的那条」排：有这一集单集的组在只有说不准合集的组前面，都没有的排最后
+  const best = (group: FansubGroup) => rank(group.items[0]!)
+  return [...byName.values()].sort((a, b) => best(a) - best(b) || Number(b.name === remembered) - Number(a.name === remembered) || b.items.length - a.items.length || a.name.localeCompare(b.name, 'zh'))
 }
 
 export interface ReleaseResultsProps {
@@ -77,21 +98,22 @@ export interface ReleaseResultsProps {
   mediaId: number
   /** 目录作品的季数；说不准时缺省 */
   wantedSeason?: number
-  /** 选定的集；null 表示不按集筛（剧场版） */
+  /** 选定的集；null 表示不分集（剧场版） */
   target: EpisodeTarget | null
-  showAll: boolean
-  onShowAll: (showAll: boolean) => void
   onRetryPlugin: () => void
   onPlay: (item: SearchItem, button: HTMLButtonElement) => void
 }
 
 export function TorrentReleaseResults(props: ReleaseResultsProps) {
-  const { items, outcomes, sources, engineDown, pluginPending, pluginError, busy, mediaId, wantedSeason, target, showAll, onShowAll, onPlay } = props
+  const { items, outcomes, sources, engineDown, pluginPending, pluginError, busy, mediaId, wantedSeason, target, onPlay } = props
   const remembered = rememberedFansub(mediaId)
-  const filtering = target !== null && !showAll
-  const visible = filtering ? releasesForEpisode(items, target) : items
-  const groups = groupByFansub(visible, remembered, { ...(wantedSeason === undefined ? {} : { wantedSeason }), ...(filtering ? { target } : {}) })
+  // 照 animego 只排序、不隐藏：这一集的发布排在前面，别的集、别的季、特典照常列出
+  const groups = groupByFansub(items, remembered, { ...(wantedSeason === undefined ? {} : { wantedSeason }), ...(target === null ? {} : { target }) })
   const [chosen, setChosen] = useState<string | null>(null)
+  const first = groups[0]?.name ?? null
+  // 用户没点过时，默认字幕组在第一次有结果时就定下来：插件结果还在流入、排序会变，
+  // 面板不能在用户伸手点「播放」时换成别的字幕组
+  useEffect(() => { if (chosen === null && first !== null) setChosen(first) }, [chosen, first])
   const active = groups.find(group => group.name === chosen) ?? groups[0] ?? null
 
   // 本机规则和插件 BT 来源都没有时才算「没配源」；插件给了结果就照常展示
@@ -117,21 +139,20 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
     item.kind && item.kind !== 'main' && item.kind !== 'batch' ? item.kind.toUpperCase() : null,
     itemMeta(item),
   ].filter(Boolean).join(' · ')
-  const hit = (item: SearchItem) => target !== null && episodeFit(item, target) !== 'other'
-  const total = new Set(items.map(releaseKey)).size
-  const countLabel = `${groups.length} 个分类 · ${groups.reduce((n, group) => n + group.items.length, 0)} 个版本`
-  const heading = filtering ? `第 ${target.episode} 集的字幕组` : '字幕组'
-  // 文案随状态变，就不再标 aria-pressed（读屏会念成「只看第 2 集，已按下」）
-  const toggle = target === null ? null : <button type="button" className="btn btn--sm" onClick={() => onShowAll(!showAll)}>
-    {showAll ? `只看第 ${target.episode} 集` : `显示全部发布（${total} 个）`}
-  </button>
+  const hit = (item: SearchItem) => target !== null && matchesEpisode(item, target)
+  const total = groups.reduce((n, group) => n + group.items.length, 0)
+  const matched = target === null ? 0 : groups.reduce((n, group) => n + group.items.filter(hit).length, 0)
+  const countLabel = [`${groups.length} 个分类`, `${total} 个版本`, target === null ? null : `第 ${target.episode} 集 ${matched} 个`].filter(Boolean).join(' · ')
 
   return <section className="media-resource-results" aria-label="按字幕组浏览磁力资源">
-    <div className="media-play-selection"><h3>{heading}</h3><span className="result result--dim" role="status">{countLabel}{pluginPending ? ' · 插件来源仍在搜索…' : ''}</span>{toggle}</div>
+    <div className="media-play-selection"><h3>字幕组</h3><span className="result result--dim">{countLabel}{pluginPending ? ' · 插件来源仍在搜索…' : ''}</span></div>
+    {/* 流入时每条都会改动计数：读屏只在搜完时念一次 */}
+    <span className="visually-hidden" role="status">{pluginPending ? '插件来源仍在搜索' : countLabel}</span>
     {engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<a className="link" href="/settings#torrent">查看设置</a></p>}
     {trouble.length > 0 && <p className="result result--warn" role="status">{sourceTrouble(trouble)}</p>}
     {pluginError !== null && <p className="result result--warn" role="alert">插件来源搜索中断：{pluginError} <button type="button" className="link" onClick={props.onRetryPlugin}>重新搜索插件来源</button></p>}
-    {visible.length === 0 ? <EmptyReleases {...props} total={total} filtering={filtering} /> : <div className="media-fansub-browser">
+    {target !== null && total > 0 && matched === 0 && <p className="media-play-hint" role="status">{pluginPending ? `正在查找第 ${target.episode} 集的发布…` : `没有找到第 ${target.episode} 集的发布，下面列出全部 ${total} 个版本。`}</p>}
+    {total === 0 ? <EmptyReleases pluginPending={pluginPending} /> : <div className="media-fansub-browser">
       <div className="media-fansub-row" role="group" aria-label="选择字幕组">
         {groups.map(group => <button type="button" key={group.name} aria-pressed={active?.name === group.name}
           className={active?.name === group.name ? 'media-fansub-chip media-fansub-chip--active' : 'media-fansub-chip'}
@@ -143,8 +164,8 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
       {active && <div className="media-fansub-detail" role="group" aria-label={`${active.name} 的资源`}>
         <div className="media-fansub-heading"><h3>{active.name}</h3><span>{[...new Set(active.items.map(item => item.resolution).filter(Boolean))].join(' / ')}</span></div>
         <ul className="media-resource-list">
-          {active.items.slice(0, MAX_RESOURCE_RESULTS).map(item => <li key={releaseKey(item)} className={!filtering && hit(item) ? 'media-resource-hit' : undefined}>
-            <div><strong>{item.title}</strong><span>{rowLabel(item)}</span></div>
+          {active.items.slice(0, MAX_RESOURCE_RESULTS).map(item => <li key={releaseKey(item)} className={hit(item) ? 'media-resource-hit' : undefined}>
+            <div>{hit(item) && <span className="visually-hidden">第 {target?.episode} 集：</span>}<strong>{item.title}</strong><span>{rowLabel(item)}</span></div>
             {playButton(item, active.name, isBatchRelease(item) || item.episode == null ? '选择文件' : '播放')}
           </li>)}
         </ul>
@@ -154,12 +175,7 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
   </section>
 }
 
-function EmptyReleases({ pluginPending, target, total, filtering }: ReleaseResultsProps & { total: number; filtering: boolean }) {
-  if (filtering && target !== null) {
-    // 入口就是上方的「显示全部发布」：这里再放一个按钮，点完它自己消失，焦点会掉到页面上
-    const others = total > 0 ? `其余 ${total} 个版本可点上方「显示全部发布」查看。` : ''
-    return <p className="media-play-hint" role="status">{pluginPending ? `正在查找第 ${target.episode} 集的发布…` : `没有找到第 ${target.episode} 集的发布。${others}`}</p>
-  }
+function EmptyReleases({ pluginPending }: { pluginPending: boolean }) {
   return <p className="media-play-hint" role="status">{pluginPending ? '本机规则没有结果，插件来源仍在搜索…' : '没有找到发布版本。可以修改作品名称后重试。'}</p>
 }
 

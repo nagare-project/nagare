@@ -114,7 +114,7 @@ describe('作品页磁力：先选集数，再按字幕组挑这一集的发布'
     await unmount()
   })
 
-  it('只列这一集的单集与含这一集的合集；别的集、别的季、特典收在「显示全部发布」里', async () => {
+  it('照 animego 只排序不隐藏：有这一集的字幕组在前，组内这一集的单集与合集在前，别的集、别的季、特典照常列出', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [
       release(1, 'A组', 2, { seeders: 3 }), release(2, 'A组', 1, { seeders: 50 }), batch(3, 'A组', 1, 12),
       batch(4, 'B组', 13, 24), release(5, 'B组', 2, { season: 2 }), release(6, 'C组', 2, { kind: 'sp' }),
@@ -123,26 +123,39 @@ describe('作品页磁力：先选集数，再按字幕组挑这一集的发布'
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
     await search(container)
     const groupNames = () => [...container.querySelectorAll('.media-fansub-chip strong')].map(node => node.textContent)
-    expect(groupNames()).toEqual(['A组', 'D组'])
-    expect(rows(container).map(row => row.querySelector('strong')?.textContent)).toEqual(['[A组] 测试动画 2', '[A组] 测试动画 [1-12]'])
-    expect(rows(container)[1]?.textContent).toContain('合集 第 1–12 集')
-
-    await act(async () => button(container, '显示全部发布')!.click())
+    expect(groupNames().slice(0, 2)).toEqual(['A组', 'D组'])
     expect(groupNames()).toEqual(expect.arrayContaining(['A组', 'B组', 'C组', 'D组']))
-    expect(rows(container)).toHaveLength(3)
+    expect(rows(container).map(row => row.querySelector('strong')?.textContent)).toEqual(['[A组] 测试动画 2', '[A组] 测试动画 [1-12]', '[A组] 测试动画 1'])
+    expect(rows(container)[1]?.textContent).toContain('合集 第 1–12 集')
     expect(container.querySelectorAll('.media-resource-hit')).toHaveLength(2)
-    await act(async () => button(container, '只看第 2 集')!.click())
-    expect(groupNames()).toEqual(['A组', 'D组'])
+    expect(button(container, '显示全部发布')).toBeUndefined()
+    expect(container.querySelector('.media-resource-results')?.textContent).toContain('7 个版本')
     await unmount()
   })
 
-  it('这一集没有发布时说清楚，并给出显示全部的入口', async () => {
+  it('这一集没有发布时说清楚，其余发布照常列出', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [release(1, 'A组', 1)] })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
     await search(container)
     expect(container.querySelector('.media-resource-results')?.textContent).toContain('没有找到第 2 集的发布')
-    await act(async () => button(container, '显示全部发布（1 个）')!.click())
     expect(rows(container)).toHaveLength(1)
+    await unmount()
+  })
+
+  it('插件按作品搜（scope=all）：换集只重新排序，不再问插件', async () => {
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [] })
+    vi.mocked(streamPluginMagnets).mockImplementation(async (_q, _c, onEvent) => {
+      onEvent({ event: 'scope', scope: 'all' })
+      onEvent({ event: 'item', item: release(1, 'A组', 2, { source: 'plugin:garden' }) })
+      onEvent({ event: 'item', item: release(2, 'A组', 3, { source: 'plugin:garden' }) })
+      onEvent({ event: 'done' })
+    })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    expect(rows(container)[0]?.querySelector('strong')?.textContent).toBe('[A组] 测试动画 2')
+    await act(async () => chip(container, 3).click())
+    expect(streamPluginMagnets).toHaveBeenCalledOnce()
+    expect(rows(container).map(row => row.querySelector('strong')?.textContent)).toEqual(['[A组] 测试动画 3', '[A组] 测试动画 2'])
     await unmount()
   })
 
@@ -286,6 +299,79 @@ describe('按字幕组浏览磁力版本', () => {
     await act(async () => rows(container)[0]!.querySelector('button')!.click())
     expect(shared.play.mock.calls[0]?.[0].episodeHint).toBe(2)
     expect(localStorage.getItem('nagare:fansub:7')).toBe('A组')
+    await unmount()
+  })
+
+  it('插件按作品搜还在流入时换集：不打断、不重问，后到的发布照样收进来', async () => {
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [] })
+    let emit: Parameters<typeof streamPluginMagnets>[2] | undefined
+    let signal: AbortSignal | undefined
+    let finish: (() => void) | undefined
+    vi.mocked(streamPluginMagnets).mockImplementation(async (_q, _c, onEvent, abort) => {
+      emit = onEvent
+      signal = abort
+      await new Promise<void>(resolve => { finish = resolve })
+    })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    await act(async () => { emit!({ event: 'scope', scope: 'all' }); emit!({ event: 'item', item: release(1, 'A组', 2) }) })
+    await act(async () => chip(container, 3).click())
+    await act(async () => emit!({ event: 'item', item: release(2, 'A组', 3) }))
+    expect(streamPluginMagnets).toHaveBeenCalledOnce()
+    expect(signal?.aborted).toBe(false)
+    expect(rows(container).map(row => row.querySelector('strong')?.textContent)).toEqual(['[A组] 测试动画 3', '[A组] 测试动画 2'])
+    await act(async () => { emit!({ event: 'done' }); finish!() })
+    await unmount()
+  })
+
+  it('插件按作品搜完却一条都没有：换集时重问一次；老插件（scope=episode）每次换集都重问', async () => {
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [] })
+    vi.mocked(streamPluginMagnets).mockImplementation(async (_q, context, onEvent) => {
+      onEvent({ event: 'scope', scope: context.episode === 2 ? 'all' : 'episode' })
+      onEvent({ event: 'done' })
+    })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    await act(async () => chip(container, 3).click())
+    await act(async () => chip(container, 1).click())
+    expect(vi.mocked(streamPluginMagnets).mock.calls.map(call => call[1].episode)).toEqual([2, 3, 1])
+    await unmount()
+  })
+
+  it('有这一集的字幕组排在只有别的集的大组前面', async () => {
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [
+      release(1, '大组', 1), release(2, '大组', 3), release(3, '大组', 4), release(4, '小组', 2),
+    ] })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    expect([...container.querySelectorAll('.media-fansub-chip strong')].map(node => node.textContent)).toEqual(['小组', '大组'])
+    await unmount()
+  })
+
+  it('跨来源去重的优先级：做种多的胜过高优先级来源；连着换两次也只剩一条', async () => {
+    const base = release(1, 'A组', 2)
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [
+      { ...base, source: 'plugin:garden', seeders: 3 }, { ...base, source: 'plugin:mikan', seeders: 9 },
+      { ...release(2, 'B组', 2), source: 'plugin:nyaa' }, { ...release(2, 'B组', 2), source: 'plugin:garden' }, { ...release(2, 'B组', 2), source: 'plugin:tosho' },
+    ] })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="字幕组 A组"]')!.click())
+    expect(rows(container)).toHaveLength(1)
+    expect(rows(container)[0]?.textContent).toContain('插件 · mikan')
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="字幕组 B组"]')!.click())
+    expect(rows(container)).toHaveLength(1)
+    expect(rows(container)[0]?.textContent).toContain('插件 · tosho')
+    await unmount()
+  })
+
+  it('同一种子跨来源去重：做种数相同时按 animego 的来源优先级保留（花园在 nyaa 之前）', async () => {
+    const first = release(1, 'A组', 2, { source: 'plugin:nyaa' })
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [first, { ...first, source: 'plugin:garden' }, { ...first, source: 'plugin:mikan' }] })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    await search(container)
+    expect(rows(container)).toHaveLength(1)
+    expect(rows(container)[0]?.textContent).toContain('插件 · garden')
     await unmount()
   })
 

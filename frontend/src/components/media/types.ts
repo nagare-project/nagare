@@ -20,6 +20,8 @@ export interface MediaSummary {
   title: string
   /** 原文标题，副标题位展示 */
   titleNative?: string
+  /** 罗马音标题：不展示，只给磁力搜索（nyaa 与不少字幕组只用罗马音登记发布） */
+  titleRomaji?: string
   titleEnglish?: string
   /** 同源图片地址，沿用本机封面缓存或本地静态资源。 */
   cover?: string

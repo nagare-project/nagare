@@ -594,8 +594,12 @@ function magnetContextParams(context: MagnetSearchContext | MagnetTitleOptions):
   return params
 }
 
-/** GET /api/search/plugin 的 NDJSON 事件：条目 / 来源结果 / 结束 */
+/**
+ * GET /api/search/plugin 的 NDJSON 事件：范围 / 条目 / 来源结果 / 结束。
+ * 首行 scope：all 表示插件按作品搜回了整部作品的全部发布（换集不必重问），episode 表示只含请求那一集。
+ */
 export type PluginSearchEvent =
+  | { event: 'scope'; scope: 'all' | 'episode' }
   | { event: 'item'; item: SearchItem }
   | { event: 'outcome'; outcome: SourceOutcome }
   | { event: 'done' }
@@ -622,7 +626,8 @@ export async function streamPluginMagnets(
     if (line.trim() === '') return
     const parsed: unknown = JSON.parse(line)
     if (!isRecord(parsed) || typeof parsed.event !== 'string') throw new ApiError('插件搜索返回了无效事件', response.status)
-    if (parsed.event === 'item' && isRecord(parsed.item)) onEvent({ event: 'item', item: parsed.item as unknown as SearchItem })
+    if (parsed.event === 'scope' && (parsed.scope === 'all' || parsed.scope === 'episode')) onEvent({ event: 'scope', scope: parsed.scope })
+    else if (parsed.event === 'item' && isRecord(parsed.item)) onEvent({ event: 'item', item: parsed.item as unknown as SearchItem })
     else if (parsed.event === 'item' && isRecord(parsed.outcome)) onEvent({ event: 'outcome', outcome: parsed.outcome as unknown as SourceOutcome })
     else if (parsed.event === 'done') onEvent({ event: 'done' })
   }
@@ -1062,7 +1067,7 @@ export function updateTorrentConfig(patch: TorrentConfigPatch): Promise<TorrentC
 // ---------- 目录 · 收藏 · 放送（M6） ----------
 /** API 数据通过 lib/media.ts 适配，组件继续持有自己的契约。 */
 export interface SummaryMediaData {
-  anilistId: number; title: string; titleNative?: string; titleEnglish?: string
+  anilistId: number; title: string; titleNative?: string; titleRomaji?: string; titleEnglish?: string
   cover?: string; banner?: string; trailerId?: string; year?: number; season?: string
   episodes: number | null; score?: number; genres: string[]; description?: string
   status?: string; format?: string; duration?: number; source?: string; startDate?: string; studios?: string[]

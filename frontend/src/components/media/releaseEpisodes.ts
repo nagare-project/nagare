@@ -136,14 +136,14 @@ export function episodeFit(item: SearchItem, target: EpisodeTarget): EpisodeFit 
 
 const FIT_RANK: Record<EpisodeFit, number> = { exact: 0, offset: 0, batch: 1, 'batch-unknown': 2, other: 3 }
 
-/** 排序用：单集在前，写明含这一集的合集其次，说不准的合集最后 */
+/** 排序用：单集在前，写明含这一集的合集其次，说不准的合集再次，别的集最后 */
 export function fitRank(fit: EpisodeFit): number {
   return FIT_RANK[fit]
 }
 
-/** 这一集的发布（含可能含它的合集）；别的集、别的季、特典留给「显示全部发布」。 */
-export function releasesForEpisode(items: SearchItem[], target: EpisodeTarget): SearchItem[] {
-  return items.filter(item => episodeFit(item, target) !== 'other')
+/** 这条发布算不算选定的这一集（含可能含它的合集）：排在前面并高亮，别的照常列出 */
+export function matchesEpisode(item: SearchItem, target: EpisodeTarget): boolean {
+  return episodeFit(item, target) !== 'other'
 }
 
 /**
@@ -199,10 +199,10 @@ function chineseNumber(raw: string): number | undefined {
 }
 
 /** 作品身份：只在本机校验弹幕匹配没有认成别的作品（磁力不会发给 animego）。 */
-export function catalogIdentity(media: Pick<MediaSummary, 'id' | 'title' | 'titleNative' | 'titleEnglish'>): Pick<TorrentPlayRequest, 'anilistId' | 'titles'> {
+export function catalogIdentity(media: Pick<MediaSummary, 'id' | 'title' | 'titleRomaji' | 'titleNative' | 'titleEnglish'>): Pick<TorrentPlayRequest, 'anilistId' | 'titles'> {
   const seen = new Set<string>()
   const titles: string[] = []
-  for (const raw of [media.title, media.titleNative, media.titleEnglish]) {
+  for (const raw of [media.title, media.titleRomaji, media.titleNative, media.titleEnglish]) {
     const title = raw?.trim()
     if (!title || seen.has(title.toLowerCase())) continue
     seen.add(title.toLowerCase())
