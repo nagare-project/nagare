@@ -60,7 +60,8 @@ func (s *Source) Hash16M(ctx context.Context) (string, error) {
 		return "", errs.New(errs.CategoryTorrent, "torrentstream.hash",
 			"播放会话已结束，无法计算弹幕匹配哈希", "弹幕会退回按文件名匹配")
 	}
-	reader, err := target.open(ctx, 0)
+	// 只读头部：窗口与预读都止于 16MB（见 streamTarget.openHead）。
+	reader, err := target.openHead(ctx, library.Hash16MBytes)
 	if err != nil {
 		return "", errs.Wrap(errs.CategoryTorrent, "torrentstream.hash",
 			"无法读取头部数据", "弹幕会退回按文件名匹配", err)
