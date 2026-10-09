@@ -5,6 +5,7 @@ type SummaryMedia struct {
 	AnilistID       int                `json:"anilistId"`
 	Title           string             `json:"title"`
 	TitleNative     string             `json:"titleNative,omitempty"`
+	TitleRomaji     string             `json:"titleRomaji,omitempty"` // 只给磁力搜索：nyaa 与不少字幕组只用罗马音登记发布
 	TitleEnglish    string             `json:"titleEnglish,omitempty"`
 	Cover           string             `json:"cover,omitempty"`
 	Banner          string             `json:"banner,omitempty"`

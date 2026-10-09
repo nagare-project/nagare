@@ -95,6 +95,8 @@ func TestProjectionSanitizesAndFallsBack(t *testing.T) {
 	v := s.summaries(rows)
 	require.Len(t, v, 3)
 	require.Equal(t, "中文", v[0].Title)
+	// 罗马音单独留着：nyaa 与不少字幕组只用罗马音登记发布，磁力搜索要拿它再搜一遍
+	require.Equal(t, "R", v[0].TitleRomaji)
 	require.Equal(t, "A & B", v[0].Description)
 	require.Equal(t, "abcdefghijk", v[0].TrailerID)
 	require.Equal(t, "R", v[1].Title)
