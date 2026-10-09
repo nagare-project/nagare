@@ -378,7 +378,12 @@ func TestSingleEpisodeEndToEnd(t *testing.T) {
 		// 「本地文件和磁力两条来源共用同一份哈希实现」（决议 CQ2）。
 		want, err := library.Hash16M(filepath.Join(seedDir, fileName))
 		require.NoError(t, err)
-		got, err := res.Source.Hash16M(ctx)
+		// 自己的期限，不与准备共用 prepareCtx：门槛只等 8MB 之后，头部余下的 8MB 在这里才下，
+		// 单个做种方的连接偶尔会卡到 60 秒保活才恢复（上游 anacrolix 的写入唤醒竞态），
+		// 准备阶段已经用掉一截的共用期限撑不过这一次
+		hashCtx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+		defer cancel()
+		got, err := res.Source.Hash16M(hashCtx)
 		require.NoError(t, err)
 		assert.Equal(t, want, got)
 	})
