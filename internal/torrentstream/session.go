@@ -98,8 +98,11 @@ type session struct {
 	upRate    int64
 	peers     int
 	seeders   int
-	buffered  float64
-	progress  float64
+	// buffered 是给界面看的起播缓冲进度（计入未完成分片里已到手的块）；
+	// gateOpen 才是真正放行 mpv 的判定（整片到齐），两者分开见 gateProgress。
+	buffered float64
+	gateOpen bool
+	progress float64
 }
 
 // Prepare 准备一次播放。同一时刻只有一个会话，开新的之前先停掉旧的。
@@ -305,17 +308,44 @@ func (s *session) run(ctx context.Context, req PrepareRequest) (PrepareResult, e
 	}
 	s.setPhase(PhaseBuffering)
 	bufferStarted := time.Now()
+	readBefore := usefulBytesRead(tor)
 	if err := s.waitBuffered(ctx); err != nil {
 		return PrepareResult{}, err
 	}
+	s.openGate()
 	s.setPhase(PhaseReady)
-	elapsed := time.Since(bufferStarted)
-	peers, seeders := s.snapshotPeers()
-	log.Printf("torrent: 起播缓冲 %s 到齐，耗时 %s（平均 %s/s，peers=%d seeders=%d），交给 mpv",
-		formatBytes(min64(bufferStartBytes, s.file.Length())), elapsed.Round(100*time.Millisecond),
-		formatBytes(int64(float64(min64(bufferStartBytes, s.file.Length()))/max(elapsed.Seconds(), 0.1))),
-		peers, seeders)
+	s.logBuffered(tor, time.Since(bufferStarted), usefulBytesRead(tor)-readBefore)
 	return PrepareResult{Source: s.newSource()}, nil
+}
+
+// usefulBytesRead 是这个种子迄今收到的有效数据字节（不含重复与作废的块）。
+// t.Stats() 会拿 client 锁，不能在持有 s.mu 时调用。
+func usefulBytesRead(tor *torrent.Torrent) int64 {
+	stats := tor.Stats()
+	return stats.BytesReadUsefulData.Int64()
+}
+
+// logBuffered 记一笔起播缓冲的耗时。
+//
+// 除了门槛大小，还记这段时间实际收到多少字节、分片多大：门槛按整片判定，16MB 分片下
+// 「8MB 门槛」实际要下满第一片；收到的远多于门槛，说明带宽被门槛之外的分片分走了。
+// 这两个数正是判断「起播慢是种子慢，还是优先级排错了」的依据。
+func (s *session) logBuffered(tor *torrent.Torrent, elapsed time.Duration, received int64) {
+	gate := int64(bufferStartBytes)
+	s.mu.Lock()
+	if s.file != nil { // 会话可能刚被并发 Stop 掉
+		gate = min(gate, s.file.Length())
+	}
+	s.mu.Unlock()
+	pieceLen := int64(0)
+	if info := tor.Info(); info != nil {
+		pieceLen = info.PieceLength
+	}
+	peers, seeders := s.snapshotPeers()
+	log.Printf("torrent: 起播缓冲 %s 到齐，耗时 %s（期间收到 %s，平均 %s/s；分片 %s；peers=%d seeders=%d），交给 mpv",
+		formatBytes(gate), elapsed.Round(100*time.Millisecond),
+		formatBytes(received), formatBytes(int64(float64(received)/max(elapsed.Seconds(), 0.1))),
+		formatBytes(pieceLen), peers, seeders)
 }
 
 // snapshotPeers 取最近一次 refresh 记下的 peer / seeder 数。
@@ -441,9 +471,8 @@ func (s *session) startFile(tor *torrent.Torrent, sel selection) error {
 		// 复刻默认处理剩下的那一半：别对着写不进去的磁盘反复重试。
 		tor.DisallowDataDownload()
 	})
-	// 只下要播的这一集：其余文件保持 PiecePriorityNone。
-	file.Download()
 
+	// 缓冲期只有门槛可请求，文件其余部分先保持 None，等门槛放行再打开（见 openGate）。
 	pm := newPriorityManager(windowInput{
 		pieceLength: info.PieceLength,
 		fileOffset:  file.Offset(),
@@ -460,21 +489,55 @@ func (s *session) startFile(tor *torrent.Torrent, sel selection) error {
 	return nil
 }
 
+// openGate 在起播门槛放行后把这一集的其余部分放开下载。
+//
+// 缓冲期间之所以只有门槛可请求：anacrolix 给每个 peer 一批请求，【整批】收完才排下一批
+// （requesting.go 只在 isLowOnRequests 时更新），新的一批按档位从高到低填满。门槛的块
+// 派完之后，空出的名额会被任何可请求的低档块填上 —— 于是持有门槛最后几块的那一批里
+// 混着一堆低档请求：按随机顺序出货的对端（anacrolix 系的做种方就是这样，peerconn.go
+// 从 map 里取请求）要把整批发完门槛才凑齐；按顺序出货的对端也受害 —— 快的 peer 得先
+// 收完自己那批低档块，才会重排请求、去抢慢 peer 手上卡住的门槛块。按
+// startup_integration_test.go 的设置（4 个做种方各限速 1MB/s）实测：改动前 3.7–4.5 秒，
+// 缓冲期门槛 + 尾部可请求 2.7 秒，只有门槛 1.8 秒 —— 正好是 8MB 除以总速率。
+// 尾部虽是放行后第一次 seek / 续播要用的，也放到放行时才钉。
+//
+// 顺序同样要紧：先钉尾部与门槛之后的头部、再把整个文件设为 Normal。file.Download()
+// 会立刻唤醒所有手上没有请求的 peer 去排请求（torrent.go updatePeerRequestsForPiece），
+// 那一刻要是它们还没钉上，这批请求就按稀有度散落在整个文件里。
+func (s *session) openGate() {
+	s.mu.Lock()
+	pm, file := s.pm, s.file
+	s.mu.Unlock()
+	if pm == nil || file == nil {
+		return // 会话刚被并发 Stop 掉
+	}
+	pm.openGate()
+	// 只下要播的这一集：其余文件保持 PiecePriorityNone。
+	file.Download()
+}
+
 // waitBuffered 等起播缓冲到齐。
 func (s *session) waitBuffered(ctx context.Context) error {
 	timeout := time.NewTimer(bufferTimeout)
 	defer timeout.Stop()
-	tick := time.NewTicker(statusPollInterval)
+	tick := time.NewTicker(gatePollInterval)
 	defer tick.Stop()
 	// 只轮询、不订阅 SubscribePieceStateChanges：那个订阅必须持续消费，
 	// 一旦这里因超时或取消提前返回而没排干，就会顶住 client 的发布路径。
-	// 250ms 的轮询对「够不够起播」这个判断绰绰有余。
+	// 门槛按 gatePollInterval 查（门槛一齐就放行，swarm 不空等）；完整的状态刷新
+	// （速度、peer 数、整集进度）仍按 statusPollInterval，界面按秒轮询，不必更勤。
+	lastFull := time.Time{}
 	for {
-		s.refresh()
+		if now := time.Now(); now.Sub(lastFull) >= statusPollInterval {
+			s.refresh()
+			lastFull = now
+		} else {
+			s.refreshGate()
+		}
 		if err := s.storageFailure(); err != nil {
 			return err
 		}
-		if s.bufferedFraction() >= 1 {
+		if s.gateReady() {
 			return nil
 		}
 		select {

@@ -3,11 +3,17 @@ import { act, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../test/harness'
 import { EntryPage } from './EntryPage'
+import { fetchLibrary } from '../lib/endpoints'
+import type { LibraryCluster } from '../lib/endpoints'
 
 const route = vi.hoisted(() => ({ id: 169580 }))
-vi.mock('@tanstack/react-router', () => ({ useSearch: () => route }))
+vi.mock('@tanstack/react-router', () => ({ useSearch: () => route, useRouter: () => null }))
+vi.mock('../lib/endpoints', () => ({ fetchLibrary: vi.fn() }))
 vi.mock('../components/media/useEpisodeMetadata', () => ({ useEpisodeMetadata: () => ({ episodes: [], retry: vi.fn() }) }))
-vi.mock('../components/media/useMediaDetails', () => ({ useMediaDetails: (id: number) => ({ media: { id, title: `作品 ${id}`, episodes: 12, watched: 0, genres: [], format: 'TV' } }) }))
+const OFFLINE = 404
+vi.mock('../components/media/useMediaDetails', () => ({ useMediaDetails: (id: number) => id === OFFLINE
+  ? { error: '读取作品详情失败', retry: vi.fn() }
+  : { media: { id, title: `作品 ${id}`, episodes: 12, watched: 0, genres: [], format: 'TV' } } }))
 vi.mock('../components/media/MediaDetails', () => ({ MediaDetails: ({ media, children }: any) => <><h1>{media.title}</h1>{children}</>, MediaExternalLinks: () => null, MediaRelations: () => null }))
 vi.mock('../components/media/MediaPreview', () => ({ TrailerPreview: () => null }))
 vi.mock('../components/media/MediaPlayButton', () => ({ MediaPlayButton: () => <p>本地选集</p> }))
@@ -39,6 +45,18 @@ describe('作品详情来源导航', () => {
     expect(tabs()[0]?.getAttribute('aria-selected')).toBe('true')
     expect(container.querySelector('input')).toBeNull()
     expect(document.title).toBe('作品 2 · nagare')
+    await unmount()
+  })
+
+  it('作品详情读不出来（离线）时，给出媒体库里这部作品的本地文件列表', async () => {
+    const local: LibraryCluster = { clusterKey: 'k1', title: '本地文件夹', season: null, confidence: 0.9, episodeCount: 3, groups: [], matched: { anilistId: OFFLINE } }
+    const other: LibraryCluster = { ...local, clusterKey: 'k2', title: '别的番', matched: { anilistId: 1 } }
+    vi.mocked(fetchLibrary).mockResolvedValue({ folders: [], clusters: [local, other], continueWatching: [], scannedAt: 1 })
+    route.id = OFFLINE
+    const { container, unmount } = await mount(<EntryPage />)
+    expect(container.querySelector('[role=alert]')?.textContent).toContain('读取作品详情失败')
+    const links = [...container.querySelectorAll('a')].filter(a => a.getAttribute('href')?.startsWith('/anime/'))
+    expect(links.map(a => a.getAttribute('href'))).toEqual(['/anime/k1'])
     await unmount()
   })
 })

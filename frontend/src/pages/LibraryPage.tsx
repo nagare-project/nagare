@@ -10,6 +10,7 @@ import { NowPlayingBar } from '../components/library/NowPlayingBar'
 import { ScanDrops } from '../components/library/ScanDrops'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
+import { useAutoRescan } from '../hooks/useAutoRescan'
 import { usePlayerStatus } from '../hooks/usePlayerStatus'
 import { useSettings } from '../hooks/useSettings'
 import { pausePlayer, playFile, stopPlayer } from '../lib/endpoints'
@@ -36,7 +37,8 @@ const INSTALL_MPV_LINK = { to: '/settings', label: '去设置安装 mpv →' } a
  * 这里只负责把 401 转成「走启动链接重新进入」的提示。
  */
 export function LibraryPage() {
-  const library = useLibrary()
+  // 只有媒体库页显示识别进度：识别期间定时刷新，封面一张张出来
+  const library = useLibrary({ watchIdentify: true })
   const settings = useSettings()
   const player = usePlayerStatus()
 
@@ -44,6 +46,12 @@ export function LibraryPage() {
   const [pendingFileId, setPendingFileId] = useState<string | null>(null)
   const [rescanBusy, setRescanBusy] = useState(false)
   const [playerBusy, setPlayerBusy] = useState(false)
+
+  // 回到这一页时距上次扫描已久就静默重扫（新下载的集自动出现）；失败才说话
+  useAutoRescan(library.state, library.rescan, (err) => {
+    console.error('自动重新扫描失败', err)
+    setNotice({ tone: 'err', text: errorText(err, '自动重新扫描失败') })
+  })
 
   async function handlePlay(fileId: string): Promise<void> {
     if (pendingFileId !== null) return
@@ -106,7 +114,8 @@ export function LibraryPage() {
     setNotice({ tone: 'dim', text: '正在重新扫描 …' })
     try {
       const stats = await library.rescan()
-      setNotice({ tone: 'ok', text: `扫描完成 · ${stats.videos} 个视频 / ${stats.clusters} 部作品` })
+      // 不报分组数：海报墙按作品归组之后，后端的分组数与海报数对不上，只会让人困惑
+      setNotice({ tone: 'ok', text: `扫描完成 · ${stats.videos} 个视频` })
     } catch (err) {
       console.error('重新扫描失败', err)
       setNotice({ tone: 'err', text: errorText(err, '重新扫描失败') })
@@ -165,6 +174,8 @@ export function LibraryPage() {
         )}
       </p>
 
+      <IdentifyLine state={library.state} />
+
       {/* 有内容时挂在这里；一部作品都没有时改由空态摊开（见 LibraryBody），
           否则同一条信息会在一屏里出现两次 */}
       {library.state.phase === 'ready' && library.state.data.clusters.length > 0 && (
@@ -191,6 +202,25 @@ export function LibraryPage() {
         />
       )}
     </main>
+  )
+}
+
+/**
+ * 后台识别作品的进度。单独一行、不放进状态行的 live region：进度每几秒变一次，
+ * 放进去读屏会一条条念；也不该被「扫描完成」这类一次性消息挤掉。
+ */
+function IdentifyLine({ state }: { state: LibraryState }) {
+  const identify = state.phase === 'ready' ? state.data.identify : undefined
+  if (identify === undefined) return null
+  const text = identify.running
+    ? identify.total > 0
+      ? `正在识别作品 ${identify.done}/${identify.total}：认出来的会显示封面和作品名，同一部番的多个版本归到一起`
+      : '正在识别作品…'
+    : `作品识别暂停：${identify.error ?? ''}`
+  return (
+    <p className="result result--dim lib-status lib-identify" style={mono}>
+      {text}
+    </p>
   )
 }
 

@@ -1,4 +1,5 @@
 import type { LibraryCluster, LibraryData } from '../../lib/endpoints'
+import { seasonConflict } from '../../lib/librarySeries'
 
 /**
  * 目录作品页（/entry）上的「本地媒体库」该显示哪个本地作品分组。
@@ -29,11 +30,14 @@ export function forgetLegacyChoice(anilistId: number): void {
 }
 
 export interface LocalResolution {
-  /** 自动选中的本地作品分组 */
-  selected?: LibraryCluster
-  /** 依据：manual 后端认定；legacy 本机旧记录（要迁到后端）；matched 自动匹配（用户没确认过） */
+  /**
+   * 自动选中的本地作品分组。同一部作品的多个版本（不同字幕组、不同文件夹）一起选中，
+   * 剧集按集号合并显示（见 lib/librarySeries.ts 的 mergeSeries）；空数组表示没有可代选的。
+   */
+  selected: LibraryCluster[]
+  /** 依据：manual 全部是后端认定的；legacy 本机旧记录（要迁到后端）；matched 含自动匹配的（用户没确认过） */
   via?: 'manual' | 'legacy' | 'matched'
-  /** 认定为这部作品的全部本地分组（不止一个时让用户挑） */
+  /** 认定为这部作品的全部本地分组 */
   associated: LibraryCluster[]
   /** 本机旧记录指向的分组已经不在媒体库里（盘没插、文件删了） */
   legacyMissing: boolean
@@ -49,17 +53,22 @@ export function isAssociatedWith(cluster: LibraryCluster, anilistId: number): bo
 export function resolveLocalCluster(data: LibraryData, anilistId: number, legacy: string | null): LocalResolution {
   const associated = data.clusters.filter((c) => isAssociatedWith(c, anilistId))
   const legacyCluster = legacy === null ? undefined : data.clusters.find((c) => c.clusterKey === legacy)
+  // 自动认出是这部作品、用户还没认定过的分组（扫描后的后台识别会给每个分组认一部）。
+  // 季数和认定过的（或第一个认出的）版本对不上的不代选：多半是认错了季，并进来就成了「同一集的另一个版本」
+  const autoMatched = data.clusters.filter((c) => c.association === undefined && c.matched?.anilistId === anilistId)
+  const base = associated[0] ?? autoMatched[0]
+  const matched = autoMatched.filter((c) => base === undefined || !seasonConflict(base, c))
   const result: LocalResolution = {
+    selected: [],
     associated,
     legacyMissing: legacy !== null && legacyCluster === undefined && associated.length === 0,
     // 作品已经有了后端认定时，旧记录不再采用：否则那个认定哪天被撤掉，一条早就作废的选择会悄悄复活
     dropLegacy: legacy !== null && (legacyCluster?.association !== undefined || associated.length > 0),
   }
-  if (associated.length === 1) return { ...result, selected: associated[0], via: 'manual' }
-  if (associated.length > 1) return result
-  if (legacyCluster && legacyCluster.association === undefined) return { ...result, selected: legacyCluster, via: 'legacy' }
-  // 自动匹配只在恰好一个分组时代选，并且不算用户确认过（不自动播放、不自动认定）
-  const matched = data.clusters.filter((c) => c.association === undefined && c.matched?.anilistId === anilistId)
-  if (matched.length === 1) return { ...result, selected: matched[0], via: 'matched' }
+  // 认定过的与自动认出的一起选中、合并显示：同一部番的几个版本本来就该在一张剧集表里。
+  // 自动认出的不算用户确认过（不自动播放；播放哪一集就认定那一集所在的分组）
+  if (associated.length > 0) return { ...result, selected: [...associated, ...matched], via: matched.length > 0 ? 'matched' : 'manual' }
+  if (legacyCluster && legacyCluster.association === undefined) return { ...result, selected: [legacyCluster], via: 'legacy' }
+  if (matched.length > 0) return { ...result, selected: matched, via: 'matched' }
   return result
 }

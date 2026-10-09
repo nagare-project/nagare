@@ -71,13 +71,15 @@ const cliUpdateTimeout = 15 * time.Minute
 
 // services 是主进程持有的全部业务对象。
 type services struct {
-	lists   *animego.Client
-	store   *store.Store
-	mpv     *mpv.Runtime
-	auth    api.AnimegoAuth
-	player  *player.Manager
-	lib     *api.LibraryService
-	sources *api.SourcesService
+	lists  *animego.Client
+	store  *store.Store
+	mpv    *mpv.Runtime
+	auth   api.AnimegoAuth
+	player *player.Manager
+	lib    *api.LibraryService
+	// identify 在后台给媒体库里还没认出作品的分组补上作品与封面（随 run 的 ctx 起停）。
+	identify *api.Identifier
+	sources  *api.SourcesService
 	// sourcePlugin 始终存在；未配置时保持 disabled，不启动任何子进程。
 	sourcePlugin *api.SourcePluginService
 	// torrent 为 nil 表示磁力引擎启动失败：其余功能照常，磁力端点整体返回 503，
@@ -401,6 +403,9 @@ func buildServices(configDir string) (*services, error) {
 		su.SweepOldFiles() // 清掉上次更新留下的 .old 残留
 	}
 
+	// 作品识别要在第一次扫描之前接上：扫描完成就 kick 一次，Run 起来之后接着处理
+	identify := api.NewIdentifier(lib, st, client)
+	lib.SetIdentify(identify.Kick, identify.Status)
 	if stats := lib.Rescan(); stats.Videos > 0 {
 		log.Printf("媒体库就绪：%d 个视频，%d 个剧集簇", stats.Videos, stats.Clusters)
 	}
@@ -434,7 +439,7 @@ func buildServices(configDir string) (*services, error) {
 	}
 
 	return &services{
-		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, sources: sources, sourcePlugin: pluginService,
+		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, identify: identify, sources: sources, sourcePlugin: pluginService,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
 		selfUpdate: su, episodeSpaces: spaces,
 	}, nil
@@ -511,6 +516,8 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	if updater != nil {
 		updater.Start(ctx)
 	}
+	// 作品识别同理：只读文件头、发匹配请求，退出时不必等它（结果按文件逐个落盘）
+	go svc.identify.Run(ctx)
 
 	go watchSignals(ctx, cancel)
 	serveErr := make(chan error, 1)

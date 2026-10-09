@@ -85,6 +85,19 @@ func deterministicBytes(n int, seed uint64) []byte {
 // （此时只接受一个文件）。返回的 data 以【种子内路径】为键，供逐字节比对。
 func buildTestTorrent(t *testing.T, dir, root string, files ...testFile) (magnet string, mi *metainfo.MetaInfo, data map[string][]byte) {
 	t.Helper()
+	return buildTorrentFiles(t, dir, root, testPieceLength, files...)
+}
+
+// buildTestTorrentWithPieceLength 造一份指定分片大小的单文件种子：大分片（合集常见
+// 8–16MB）下的行为要单独测，256KB 的默认值看不出「整片判定」带来的差别。
+func buildTestTorrentWithPieceLength(t *testing.T, dir string, pieceLen int64, file testFile) (magnet string, mi *metainfo.MetaInfo, data map[string][]byte) {
+	t.Helper()
+	return buildTorrentFiles(t, dir, "", pieceLen, file)
+}
+
+// buildTorrentFiles 是上面两个的共同实现。
+func buildTorrentFiles(t *testing.T, dir, root string, pieceLen int64, files ...testFile) (magnet string, mi *metainfo.MetaInfo, data map[string][]byte) {
+	t.Helper()
 	require.NotEmpty(t, files)
 	if root == "" {
 		require.Len(t, files, 1, "单文件种子只能有一个文件")
@@ -107,7 +120,7 @@ func buildTestTorrent(t *testing.T, dir, root string, files ...testFile) (magnet
 	}
 
 	// 先给 PieceLength 再 BuildFromFilePath：它只在字段为零时才自己挑长度。
-	info := metainfo.Info{PieceLength: testPieceLength}
+	info := metainfo.Info{PieceLength: pieceLen}
 	buildRoot := base
 	if root == "" {
 		buildRoot = filepath.Join(dir, files[0].name)
@@ -128,8 +141,8 @@ func buildTestTorrent(t *testing.T, dir, root string, files ...testFile) (magnet
 // startSeeder 在同一个进程里起一个只做种的 client（决议 T1）。
 //
 // 它同样不出网：DHT / tracker / PEX / 端口映射全关，唯一的对端是测试亲手
-// 喂进去的那一个（见 linkSeeder）。
-func startSeeder(t *testing.T, dataDir string, mi *metainfo.MetaInfo) *torrent.Torrent {
+// 喂进去的那一个（见 linkSeeder）。tweaks 在建 client 之前改配置（比如限速）。
+func startSeeder(t *testing.T, dataDir string, mi *metainfo.MetaInfo, tweaks ...func(*torrent.ClientConfig)) *torrent.Torrent {
 	t.Helper()
 	cfg := torrent.NewDefaultClientConfig()
 	cfg.DataDir = dataDir
@@ -144,6 +157,9 @@ func startSeeder(t *testing.T, dataDir string, mi *metainfo.MetaInfo) *torrent.T
 		ClientBaseDir:   dataDir,
 		PieceCompletion: storage.NewMapPieceCompletion(),
 	})
+	for _, tweak := range tweaks {
+		tweak(cfg)
+	}
 
 	client, err := torrent.NewClient(cfg)
 	require.NoError(t, err)
@@ -207,6 +223,7 @@ func offlineClient(cacheDir string, cfg Config) (*torrent.Client, error) {
 	})
 	tc.Seed = cfg.Seeding
 	tc.ListenPort = cfg.ListenPort
+	tc.MaxUnverifiedBytes = maxUnverifiedBytes
 	tc.NoDefaultPortForwarding = true
 	tc.NoDHT = true
 	tc.DisableTrackers = true

@@ -10,6 +10,7 @@ import { router } from '../routes'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
 import { SKIP_FOLDERS_KEY } from '../components/library/onboardingSkip'
+import { AUTO_RESCAN_AFTER_MS, resetAutoRescanForTest } from '../hooks/useAutoRescan'
 
 const LIBRARY: LibraryData = {
   continueWatching: [],
@@ -50,7 +51,8 @@ const LIBRARY: LibraryData = {
       ],
     },
   ],
-  scannedAt: 1_756_500_000,
+  // 刚扫过：打开页面不触发自动重扫（自动重扫另有专门的用例）
+  scannedAt: Date.now(),
 }
 
 const SETTINGS: SettingsData = {
@@ -130,6 +132,7 @@ function stubFetch(
 }
 
 beforeEach(() => {
+  resetAutoRescanForTest()
   // apiFetch 会读 sessionStorage 里的 token（形状必须合法）
   window.sessionStorage.setItem(TOKEN_STORAGE_KEY, '9f86d081884c7d659a2feaa0c55ad015')
   window.history.replaceState(null, '', '/')
@@ -167,6 +170,46 @@ describe('LibraryPage（整页冒烟）', () => {
       })
       expect([...container.querySelectorAll('.poster')].map(titleOf)).toEqual(['认定的作品'])
     }
+    await unmount()
+  })
+
+  it('自动认出的同一部作品的几个版本并成一张海报，链到作品详情页；识别进行中状态行说出进度', async () => {
+    const library = structuredClone(LIBRARY)
+    const base = library.clusters[0]!
+    const ani = { ...structuredClone(base), clusterKey: 'ani', title: 'Re：從零開始的異世界生活 第四季', matched: { anilistId: 189046, title: 'Re：从零开始的异世界生活 第四季' }, cover: '/art/cap/ani' }
+    const loli = { ...structuredClone(base), clusterKey: 'loli', title: 'Re Zero kara Hajimeru Isekai Seikatsu', matched: { anilistId: 189046, title: 'Re：从零开始的异世界生活 第四季' } }
+    for (const item of loli.groups[0]!.items) item.fileId = `loli-${item.fileId}`
+    library.clusters = [ani, loli]
+    library.identify = { running: true, done: 1, total: 2 }
+    stubFetch(SETTINGS, library)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+
+    const posters = [...container.querySelectorAll('.poster')]
+    expect(posters).toHaveLength(1)
+    expect(posters[0]!.querySelector('.poster-title')?.textContent).toBe('Re：从零开始的异世界生活 第四季')
+    expect(posters[0]!.querySelector('.poster-versions')?.textContent).toBe('2 个版本')
+    expect(posters[0]!.querySelector('img')?.getAttribute('src')).toBe('/art/cap/ani')
+    expect(posters[0]!.querySelector('a')?.getAttribute('href')).toBe('/entry?id=189046')
+    expect(container.querySelector('.section-count')?.textContent).toBe('1')
+    expect(container.querySelector('.lib-identify')?.textContent).toContain('正在识别作品 1/2')
+    expect(container.querySelector('.lib-identify')?.getAttribute('aria-live')).toBeNull()
+    await unmount()
+  })
+
+  it('距上次扫描已久时，打开媒体库页会静默重扫一次', async () => {
+    const library = { ...structuredClone(LIBRARY), scannedAt: Date.now() - AUTO_RESCAN_AFTER_MS - 1000 }
+    const fetchMock = stubFetch(SETTINGS, library)
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      const path = new URL(url, 'http://127.0.0.1').pathname
+      const data = path === '/api/library/rescan' ? { stats: { videos: 2, clusters: 1 } } : path === '/api/library' ? library : path === '/api/settings' ? SETTINGS : path === '/api/update' ? UPDATE : PLAYER
+      void init
+      return new Response(JSON.stringify({ success: true, data }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const posts = fetchMock.mock.calls.filter(([input, init]) => String(input).includes('/api/library/rescan') && (init as RequestInit | undefined)?.method === 'POST')
+    expect(posts).toHaveLength(1)
+    expect(container.querySelector('.lib-status')?.textContent).not.toContain('失败')
     await unmount()
   })
 

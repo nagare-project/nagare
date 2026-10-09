@@ -64,6 +64,12 @@
   font-size: 0.82rem;
 }
 
+/* 后台识别作品的进度：紧跟状态行，不占它的 live region（进度变化不该被读屏一条条念） */
+.lib-identify {
+  min-height: 0;
+  margin-top: -2px;
+}
+
 /* 状态行里的恢复动作（播放失败且 mpv 缺失 → 去设置） */
 .lib-status-link {
   white-space: nowrap;

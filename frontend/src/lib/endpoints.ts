@@ -64,6 +64,8 @@ export interface LibraryItem {
   /** main / sp / ova / ncop / nced / menu / bonus / movie / … */
   kind: string
   resolution: string | null
+  /** 文件名里的字幕组（[ANi]、[LoliHouse]…）；同一集有多个版本时靠它区分 */
+  group?: string | null
   sizeBytes: number
   /**
    * 可直接放进 <video src> 的本机地址；缺省表示媒体端点未挂载。
@@ -92,13 +94,13 @@ export interface LibraryCluster {
   episodeCount: number
   /**
    * 可直接放进 <img src> 的本机封面地址；缺省表示【还没有图】。
-   * 没有图是常态不是错误：封面来自播放前的 animego 匹配，
-   * 从没播过的番就是没有。界面必须有无图版式。
+   * 封面来自 animego 匹配：扫描后后台识别会给每个分组补上，识别完成之前、
+   * 或上游没有这部番时就是没有。界面必须有无图版式。
    */
   cover?: string
   /** 用户手动认定的目录作品；缺省表示没认过，走自动匹配 */
   association?: LibraryAssociation
-  /** 没认过时，自动匹配到的作品；没播过、没匹配上时缺省 */
+  /** 没认过时，自动匹配到的作品（扫描后的后台识别或播放前的匹配）；还没认出来时缺省 */
   matched?: LibraryMatch
   groups: LibraryGroup[]
 }
@@ -116,12 +118,22 @@ export interface ContinueItem {
   updatedAt: number
 }
 
+/** 后台作品识别的进度：正在识别（或重扫后已排上队）、或上一轮暂停时才有 */
+export interface LibraryIdentify {
+  running: boolean
+  done: number
+  total: number
+  /** 上一轮因为 animego 不可用而暂停的原因（后端到点自动重试） */
+  error?: string
+}
+
 /** GET /api/library 的 data 载荷 */
 export interface LibraryData {
   folders: LibraryFolder[]
   clusters: LibraryCluster[]
   continueWatching: ContinueItem[]
   scannedAt: number | null
+  identify?: LibraryIdentify
 }
 
 /** 一次扫描的统计结果 */

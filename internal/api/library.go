@@ -7,11 +7,14 @@ package api
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,7 +43,9 @@ type ViewItem struct {
 	Episode    *int    `json:"episode"`
 	Kind       string  `json:"kind"`
 	Resolution *string `json:"resolution"`
-	SizeBytes  int64   `json:"sizeBytes"`
+	// Group 是文件名里的字幕组（[ANi]、[LoliHouse]…）；同一集有多个版本时界面靠它区分。
+	Group     *string `json:"group,omitempty"`
+	SizeBytes int64   `json:"sizeBytes"`
 	// Stream 是可直接放进 <video src> 的本机地址（浏览器内播放用）。
 	// 空串表示媒体端点未挂载。⚠️ 能不能播【完全】取决于浏览器认不认这个编码 ——
 	// 后端不转码，只原样喂字节。正常播放路径仍然是 mpv。
@@ -153,6 +158,9 @@ type LibraryView struct {
 	// ContinueWatching 按最近观看倒序，最多 continueLimit 条。
 	ContinueWatching []ViewContinue `json:"continueWatching"`
 	ScannedAt        *int64         `json:"scannedAt"`
+	// Identify 是后台作品识别的进度：正在识别或上一轮被打断时才有，其余时候省略。
+	// 界面据此显示「正在识别作品」并在识别期间定时刷新（封面一张张出来）。
+	Identify *IdentifyStatus `json:"identify,omitempty"`
 }
 
 const (
@@ -194,6 +202,11 @@ type LibraryService struct {
 	artPrefix string
 	// mediaPrefix 形如 /media/<能力段>；空串表示浏览器内播放不可用。
 	mediaPrefix string
+
+	// onRescan 在每次重扫完成后调用（启动后台作品识别）；identifyStatus 给视图取识别进度。
+	// 都由启动流程注入一次（SetIdentify）。
+	onRescan       func()
+	identifyStatus func() IdentifyStatus
 }
 
 // SetMediaPrefix 注入本地媒体流前缀（形如 /media/<能力段>）。启动时调用一次。
@@ -201,6 +214,14 @@ func (s *LibraryService) SetMediaPrefix(prefix string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.mediaPrefix = prefix
+}
+
+// SetIdentify 接上后台作品识别：每次重扫完成后 kick 一下，视图里带上 status 给出的进度。
+// 启动时调用一次，必须在第一次 Rescan 之前。
+func (s *LibraryService) SetIdentify(kick func(), status func() IdentifyStatus) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onRescan, s.identifyStatus = kick, status
 }
 
 // SetArtPrefix 注入封面端点前缀（形如 /art/<能力段>）。启动时调用一次。
@@ -301,7 +322,11 @@ func (s *LibraryService) Rescan() Stats {
 	s.subs = subs
 	s.fileCluster = fileCluster
 	s.scannedAt = time.Now().UnixMilli()
+	kick := s.onRescan
 	s.mu.Unlock()
+	if kick != nil {
+		kick()
+	}
 	return stats
 }
 
@@ -359,6 +384,7 @@ func (s *LibraryService) View() LibraryView {
 	// 一次性取快照：千集规模下逐条目加锁读会把 store 的互斥锁打成热点。
 	snap := s.st.Snapshot()
 	progress, bindings, assocs := snap.Progress, snap.Bindings, snap.Associations
+	identify := s.identifySnapshot()
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -376,7 +402,7 @@ func (s *LibraryService) View() LibraryView {
 		view.ScannedAt = &at
 	}
 
-	for _, ce := range s.clusters {
+	for _, ce := range mergeByKey(s.clusters) {
 		c := ce.cluster
 		vc := ViewCluster{
 			ClusterKey: c.ClusterKey,
@@ -427,6 +453,7 @@ func (s *LibraryService) View() LibraryView {
 					Episode:    it.Episode,
 					Kind:       it.ParsedKind,
 					Resolution: it.ParsedResolution,
+					Group:      it.ParsedGroup,
 					SizeBytes:  it.Size,
 				}
 				if mediaPrefix != "" {
@@ -444,7 +471,21 @@ func (s *LibraryService) View() LibraryView {
 		view.Clusters = append(view.Clusters, vc)
 	}
 	view.ContinueWatching = s.continueWatching(prefix, progress, bindings, assocs)
+	if identify.Running || identify.Error != "" {
+		view.Identify = &identify
+	}
 	return view
+}
+
+// identifySnapshot 取后台识别的进度。在拿 s.mu 之前调用：识别器的锁不该嵌进媒体库的锁里。
+func (s *LibraryService) identifySnapshot() IdentifyStatus {
+	s.mu.RLock()
+	status := s.identifyStatus
+	s.mu.RUnlock()
+	if status == nil {
+		return IdentifyStatus{}
+	}
+	return status()
 }
 
 // continueWatching 组装「继续观看」：看过一点、又没看完的条目，按最近观看倒序。
@@ -458,8 +499,10 @@ func (s *LibraryService) continueWatching(
 ) []ViewContinue {
 	// 集数取自所属簇：Binding 里没有总集数，而「第 5 集 / 共 13 集」
 	// 里的分母正是用户判断还剩多少的依据。
+	// 按 clusterKey 合并之后再算：两块盘上一模一样的副本只出一张卡，集数也按合并后的算
+	clusters := mergeByKey(s.clusters)
 	total := map[string]int{}
-	for _, ce := range s.clusters {
+	for _, ce := range clusters {
 		n := 0
 		for _, it := range ce.cluster.Items {
 			if it.ParsedKind == "main" {
@@ -475,7 +518,7 @@ func (s *LibraryService) continueWatching(
 	}
 
 	out := []ViewContinue{}
-	for _, ce := range s.clusters {
+	for _, ce := range clusters {
 		for _, it := range ce.cluster.Items {
 			p, ok := progress[it.FileID]
 			if !ok || p.Completed || p.PositionSec < continueMinSec {
@@ -517,6 +560,78 @@ func (s *LibraryService) continueWatching(
 		out = out[:continueLimit]
 	}
 	return out
+}
+
+// mergeByKey 把同一个 clusterKey 的分组并成一个（同一部番分在两个库目录里时会出现两次）：
+// 视图里一个键只能有一张海报 —— 前端按键渲染列表、按键找作品页，重复的键会让第二个永远点不到。
+// 合并时保留第一次出现的位置与代表集，文件与目录分组按出现顺序接上，置信度取高的。
+func mergeByKey(clusters []clusterEntry) []clusterEntry {
+	out := make([]clusterEntry, 0, len(clusters))
+	at := map[string]int{}
+	for _, ce := range clusters {
+		i, ok := at[ce.cluster.ClusterKey]
+		if !ok {
+			at[ce.cluster.ClusterKey] = len(out)
+			out = append(out, ce)
+			continue
+		}
+		m := &out[i]
+		// 两个库目录里一模一样的副本是同一个 fileId（名字|大小|修改时间）：只留一份
+		seen := map[string]bool{}
+		for _, it := range m.cluster.Items {
+			seen[it.FileID] = true
+		}
+		items := append([]library.Item(nil), m.cluster.Items...)
+		groups := append([]library.Group(nil), m.cluster.Groups...)
+		for _, g := range ce.cluster.Groups {
+			kept := make([]library.Item, 0, len(g.Items))
+			for _, it := range g.Items {
+				if !seen[it.FileID] {
+					seen[it.FileID] = true
+					kept = append(kept, it)
+				}
+			}
+			if len(kept) == 0 {
+				continue
+			}
+			items = append(items, kept...)
+			// 两块盘上同名的子目录得到同一个 groupKey（目录键相对各自的库根）：并进同一个分组，
+			// 界面按 groupKey 渲染列表，重复的键会让 React 丢失或重复兄弟节点
+			if j := slices.IndexFunc(groups, func(x library.Group) bool { return x.GroupKey == g.GroupKey }); j >= 0 {
+				merged := groups[j]
+				merged.Items = append(append([]library.Item(nil), merged.Items...), kept...)
+				sortGroupItems(merged.Items)
+				groups[j] = merged
+				continue
+			}
+			g.Items = kept
+			groups = append(groups, g)
+		}
+		m.cluster.Items, m.cluster.Groups = items, groups
+		if m.cluster.Representative == nil {
+			m.cluster.Representative = ce.cluster.Representative
+		}
+		m.confidence = max(m.confidence, ce.confidence)
+	}
+	return out
+}
+
+// sortGroupItems 按集号升序（没有集号的排最后），同集号按文件名 —— 与扫描时分组内的排序一致。
+func sortGroupItems(items []library.Item) {
+	slices.SortStableFunc(items, func(a, b library.Item) int {
+		ea, eb := episodeOrMax(a), episodeOrMax(b)
+		if ea != eb {
+			return ea - eb
+		}
+		return strings.Compare(a.FileName, b.FileName)
+	})
+}
+
+func episodeOrMax(it library.Item) int {
+	if it.Episode == nil {
+		return math.MaxInt
+	}
+	return *it.Episode
 }
 
 func clusterTitle(c library.Cluster) string {

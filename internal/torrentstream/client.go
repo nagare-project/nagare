@@ -34,7 +34,12 @@ const cacheDirPerm fs.FileMode = 0o700
 var (
 	// metadataTimeout 是「等种子信息」的上限。没有上限的话，一条没人分享的磁力
 	// 会让界面永远停在「查找分享者」，用户无法区分「在找」与「卡死」。
-	metadataTimeout = 60 * time.Second
+	//
+	// 150 秒而不是 60 秒：tracker 不认识的种子只能靠 DHT 找，实测要 50–125 秒
+	// （CHANGELOG 0.3.0）—— 60 秒的上限会把这些本来找得到的磁力判成「没人分享」。
+	// 等待期间界面一直显示实时分享者数，15 秒连不上就提示换资源，用户随时可以取消，
+	// 放宽上限只是不替用户提前放弃。
+	metadataTimeout = 150 * time.Second
 	// bufferTimeout 是「等起播缓冲」的上限。
 	bufferTimeout = 120 * time.Second
 )
@@ -46,9 +51,24 @@ const (
 	bufferStartBytes = 8 * 1024 * 1024
 	// statusPollInterval 是等待期间刷新状态与复查就绪的间隔。
 	statusPollInterval = 250 * time.Millisecond
+	// gatePollInterval 是起播缓冲期间复查门槛的间隔。缓冲期只有门槛可请求（见 session.openGate）：
+	// 门槛最后一块到了之后，每个 peer 都没有可请求的块、整个 swarm 闲着等这一次复查 ——
+	// 按 statusPollInterval 查的话会白白空等最多四分之一秒。只查门槛这几片，开销很小。
+	gatePollInterval = 40 * time.Millisecond
 	// cacheStatInterval 是缓存占用的重算节流。Status 会被界面按秒轮询，
 	// 每次都走一遍全盘会把「看一眼状态」变成一次 IO 负担。
 	cacheStatInterval = 2 * time.Second
+
+	// maxUnverifiedBytes 是 anacrolix 同时「在下、还没校验」的分片总量上限
+	// （ClientConfig.MaxUnverifiedBytes，默认 64MB）。可请求的分片按档位从高到低累计，
+	// 到这个数就截止，预算外的低档分片根本不会被请求。
+	//
+	// 128MB 是按优先级窗口算出来的：一个 reader 的四档窗口约 67MB，16MB 分片下按整片
+	// 取整最多占 6 片（96MB），再加启动期钉住的头尾各一片，正好 128MB。默认的 64MB 在
+	// 大分片合集里只够 4 片 —— Readahead 档永远轮不到，弹幕哈希的 reader 与 mpv 的
+	// reader 还会互相挤掉对方的 Next 档。抬高预算只会在每个 peer 按档位排好的请求队列
+	// 【末尾】多排一些低档请求，高档请求永远排在前面。
+	maxUnverifiedBytes = 128 << 20
 )
 
 // 播放阶段。界面按它显示分阶段状态条（决议 M3-8）。
@@ -187,6 +207,7 @@ func newTorrentClient(cacheDir string, cfg Config) (*torrent.Client, error) {
 	tc.Seed = cfg.Seeding
 	tc.NoDefaultPortForwarding = !cfg.PortForwarding
 	tc.ListenPort = cfg.ListenPort
+	tc.MaxUnverifiedBytes = maxUnverifiedBytes
 	// DHT 与 PEX 保持默认开启：本体不内置 tracker，peer 发现全靠这两者。
 	//
 	// ⚠️ anacrolix v1.61.0【不会】对私有种子停用 DHT/PEX —— 全仓对 info.Private
