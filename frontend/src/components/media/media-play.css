@@ -90,3 +90,4 @@
 .media-play-selection-title { flex: 1 1 200px; min-width: 0; }
 .media-play-selection-title h3 { font-size: 16px; overflow-wrap: anywhere; }
 .media-play-via { margin-top: 4px; color: var(--fg-muted); font-size: 13px; }
+.media-play-versions { margin: 4px 0 12px; color: var(--fg-muted); font-size: 13px; line-height: 1.7; }

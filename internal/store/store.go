@@ -93,6 +93,8 @@ type Data struct {
 	Torrent *TorrentConfig `json:"torrent,omitempty"`
 	// Associations：clusterKey → 用户手动认定的目录作品（见 associations.go）。
 	Associations map[string]Association `json:"associations"`
+	// IdentifyAttempts：fileID → 媒体库自动识别上一次拿它去问、得到确定答复的时间（见 identify.go）。
+	IdentifyAttempts map[string]int64 `json:"identifyAttempts,omitempty"`
 }
 
 func emptyData() Data {
@@ -217,6 +219,12 @@ func (s *Store) Snapshot() Data {
 	}
 	for k, a := range s.data.Associations {
 		out.Associations[k] = a.clone()
+	}
+	if len(s.data.IdentifyAttempts) > 0 {
+		out.IdentifyAttempts = make(map[string]int64, len(s.data.IdentifyAttempts))
+		for k, v := range s.data.IdentifyAttempts {
+			out.IdentifyAttempts[k] = v
+		}
 	}
 	for k, v := range s.data.Hashes {
 		out.Hashes[k] = v

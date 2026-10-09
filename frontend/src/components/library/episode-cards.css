@@ -59,3 +59,7 @@
 .missing-episode-info { position: absolute; top: -8px; right: -2px; width: 28px; height: 28px; color: var(--fg-muted); }
 .episode-info-art { overflow: hidden; aspect-ratio: 16 / 9; border-radius: 8px; margin-bottom: 18px; }
 @media (max-width: 767px) { .missing-episode-grid { gap: 24px; } .missing-episode .episode-card-art { width: 32%; height: 110px; } .missing-episodes-heading { flex-wrap: wrap; } .missing-episodes-hint { margin-top: 24px; } }
+
+/* 同一集的其他版本（不同字幕组）：一行小字链接，点了直接播放。目标高度至少 24px（WCAG 2.5.8） */
+.episode-card-versions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding: 0 12px 6px; color: var(--fg-muted); font-size: 12px; }
+.episode-card-versions .link { display: inline-flex; align-items: center; min-height: 24px; font-size: 12px; }

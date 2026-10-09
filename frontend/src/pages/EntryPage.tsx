@@ -14,6 +14,10 @@ import { airingDistance, FORMAT_LABELS } from '../components/media/media-format'
 import { nextEpisodeAiring } from '../components/media/episode-metadata'
 import { Icon } from '../components/ui/Icon'
 import { Tabs, Tab } from '../components/ui'
+import { LibraryAnimeLink } from '../components/library/LibraryAnimeLink'
+import { fetchLibrary } from '../lib/endpoints'
+import type { LibraryCluster } from '../lib/endpoints'
+import { clusterWork } from '../lib/librarySeries'
 import '../components/media/media-preview.css'
 import './entry.css'
 
@@ -26,6 +30,7 @@ export function EntryPage() {
   return <main className="catalog-entry lib-shell">
     {loading && <div className="media-detail-loading" role="status" aria-label="正在加载作品详情" />}
     {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={retry}>重试</button> <a className="link" href="/discover">返回发现</a></p>}
+    {error && <LocalFallback id={id} />}
     {media && <EntryContent key={id} media={media} />}
   </main>
 }
@@ -86,6 +91,21 @@ function EntryContent({ media }: { media: MediaSummary }) {
     </section>
     <MediaRelations media={media} />
   </>
+}
+
+/**
+ * 作品详情读不出来（离线、animego 不可用）时，媒体库里这部作品的本地文件仍然能看：
+ * 媒体库海报点进来就是这一页，不能让断网把本地播放也一起挡掉。
+ */
+function LocalFallback({ id }: { id: number }) {
+  const [clusters, setClusters] = useState<LibraryCluster[]>([])
+  useEffect(() => {
+    let alive = true
+    fetchLibrary().then(data => { if (alive) setClusters(data.clusters.filter(c => clusterWork(c)?.anilistId === id)) }).catch(() => {})
+    return () => { alive = false }
+  }, [id])
+  if (clusters.length === 0) return null
+  return <p className="result result--dim">本地媒体库里有这部作品，可以直接打开文件列表播放：{clusters.map((c, i) => <span key={c.clusterKey}>{i > 0 && '、'}<LibraryAnimeLink clusterKey={c.clusterKey} className="link">{c.title}（{c.episodeCount} 集）</LibraryAnimeLink></span>)}</p>
 }
 
 function SourcePanel({ active, children }: { active: boolean; children: ReactNode }) {
