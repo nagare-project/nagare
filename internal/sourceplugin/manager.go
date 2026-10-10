@@ -277,6 +277,14 @@ func (m *Manager) Candidates(ctx context.Context, request ResolveRequest, emit f
 	return client.Candidates(ctx, request, emit)
 }
 
+func (m *Manager) Releases(ctx context.Context, request ReleaseSearchRequest, emit func(ReleaseEvent) error) error {
+	client, err := m.readyClient()
+	if err != nil {
+		return err
+	}
+	return client.Releases(ctx, request, emit)
+}
+
 func (m *Manager) readyClient() (*Client, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

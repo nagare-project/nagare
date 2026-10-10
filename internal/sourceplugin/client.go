@@ -130,7 +130,26 @@ func (c *Client) Candidates(ctx context.Context, input ResolveRequest, emit func
 	if len(body) > maximumJSONBytes {
 		return errors.New("resolve request exceeds 1 MiB")
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/v1/candidates", bytes.NewReader(body))
+	candidates := 0
+	return c.postNDJSON(ctx, "/v1/candidates", body, func(line []byte) (bool, error) {
+		event, err := decodeEvent(line)
+		if err != nil {
+			return false, err
+		}
+		if event.Event == "candidate" {
+			candidates++
+			if candidates > maximumCandidates {
+				return false, errors.New("plugin candidate limit exceeded")
+			}
+		}
+		return event.Event == "done", emit(event)
+	})
+}
+
+// postNDJSON 发一次 JSON 请求并逐行交给 onLine（onLine 报告这一行是不是 done）。
+// 流必须以 done 结束，done 之后不得再有数据。
+func (c *Client) postNDJSON(ctx context.Context, path string, body []byte, onLine func([]byte) (bool, error)) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -146,39 +165,25 @@ func (c *Client) Candidates(ctx context.Context, input ResolveRequest, emit func
 	}
 	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/x-ndjson" {
-		return errors.New("plugin returned an invalid candidate content type")
+		return errors.New("plugin returned an invalid stream content type")
 	}
 
 	scanner := bufio.NewScanner(response.Body)
 	scanner.Buffer(make([]byte, 4096), maximumEventBytes)
 	done := false
-	candidates := 0
 	for scanner.Scan() {
 		if done {
 			return errors.New("plugin emitted data after done")
 		}
-		event, err := decodeEvent(scanner.Bytes())
-		if err != nil {
-			return err
-		}
-		if event.Event == "candidate" {
-			candidates++
-			if candidates > maximumCandidates {
-				return errors.New("plugin candidate limit exceeded")
-			}
-		}
-		if event.Event == "done" {
-			done = true
-		}
-		if err := emit(event); err != nil {
+		if done, err = onLine(scanner.Bytes()); err != nil {
 			return err
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read plugin candidate stream: %w", err)
+		return fmt.Errorf("read plugin stream: %w", err)
 	}
 	if !done {
-		return errors.New("plugin candidate stream ended without done")
+		return errors.New("plugin stream ended without done")
 	}
 	return nil
 }
@@ -264,23 +269,8 @@ func validateCandidate(candidate Candidate) error {
 			return errors.New("plugin media candidate mixes transport fields")
 		}
 	case "torrent":
-		if candidate.Transport.Magnet == "" && candidate.Transport.InfoHash == "" && candidate.Transport.TorrentURL == "" {
-			return errors.New("plugin torrent candidate has no locator")
-		}
-		if candidate.Transport.URL != "" || len(candidate.Transport.Headers) > 0 || candidate.Transport.ExpiresAt != 0 {
-			return errors.New("plugin torrent candidate mixes transport fields")
-		}
-		if candidate.Transport.Magnet != "" && !strings.HasPrefix(candidate.Transport.Magnet, "magnet:?") {
-			return errors.New("plugin torrent candidate has an invalid magnet")
-		}
-		if candidate.Transport.TorrentURL != "" {
-			u, err := url.Parse(candidate.Transport.TorrentURL)
-			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
-				return errors.New("plugin torrent candidate has an invalid torrent URL")
-			}
-		}
-		if candidate.Transport.FileIndex != nil && *candidate.Transport.FileIndex < 0 {
-			return errors.New("plugin torrent candidate has an invalid file index")
+		if err := validateTorrentTransport(candidate.Transport); err != nil {
+			return err
 		}
 	default:
 		return errors.New("plugin candidate has an unknown transport")
@@ -289,6 +279,29 @@ func validateCandidate(candidate Candidate) error {
 		if !validHeader(name, value) {
 			return errors.New("plugin candidate has an invalid HTTP header")
 		}
+	}
+	return nil
+}
+
+// validateTorrentTransport 是 torrent 候选与发布共用的定位检查。
+func validateTorrentTransport(transport Transport) error {
+	if transport.Magnet == "" && transport.InfoHash == "" && transport.TorrentURL == "" {
+		return errors.New("plugin torrent candidate has no locator")
+	}
+	if transport.URL != "" || len(transport.Headers) > 0 || transport.ExpiresAt != 0 {
+		return errors.New("plugin torrent candidate mixes transport fields")
+	}
+	if transport.Magnet != "" && !strings.HasPrefix(transport.Magnet, "magnet:?") {
+		return errors.New("plugin torrent candidate has an invalid magnet")
+	}
+	if transport.TorrentURL != "" {
+		u, err := url.Parse(transport.TorrentURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+			return errors.New("plugin torrent candidate has an invalid torrent URL")
+		}
+	}
+	if transport.FileIndex != nil && *transport.FileIndex < 0 {
+		return errors.New("plugin torrent candidate has an invalid file index")
 	}
 	return nil
 }

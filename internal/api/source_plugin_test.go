@@ -28,9 +28,14 @@ type fakeSourcePluginRuntime struct {
 	// eventsFor 非空时按请求分派事件（磁力选集可能并发发两个集号请求）
 	eventsFor func(sourceplugin.ResolveRequest) []sourceplugin.Event
 
-	mu          sync.Mutex
-	requests    []sourceplugin.ResolveRequest
-	lastRequest sourceplugin.ResolveRequest
+	// releaseEvents 是 /v1/releases 回放的事件（按作品搜全部发布）
+	releaseEvents []sourceplugin.ReleaseEvent
+	releaseErr    error
+
+	mu              sync.Mutex
+	requests        []sourceplugin.ResolveRequest
+	lastRequest     sourceplugin.ResolveRequest
+	releaseRequests []sourceplugin.ReleaseSearchRequest
 }
 
 func (f *fakeSourcePluginRuntime) Start(config sourceplugin.LaunchConfig) error {
@@ -72,6 +77,19 @@ func (f *fakeSourcePluginRuntime) Candidates(_ context.Context, request sourcepl
 		}
 	}
 	return nil
+}
+
+func (f *fakeSourcePluginRuntime) Releases(_ context.Context, request sourceplugin.ReleaseSearchRequest, emit func(sourceplugin.ReleaseEvent) error) error {
+	f.mu.Lock()
+	f.releaseRequests = append(f.releaseRequests, request)
+	events := f.releaseEvents
+	f.mu.Unlock()
+	for _, event := range events {
+		if err := emit(event); err != nil {
+			return err
+		}
+	}
+	return f.releaseErr
 }
 
 func TestSourcePluginConfigStartsAndPersistsExplicitPaths(t *testing.T) {
@@ -317,7 +335,7 @@ func TestSourcePluginAdoptsBundledOnFirstRunOnly(t *testing.T) {
 func boolPtr(v bool) *bool    { return &v }
 func strPtr(v string) *string { return &v }
 
-// 流式端点：条目、来源结果逐行到达，最后一行 done；本机规则不参与。
+// 流式端点：首行 scope（老插件按集问 → episode），条目、来源结果逐行到达，最后一行 done；本机规则不参与。
 func TestSearchPluginStreamsItemsAndOutcomes(t *testing.T) {
 	env := newEnv(t)
 	env.plugin.status = sourceplugin.Status{Phase: "ready"}
@@ -335,12 +353,14 @@ func TestSearchPluginStreamsItemsAndOutcomes(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Header().Get("Content-Type"), "application/x-ndjson")
 	lines := strings.Split(strings.TrimSpace(rec.Body.String()), "\n")
-	require.Len(t, lines, 4, rec.Body.String())
-	var first, second, third, last PluginSearchEvent
-	require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))
-	require.NoError(t, json.Unmarshal([]byte(lines[1]), &second))
-	require.NoError(t, json.Unmarshal([]byte(lines[2]), &third))
-	require.NoError(t, json.Unmarshal([]byte(lines[3]), &last))
+	require.Len(t, lines, 5, rec.Body.String())
+	var scope, first, second, third, last PluginSearchEvent
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &scope))
+	require.NoError(t, json.Unmarshal([]byte(lines[1]), &first))
+	require.NoError(t, json.Unmarshal([]byte(lines[2]), &second))
+	require.NoError(t, json.Unmarshal([]byte(lines[3]), &third))
+	require.NoError(t, json.Unmarshal([]byte(lines[4]), &last))
+	assert.Equal(t, PluginSearchEvent{Event: "scope", Scope: pluginScopeEpisode}, scope)
 	require.NotNil(t, first.Item)
 	assert.Equal(t, "plugin:garden", first.Item.Source)
 	require.NotNil(t, second.Outcome)

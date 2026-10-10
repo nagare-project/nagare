@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SearchItem } from '../../lib/endpoints'
-import { catalogIdentity, defaultTorrentEpisode, episodeChoices, episodeFit, extraKindsFor, isBatchRelease, notBeforeFor, playbackHints, releasesForEpisode } from './releaseEpisodes'
+import { catalogIdentity, defaultTorrentEpisode, episodeChoices, episodeFit, extraKindsFor, isBatchRelease, notBeforeFor, playbackHints } from './releaseEpisodes'
 import type { EpisodeTarget } from './releaseEpisodes'
 import type { MediaSummary } from './types'
 
@@ -49,11 +49,6 @@ describe('episodeFit', () => {
     expect(episodeFit(batch(4, 12), third)).toBe('other')
     expect(episodeFit(batch(13, 24), sequelThird)).toBe('batch')
     expect(episodeFit(item({ kind: 'batch', episode: undefined, title: '[G] 某作品 合集' }), third)).toBe('batch-unknown')
-  })
-
-  it('releasesForEpisode 只留这一集与可能含它的合集', () => {
-    const list = [item({ episode: 3 }), item({ episode: 4 }), item({ kind: 'batch', episode: undefined, title: '合集' })]
-    expect(releasesForEpisode(list, third)).toEqual([list[0], list[2]])
   })
 })
 
@@ -106,6 +101,13 @@ describe('isBatchRelease / catalogIdentity', () => {
   it('作品身份：去空白、不分大小写去重', () => {
     expect(catalogIdentity({ id: 9, title: ' 葬送的芙莉莲 ', titleNative: 'Frieren', titleEnglish: 'frieren' })).toEqual({ anilistId: 9, titles: ['葬送的芙莉莲', 'Frieren'] })
     expect(catalogIdentity({ id: 9, title: '某作品' })).toEqual({ anilistId: 9, titles: ['某作品'] })
+  })
+
+  it('作品身份带上罗马音：只用罗马音登记的发布（nyaa、部分字幕组）也搜得到', () => {
+    expect(catalogIdentity({ id: 188525, title: '描绘直至生命尽头', titleRomaji: 'Kore Kaite Shine', titleNative: 'これ描いて死ね', titleEnglish: 'Draw This, Then Die!' }))
+      .toEqual({ anilistId: 188525, titles: ['描绘直至生命尽头', 'Kore Kaite Shine', 'これ描いて死ね', 'Draw This, Then Die!'] })
+    // 没有中文名时显示标题就是罗马音，不重复
+    expect(catalogIdentity({ id: 1, title: 'Kore Kaite Shine', titleRomaji: 'kore kaite shine' })).toEqual({ anilistId: 1, titles: ['Kore Kaite Shine'] })
   })
 })
 

@@ -59,13 +59,15 @@ func (s *SourcePluginService) appendPluginTorrents(ctx context.Context, view *Se
 	})
 }
 
-// PluginSearchEvent 是 GET /api/search/plugin 的 NDJSON 事件：条目、来源结果、结束。
+// PluginSearchEvent 是 GET /api/search/plugin 的 NDJSON 事件：范围、条目、来源结果、结束。
 // 选集窗口先拿本机规则的结果（不到一秒），插件来源一条条追加——最慢的站点（Mikan 十几秒）
 // 不再拖住整个列表。
 type PluginSearchEvent struct {
 	Event   string          `json:"event"`
 	Item    *SearchItemView `json:"item,omitempty"`
 	Outcome *rules.Outcome  `json:"outcome,omitempty"`
+	// Scope 只出现在第一行 scope 事件里：all / episode（见 searchPlugin）
+	Scope string `json:"scope,omitempty"`
 }
 
 // streamPluginTorrents 逐条交出插件的 BT 候选；每个来源有了结论就交出它的结果状态。
@@ -126,21 +128,23 @@ func (s *SourcePluginService) streamPluginTorrents(ctx context.Context, query pl
 }
 
 // searchPlugin 是 GET /api/search/plugin：只问插件的 BT 来源，NDJSON 逐条返回。
+// 第一行 scope 说明结果的范围：插件能按作品搜（all）时一次给出整部作品的全部发布，集号参数
+// 不参与搜索、换集不必重问；老插件按 episode 那一集问（episode），换集要重问。
 func (h *Handler) searchPlugin(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
-	episode, err := strconv.Atoi(params.Get("episode"))
-	if err != nil || episode < 1 {
-		httpserver.WriteError(w, http.StatusBadRequest, "集号必须大于零")
-		return
-	}
-	absolute, ok := optionalEpisodeParam(params.Get("absolute"))
-	if episode > maxEpisodeNumber || !ok {
-		httpserver.WriteError(w, http.StatusBadRequest, "集号超出范围")
-		return
-	}
 	anilist, _ := strconv.Atoi(params.Get("anilist"))
 	year, _ := strconv.Atoi(params.Get("year"))
 	titles := append([]string{params.Get("q")}, params["title"]...)
+	all := h.deps.SourcePlugin.supportsReleases()
+	query := pluginTorrentQuery{Titles: titles, AnilistID: anilist, Year: year}
+	if !all {
+		episode, absolute, problem := pluginEpisodeParams(params.Get("episode"), params.Get("absolute"))
+		if problem != "" {
+			httpserver.WriteError(w, http.StatusBadRequest, problem)
+			return
+		}
+		query.Episode, query.Absolute = episode, absolute
+	}
 	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
@@ -155,11 +159,34 @@ func (h *Handler) searchPlugin(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	}
-	query := pluginTorrentQuery{Titles: titles, Episode: episode, Absolute: absolute, AnilistID: anilist, Year: year}
-	h.deps.SourcePlugin.streamPluginTorrents(r.Context(), query, func(item *SearchItemView, outcome *rules.Outcome) error {
+	emit := func(item *SearchItemView, outcome *rules.Outcome) error {
 		return write(PluginSearchEvent{Event: "item", Item: item, Outcome: outcome})
-	})
+	}
+	if all {
+		if write(PluginSearchEvent{Event: "scope", Scope: pluginScopeAll}) != nil {
+			return
+		}
+		h.deps.SourcePlugin.streamPluginReleases(r.Context(), titles, anilist, emit)
+	} else {
+		if write(PluginSearchEvent{Event: "scope", Scope: pluginScopeEpisode}) != nil {
+			return
+		}
+		h.deps.SourcePlugin.streamPluginTorrents(r.Context(), query, emit)
+	}
 	_ = write(PluginSearchEvent{Event: "done"})
+}
+
+// pluginEpisodeParams 校验按集问插件时的集号与（可缺省的）连续编号；problem 非空即 400。
+func pluginEpisodeParams(rawEpisode, rawAbsolute string) (episode, absolute int, problem string) {
+	episode, err := strconv.Atoi(rawEpisode)
+	if err != nil || episode < 1 {
+		return 0, 0, "集号必须大于零"
+	}
+	absolute, ok := optionalEpisodeParam(rawAbsolute)
+	if episode > maxEpisodeNumber || !ok {
+		return 0, 0, "集号超出范围"
+	}
+	return episode, absolute, ""
 }
 
 // optionalEpisodeParam 解析可缺省的集号参数：缺席为 0；给了就必须是 1..maxEpisodeNumber。

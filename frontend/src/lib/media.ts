@@ -7,7 +7,7 @@ export type { CollectionData, CollectionEdit, CollectionEntry, CollectionStatus 
 export const COLLECTION_LABELS: Record<CollectionStatus, string> = { watching: '在看', plan_to_watch: '想看', completed: '看完', dropped: '弃番' }
 export const entryStatus = (entry: CollectionEntry): CollectionStatus => entry.status
 export function toSummary(media: SummaryMediaData): MediaSummary {
-  return { id: media.anilistId, title: media.title, titleNative: media.titleNative, titleEnglish: media.titleEnglish,
+  return { id: media.anilistId, title: media.title, titleNative: media.titleNative, titleRomaji: media.titleRomaji, titleEnglish: media.titleEnglish,
     cover: media.cover, banner: media.banner, trailerId: media.trailerId, year: media.year, season: media.season,
     episodes: media.episodes, watched: 0, score: media.score, genres: media.genres, description: media.description,
     status: media.status, format: media.format, duration: media.duration, source: media.source, startDate: media.startDate,
