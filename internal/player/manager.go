@@ -79,6 +79,9 @@ type Options struct {
 	// EpisodeSpace 查目录作品的总集数与集号偏移，「看完」回写前把文件里的集号换成作品集号。
 	// 可为 nil：不换算，按文件里的集号回写。
 	EpisodeSpace func(ctx context.Context, anilistID int) (EpisodeSpace, error)
+	// Shaders 返回每次起播要加载的 GLSL 着色器（Anime4K 超分；关掉时返回空）。每次起播、每次改设置时调。
+	// 可为 nil：不加载任何着色器。
+	Shaders func() []string
 }
 
 // DanmakuInfo 是弹幕链路的结果状态 —— 失败必须可见（CQ3：不静默）。
@@ -214,6 +217,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 		HTTPHeaders:            sourceHTTPHeaders(src),
 		RedactMediaDiagnostics: sourceRedactsDiagnostics(src),
 		NetworkStream:          isNetworkStream(src.MPVPath()),
+		Shaders:                m.shaders(),
 	})
 	if err != nil {
 		return PlayResult{}, errs.Wrap(errs.CategoryPlayback, "player.launch",
@@ -550,6 +554,29 @@ func (m *Manager) SetPause(v bool) error {
 		return errs.New(errs.CategoryInput, "player.pause", "当前没有正在播放的内容", "")
 	}
 	return sess.player.SetPause(v)
+}
+
+func (m *Manager) shaders() []string {
+	if m.opts.Shaders == nil {
+		return nil
+	}
+	return m.opts.Shaders()
+}
+
+// RefreshShaders 把当前设置的着色器套到正在播放的窗口上（改了 Anime4K 设置时调），不用重开 mpv。
+// 返回是否真的套上了：没有在播就是 false（下次起播自然按新设置来）。
+func (m *Manager) RefreshShaders() (bool, error) {
+	m.mu.Lock()
+	sess := m.current
+	m.mu.Unlock()
+	if sess == nil {
+		return false, nil
+	}
+	if err := sess.player.SetShaders(m.shaders()); err != nil {
+		return false, errs.Wrap(errs.CategoryPlayback, "player.shaders",
+			"没能把画质增强套到正在播放的窗口上", "下次开始播放时会按新设置加载", err)
+	}
+	return true, nil
 }
 
 // Seek 定位当前会话。

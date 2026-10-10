@@ -36,6 +36,10 @@ type fakePlayer struct {
 	lastAlts    []string
 	stopped     bool
 	status      player.Status
+	// playing / refreshErr 决定 RefreshShaders 的结果；refreshes 记调了几次
+	playing    bool
+	refreshErr error
+	refreshes  int
 	// log 记调用顺序（可为 nil）。磁力播放里「先停播放器再准备种子」的顺序
 	// 是正确性的一部分，只能靠调用序来断言。
 	log func(string)
@@ -66,6 +70,10 @@ func (f *fakePlayer) Stop()                 { f.record("player.stop"); f.stopped
 func (f *fakePlayer) SetPause(bool) error   { return nil }
 func (f *fakePlayer) Seek(float64) error    { return nil }
 func (f *fakePlayer) Status() player.Status { return f.status }
+func (f *fakePlayer) RefreshShaders() (bool, error) {
+	f.refreshes++
+	return f.playing, f.refreshErr
+}
 
 // fakeAuth 是 AnimegoAuth 替身。
 type fakeAuth struct {

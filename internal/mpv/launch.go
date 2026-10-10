@@ -39,6 +39,9 @@ type LaunchOptions struct {
 	// NetworkStream 表示 MediaPath 是一条边下边播 / 在线的 HTTP 流，而不是本地文件：
 	// 给 mpv 加上流式播放的缓存参数（见 streamCacheArgs）。
 	NetworkStream bool
+	// Shaders 是按顺序加载的 GLSL 着色器（Anime4K，见 Anime4KShaders）。逐个用 --glsl-shaders-append 传：
+	// 整条列表要按系统用 : 或 ; 分隔，路径里带这两个字符就会被拆错。
+	Shaders []string
 }
 
 // streamCacheArgs 是网络流专用的 mpv 缓存参数。
@@ -144,6 +147,9 @@ func buildArgs(opts LaunchOptions, endpoint string) []string {
 	}
 	if opts.StartAt > 0 {
 		args = append(args, fmt.Sprintf("--start=+%.3f", opts.StartAt))
+	}
+	for _, shader := range opts.Shaders {
+		args = append(args, "--glsl-shaders-append="+shader)
 	}
 	if len(opts.HTTPHeaders) > 0 {
 		names := make([]string, 0, len(opts.HTTPHeaders))

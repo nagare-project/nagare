@@ -29,6 +29,8 @@ type PlayerAPI interface {
 	SetPause(v bool) error
 	Seek(seconds float64) error
 	Status() player.Status
+	// RefreshShaders 把当前的画质增强设置套到正在播放的窗口上；返回是否在播。
+	RefreshShaders() (bool, error)
 }
 
 // AnimegoAuth 是处理器需要的 animego 会话能力子集。
@@ -108,6 +110,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/player/stop", h.playerStop)
 	mux.HandleFunc("POST /api/player/pause", h.playerPause)
 	mux.HandleFunc("POST /api/player/seek", h.playerSeek)
+	mux.HandleFunc("POST /api/player/config", h.playerConfig)
 	mux.HandleFunc("GET /api/settings", h.settings)
 	mux.HandleFunc("POST /api/mpv/detect", h.mpvDetect)
 	mux.HandleFunc("POST /api/shutdown", h.shutdown)

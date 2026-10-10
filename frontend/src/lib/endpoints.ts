@@ -264,8 +264,30 @@ export interface SettingsData {
   animego: AnimegoInfo
   /** 磁力边下边播的当前配置与缓存占用（M3） */
   torrent: TorrentSettings
+  /** 播放器设置（画质增强） */
+  player: PlayerSettings
   /** 后台形态（界面顶部「关掉标签页不会退出」提示条据此措辞） */
   background: BackgroundInfo
+}
+
+// ---------- 播放器设置 ----------
+
+/** Anime4K 实时超分：off 关 · fast 标准（核显 / 低端独显）· hq 高质量（中高端独显） */
+export type Anime4KPreset = 'off' | 'fast' | 'hq'
+
+export interface PlayerSettings {
+  anime4k: Anime4KPreset
+}
+
+/** POST /api/player/config 的结果：applied 表示已经套到正在播放的窗口上（没在播就是 false） */
+export interface PlayerConfigResult extends PlayerSettings {
+  applied: boolean
+  /** 设置存下了，但正在播的窗口没换成功（中文，可直接展示） */
+  applyError?: string
+}
+
+export function updatePlayerConfig(patch: Partial<PlayerSettings>): Promise<PlayerConfigResult> {
+  return requestJson<PlayerConfigResult>('/api/player/config', 'POST', patch)
 }
 
 // ---------- 更新（M4 阶段 A：只提示；阶段 B：一键更新） ----------

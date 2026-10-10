@@ -25,6 +25,7 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 		"dataDir":    h.deps.DataDir,
 		"logPath":    h.deps.LogPath,
 		"mpv":        mpvView(h.deps.MPV),
+		"player":     playerView(h.deps.Store.PlayerConfig()),
 		"torrent":    torrentView(h.deps.Store.TorrentConfig(), h.deps.Torrent, h.deps.TorrentCacheDir, h.deps.DefaultDownloadDir),
 		"background": map[string]any{"mode": backgroundModeView(h.deps.BackgroundMode)},
 		"animego": map[string]any{

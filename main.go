@@ -384,6 +384,15 @@ func buildServices(configDir string) (*services, error) {
 		Association:   lib.AssociationFor,
 		GroupEpisodes: lib.GroupEpisodes,
 		EpisodeSpace:  spaces.Lookup,
+		// 画质增强（Anime4K）：着色器写在运行时目录，每次起播按当前设置现取；准备失败就照常播放、不加载
+		Shaders: func() []string {
+			paths, err := mpv.Anime4KShaders(runtimeDir, st.PlayerConfig().Anime4K)
+			if err != nil {
+				log.Printf("画质增强的着色器没准备好（照常播放，不加载着色器）：%v", err)
+				return nil
+			}
+			return paths
+		},
 		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
 		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
 		OnSessionEnd: func() {

@@ -301,3 +301,13 @@
   font-size: 0.82rem;
   line-height: 1.5;
 }
+
+/* 画质增强：三档并排的选择按钮 */
+.playback-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0.6rem 0; }
+.playback-preset { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border-dim); border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.playback-preset strong { font-size: 14px; }
+.playback-preset span { color: var(--fg-muted); font-size: 12px; line-height: 1.4; }
+.playback-preset:hover:not(:disabled) { border-color: var(--border); }
+.playback-preset--active { border-color: var(--brand-line); background: var(--brand-wash); }
+.playback-preset:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (max-width: 520px) { .playback-presets { grid-template-columns: 1fr; } }

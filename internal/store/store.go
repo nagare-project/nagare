@@ -97,6 +97,8 @@ type Data struct {
 	IdentifyAttempts map[string]int64 `json:"identifyAttempts,omitempty"`
 	// Downloads：infohash → 磁力下载任务（见 downloads.go）。
 	Downloads map[string]Download `json:"downloads,omitempty"`
+	// Player 是播放器设置（见 player.go）；nil = 从未设置过。
+	Player *PlayerConfig `json:"player,omitempty"`
 }
 
 func emptyData() Data {

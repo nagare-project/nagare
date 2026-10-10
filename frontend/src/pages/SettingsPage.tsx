@@ -7,6 +7,7 @@ import { AddFolderForm } from '../components/library/AddFolderForm'
 import { SourcesCard } from '../components/search/SourcesCard'
 import { AboutCard } from '../components/settings/AboutCard'
 import { MpvCard } from '../components/settings/MpvCard'
+import { PlaybackCard } from '../components/settings/PlaybackCard'
 import { QuitCard, QuitNotice } from '../components/settings/QuitCard'
 import { SourcePluginCard } from '../components/settings/SourcePluginCard'
 import { TorrentCard } from '../components/settings/TorrentCard'
@@ -90,6 +91,7 @@ export function SettingsPage() {
         </div>
         <div className="settings-section" hidden={section.id !== 'player'}>
           {settings.state.phase === 'ready' && <MpvCard mpv={settings.state.data.mpv} onReload={settings.reload} />}
+          {settings.state.phase === 'ready' && <PlaybackCard player={settings.state.data.player} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'torrent'}>
           {settings.state.phase === 'ready' && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
