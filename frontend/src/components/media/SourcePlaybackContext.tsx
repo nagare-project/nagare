@@ -17,6 +17,7 @@ import type {
 } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { candidateChineseScore } from './chineseSubtitles'
+import { ZERO_PEER_ALERT_SECONDS } from '../torrent/TorrentStatusBar'
 import { catalogIdentity } from './releaseEpisodes'
 import type { MediaSummary } from './types'
 
@@ -75,9 +76,14 @@ interface RuntimeSession {
   /**
    * 还能不能自动起播。mpv 打开过一次（或用户自己点了播放）就关掉，并且同时停止找源：
    * 否则用户关掉 mpv、或在线地址在 mpv 里加载失败之后，后到的候选会一条接一条地重新拉起 mpv。
-   * 启动请求本身失败（mpv 还没打开）不算，照常自动试下一条。
+   * 启动请求本身失败（mpv 还没打开）不算，照常自动试下一条；BT 在缓冲够了打开 mpv 之前
+   * 没人分享、起播超时，也照常换下一条 BT。
    */
   auto: boolean
+  /** 这次找源交给磁力引擎的那条 BT（locator 与 TorrentPlayState.magnet 同形）：只盯它的成败 */
+  torrent?: { locator: string; candidateID: string; lastChance?: boolean }
+  /** 试过的种子（infohash 或种子地址）：不同来源报上来的同一个种子不重复试 */
+  attemptedTorrents: Set<string>
   phase: SourcePlaybackPhase
   activeCandidateID?: string
   activeFileID?: string
@@ -121,11 +127,16 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  /** mpv 已经（或即将）打开：之后不再自动起播，也不再继续找源；已收到的候选留在列表里手动换。 */
-  function stopAutoplay(session: RuntimeSession): void {
-    session.auto = false
+  /** 不再继续找源：已收到的候选留在列表里。 */
+  function stopSearch(session: RuntimeSession): void {
     session.streamDone = true
     session.controller.abort()
+  }
+
+  /** mpv 已经打开（或用户自己点了一条）：之后不再自动起播，也不再继续找源。 */
+  function stopAutoplay(session: RuntimeSession): void {
+    session.auto = false
+    stopSearch(session)
   }
 
   /** 这条候选没能用上：还在自动阶段就试下一条，否则停下来等用户在列表里换。 */
@@ -174,11 +185,14 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
       advance(session, '无法使用这条 BT 候选，正在尝试下一条', '这条 BT 候选缺少可用的入口，可在列表中换一条')
       return
     }
-    // 磁力缓冲够了就会打开 mpv：从这里起同样不再自动起播
-    stopAutoplay(session)
+    const key = torrentKey(candidate)
+    if (key !== null) session.attemptedTorrents.add(key)
+    // 找源到此为止。mpv 要等缓冲够了才打开：在那之前这条没人分享、起播超时，自动阶段还能换下一条 BT
+    stopSearch(session)
     session.pending = false
     session.activeFileID = undefined
     session.activeCandidateID = candidate.id
+    session.torrent = { locator: 'magnet' in locator ? locator.magnet : locator.torrentUrl, candidateID: candidate.id }
     const title = playbackTitle(candidate, session.request)
     // 作品身份随磁力播放留在本机：弹幕匹配据此校验没有认成别的作品（与在线候选同一套）
     const identity = catalogIdentity(session.request.media)
@@ -189,7 +203,16 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
       torrentRequest,
       title,
     )
-    publish(session, 'playing', `已回退到 ${candidateLabel(candidate, session.plugin?.sources ?? [])}`)
+    publish(session, 'playing', `${session.auto ? '已回退到' : '正在打开'} ${candidateLabel(candidate, session.plugin?.sources ?? [])}`)
+  }
+
+  /** 下一条还没试过的 BT：同一个种子从几个来源各报一次的，只试一次 */
+  function nextTorrentCandidate(session: RuntimeSession): SourceCandidate | undefined {
+    return sortCandidates(session.candidates).find(candidate => {
+      if (candidate.transport.type !== 'torrent' || session.attempted.has(candidate.id)) return false
+      const key = torrentKey(candidate)
+      return key === null || !session.attemptedTorrents.has(key)
+    })
   }
 
   function chooseNext(session: RuntimeSession): void {
@@ -211,7 +234,7 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
       publish(session, 'resolving', '正在等待高优先级在线候选')
       return
     }
-    const nextTorrent = candidates.find(candidate => candidate.transport.type === 'torrent')
+    const nextTorrent = nextTorrentCandidate(session)
     if (nextTorrent !== undefined) {
       startTorrent(session, nextTorrent)
       return
@@ -229,7 +252,7 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     const session: RuntimeSession = {
       generation: ++generation.current, request, controller, candidates: [], sourceErrors: [],
       failedSources: new Set(),
-      attempted: new Set(), streamDone: false, pending: false, auto: true, phase: 'checking',
+      attempted: new Set(), attemptedTorrents: new Set(), streamDone: false, pending: false, auto: true, phase: 'checking',
       message: '正在检查本地来源插件',
     }
     current.current = session
@@ -305,6 +328,60 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => () => current.current?.controller.abort(), [])
+
+  // 盯住交给磁力引擎的那条 BT：mpv 打开前没人分享、起播失败，自动阶段换下一条；手动点的只提示
+  const torrentState = torrent.state
+  const torrentZeroPeers = torrent.zeroPeerSeconds
+  useEffect(() => {
+    const session = current.current
+    const watched = session?.torrent
+    if (session == null || watched === undefined) return
+    // 已经不归这次找源管：用户在状态条取消了，或在磁力栏另点了一条
+    if (torrentState.phase === 'idle' || torrentState.magnet !== watched.locator) {
+      session.torrent = undefined
+      session.auto = false
+      if (torrentState.phase === 'idle') {
+        session.activeCandidateID = undefined
+        publish(session, 'ready', '磁力播放已停止，可在列表中换一条')
+      }
+      return
+    }
+    // mpv 打开了，或者要用户在种子的文件列表里挑：都不再替用户换
+    if (torrentState.phase === 'streaming' || torrentState.phase === 'selecting') {
+      session.torrent = undefined
+      session.auto = false
+      return
+    }
+    const reason = torrentState.phase === 'error' ? torrentState.message
+      : torrentZeroPeers >= ZERO_PEER_ALERT_SECONDS ? `${ZERO_PEER_ALERT_SECONDS} 秒内没有连接到任何分享者` : null
+    if (reason === null) return
+    const label = candidateLabelByID(session, watched.candidateID)
+    if (!session.auto) {
+      session.torrent = undefined
+      session.sourceErrors.push(`${label}：${reason}`)
+      publish(session, 'ready', '这条 BT 没能起播，可以在 BT 栏换一条')
+      return
+    }
+    const next = nextTorrentCandidate(session)
+    if (next === undefined) {
+      // 最后一条：没人分享就接着等（分享者可能只是来得慢），起播失败才收手
+      if (torrentState.phase === 'error') {
+        session.torrent = undefined
+        session.activeCandidateID = undefined
+        session.sourceErrors.push(`${label}：${reason}`)
+        publish(session, 'ready', '所有 BT 候选都没能起播，可以稍后重试，或到磁力栏换一条')
+      } else if (!watched.lastChance) {
+        watched.lastChance = true
+        publish(session, 'playing', `这是最后一条 BT 候选，继续等分享者：${label}`)
+      }
+      return
+    }
+    session.sourceErrors.push(`${label}：${reason}`)
+    session.torrent = undefined
+    session.activeCandidateID = undefined
+    publish(session, 'fallback', `${label} 没能起播，正在换下一条 BT`)
+    startTorrent(session, next)
+  }, [torrentState, torrentZeroPeers])
 
   const activeFileID = state.phase === 'idle' ? undefined : state.activeFileID
   useEffect(() => {
@@ -437,6 +514,14 @@ function sourceErrorText(category: string, fallback: string): string {
     cancelled: '查找已取消',
   }
   return messages[category] ?? fallback
+}
+
+/** 同一个种子的标识：infohash 优先，没有就用磁力里的 btih 或种子地址 */
+function torrentKey(candidate: SourceCandidate): string | null {
+  const transport = candidate.transport
+  const hash = transport.infoHash ?? /btih:([0-9a-z]{32,40})/i.exec(transport.magnet ?? '')?.[1]
+  if (hash) return hash.toLowerCase()
+  return transport.torrentUrl ?? null
 }
 
 function candidateTorrentLocator(candidate: SourceCandidate): { magnet: string } | { torrentUrl: string } | null {
