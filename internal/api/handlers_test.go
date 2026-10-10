@@ -105,6 +105,8 @@ type testEnv struct {
 	sources *SourcesService
 	plugin  *fakeSourcePluginRuntime
 	torrent *fakeTorrent
+	// downloads 是磁力下载的替身（见 downloads_test.go）。
+	downloads *fakeDownloads
 	// calls 是跨替身的调用顺序记录。
 	calls *[]string
 	// mpvDetect 是注入给 mpv.Runtime 的探测函数，测试改它再打 /api/mpv/detect 翻转状态。
@@ -160,7 +162,11 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 		LogPath:         "/data/nagare/logs/nagare.log",
 		BackgroundMode:  "dock",
 		TorrentCacheDir: "/data/nagare/cache/torrent",
+
+		DefaultDownloadDir: "/home/you/Downloads/nagare",
 	}
+	env.downloads = &fakeDownloads{}
+	deps.Downloads = env.downloads
 	if withTorrent {
 		env.torrent = &fakeTorrent{log: record}
 		deps.Torrent = env.torrent

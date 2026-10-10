@@ -9,6 +9,8 @@ package api
 import (
 	"context"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
@@ -152,6 +154,8 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 		UseDefaultTrackers *bool     `json:"useDefaultTrackers"`
 		PortForwarding     *bool     `json:"portForwarding"`
 		ListenPort         *int      `json:"listenPort"`
+		// DownloadDir 空串表示恢复默认目录；非空必须是绝对路径（只影响之后的新下载）
+		DownloadDir *string `json:"downloadDir"`
 	}
 	if !decodeBody(w, r, &req) {
 		return
@@ -159,6 +163,17 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 	if req.ListenPort != nil && (*req.ListenPort < 0 || *req.ListenPort > 65535) {
 		httpserver.WriteError(w, http.StatusBadRequest, "监听端口要在 0–65535 之间（0 表示由系统分配）")
 		return
+	}
+	if req.DownloadDir != nil {
+		dir := strings.TrimSpace(*req.DownloadDir)
+		if dir != "" && !filepath.IsAbs(dir) {
+			httpserver.WriteError(w, http.StatusBadRequest, "下载目录要填绝对路径，例如 /Users/you/Downloads/nagare")
+			return
+		}
+		if dir != "" {
+			dir = filepath.Clean(dir)
+		}
+		*req.DownloadDir = dir
 	}
 	// tracker 的合法性判定只有一份实现（引擎侧），在边界上复用它，
 	// 这样被丢掉的行能当场告诉用户，而不是静默消失。
@@ -185,6 +200,9 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 		if req.ListenPort != nil {
 			c.ListenPort = *req.ListenPort
 		}
+		if req.DownloadDir != nil {
+			c.DownloadDir = *req.DownloadDir
+		}
 	})
 	if err != nil {
 		writeErr(w, err)
@@ -195,7 +213,7 @@ func (h *Handler) torrentConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	view := torrentView(cfg, h.deps.Torrent, h.deps.TorrentCacheDir)
+	view := torrentView(cfg, h.deps.Torrent, h.deps.TorrentCacheDir, h.deps.DefaultDownloadDir)
 	if len(rejected) > 0 {
 		view["rejectedTrackers"] = rejected
 	}
@@ -215,22 +233,24 @@ func engineConfig(c store.TorrentConfig) torrentstream.Config {
 
 // torrentView 是设置页与配置端点共用的磁力视图。引擎为 nil（未启用）时
 // 只回配置并把 enabled 标成 false，界面据此显示降级提示。
-func torrentView(c store.TorrentConfig, eng TorrentAPI, cacheDir string) map[string]any {
+func torrentView(c store.TorrentConfig, eng TorrentAPI, cacheDir, defaultDownloadDir string) map[string]any {
 	trackers := c.Trackers
 	if trackers == nil {
 		trackers = []string{} // 前端要数组，不要 null
 	}
 	view := map[string]any{
-		"enabled":            eng != nil,
-		"seeding":            c.Seeding,
-		"trackers":           trackers,
-		"useDefaultTrackers": !c.DisableDefaultTrackers,
-		"defaultTrackers":    append([]string(nil), torrentstream.DefaultTrackers...),
-		"portForwarding":     c.PortForwarding,
-		"listenPort":         c.ListenPort,
-		"cacheDir":           cacheDir,
-		"cacheBytes":         int64(0),
-		"restartRequired":    false,
+		"enabled":              eng != nil,
+		"seeding":              c.Seeding,
+		"trackers":             trackers,
+		"useDefaultTrackers":   !c.DisableDefaultTrackers,
+		"defaultTrackers":      append([]string(nil), torrentstream.DefaultTrackers...),
+		"portForwarding":       c.PortForwarding,
+		"listenPort":           c.ListenPort,
+		"cacheDir":             cacheDir,
+		"cacheBytes":           int64(0),
+		"downloadDir":          DownloadDir(c, defaultDownloadDir),
+		"downloadDirIsDefault": strings.TrimSpace(c.DownloadDir) == "",
+		"restartRequired":      false,
 	}
 	if eng != nil {
 		view["cacheBytes"] = eng.CacheBytes()

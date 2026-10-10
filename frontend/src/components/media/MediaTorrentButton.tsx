@@ -2,12 +2,12 @@ import { PlaybackSurface } from './PlaybackSurface'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useTorrentPlayback } from '../torrent/TorrentPlayContext'
-import { fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
+import { addDownload, fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
 import type { MagnetSearchContext, SearchItem, SearchResult, SourceOutcome, SourcesData, TorrentPlayRequest } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import { catalogIdentity, defaultTorrentEpisode, extraKindsFor, playbackHints, seasonOfTitle } from './releaseEpisodes'
-import { TorrentReleaseResults } from './TorrentReleaseResults'
+import { releaseKey, TorrentReleaseResults } from './TorrentReleaseResults'
 import type { MediaSummary } from './types'
 import './media-play.css'
 
@@ -46,11 +46,17 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
   const requestVersion = useRef(0)
   const pluginAbort = useRef<AbortController | null>(null)
   const pluginRequest = useRef(0)
+  // 下载请求回来时还是不是这部作品：换了作品，旧作品的结果不能写到新面板上
+  const currentMedia = useRef(media.id)
+  currentMedia.current = media.id
   const torrent = useTorrentPlayback()
   const isMovie = media.format === 'MOVIE'
   const [query, setQuery] = useState(media.title)
   const [local, setLocal] = useState<LocalState>({ phase: 'idle' })
   const [plugin, setPlugin] = useState<PluginState | null>(null)
+  // 点过「下载」的发布（按 releaseKey），以及最近一次下载的结果提示
+  const [downloads, setDownloads] = useState<Record<string, 'adding' | 'added'>>({})
+  const [downloadNotice, setDownloadNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null)
   // 只会按集号问的老插件需要一个集号：给它下一集没看的。按作品搜的插件用不上
   const legacyEpisode = defaultTorrentEpisode(media)
 
@@ -61,6 +67,8 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
     pluginAbort.current?.abort()
     setLocal({ phase: 'idle' })
     setPlugin(null)
+    setDownloads({})
+    setDownloadNotice(null)
     // 作品页上切到这个标签就直接按字幕组列出来，不用再点一次搜索
     if (inline) void findReleases(media.title.trim() || media.title)
   }, [media.id, media.title])
@@ -165,6 +173,25 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
     dialog.current?.close()
   }
 
+  function download(item: SearchItem): void {
+    const key = releaseKey(item)
+    const mediaId = media.id
+    setDownloads(marks => ({ ...marks, [key]: 'adding' }))
+    const locator = item.torrentUrl ? { torrentUrl: item.torrentUrl } : { magnet: item.magnet }
+    addDownload(locator, item.title).then(task => {
+      if (mediaId !== currentMedia.current) return
+      setDownloads(marks => ({ ...marks, [key]: 'added' }))
+      setDownloadNotice({ tone: 'ok', text: task.state === 'done'
+        ? `这条已经下载过了，在媒体库里：${item.title}`
+        : `已加入下载：${item.title}。下完会自动出现在媒体库里。` })
+    }, (err: unknown) => {
+      console.error('加入下载失败', err)
+      if (mediaId !== currentMedia.current) return
+      setDownloads(({ [key]: _dropped, ...rest }) => rest)
+      setDownloadNotice({ tone: 'err', text: errorText(err, '加入下载失败') })
+    })
+  }
+
   const items = local.phase === 'ready' ? [...local.result.items, ...(plugin?.items ?? [])] : []
   const outcomes = local.phase === 'ready' ? [...local.result.sources, ...(plugin?.outcomes ?? [])] : []
 
@@ -198,10 +225,13 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
         {plugin?.scope === 'episode' && <p className="media-play-hint" role="status">当前的 Nagare Source 只会按集号搜索，插件来源只列出了第 {plugin.episode} 集的发布；升级插件后可列出整部作品。</p>}
         {local.phase === 'searching' && <p className="result result--dim" role="status">正在查找字幕组与发布版本…</p>}
         {local.phase === 'error' && <p className="result result--err" role="alert">{local.message} <button type="button" className="link" onClick={() => void findReleases(currentQuery())}>重试</button></p>}
+        {downloadNotice && <p className={downloadNotice.tone === 'ok' ? 'result result--ok' : 'result result--err'} role="status">
+          {downloadNotice.text} <a className="link" href="/torrents">查看下载</a>
+        </p>}
         {local.phase === 'ready' && <TorrentReleaseResults key={local.query} items={items} outcomes={outcomes} sources={local.sources}
           engineDown={local.engineDown} pluginPending={plugin?.pending ?? true} pluginError={plugin?.error ?? null}
           busy={torrent.busy} mediaId={media.id} {...(season === undefined ? {} : { wantedSeason: season })}
-          onRetryPlugin={retryPlugin} onPlay={start} />}
+          onRetryPlugin={retryPlugin} onPlay={start} onDownload={download} downloads={downloads} />}
       </div>
     </PlaybackSurface>
   </>

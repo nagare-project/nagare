@@ -29,8 +29,12 @@ var scanSubtitleExts = map[string]struct{}{
 	"srt": {}, "ass": {}, "ssa": {}, "vtt": {}, "sup": {},
 }
 
+// IncompleteDirName 是磁力下载在下载目录里的暂存子目录（见 torrentstream.Downloader）。
+// 下载目录本身就是一个库目录：没下完的文件留在这里，扫描时整个跳过，下完才挪出来进库。
+const IncompleteDirName = ".nagare-incomplete"
+
 var noiseNames = map[string]struct{}{
-	".DS_Store": {}, "Thumbs.db": {}, "desktop.ini": {},
+	".DS_Store": {}, "Thumbs.db": {}, "desktop.ini": {}, IncompleteDirName: {},
 }
 
 // ScannedFile 是扫描产物：视频或字幕文件的元信息（不含内容读取）。
@@ -69,7 +73,7 @@ type ScanResult struct {
 }
 
 // ScanDir 枚举 root 下的视频与字幕文件：
-//   - 跳过 ._* / .DS_Store / Thumbs.db / desktop.ini
+//   - 跳过 ._* / .DS_Store / Thumbs.db / desktop.ini，以及磁力下载的暂存目录 .nagare-incomplete
 //   - 视频小于 1MB 跳过
 //   - 深度 0/1 处「目录名带视频扩展名」按 macOS ExFAT 包目录处理：
 //     内部恰有一个同扩展名的大文件 → 以目录路径产出该文件；多个 → 当普通目录递归

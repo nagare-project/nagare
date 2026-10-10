@@ -3,7 +3,7 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installLocalStorage } from '../../test/storage'
 import { mount } from '../../test/harness'
-import { fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
+import { addDownload, fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
 import type { SearchItem } from '../../lib/endpoints'
 import type { SettingsData, SourcesData } from '../../lib/endpoints'
 import { MediaTorrentButton } from './MediaTorrentButton'
@@ -15,7 +15,7 @@ vi.mock('../torrent/TorrentPlayContext', () => ({
 }))
 vi.mock('../../lib/endpoints', async original => ({
   ...await original<typeof import('../../lib/endpoints')>(),
-  fetchSettings: vi.fn(), fetchSources: vi.fn(), searchMagnets: vi.fn(), streamPluginMagnets: vi.fn(),
+  fetchSettings: vi.fn(), fetchSources: vi.fn(), searchMagnets: vi.fn(), streamPluginMagnets: vi.fn(), addDownload: vi.fn(),
 }))
 
 const media = {
@@ -47,6 +47,7 @@ beforeEach(() => {
   installLocalStorage()
   vi.mocked(streamPluginMagnets).mockReset().mockImplementation(async (_q, _c, onEvent) => { onEvent({ event: 'done' }) })
   vi.mocked(fetchSettings).mockReset().mockResolvedValue(settings)
+  vi.mocked(addDownload).mockReset().mockImplementation(async (_locator, title) => ({ id: 'abc', title, root: '/dl', state: 'metadata', addedAt: 1, bytesDone: 0, peers: 0, seeders: 0, downRate: 0 }))
   vi.mocked(searchMagnets).mockReset().mockResolvedValue({
     query: media.title,
     items: [{ title: '[Group] 测试动画 02', magnet, size: '1 GB', fansub: '字幕组', date: null, source: 'local-rule', seeders: 8, episode: 2, kind: 'main' }],
@@ -80,7 +81,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     // 老插件只会按集号问：给它下一集没看的；按作品搜的插件不看这个
     expect(vi.mocked(streamPluginMagnets).mock.calls[0]?.[1]).toEqual({ episode: 2, anilistId: 7, altTitles: ['テスト'] })
     expect(container.querySelector('.media-resource-results')?.textContent).toContain('1 个字幕组 · 1 个版本')
-    await act(async () => rows(container)[0]!.querySelector('button')!.click())
+    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
     expect(shared.play.mock.calls[0]?.[0]).toEqual({ magnet, title: '[Group] 测试动画 02', episodeHint: 2, ...identity })
     await unmount()
   })
@@ -137,7 +138,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     expect(chips[0]?.getAttribute('aria-pressed')).toBe('true')
     await act(async () => chips[1]!.click())
     expect(titles(container)).toEqual(['[A组] 测试动画 [1-3]', '[A组] 测试动画 2', '[A组] 测试动画 02 v2'])
-    await act(async () => rows(container)[1]!.querySelector('button')!.click())
+    await act(async () => rows(container)[1]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
     expect(shared.play.mock.calls[0]?.[0].episodeHint).toBe(2)
     expect(localStorage.getItem('nagare:fansub:7')).toBe('A组')
     await unmount()
@@ -167,7 +168,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
   it('播放合集不带集号：合集标题里的数字不是集号，交给播放前的文件列表', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [batch(3, 'A组', 1, 28)] })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    await act(async () => rows(container)[0]!.querySelector('button')!.click())
+    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
     expect(shared.play.mock.calls[0]?.[0]).toEqual({ magnet: batch(3, 'A组', 1, 28).magnet, title: '[A组] 测试动画 [1-28]', ...identity })
     await unmount()
   })
@@ -179,7 +180,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
       onEvent({ event: 'done' })
     })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    await act(async () => rows(container)[0]!.querySelector('button')!.click())
+    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
     expect(shared.play.mock.calls[0]?.[0]).toMatchObject({ suggestedFileIndex: 4 })
     expect(shared.play.mock.calls[0]?.[0].episodeHint).toBeUndefined()
     await unmount()
@@ -188,7 +189,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
   it('OVA 作品自己的发布标着 OVA：照常按集号定位', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({ query: '', sources: [], items: [release(1, 'A组', 2, { kind: 'ova' })] })
     const { container, unmount } = await mount(<MediaTorrentButton media={{ ...media, format: 'OVA' }} inline />)
-    await act(async () => rows(container)[0]!.querySelector('button')!.click())
+    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
     expect(shared.play.mock.calls[0]?.[0].episodeHint).toBe(2)
     await unmount()
   })
@@ -221,8 +222,39 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     const movie = { ...media, format: 'MOVIE', episodes: 1, watched: 0 }
     const { container, unmount } = await mount(<MediaTorrentButton media={movie} inline />)
     expect(rows(container)).toHaveLength(1)
-    await act(async () => rows(container)[0]!.querySelector('button')!.click())
+    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
     expect(shared.play.mock.calls[0]?.[0]).toEqual({ magnet: release(1, 'A组').magnet, title: '[A组] 测试剧场版 [1080p]', ...identity })
+    await unmount()
+  })
+})
+
+describe('磁力栏「下载」：完整下到下载目录，下完进媒体库', () => {
+  it('点下载交给下载器（有种子文件地址优先用它），按钮变成已加入，并提示去哪看进度', async () => {
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [
+      batch(1, 'A组', 1, 12), release(2, 'A组', 1, { torrentUrl: 'https://example.invalid/a.torrent' }),
+    ] })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    const downloadOf = (index: number) => [...rows(container)[index]!.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === '下载')
+    await act(async () => downloadOf(0)!.click())
+    expect(addDownload).toHaveBeenCalledExactlyOnceWith({ magnet: batch(1, 'A组', 1, 12).magnet }, '[A组] 测试动画 [1-12]')
+    expect(rows(container)[0]?.textContent).toContain('已加入下载')
+    expect(container.textContent).toContain('已加入下载：[A组] 测试动画 [1-12]。下完会自动出现在媒体库里。')
+    expect(container.querySelector('a[href="/torrents"]')).not.toBeNull()
+    expect(shared.play).not.toHaveBeenCalled()
+
+    await act(async () => downloadOf(1)!.click())
+    expect(vi.mocked(addDownload).mock.calls[1]?.[0]).toEqual({ torrentUrl: 'https://example.invalid/a.torrent' })
+    await unmount()
+  })
+
+  it('加入失败：说出原因，按钮恢复可点', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(addDownload).mockRejectedValueOnce(new Error('这是私有站（PT）的种子，nagare 不下载'))
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    const download = () => [...rows(container)[0]!.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === '下载')
+    await act(async () => download()!.click())
+    expect(container.textContent).toContain('私有站')
+    expect(download()?.disabled).toBe(false)
     await unmount()
   })
 })
@@ -335,7 +367,7 @@ describe('按字幕组浏览磁力版本', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('暂时断线')
     await act(async () => container.querySelector<HTMLButtonElement>('[role="alert"] button')!.click())
     expect(container.querySelector('.media-resource-list')).not.toBeNull()
-    await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button.btn--primary')!.click())
     expect(container.querySelector<HTMLDialogElement>('dialog')?.open).toBe(false)
     await unmount()
   })

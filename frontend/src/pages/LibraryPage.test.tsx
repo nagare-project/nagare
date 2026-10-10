@@ -74,6 +74,8 @@ const SETTINGS: SettingsData = {
     listenPort: 6881,
     cacheDir: '/Users/you/Library/Application Support/nagare/cache/torrent',
     cacheBytes: 0,
+    downloadDir: '/Users/you/Downloads/nagare',
+    downloadDirIsDefault: true,
   },
 }
 

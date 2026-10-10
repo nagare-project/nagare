@@ -95,6 +95,8 @@ type Data struct {
 	Associations map[string]Association `json:"associations"`
 	// IdentifyAttempts：fileID → 媒体库自动识别上一次拿它去问、得到确定答复的时间（见 identify.go）。
 	IdentifyAttempts map[string]int64 `json:"identifyAttempts,omitempty"`
+	// Downloads：infohash → 磁力下载任务（见 downloads.go）。
+	Downloads map[string]Download `json:"downloads,omitempty"`
 }
 
 func emptyData() Data {
@@ -401,6 +403,8 @@ type TorrentConfig struct {
 	PortForwarding bool `json:"portForwarding"`
 	// ListenPort 是 BT 监听端口；0 表示交由系统随机分配。
 	ListenPort int `json:"listenPort"`
+	// DownloadDir 是「下载」按钮的落点（下完自动加进媒体库）；空串表示用默认目录。
+	DownloadDir string `json:"downloadDir,omitempty"`
 }
 
 // DefaultTorrentConfig 是首次运行的默认值。

@@ -12,7 +12,7 @@ const settings = {
   mpv: { found: false, install: { command: 'brew install mpv', url: 'https://mpv.io/installation/', note: '' } },
   animego: { loggedIn: false, baseUrl: 'https://account.example' },
   background: { mode: 'dock' },
-  torrent: { enabled: true, seeding: false, trackers: [], useDefaultTrackers: true, defaultTrackers: [], portForwarding: true, listenPort: 6881, cacheDir: '/cache', cacheBytes: 0 },
+  torrent: { enabled: true, seeding: false, trackers: [], useDefaultTrackers: true, defaultTrackers: [], portForwarding: true, listenPort: 6881, cacheDir: '/cache', cacheBytes: 0, downloadDir: '/Users/you/Downloads/nagare', downloadDirIsDefault: true },
 }
 
 beforeEach(() => {

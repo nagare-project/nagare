@@ -105,6 +105,19 @@ func TestScanDirDoesNotReportNoiseAsDropped(t *testing.T) {
 	assert.Empty(t, res.Dropped.Groups)
 }
 
+// 磁力下载的暂存目录在下载目录（也是库目录）里：没下完的文件一个都不能进库，也不算丢弃。
+func TestScanDirSkipsDownloadStaging(t *testing.T) {
+	root := t.TempDir()
+	writeFileSized(t, filepath.Join(root, "Show", "01.mkv"), minVideoSize)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, IncompleteDirName, "abc", "Show"), 0o700))
+	writeFileSized(t, filepath.Join(root, IncompleteDirName, "abc", "Show", "02.mkv"), minVideoSize)
+
+	res, err := ScanDir(root)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"video:Show/01.mkv"}, relPaths(res.Files))
+	assert.Equal(t, 0, res.Dropped.Total, "实际丢弃分组：%v", res.Dropped.Groups)
+}
+
 // macOS ExFAT 包目录：目录名带视频扩展名且内部恰有一个同扩展名大文件时，
 // 以目录路径示人、AbsPath 指向内部真实文件；多个大文件则按普通目录递归。
 func TestScanDirExfatBundle(t *testing.T) {

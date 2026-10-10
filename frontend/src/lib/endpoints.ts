@@ -1021,6 +1021,10 @@ export interface TorrentSettings {
   listenPort: number
   cacheDir: string
   cacheBytes: number
+  /** 「下载」按钮的落点：种子完整下到这里，下完自动加进媒体库 */
+  downloadDir: string
+  /** 设置里没填，用的是默认目录（用户「下载」文件夹下的 nagare） */
+  downloadDirIsDefault: boolean
 }
 
 /** POST /api/torrent/config 的 data 载荷：配置全量 + 是否需要重启才生效 */
@@ -1036,6 +1040,8 @@ export interface TorrentConfigPatch {
   useDefaultTrackers?: boolean
   portForwarding?: boolean
   listenPort?: number
+  /** 空串表示恢复默认目录；只影响之后的新下载 */
+  downloadDir?: string
 }
 
 /**
@@ -1064,6 +1070,56 @@ export function clearTorrentCache(): Promise<{ cacheBytes: number }> {
 
 export function updateTorrentConfig(patch: TorrentConfigPatch): Promise<TorrentConfigData> {
   return requestJson<TorrentConfigData>('/api/torrent/config', 'POST', patch)
+}
+
+// ---------- 磁力下载（完整下到下载目录，下完进媒体库；与边下边播互不相干） ----------
+
+/** metadata 找分享者 / 等种子信息 · downloading 下载中 · done 下完并挪进下载目录 · failed 不会自己恢复 */
+export type DownloadState = 'metadata' | 'downloading' | 'done' | 'failed'
+
+/** GET /api/downloads 里的一条任务：持久化的记录加上正在下的实时进度 */
+export interface DownloadTask {
+  /** infohash（小写十六进制），同一个种子只有一条 */
+  id: string
+  /** 发起时的发布标题 */
+  title: string
+  /** 种子信息里的名字；拿到种子信息前缺席 */
+  name?: string
+  /** 这条任务的下载目录 */
+  root: string
+  state: DownloadState
+  /** failed 时的原因（中文，可直接展示） */
+  error?: string
+  /** 总大小（字节）；拿到种子信息前缺席 */
+  size?: number
+  /** 下完后挪进下载目录的落点 */
+  paths?: string[]
+  addedAt: number
+  completedAt?: number
+  bytesDone: number
+  peers: number
+  seeders: number
+  downRate: number
+}
+
+export interface DownloadsData {
+  downloads: DownloadTask[]
+  /** 新下载会落到的目录 */
+  dir: string
+}
+
+export function fetchDownloads(): Promise<DownloadsData> {
+  return apiFetch<DownloadsData>('/api/downloads')
+}
+
+/** 加一条下载。同一个种子已经在下（或下完、文件还在）时返回那一条 */
+export function addDownload(locator: { magnet: string } | { torrentUrl: string }, title: string): Promise<DownloadTask> {
+  return requestJson<{ download: DownloadTask }>('/api/downloads', 'POST', { ...locator, title }).then(data => data.download)
+}
+
+/** 删掉一条下载：没下完的停下并删掉暂存数据；下完的只删记录，文件留在媒体库里 */
+export function removeDownload(id: string): Promise<void> {
+  return requestJson<Record<string, never>>(`/api/downloads/${encodeURIComponent(id)}`, 'DELETE').then(() => undefined)
 }
 
 // ---------- 目录 · 收藏 · 放送（M6） ----------

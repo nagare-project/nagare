@@ -86,6 +86,9 @@ type services struct {
 	// 设置页据此显示降级原因（决议 CQ3：降级必须可见）。
 	torrent         *torrentstream.Engine
 	torrentCacheDir string
+	// downloads 是「下载」按钮：完整下到下载目录、下完进媒体库，与边下边播互不相干。
+	downloads          *torrentstream.Downloader
+	defaultDownloadDir string
 	// streamBase 是流地址前缀的延迟绑定，见 streamBaseHolder。
 	streamBase *streamBaseHolder
 	// episodeSpaces 是作品集号空间的查询（播放回写与选集界面共用一份缓存）。
@@ -410,6 +413,20 @@ func buildServices(configDir string) (*services, error) {
 		log.Printf("媒体库就绪：%d 个视频，%d 个剧集簇", stats.Videos, stats.Clusters)
 	}
 
+	// 磁力下载：没有没下完的任务就不起 BT client；有的话接着下。下完的进媒体库。
+	defaultDownloadDir := api.DefaultDownloadDir(configDir)
+	downloads := torrentstream.NewDownloader(torrentstream.DownloaderOptions{
+		Store: st,
+		Root:  func() string { return api.DownloadDir(st.TorrentConfig(), defaultDownloadDir) },
+		Trackers: func() []string {
+			c := st.TorrentConfig()
+			return torrentstream.EffectiveTrackers(!c.DisableDefaultTrackers, c.Trackers)
+		},
+		PortForwarding: func() bool { return st.TorrentConfig().PortForwarding },
+		OnComplete:     lib.IncludeDownloads,
+	})
+	downloads.Resume()
+
 	// 磁力源规则：零内置，规则目录空就是空；来源由用户在设置里指定（A3 / 红线 1）。
 	sourceClient := &http.Client{Timeout: 20 * time.Second}
 	sources := api.NewSourcesService(st,
@@ -441,6 +458,7 @@ func buildServices(configDir string) (*services, error) {
 	return &services{
 		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, identify: identify, sources: sources, sourcePlugin: pluginService,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
+		downloads: downloads, defaultDownloadDir: defaultDownloadDir,
 		selfUpdate: su, episodeSpaces: spaces,
 	}, nil
 }
@@ -525,7 +543,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		serveErr <- srv.Serve(ln)
 		cancel() // 服务意外退出时也要让托盘 / 主循环收工
 	}()
-	stopped := teardownOnCancel(ctx, srv, svc.player, svc.torrent, svc.sourcePlugin)
+	stopped := teardownOnCancel(ctx, srv, svc.player, svc.torrent, svc.downloads, svc.sourcePlugin)
 
 	// 带 token 的首启 URL 只交给浏览器与托盘；日志（会落盘）里只打端口，token 到配置文件里取。
 	url := launchURL(port, cfg.Token)
@@ -596,11 +614,16 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 		BackgroundMode:  string(mode),
 		TorrentCacheDir: svc.torrentCacheDir,
 		EpisodeSpaces:   svc.episodeSpaces,
+
+		DefaultDownloadDir: svc.defaultDownloadDir,
 	}
 	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
 	// 「非 nil 接口包着 nil 指针」，降级判断会失效并在调用时 panic。
 	if svc.torrent != nil {
 		deps.Torrent = svc.torrent
+	}
+	if svc.downloads != nil {
+		deps.Downloads = svc.downloads
 	}
 	h := api.New(deps)
 	updater, err := update.New(update.Options{
@@ -686,6 +709,7 @@ func teardownOnCancel(
 	srv *httpserver.Server,
 	p *player.Manager,
 	engine *torrentstream.Engine,
+	downloads *torrentstream.Downloader,
 	plugin *api.SourcePluginService,
 ) <-chan struct{} {
 	stopped := make(chan struct{})
@@ -707,6 +731,12 @@ func teardownOnCancel(
 		if engine != nil {
 			if err := engine.Close(); err != nil {
 				log.Printf("关闭磁力引擎：%v", err)
+			}
+		}
+		// 没下完的下载停下来，记录留着，下次启动接着下
+		if downloads != nil {
+			if err := downloads.Close(); err != nil {
+				log.Printf("关闭磁力下载：%v", err)
 			}
 		}
 	}()

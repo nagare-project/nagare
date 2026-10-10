@@ -105,10 +105,14 @@ export interface ReleaseResultsProps {
   wantedSeason?: number
   onRetryPlugin: () => void
   onPlay: (item: SearchItem, button: HTMLButtonElement) => void
+  /** 「下载」：完整下到下载目录、下完进媒体库；不给就不显示下载按钮 */
+  onDownload?: (item: SearchItem) => void
+  /** 已经点过下载的发布（按 releaseKey）：adding 请求中，added 已加入 */
+  downloads?: Readonly<Record<string, 'adding' | 'added'>>
 }
 
 export function TorrentReleaseResults(props: ReleaseResultsProps) {
-  const { items, outcomes, sources, engineDown, pluginPending, pluginError, busy, mediaId, wantedSeason, onPlay } = props
+  const { items, outcomes, sources, engineDown, pluginPending, pluginError, busy, mediaId, wantedSeason, onPlay, onDownload, downloads } = props
   const remembered = rememberedFansub(mediaId)
   // 不分集、不隐藏：整部作品的发布按字幕组归类，别的季、特典照常列出
   const groups = groupByFansub(items, remembered, wantedSeason)
@@ -133,6 +137,14 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
   }
   const sourceLabel = (item: SearchItem) => sourceNames.get(item.source) ?? (item.source.startsWith('plugin:') ? `插件 · ${item.provider ?? item.source.slice('plugin:'.length)}` : item.source)
   const itemMeta = (item: SearchItem) => [item.resolution, item.size, typeof item.seeders === 'number' ? `做种 ${item.seeders}` : null, publishedLabel(item.date), sourceLabel(item)].filter(Boolean).join(' · ')
+  const downloadButton = (item: SearchItem) => {
+    if (onDownload === undefined) return null
+    const mark = downloads?.[releaseKey(item)]
+    return <button type="button" className="btn btn--sm" disabled={mark !== undefined}
+      title="整个种子完整下到下载目录，下完自动出现在媒体库里" onClick={() => onDownload(item)}>
+      {mark === 'adding' ? '加入中…' : mark === 'added' ? '已加入下载' : '下载'}
+    </button>
+  }
   const playButton = (item: SearchItem, group: string, label: string) => <button type="button" className="btn btn--sm btn--primary" disabled={busy || engineDown}
     title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
     onClick={event => play(item, event.currentTarget, group)}>{label}</button>
@@ -165,7 +177,10 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
         <ul className="media-resource-list">
           {active.items.slice(0, MAX_RESOURCE_RESULTS).map(item => <li key={releaseKey(item)}>
             <div><strong>{item.title}</strong><span>{rowLabel(item)}</span></div>
-            {playButton(item, active.name, isBatchRelease(item) || item.episode == null ? '选择文件' : '播放')}
+            <span className="media-resource-actions">
+              {downloadButton(item)}
+              {playButton(item, active.name, isBatchRelease(item) || item.episode == null ? '选择文件' : '播放')}
+            </span>
           </li>)}
         </ul>
         {active.items.length > MAX_RESOURCE_RESULTS && <p className="media-play-hint">仅显示前 {MAX_RESOURCE_RESULTS} 个版本，请细化作品名称继续搜索。</p>}
