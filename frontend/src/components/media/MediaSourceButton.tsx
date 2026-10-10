@@ -25,7 +25,10 @@ function episodeNumbers(media: MediaSummary): number[] {
   return Array.from({ length: MAX_EPISODE_BUTTONS }, (_, index) => start + index)
 }
 
-/** 选集即开始找源；高优先级在线候选先起播，其余候选保留供回退与手动换源。 */
+/**
+ * 选集即开始找源；高优先级在线候选先起播。mpv 一打开就停止找源、不再自动起播
+ * （见 SourcePlaybackContext 的 auto），其余候选留在列表里手动换源。
+ */
 export function MediaSourceButton({ media, inline = false }: { media: MediaSummary; inline?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -73,7 +76,7 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
         {!inline && <button type="button" className="icon-button media-play-close" aria-label="关闭在线来源选集" onClick={() => dialog.current?.close()}><Icon name="close" /></button>}
         <p className="media-play-kicker">本地来源插件</p>
         <h2 className={inline ? 'visually-hidden' : undefined}>{inline ? '在线选集' : media.title}</h2>
-        {!inline && <p className="media-play-hint">点选集数后立即开始找源。高优先级在线候选会先起播；失败时自动尝试下一在线来源或 BT，列表始终可手动换源。</p>}
+        {!inline && <p className="media-play-hint">点选集数后立即开始找源。高优先级在线候选会先起播，启动不了时自动尝试下一在线来源或 BT；mpv 打开后就停止找源，不会再自动打开新的窗口，列表始终可手动换源。</p>}
         {inline && <div className="online-episode-toolbar"><span><Icon name="broadcast" size={18} />自动匹配来源</span><a className="link" href="/settings#sources"><Icon name="settings" size={16} />来源设置</a><button type="button" className="icon-button" aria-label={gridView ? '切换列表视图' : '切换网格视图'} onClick={() => setGridView(value => !value)}><Icon name={gridView ? 'lists' : 'grid'} size={18} /></button></div>}
 
         <form className="media-manual-episode" onSubmit={submitManual}>

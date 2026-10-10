@@ -71,6 +71,12 @@ interface RuntimeSession {
   attempted: Set<string>
   streamDone: boolean
   pending: boolean
+  /**
+   * 还能不能自动起播。mpv 打开过一次（或用户自己点了播放）就关掉，并且同时停止找源：
+   * 否则用户关掉 mpv、或在线地址在 mpv 里加载失败之后，后到的候选会一条接一条地重新拉起 mpv。
+   * 启动请求本身失败（mpv 还没打开）不算，照常自动试下一条。
+   */
+  auto: boolean
   phase: SourcePlaybackPhase
   activeCandidateID?: string
   activeFileID?: string
@@ -114,6 +120,23 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  /** mpv 已经（或即将）打开：之后不再自动起播，也不再继续找源；已收到的候选留在列表里手动换。 */
+  function stopAutoplay(session: RuntimeSession): void {
+    session.auto = false
+    session.streamDone = true
+    session.controller.abort()
+  }
+
+  /** 这条候选没能用上：还在自动阶段就试下一条，否则停下来等用户在列表里换。 */
+  function advance(session: RuntimeSession, autoMessage: string, manualMessage: string): void {
+    if (session.auto) {
+      publish(session, 'fallback', autoMessage)
+      chooseNextRef.current(session)
+    } else {
+      publish(session, 'ready', manualMessage)
+    }
+  }
+
   async function attemptOnline(session: RuntimeSession, candidate: SourceCandidate): Promise<void> {
     if (current.current !== session) return
     session.pending = true
@@ -129,15 +152,15 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
       if (!result.fileId) throw new Error('后端未返回播放会话标识')
       session.pending = false
       session.activeFileID = result.fileId
-      publish(session, 'playing', `正在播放 ${candidateLabel(candidate, session.plugin?.sources ?? [])}`)
+      stopAutoplay(session)
+      publish(session, 'playing', `正在播放 ${candidateLabel(candidate, session.plugin?.sources ?? [])}，已停止继续找源`)
     } catch (err) {
       if (current.current !== session || session.activeCandidateID !== candidate.id) return
       session.pending = false
       session.activeCandidateID = undefined
       session.activeFileID = undefined
       session.sourceErrors.push(`${candidateLabel(candidate, session.plugin?.sources ?? [])}：${errorText(err, '播放启动失败')}`)
-      publish(session, 'fallback', '当前在线候选失败，正在尝试下一条')
-      chooseNextRef.current(session)
+      advance(session, '当前在线候选失败，正在尝试下一条', '这条候选启动失败，可在列表中换一条')
     }
   }
 
@@ -147,10 +170,11 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     if (locator === null) {
       session.sourceErrors.push(`${candidateLabel(candidate, session.plugin?.sources ?? [])}：缺少可用的 BT 入口`)
       session.activeCandidateID = undefined
-      publish(session, 'fallback', '无法使用这条 BT 候选，正在尝试下一条')
-      chooseNextRef.current(session)
+      advance(session, '无法使用这条 BT 候选，正在尝试下一条', '这条 BT 候选缺少可用的入口，可在列表中换一条')
       return
     }
+    // 磁力缓冲够了就会打开 mpv：从这里起同样不再自动起播
+    stopAutoplay(session)
     session.pending = false
     session.activeFileID = undefined
     session.activeCandidateID = candidate.id
@@ -168,7 +192,7 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
   }
 
   function chooseNext(session: RuntimeSession): void {
-    if (current.current !== session || session.pending || session.activeFileID !== undefined) return
+    if (current.current !== session || !session.auto || session.pending || session.activeFileID !== undefined) return
     const candidates = sortCandidates(session.candidates.filter(candidate => !session.attempted.has(candidate.id)))
     const online = candidates.filter(candidate => candidate.transport.type !== 'torrent')
     const nextOnline = session.streamDone
@@ -204,7 +228,7 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
     const session: RuntimeSession = {
       generation: ++generation.current, request, controller, candidates: [], sourceErrors: [],
       failedSources: new Set(),
-      attempted: new Set(), streamDone: false, pending: false, phase: 'checking',
+      attempted: new Set(), streamDone: false, pending: false, auto: true, phase: 'checking',
       message: '正在检查本地来源插件',
     }
     current.current = session
@@ -252,6 +276,8 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
   function play(candidate: SourceCandidate): void {
     const session = current.current
     if (session === null || session.pending) return
+    // 用户自己挑的这一条：失败了也只提示，不替用户接着往下试
+    stopAutoplay(session)
     session.attempted.delete(candidate.id)
     session.activeFileID = undefined
     session.activeCandidateID = candidate.id
@@ -293,11 +319,11 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
         const session = current.current
         if (session === null || session.activeFileID !== activeFileID) return
         if (player.playbackFailure?.fileId === activeFileID) {
+          // mpv 已经打开过：不再自动换下一条，否则每条加载不了的在线地址都会再弹一次 mpv
           session.sourceErrors.push(`${candidateLabelByID(session, session.activeCandidateID)}：${player.playbackFailure.reason}`)
           session.activeFileID = undefined
           session.activeCandidateID = undefined
-          publish(session, 'fallback', '在线播放失败，正在自动尝试下一条')
-          chooseNextRef.current(session)
+          publish(session, 'ready', '在线播放失败，不会再自动打开新的播放窗口，可在列表中换一条')
         } else if (player.playing && player.fileId !== activeFileID) {
           session.activeFileID = undefined
           session.activeCandidateID = undefined
