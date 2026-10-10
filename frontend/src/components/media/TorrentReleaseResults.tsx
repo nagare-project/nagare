@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SearchItem, SourceOutcome, SourcesData } from '../../lib/endpoints'
 import { parsePublished } from '../../lib/format'
+import { releaseChineseScore } from './chineseSubtitles'
 import { isBatchRelease } from './releaseEpisodes'
 
 /** 一个字幕组最多列多少个版本：不分集以后整部作品都在一个组里，两季 × 几种清晰度也要放得下 */
@@ -78,11 +79,16 @@ export function groupByFansub(items: SearchItem[], remembered: string | null, wa
   const seeders = (item: SearchItem) => typeof item.seeders === 'number' ? item.seeders : -1
   const currentSeason = (item: SearchItem) => wantedSeason !== undefined && (item.season ?? 1) === wantedSeason
   const episode = (item: SearchItem) => typeof item.episode === 'number' ? item.episode : 0
+  // 每条只算一次（排序比较会反复问同一条）
+  const chinese = new Map(deduped.map(item => [item, releaseChineseScore(item)]))
+  const chineseOf = (item: SearchItem) => chinese.get(item) ?? 1
   for (const group of byName.values()) {
-    group.items.sort((a, b) => Number(currentSeason(b)) - Number(currentSeason(a)) || releaseBucket(a) - releaseBucket(b) || episode(a) - episode(b) || seeders(b) - seeders(a) || (Date.parse(b.date ?? '') || 0) - (Date.parse(a.date ?? '') || 0))
+    // 同一集的几个版本里中文字幕的在前
+    group.items.sort((a, b) => Number(currentSeason(b)) - Number(currentSeason(a)) || releaseBucket(a) - releaseBucket(b) || episode(a) - episode(b) || chineseOf(b) - chineseOf(a) || seeders(b) - seeders(a) || (Date.parse(b.date ?? '') || 0) - (Date.parse(a.date ?? '') || 0))
   }
-  // 上次选的字幕组在最前，其余按版本多少排
-  return [...byName.values()].sort((a, b) => Number(b.name === remembered) - Number(a.name === remembered) || b.items.length - a.items.length || a.name.localeCompare(b.name, 'zh'))
+  const hasChinese = (group: FansubGroup) => group.items.some(item => chineseOf(item) === 2)
+  // 上次选的字幕组在最前，然后是有中文字幕发布的组，其余按版本多少排
+  return [...byName.values()].sort((a, b) => Number(b.name === remembered) - Number(a.name === remembered) || Number(hasChinese(b)) - Number(hasChinese(a)) || b.items.length - a.items.length || a.name.localeCompare(b.name, 'zh'))
 }
 
 export interface ReleaseResultsProps {

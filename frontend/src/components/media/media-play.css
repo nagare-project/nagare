@@ -89,3 +89,35 @@
 .media-play-selection-title h3 { font-size: 16px; overflow-wrap: anywhere; }
 .media-play-via { margin-top: 4px; color: var(--fg-muted); font-size: 13px; }
 .media-play-versions { margin: 4px 0 12px; color: var(--fg-muted); font-size: 13px; line-height: 1.7; }
+/* 在线找源结果：一张状态卡，候选按在线 / BT 分开、收起时只列前几条，不把下面的选集挤出屏幕 */
+.source-results { gap: 12px; padding: 16px; border: 1px solid var(--border-dim); border-radius: 12px; background: var(--paper); }
+.source-results-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.source-results-head h3 { flex: 1 0 auto; font-size: 16px; }
+.source-results-head h3 span { color: var(--fg-muted); font-weight: 500; }
+.source-status { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--fg-muted); font-size: 12px; white-space: nowrap; }
+.source-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.source-status--busy { border-color: var(--brand-line); color: var(--brand); }
+.source-status--ok { border-color: var(--ok-line); color: var(--ok); }
+.source-status--err { border-color: var(--err-line); color: var(--err); }
+.source-results-message { color: var(--fg-muted); font-size: 13px; line-height: 1.5; }
+.source-issues { border-radius: 8px; background: var(--warn-wash); color: var(--warn); font-size: 12px; }
+.source-issues summary { padding: 8px 12px; cursor: pointer; }
+.source-issues .media-source-errors { padding-top: 0; background: transparent; }
+.source-kinds { display: flex; align-items: center; gap: 12px; }
+.source-kind-row { display: flex; gap: 6px; }
+.source-kind { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--border-dim); border-radius: 8px; background: transparent; color: var(--fg-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.source-kind span { color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.source-kind--active { border-color: var(--brand-line); background: var(--brand-wash); color: var(--fg); }
+.source-kind--active span { color: var(--brand); }
+.source-kind:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.source-kinds-note { margin-left: auto; color: var(--fg-subtle); font-size: 12px; }
+.source-candidate-list { gap: 0; max-height: 420px; }
+.source-candidate-list li { padding: 10px 4px; }
+.source-candidate-list strong { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.source-candidate-list .badge { height: 20px; font-size: 11px; }
+.source-candidate-list .badge--accent { color: var(--brand); }
+.source-candidate-list .source-candidate-name { overflow: hidden; color: var(--fg); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.source-candidate-list li > div > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-results .source-expand { justify-self: start; font-size: 13px; }
+/* 窄屏上按钮也留在右边：候选一行一条，名字截断，不把列表撑成每条三行 */
+@media (max-width: 520px) { .source-results { padding: 12px; } .source-kinds-note { display: none; } .source-candidate-list li { flex-direction: row; align-items: center; } }

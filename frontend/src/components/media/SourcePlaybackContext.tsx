@@ -16,6 +16,7 @@ import type {
   TorrentPlayRequest,
 } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
+import { candidateChineseScore } from './chineseSubtitles'
 import { catalogIdentity } from './releaseEpisodes'
 import type { MediaSummary } from './types'
 
@@ -372,10 +373,16 @@ function resolveRequest(request: SourcePlaybackRequest): SourceResolveRequest {
   }
 }
 
-function sortCandidates(candidates: SourceCandidate[]): SourceCandidate[] {
+/**
+ * 自动起播与候选列表共用的先后：来源档位 → 中文字幕 → 线路档位 → 匹配度 → 在线先于 BT → 清晰度 → 做种数。
+ * 中文字幕排在档位之后：同一档里先挑有中文字幕的，但不会因此让 BT 抢在在线来源前面。
+ */
+export function sortCandidates(candidates: readonly SourceCandidate[]): SourceCandidate[] {
   const resolution = (value?: string) => Number(value?.match(/\d+/)?.[0] ?? 0)
+  const chinese = new Map(candidates.map(candidate => [candidate, candidateChineseScore(candidate)]))
   return [...candidates].sort((a, b) =>
     a.tier - b.tier ||
+    (chinese.get(b) ?? 1) - (chinese.get(a) ?? 1) ||
     (a.metadata.channelTier ?? 99) - (b.metadata.channelTier ?? 99) ||
     b.matchConfidence - a.matchConfidence ||
     Number(a.transport.type === 'torrent') - Number(b.transport.type === 'torrent') ||

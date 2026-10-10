@@ -143,6 +143,18 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     await unmount()
   })
 
+  it('中文字幕优先：有中文字幕发布的字幕组排在更大的组前面；同一集的中文字幕版本在前', async () => {
+    vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [
+      release(1, 'SubsPlease', 1), release(2, 'SubsPlease', 2), release(3, 'SubsPlease', 3),
+      release(4, 'LoliHouse', 1, { seeders: 90, title: '[LoliHouse] 测试动画 01 [WebRip 1080p]' }),
+      release(5, 'LoliHouse', 1, { seeders: 2, title: '[LoliHouse] 测试动画 01 [WebRip 1080p][简繁内封字幕]' }),
+    ] })
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
+    expect(groupNames(container)).toEqual(['LoliHouse', 'SubsPlease'])
+    expect(titles(container)).toEqual(['[LoliHouse] 测试动画 01 [WebRip 1080p][简繁内封字幕]', '[LoliHouse] 测试动画 01 [WebRip 1080p]'])
+    await unmount()
+  })
+
   it('标题写明了季数：这一季的发布排在前面，别的季照常列出', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({ query: '', sources: [], items: [
       release(1, 'A组', 1, { season: 1, title: '[A组] 测试动画 S1 01' }), release(2, 'A组', 1, { season: 2, title: '[A组] 测试动画 S2 01' }),

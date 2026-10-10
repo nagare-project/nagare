@@ -43,6 +43,7 @@ const alternate: SourceCandidate = {
   metadata: { resolution: '720p' },
 }
 const button = (container: HTMLElement, text: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.includes(text))
+const kind = (container: HTMLElement, label: '在线' | 'BT') => [...container.querySelectorAll<HTMLButtonElement>('.source-kind')].find(item => item.textContent?.startsWith(label))
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal')
 const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close')
 
@@ -220,6 +221,56 @@ describe('目录作品的本地插件找源', () => {
       '测试动画',
     )
     expect(playSourceCandidate).not.toHaveBeenCalled()
+    await unmount()
+  })
+
+  it('回退到 BT 时先挑有中文字幕的那条，列表自动切到 BT', async () => {
+    const english: SourceCandidate = { ...online, id: 'bt-en', tier: 3, transport: { type: 'torrent', infoHash: 'e'.repeat(40) }, metadata: { resolution: '1080p', fansub: 'SubsPlease', subtitleLanguages: ['en'], seeders: 900 } }
+    const chinese: SourceCandidate = { ...online, id: 'bt-zh', tier: 3, transport: { type: 'torrent', infoHash: 'c'.repeat(40) }, metadata: { resolution: '1080p', fansub: 'LoliHouse', title: '[LoliHouse] 测试动画 - 02 [简繁内封字幕]', seeders: 3 } }
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: english })
+      emit({ event: 'candidate', candidate: chinese })
+      emit({ event: 'done', queried: 1, succeeded: 1, failed: 0, durationMs: 8 })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+    expect(shared.play).toHaveBeenCalledOnce()
+    expect(shared.play.mock.calls[0]?.[0].magnet).toContain('c'.repeat(40))
+    expect(kind(container, 'BT')?.getAttribute('aria-pressed')).toBe('true')
+    const names = [...container.querySelectorAll('.source-candidate-name')].map(node => node.textContent)
+    expect(names).toEqual(['LoliHouse', 'SubsPlease'])
+    expect(container.querySelector('.media-resource-list li')?.textContent).toContain('中字')
+    await unmount()
+  })
+
+  it('候选按在线 / BT 分开，收起时每类只列前几条，报错的来源折叠成一行', async () => {
+    const bts: SourceCandidate[] = Array.from({ length: 7 }, (_, index) => ({ ...online, id: `bt-${index}`, tier: 3,
+      transport: { type: 'torrent', infoHash: String(index).repeat(40) }, metadata: { fansub: `组${index}`, seeders: 10 - index } }))
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'source_error', sourceId: 'web-b', category: 'resolve_timeout', message: 'timeout', retryable: true })
+      emit({ event: 'candidate', candidate: online })
+      for (const candidate of bts) emit({ event: 'candidate', candidate })
+      emit({ event: 'done', queried: 2, succeeded: 1, failed: 1, durationMs: 8 })
+    })
+    const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+
+    expect(container.querySelector('.source-issues summary')?.textContent).toBe('1 个来源没能用上')
+    expect(container.querySelector('.source-issues')?.hasAttribute('open')).toBe(false)
+    expect(container.querySelector('.media-source-errors')?.textContent).toContain('解析播放地址超时')
+    expect(kind(container, '在线')?.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelectorAll('.media-resource-list li')).toHaveLength(1)
+
+    await act(async () => kind(container, 'BT')!.click())
+    expect(container.querySelectorAll('.media-resource-list li')).toHaveLength(4)
+    await act(async () => button(container, '显示全部 7 条')!.click())
+    expect(container.querySelectorAll('.media-resource-list li')).toHaveLength(7)
+    await act(async () => button(container, '收起')!.click())
+    expect(container.querySelectorAll('.media-resource-list li')).toHaveLength(4)
     await unmount()
   })
 
