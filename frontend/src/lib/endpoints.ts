@@ -781,6 +781,8 @@ export interface SourceCandidate {
     sizeBytes?: number
     seeders?: number
     publishedAt?: string
+    /** 来源上的原始发布标题（BT 条目）：字幕组、清晰度、字幕语言都写在里面 */
+    title?: string
   }
 }
 

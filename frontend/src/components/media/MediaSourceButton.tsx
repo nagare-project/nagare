@@ -7,7 +7,8 @@ import type { PluginSource, SourceCandidate } from '../../lib/endpoints'
 import { formatBytes } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import { airedEpisodeCount } from './releaseEpisodes'
-import { useSourcePlayback } from './SourcePlaybackContext'
+import { sortCandidates, useSourcePlayback } from './SourcePlaybackContext'
+import { candidateChineseScore } from './chineseSubtitles'
 import type { SourcePlaybackSession } from './SourcePlaybackContext'
 import type { MediaSummary } from './types'
 import './media-play.css'
@@ -25,7 +26,10 @@ function episodeNumbers(media: MediaSummary): number[] {
   return Array.from({ length: MAX_EPISODE_BUTTONS }, (_, index) => start + index)
 }
 
-/** 选集即开始找源；高优先级在线候选先起播，其余候选保留供回退与手动换源。 */
+/**
+ * 选集即开始找源；高优先级在线候选先起播。mpv 一打开就停止找源、不再自动起播
+ * （见 SourcePlaybackContext 的 auto），其余候选留在列表里手动换源。
+ */
 export function MediaSourceButton({ media, inline = false }: { media: MediaSummary; inline?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -73,7 +77,7 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
         {!inline && <button type="button" className="icon-button media-play-close" aria-label="关闭在线来源选集" onClick={() => dialog.current?.close()}><Icon name="close" /></button>}
         <p className="media-play-kicker">本地来源插件</p>
         <h2 className={inline ? 'visually-hidden' : undefined}>{inline ? '在线选集' : media.title}</h2>
-        {!inline && <p className="media-play-hint">点选集数后立即开始找源。高优先级在线候选会先起播；失败时自动尝试下一在线来源或 BT，列表始终可手动换源。</p>}
+        {!inline && <p className="media-play-hint">点选集数后立即开始找源。高优先级在线候选会先起播，启动不了时自动尝试下一在线来源或 BT；mpv 打开后就停止找源，不会再自动打开新的窗口，列表始终可手动换源。</p>}
         {inline && <div className="online-episode-toolbar"><span><Icon name="broadcast" size={18} />自动匹配来源</span><a className="link" href="/settings#sources"><Icon name="settings" size={16} />来源设置</a><button type="button" className="icon-button" aria-label={gridView ? '切换列表视图' : '切换网格视图'} onClick={() => setGridView(value => !value)}><Icon name={gridView ? 'lists' : 'grid'} size={18} /></button></div>}
 
         <form className="media-manual-episode" onSubmit={submitManual}>
@@ -103,42 +107,117 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
   </>
 }
 
+/** 收起时每个标签页列几条：结果区不能把下面的选集挤到屏幕外 */
+const COLLAPSED_CANDIDATES = 4
+
+type CandidateKind = 'online' | 'bt'
+
+const kindOf = (candidate: SourceCandidate): CandidateKind => candidate.transport.type === 'torrent' ? 'bt' : 'online'
+
+const STATUS_LABELS: Record<SourcePlaybackSession['phase'], string> = {
+  checking: '检查插件', resolving: '找源中', starting: '启动中', playing: '播放中', fallback: '换源中', ready: '待选择', error: '出错',
+}
+
+function statusTone(session: SourcePlaybackSession): 'busy' | 'ok' | 'err' | 'idle' {
+  if (session.phase === 'playing') return 'ok'
+  if (session.phase === 'error') return 'err'
+  if (session.phase === 'ready') return 'idle'
+  return 'busy'
+}
+
+/**
+ * 一集的找源结果：顶部一张状态卡（集数、状态、一句说明，报错的来源折叠起来），
+ * 下面按「在线 / BT」分开列候选，中文字幕优先，收起时每类只列前几条。
+ */
 function CandidateResults({ session, busy, onPlay }: {
   session: SourcePlaybackSession
   busy: boolean
   onPlay: (candidate: SourceCandidate) => void
 }) {
-  const hasError = session.phase === 'error'
-  return <section className="media-resource-results" aria-label={`第 ${session.request.episode} 集在线来源`}>
-    <div className="media-play-selection"><h3>第 {session.request.episode} 集候选</h3><span className="result result--dim">{session.candidates.length} 条{session.streamDone ? '' : ' · 继续接收中'}</span></div>
-    {session.message && <p className={hasError ? 'result result--err' : 'result result--dim'} role="status">{session.message}{hasError && <> <a className="link" href="/settings#sources">检查设置</a></>}</p>}
-    {session.sourceErrors.length > 0 && <ul className="media-source-errors" aria-label="来源错误">{session.sourceErrors.map((error, index) => <li key={`${index}-${error}`}>{error}</li>)}</ul>}
-    {session.candidates.length === 0 ? <p className="media-play-hint" role="status">{session.streamDone ? '没有可播候选。' : '正在等待第一条候选…'}</p> :
-      <ul className="media-resource-list">{session.candidates.slice(0, MAX_CANDIDATES).map(candidate => {
-        const active = session.activeCandidateID === candidate.id
-        const attempted = session.attemptedIDs.includes(candidate.id)
-        return <li key={`${candidate.sourceId}-${candidate.id}`} className={active ? 'media-resource-active' : undefined}>
-          <div><strong>{candidateTitle(candidate)}</strong><span>{candidateDetails(candidate, session.plugin?.sources ?? [])}</span></div>
-          <button type="button" className="btn btn--sm btn--primary" disabled={busy && !active}
-            onClick={() => onPlay(candidate)}>{active ? (session.phase === 'starting' ? '启动中…' : '正在播放') : attempted ? '重试' : '播放'}</button>
-        </li>
-      })}</ul>}
-    {session.candidates.length > MAX_CANDIDATES && <p className="media-play-hint">只显示最先返回的 {MAX_CANDIDATES} 条候选。</p>}
+  const [picked, setPicked] = useState<CandidateKind | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const sources = session.plugin?.sources ?? []
+  const sorted = sortCandidates(session.candidates).slice(0, MAX_CANDIDATES)
+  const lists: Record<CandidateKind, SourceCandidate[]> = {
+    online: sorted.filter(candidate => kindOf(candidate) === 'online'),
+    bt: sorted.filter(candidate => kindOf(candidate) === 'bt'),
+  }
+  const activeCandidate = session.candidates.find(candidate => candidate.id === session.activeCandidateID)
+  // 用户没点过标签时跟着正在播的那条走（自动回退到 BT 就切到 BT），否则有在线候选先看在线
+  const kind: CandidateKind = picked ?? (activeCandidate ? kindOf(activeCandidate) : lists.online.length > 0 ? 'online' : 'bt')
+  const list = lists[kind]
+  const visible = expanded ? list : list.slice(0, COLLAPSED_CANDIDATES)
+  // 正在播的那条始终看得见
+  if (activeCandidate && kindOf(activeCandidate) === kind && !visible.includes(activeCandidate)) visible.push(activeCandidate)
+  const hidden = list.length - visible.length
+  const tone = statusTone(session)
+  const episodeTitle = session.request.episodeTitle
+  const choose = (next: CandidateKind) => { setPicked(next); setExpanded(false) }
+
+  return <section className="media-resource-results source-results" aria-label={`第 ${session.request.episode} 集在线来源`}>
+    <div className="source-results-head">
+      <h3>第 {session.request.episode} 集{episodeTitle ? <span> · {episodeTitle}</span> : null}</h3>
+      <span className={`source-status source-status--${tone}`}>{STATUS_LABELS[session.phase]}</span>
+      <span className="result result--dim">{session.candidates.length} 条候选{session.streamDone ? '' : ' · 继续接收中'}</span>
+    </div>
+    {session.message && <p className={tone === 'err' ? 'result result--err' : 'source-results-message'} role="status">{session.message}{tone === 'err' && <> <a className="link" href="/settings#sources">检查设置</a></>}</p>}
+    {session.sourceErrors.length > 0 && <details className="source-issues">
+      <summary>{session.sourceErrors.length} 个来源没能用上</summary>
+      <ul className="media-source-errors" aria-label="来源错误">{session.sourceErrors.map((error, index) => <li key={`${index}-${error}`}>{error}</li>)}</ul>
+    </details>}
+    {session.candidates.length === 0 ? <p className="media-play-hint" role="status">{session.streamDone ? '没有可播候选。' : '正在等待第一条候选…'}</p> : <>
+      <div className="source-kinds">
+        <div className="source-kind-row" role="group" aria-label="候选类型">
+          {(['online', 'bt'] as const).map(item => <button type="button" key={item} aria-pressed={kind === item}
+            className={kind === item ? 'source-kind source-kind--active' : 'source-kind'} onClick={() => choose(item)}>
+            {item === 'online' ? '在线' : 'BT'}<span>{lists[item].length}</span>
+          </button>)}
+        </div>
+        <span className="source-kinds-note">中文字幕优先</span>
+      </div>
+      {list.length === 0 ? <p className="media-play-hint" role="status">{kind === 'online' ? '没有在线候选。' : '没有 BT 候选。'}</p> :
+        <ul className="media-resource-list source-candidate-list">{visible.map(candidate => {
+          const active = session.activeCandidateID === candidate.id
+          const attempted = session.attemptedIDs.includes(candidate.id)
+          return <li key={`${candidate.sourceId}-${candidate.id}`} className={active ? 'media-resource-active' : undefined}>
+            <div>
+              <strong title={candidate.metadata.title}>
+                {candidate.metadata.resolution && <span className="badge">{candidate.metadata.resolution}</span>}
+                {candidateChineseScore(candidate) === 2 && <span className="badge badge--accent">中字</span>}
+                <span className="source-candidate-name">{candidateName(candidate, sources)}</span>
+              </strong>
+              <span>{candidateDetails(candidate, sources)}</span>
+            </div>
+            <button type="button" className="btn btn--sm btn--primary" disabled={busy && !active}
+              onClick={() => onPlay(candidate)}>{active ? (session.phase === 'starting' ? '启动中…' : '正在播放') : attempted ? '重试' : '播放'}</button>
+          </li>
+        })}</ul>}
+      {(hidden > 0 || expanded) && list.length > COLLAPSED_CANDIDATES && <button type="button" className="link source-expand" onClick={() => setExpanded(value => !value)}>
+        {expanded ? '收起' : `显示全部 ${list.length} 条`}
+      </button>}
+    </>}
+    {session.candidates.length > MAX_CANDIDATES && <p className="media-play-hint">只列出排在最前的 {MAX_CANDIDATES} 条候选。</p>}
   </section>
 }
 
-function candidateTitle(candidate: SourceCandidate): string {
-  const transport: Record<SourceCandidate['transport']['type'], string> = { hls: 'HLS', http: 'HTTP', torrent: 'BT' }
-  return [candidate.metadata.resolution, candidate.metadata.fansub, transport[candidate.transport.type]].filter(Boolean).join(' · ') || '可播候选'
+function sourceName(sources: PluginSource[], id: string): string {
+  return sources.find(source => source.id === id)?.name ?? id
+}
+
+/** 一行的主名字：在线候选是「来源 · 线路」，BT 候选是字幕组（不知道时用来源名） */
+function candidateName(candidate: SourceCandidate, sources: PluginSource[]): string {
+  if (candidate.transport.type === 'torrent') return candidate.metadata.fansub || sourceName(sources, candidate.sourceId)
+  return [sourceName(sources, candidate.sourceId), candidate.metadata.channel].filter(Boolean).join(' · ')
 }
 
 function candidateDetails(candidate: SourceCandidate, sources: PluginSource[]): string {
+  const torrent = candidate.transport.type === 'torrent'
   const details = [
-    sources.find(source => source.id === candidate.sourceId)?.name ?? candidate.sourceId,
-    `${Math.round(candidate.matchConfidence * 100)}% 匹配`,
+    torrent && candidate.metadata.fansub ? sourceName(sources, candidate.sourceId) : null,
     candidate.metadata.subtitleLanguages?.join('/'),
     candidate.metadata.sizeBytes ? formatBytes(candidate.metadata.sizeBytes) : null,
     typeof candidate.metadata.seeders === 'number' ? `做种 ${candidate.metadata.seeders}` : null,
+    `${Math.round(candidate.matchConfidence * 100)}% 匹配`,
   ]
   return details.filter(Boolean).join(' · ')
 }
