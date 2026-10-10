@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
+import { DownloadsPanel } from '../components/torrent/DownloadsPanel'
 import { ApiAuthError } from '../lib/api'
 import { fetchTorrentStatus, stopTorrent } from '../lib/endpoints'
 import { errorText, formatBytes, formatRate } from '../lib/format'
@@ -12,12 +13,11 @@ import '../components/media/media.css'
 /**
  * `/torrents` 磁力任务页。
  *
- * 这一页【没有假数据】—— `/api/torrent/status` 给的就是真实会话状态。
- *
- * 与 seanime 的差别要说清楚，它不是没做完：seanime 列的是一个常驻下载队列，
- * 而 nagare 按决议 M3-4 是「停播即删分片、启动与退出各清空一次缓存」，
- * 压根不存在「任务列表」这个东西。所以这里只可能有一条：当前这个会话。
- * 把它做成队列意味着推翻 M3-4，那是另一件事，不该由一个界面顺手决定。
+ * 这一页【没有假数据】，分两块：
+ *   - 上面是边下边播的当前会话（`/api/torrent/status`）。按决议 M3-4 停播即删分片、启动与退出
+ *     各清空一次缓存，所以这里最多一条。
+ *   - 下面是「下载」（`/api/downloads`）：用户在磁力栏点了「下载」的种子，完整下到下载目录、
+ *     下完进媒体库。它走自己的 BT client 与存储，不碰 M3-4 —— 边下边播的语义原样不变。
  */
 
 /** 轮询间隔：与播放流程里的状态条同频，1 秒 */
@@ -90,6 +90,8 @@ export function TorrentsPage() {
       ) : (
         <IdleNotice />
       )}
+
+      <DownloadsPanel />
     </main>
   )
 }
@@ -147,15 +149,15 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * 空态。这里刻意解释「为什么没有任务列表」而不只是说「暂无任务」——
- * 用户从 seanime 过来会以为功能缺了一块。
+ * 边下边播的空态。刻意解释「为什么最多只有一条」，并指向下面的「下载」——
+ * 用户从 seanime 过来会以为边下边播的任务也该留下来。
  */
 function IdleNotice() {
   return (
     <div className="page-notice">
-      <h2 className="page-notice-title">当前没有磁力会话</h2>
+      <h2 className="page-notice-title">当前没有边下边播的会话</h2>
       <p className="page-notice-copy">
-        nagare 不维护常驻下载队列：分片只在播放期间存在，停止播放即删除，启动与退出还会各清空一次缓存。所以这里最多只会有一条 —— 你正在看的那个。
+        边下边播的分片只在播放期间存在，停止播放即删除，所以这里最多只会有一条 —— 你正在看的那个。想把整部留下来，就在磁力栏点「下载」，进度在下面。
       </p>
       <p className="page-notice-actions">
         <Link to="/search" className="btn btn--sm">

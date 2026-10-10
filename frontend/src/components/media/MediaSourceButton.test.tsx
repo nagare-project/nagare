@@ -9,12 +9,14 @@ import {
   streamSourceCandidates,
 } from '../../lib/endpoints'
 import type { SourceCandidate, SourcePluginView } from '../../lib/endpoints'
+import type { TorrentPlayState } from '../../hooks/useTorrentPlay'
 import { MediaSourceButton } from './MediaSourceButton'
 import { SourcePlaybackProvider } from './SourcePlaybackContext'
 
-const shared = vi.hoisted(() => ({ play: vi.fn() }))
+// 磁力播放会话的替身：测试改 shared.torrent 再 rerender，就是状态条那份会话往前走了一步
+const shared = vi.hoisted(() => ({ play: vi.fn(), torrent: { state: { phase: 'idle' } as TorrentPlayState, zeroPeerSeconds: 0 } }))
 vi.mock('../torrent/TorrentPlayContext', () => ({
-  useTorrentPlayback: () => ({ state: { phase: 'idle' }, status: null, zeroPeerSeconds: 0, busy: false, play: shared.play, selectFile: vi.fn(), retry: vi.fn(), cancel: vi.fn() }),
+  useTorrentPlayback: () => ({ state: shared.torrent.state, status: null, zeroPeerSeconds: shared.torrent.zeroPeerSeconds, busy: false, play: shared.play, selectFile: vi.fn(), retry: vi.fn(), cancel: vi.fn() }),
 }))
 vi.mock('../../lib/endpoints', async original => ({
   ...await original<typeof import('../../lib/endpoints')>(),
@@ -49,6 +51,7 @@ const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'clos
 
 beforeEach(() => {
   shared.play.mockReset()
+  shared.torrent = { state: { phase: 'idle' }, zeroPeerSeconds: 0 }
   vi.mocked(fetchSourcePlugin).mockReset().mockResolvedValue(plugin)
   vi.mocked(fetchPlayerStatus).mockReset().mockResolvedValue({ playing: true, fileId: 'remote|online-1', title: '测试动画', position: 1, duration: 100, paused: false, danmaku: { state: 'none' } })
   vi.mocked(playSourceCandidate).mockReset().mockImplementation(async candidate => ({ fileId: `remote|${candidate.id}`, title: '测试动画', danmaku: { state: 'none' } }))
@@ -335,5 +338,96 @@ describe('目录作品的本地插件找源', () => {
     expect(playSourceCandidate).toHaveBeenCalledExactlyOnceWith(alternate, '测试动画', 2, { anilistId: 7, altTitles: ['テスト'] })
     expect(container.textContent).toContain('这条候选启动失败，可在列表中换一条')
     await unmount()
+  })
+})
+
+describe('BT 回退：mpv 打开前没人分享、起播失败就换下一条', () => {
+  const bt = (id: string, hash: string, extra: Partial<SourceCandidate['metadata']> = {}): SourceCandidate => ({
+    ...online, id, tier: 3, transport: { type: 'torrent', infoHash: hash.repeat(40) }, metadata: { fansub: `组${id}`, ...extra },
+  })
+  const onlyBT = (candidates: SourceCandidate[]) => vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+    for (const candidate of candidates) emit({ event: 'candidate', candidate })
+    emit({ event: 'done', queried: 1, succeeded: 1, failed: 0, durationMs: 8 })
+  })
+  const started = (index: number): string => shared.play.mock.calls[index]![0].magnet as string
+  async function start(): Promise<Awaited<ReturnType<typeof mount>>> {
+    const mounted = await mount(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+    await act(async () => mounted.container.querySelector<HTMLButtonElement>('.discover-card-source')!.click())
+    await act(async () => mounted.container.querySelector<HTMLButtonElement>('[aria-label="从本地插件查找第 2 集"]')!.click())
+    await act(async () => {})
+    return mounted
+  }
+  const step = async (mounted: Awaited<ReturnType<typeof mount>>, state: TorrentPlayState, zeroPeerSeconds = 0) => {
+    shared.torrent = { state, zeroPeerSeconds }
+    await mounted.rerender(<SourcePlaybackProvider><MediaSourceButton media={media} /></SourcePlaybackProvider>)
+  }
+
+  it('15 秒连不上分享者就换下一条；不同来源报的同一个种子不重复试', async () => {
+    onlyBT([bt('a', 'a', { seeders: 9 }), { ...bt('a-dup', 'a', { seeders: 8 }), sourceId: 'mikan' }, bt('b', 'b', { seeders: 1 })])
+    const mounted = await start()
+    expect(shared.play).toHaveBeenCalledOnce()
+    expect(started(0)).toContain('a'.repeat(40))
+
+    await step(mounted, { phase: 'starting', magnet: started(0), title: '测试动画' }, 10)
+    expect(shared.play).toHaveBeenCalledOnce()
+    await step(mounted, { phase: 'starting', magnet: started(0), title: '测试动画' }, 15)
+    expect(shared.play).toHaveBeenCalledTimes(2)
+    expect(started(1)).toContain('b'.repeat(40))
+    expect(mounted.container.querySelector('.media-source-errors')?.textContent).toContain('15 秒内没有连接到任何分享者')
+    await mounted.unmount()
+  })
+
+  it('起播失败也换下一条；最后一条没人分享就接着等，不再换', async () => {
+    onlyBT([bt('a', 'a', { seeders: 9 }), bt('b', 'b', { seeders: 1 })])
+    const mounted = await start()
+    await step(mounted, { phase: 'error', magnet: started(0), title: '测试动画', message: '缓冲超时，分享者太少' })
+    expect(shared.play).toHaveBeenCalledTimes(2)
+    expect(mounted.container.querySelector('.media-source-errors')?.textContent).toContain('缓冲超时，分享者太少')
+
+    await step(mounted, { phase: 'starting', magnet: started(1), title: '测试动画' }, 30)
+    expect(shared.play).toHaveBeenCalledTimes(2)
+    expect(mounted.container.textContent).toContain('这是最后一条 BT 候选，继续等分享者')
+    await step(mounted, { phase: 'error', magnet: started(1), title: '测试动画', message: '找不到可用的分享者' })
+    expect(shared.play).toHaveBeenCalledTimes(2)
+    expect(mounted.container.textContent).toContain('所有 BT 候选都没能起播')
+    await mounted.unmount()
+  })
+
+  it('mpv 打开以后（或要用户挑文件时）不再自动换', async () => {
+    onlyBT([bt('a', 'a', { seeders: 9 }), bt('b', 'b', { seeders: 1 })])
+    const mounted = await start()
+    await step(mounted, { phase: 'streaming', magnet: started(0), title: '测试动画', danmaku: { state: 'none' } })
+    await step(mounted, { phase: 'error', magnet: started(0), title: '测试动画', message: '磁力流中断' })
+    expect(shared.play).toHaveBeenCalledOnce()
+    await mounted.unmount()
+  })
+
+  it('用户在状态条取消：不再自动换，列表里可以手动换', async () => {
+    onlyBT([bt('a', 'a', { seeders: 9 }), bt('b', 'b', { seeders: 1 })])
+    const mounted = await start()
+    await step(mounted, { phase: 'idle' })
+    await step(mounted, { phase: 'idle' }, 20)
+    expect(shared.play).toHaveBeenCalledOnce()
+    expect(mounted.container.textContent).toContain('磁力播放已停止')
+    await mounted.unmount()
+  })
+
+  it('手动点的 BT 没人分享：只提示，不替用户换', async () => {
+    vi.mocked(fetchPlayerStatus).mockResolvedValue({ playing: true, fileId: 'remote|online-1', title: '测试动画', position: 1, duration: 100, paused: false, danmaku: { state: 'none' } })
+    vi.mocked(streamSourceCandidates).mockImplementation(async (_request, emit) => {
+      emit({ event: 'candidate', candidate: online })
+      emit({ event: 'candidate', candidate: bt('a', 'a', { seeders: 9 }) })
+      emit({ event: 'candidate', candidate: bt('b', 'b', { seeders: 1 }) })
+      emit({ event: 'done', queried: 1, succeeded: 1, failed: 0, durationMs: 8 })
+    })
+    const mounted = await start()
+    expect(playSourceCandidate).toHaveBeenCalledOnce()
+    await act(async () => [...mounted.container.querySelectorAll<HTMLButtonElement>('.source-kind')].find(item => item.textContent?.startsWith('BT'))!.click())
+    await act(async () => mounted.container.querySelector<HTMLButtonElement>('.media-resource-list li button')!.click())
+    expect(shared.play).toHaveBeenCalledOnce()
+    await step(mounted, { phase: 'starting', magnet: started(0), title: '测试动画' }, 15)
+    expect(shared.play).toHaveBeenCalledOnce()
+    expect(mounted.container.textContent).toContain('这条 BT 没能起播，可以在 BT 栏换一条')
+    await mounted.unmount()
   })
 })

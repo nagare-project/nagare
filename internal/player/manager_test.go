@@ -428,6 +428,28 @@ func TestPlayLocalFileIsNotANetworkStream(t *testing.T) {
 	assert.False(t, got.NetworkStream)
 }
 
+// 画质增强（Anime4K）的着色器每次起播现取：改了设置，下一次起播就按新的来。
+func TestPlayLoadsCurrentShaders(t *testing.T) {
+	m, _, dir := newTestManager(t, nil)
+	shaders := []string{"/rt/anime4k/a.glsl", "/rt/anime4k/b.glsl"}
+	m.opts.Shaders = func() []string { return shaders }
+	var got mpv.LaunchOptions
+	m.opts.Launch = func(_ context.Context, o mpv.LaunchOptions) (*mpv.Player, error) {
+		got = o
+		return nil, errors.New("到此为止")
+	}
+	_, _ = m.Play(context.Background(), NewLocalSource(testItem(t, dir, 1)), "")
+	assert.Equal(t, []string{"/rt/anime4k/a.glsl", "/rt/anime4k/b.glsl"}, got.Shaders)
+
+	shaders = nil
+	_, _ = m.Play(context.Background(), NewLocalSource(testItem(t, dir, 1)), "")
+	assert.Empty(t, got.Shaders)
+
+	applied, err := m.RefreshShaders()
+	require.NoError(t, err)
+	assert.False(t, applied, "没有在播时只是等下次起播")
+}
+
 // ---------- 看完回写失败必须可见（CQ3：错误不静默） ----------
 
 // syncFailClient 让 MarkWatched 按注入的错误失败。

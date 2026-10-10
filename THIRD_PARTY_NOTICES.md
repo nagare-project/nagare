@@ -111,6 +111,16 @@ nagare 二进制的第三方组件及其许可证。许可证以各上游源码�
 
 仅用于测试、不进入二进制：github.com/stretchr/testify（MIT）。
 
+## 内置的 Anime4K 着色器
+
+设置页「画质增强」用的 GLSL 着色器内嵌在 nagare 二进制里（[`internal/mpv/anime4k/`](internal/mpv/anime4k/)），
+播放时写进运行时目录交给 mpv 加载。原样复制、未作改动：
+
+| | |
+| --- | --- |
+| 来源 | [bloc97/Anime4K](https://github.com/bloc97/Anime4K) 修订 `7684e9586f8dcc738af08a1cdceb024cc184f426`（`glsl/Restore`、`glsl/Upscale`） |
+| 文件 | `Anime4K_Clamp_Highlights` · `Anime4K_Restore_CNN_M` · `Anime4K_Restore_CNN_VL` · `Anime4K_Upscale_CNN_x2_S` · `Anime4K_Upscale_CNN_x2_M` · `Anime4K_Upscale_CNN_x2_VL`（MIT，版权归 bloc97，许可证见 [`internal/mpv/anime4k/LICENSE`](internal/mpv/anime4k/LICENSE) 与各文件头）；`Anime4K_AutoDownscalePre_x2` · `Anime4K_AutoDownscalePre_x4`（Unlicense，公有领域，见文件头） |
+
 ## 前端依赖
 
 内嵌进二进制的浏览器界面（`frontend/package.json` 的 `dependencies`）：

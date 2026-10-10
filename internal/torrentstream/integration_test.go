@@ -152,6 +152,8 @@ func startSeeder(t *testing.T, dataDir string, mi *metainfo.MetaInfo, tweaks ...
 	cfg.DisablePEX = true
 	cfg.NoDefaultPortForwarding = true
 	cfg.ListenPort = 0
+	// 两端只经 127.0.0.1 互连（见 linkSeeder），用不到 IPv6；没有 IPv6 的机器上监听 tcp6 会直接失败
+	cfg.DisableIPv6 = true
 	cfg.Slogger = slog.New(slog.DiscardHandler)
 	cfg.DefaultStorage = storage.NewFileOpts(storage.NewFileClientOpts{
 		ClientBaseDir:   dataDir,
@@ -228,6 +230,7 @@ func offlineClient(cacheDir string, cfg Config) (*torrent.Client, error) {
 	tc.NoDHT = true
 	tc.DisableTrackers = true
 	tc.DisablePEX = true
+	tc.DisableIPv6 = true // 同 startSeeder：只走 127.0.0.1
 	tc.Slogger = slog.New(slog.DiscardHandler)
 	return torrent.NewClient(tc)
 }

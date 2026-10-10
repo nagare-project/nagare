@@ -29,7 +29,7 @@ export interface TorrentCardProps {
 }
 
 /**
- * 设置页「磁力」卡：持续做种 · 自动端口映射 · 监听端口 · tracker 列表 · 缓存占用。
+ * 设置页「磁力」卡：持续做种 · 自动端口映射 · 监听端口 · tracker 列表 · 下载目录 · 缓存占用。
  *
  * 四项配置一起保存（一次 POST /api/torrent/config）：端口类改动后端会回
  * restartRequired，界面据此提示重启。表单脏了会显式提示「有未保存的改动」，
@@ -43,6 +43,8 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
   const [listenPort, setListenPort] = useState(String(torrent.listenPort))
   const [trackersText, setTrackersText] = useState(torrent.trackers.join('\n'))
   const [useDefaultTrackers, setUseDefaultTrackers] = useState(torrent.useDefaultTrackers)
+  // 留空 = 用默认目录（后端给的 downloadDir 就是默认目录本身，用来当占位提示）
+  const [downloadDir, setDownloadDir] = useState(customDownloadDir(torrent))
   const [restartRequired, setRestartRequired] = useState(false)
   const [state, setState] = useState<ActionState>({ phase: 'idle' })
 
@@ -54,7 +56,8 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
     portForwarding !== saved.portForwarding ||
     listenPort.trim() !== String(saved.listenPort) ||
     useDefaultTrackers !== saved.useDefaultTrackers ||
-    trackers.join('\n') !== saved.trackers.join('\n')
+    trackers.join('\n') !== saved.trackers.join('\n') ||
+    downloadDir.trim() !== customDownloadDir(saved)
 
   function handleSave(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
@@ -66,7 +69,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
     setState({ phase: 'busy', action: 'save' })
     void (async () => {
       try {
-        const next = await updateTorrentConfig({ seeding, portForwarding, listenPort: port, trackers, useDefaultTrackers })
+        const next = await updateTorrentConfig({ seeding, portForwarding, listenPort: port, trackers, useDefaultTrackers, downloadDir: downloadDir.trim() })
         // 以后端返回值为准回填：后端可能规范化端口 / 去重 tracker
         setSaved(next)
         setSeeding(next.seeding)
@@ -74,6 +77,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
         setListenPort(String(next.listenPort))
         setTrackersText(next.trackers.join('\n'))
         setUseDefaultTrackers(next.useDefaultTrackers)
+        setDownloadDir(customDownloadDir(next))
         setRestartRequired(next.restartRequired)
         setState({ phase: 'ok', text: '已保存' })
         await onReload()
@@ -221,6 +225,27 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           </p>
         </div>
 
+        <div className="field">
+          <label htmlFor="torrent-download-dir" style={label}>
+            下载目录
+          </label>
+          <input
+            id="torrent-download-dir"
+            className="input"
+            type="text"
+            value={downloadDir}
+            placeholder={saved.downloadDirIsDefault ? saved.downloadDir : '留空使用默认目录'}
+            onChange={(event) => setDownloadDir(event.target.value)}
+            spellCheck={false}
+            autoComplete="off"
+            disabled={disabled}
+            aria-describedby="torrent-download-dir-note"
+          />
+          <p id="torrent-download-dir-note" className="torrent-note">
+            在磁力栏点「下载」后，整个种子完整下到这里，下完自动加进媒体库；没下完的部分放在里面的 .nagare-incomplete，不会进库。留空使用默认目录，改动只影响之后的新下载。与边下边播的缓存无关。
+          </p>
+        </div>
+
         <div className="form-actions">
           <button type="submit" className="btn btn--sm" disabled={disabled}>
             {state.phase === 'busy' && state.action === 'save' ? '保存中 …' : '保存'}
@@ -267,6 +292,11 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
       </p>
     </section>
   )
+}
+
+/** 用户自己填的下载目录；用的是默认目录时为空串（输入框留空、默认值做占位） */
+function customDownloadDir(settings: TorrentSettings): string {
+  return settings.downloadDirIsDefault ? '' : settings.downloadDir
 }
 
 /** 一行一个，去掉首尾空白与空行 */

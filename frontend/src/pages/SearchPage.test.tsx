@@ -77,7 +77,7 @@ const SETTINGS: SettingsData = {
   logPath: '/tmp/nagare/nagare.log',
   mpv: { found: true, version: '0.38.0', path: '/opt/homebrew/bin/mpv', source: 'path' },
   animego: { loggedIn: false, baseUrl: 'https://animego.example' },
-  background: { mode: 'dock' },
+  background: { mode: 'dock' }, player: { anime4k: 'off' },
   torrent: {
     enabled: true,
     seeding: false,
@@ -88,6 +88,8 @@ const SETTINGS: SettingsData = {
     listenPort: 6881,
     cacheDir: '/tmp/nagare/cache/torrent',
     cacheBytes: 0,
+    downloadDir: '/Users/you/Downloads/nagare',
+    downloadDirIsDefault: true,
   },
 }
 

@@ -36,6 +36,10 @@ type fakePlayer struct {
 	lastAlts    []string
 	stopped     bool
 	status      player.Status
+	// playing / refreshErr 决定 RefreshShaders 的结果；refreshes 记调了几次
+	playing    bool
+	refreshErr error
+	refreshes  int
 	// log 记调用顺序（可为 nil）。磁力播放里「先停播放器再准备种子」的顺序
 	// 是正确性的一部分，只能靠调用序来断言。
 	log func(string)
@@ -66,6 +70,10 @@ func (f *fakePlayer) Stop()                 { f.record("player.stop"); f.stopped
 func (f *fakePlayer) SetPause(bool) error   { return nil }
 func (f *fakePlayer) Seek(float64) error    { return nil }
 func (f *fakePlayer) Status() player.Status { return f.status }
+func (f *fakePlayer) RefreshShaders() (bool, error) {
+	f.refreshes++
+	return f.playing, f.refreshErr
+}
 
 // fakeAuth 是 AnimegoAuth 替身。
 type fakeAuth struct {
@@ -105,6 +113,8 @@ type testEnv struct {
 	sources *SourcesService
 	plugin  *fakeSourcePluginRuntime
 	torrent *fakeTorrent
+	// downloads 是磁力下载的替身（见 downloads_test.go）。
+	downloads *fakeDownloads
 	// calls 是跨替身的调用顺序记录。
 	calls *[]string
 	// mpvDetect 是注入给 mpv.Runtime 的探测函数，测试改它再打 /api/mpv/detect 翻转状态。
@@ -160,7 +170,11 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 		LogPath:         "/data/nagare/logs/nagare.log",
 		BackgroundMode:  "dock",
 		TorrentCacheDir: "/data/nagare/cache/torrent",
+
+		DefaultDownloadDir: "/home/you/Downloads/nagare",
 	}
+	env.downloads = &fakeDownloads{}
+	deps.Downloads = env.downloads
 	if withTorrent {
 		env.torrent = &fakeTorrent{log: record}
 		deps.Torrent = env.torrent

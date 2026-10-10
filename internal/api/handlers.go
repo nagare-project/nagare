@@ -29,6 +29,8 @@ type PlayerAPI interface {
 	SetPause(v bool) error
 	Seek(seconds float64) error
 	Status() player.Status
+	// RefreshShaders 把当前的画质增强设置套到正在播放的窗口上；返回是否在播。
+	RefreshShaders() (bool, error)
 }
 
 // AnimegoAuth 是处理器需要的 animego 会话能力子集。
@@ -58,6 +60,10 @@ type Deps struct {
 	Torrent TorrentAPI
 	// TorrentCacheDir 展示给用户：分片落在哪，清空缓存清的是哪个目录。
 	TorrentCacheDir string
+	// Downloads 是磁力下载（完整下到下载目录、下完进媒体库）；nil 时下载端点报 503。
+	Downloads DownloadsAPI
+	// DefaultDownloadDir 是设置里没填下载目录时用的目录。
+	DefaultDownloadDir string
 	// EpisodeSpaces 查作品的集号空间（与播放管线共用一份缓存）；nil 时集号偏移端点报 503。
 	EpisodeSpaces *EpisodeSpaces
 	// Shutdown 触发整个进程退出（主进程的根 cancel）；nil 表示不支持从界面退出。
@@ -104,6 +110,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/player/stop", h.playerStop)
 	mux.HandleFunc("POST /api/player/pause", h.playerPause)
 	mux.HandleFunc("POST /api/player/seek", h.playerSeek)
+	mux.HandleFunc("POST /api/player/config", h.playerConfig)
 	mux.HandleFunc("GET /api/settings", h.settings)
 	mux.HandleFunc("POST /api/mpv/detect", h.mpvDetect)
 	mux.HandleFunc("POST /api/shutdown", h.shutdown)
@@ -126,6 +133,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/torrent/stop", h.torrentStop)
 	mux.HandleFunc("POST /api/torrent/cache/clear", h.torrentCacheClear)
 	mux.HandleFunc("POST /api/torrent/config", h.torrentConfig)
+	mux.HandleFunc("GET /api/downloads", h.downloadsList)
+	mux.HandleFunc("POST /api/downloads", h.downloadsAdd)
+	mux.HandleFunc("DELETE /api/downloads/{id}", h.downloadsRemove)
 }
 
 // decodeBody 解析 JSON 请求体（限长）。失败返回 false 且已写响应。

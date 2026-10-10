@@ -22,6 +22,8 @@ const SETTINGS: TorrentSettings = {
   listenPort: 6881,
   cacheDir: '/Users/you/Library/Application Support/nagare/cache/torrent',
   cacheBytes: 5_505_024, // 5.25 MB
+  downloadDir: '/Users/you/Downloads/nagare',
+  downloadDirIsDefault: true,
 }
 
 function configResult(overrides: Partial<TorrentConfigData> = {}): TorrentConfigData {
@@ -138,7 +140,7 @@ describe('TorrentCard · 受控行为', () => {
     )
   })
 
-  it('保存把五项一起发出去；tracker 按行拆分并丢掉空行', async () => {
+  it('保存把六项一起发出去；tracker 按行拆分并丢掉空行；下载目录留空表示用默认目录', async () => {
     const { container, onReload } = await mountCard()
     await act(async () => {
       toggle(container, '持续做种').click()
@@ -152,6 +154,7 @@ describe('TorrentCard · 受控行为', () => {
       listenPort: 6881,
       trackers: ['udp://a.invalid:80', 'udp://b.invalid:80'],
       useDefaultTrackers: true,
+      downloadDir: '',
     })
     expect(onReload).toHaveBeenCalledTimes(1)
     expect(status(container)).toBe('已保存')
@@ -206,6 +209,22 @@ describe('TorrentCard · 端口校验', () => {
     expect(endpoints.updateTorrentConfig).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ listenPort: expected }),
     )
+  })
+})
+
+describe('TorrentCard · 下载目录', () => {
+  it('默认目录做占位；填了就随保存发出去，回填后端规范过的路径', async () => {
+    endpoints.updateTorrentConfig.mockResolvedValue(configResult({ downloadDir: '/Volumes/Anime', downloadDirIsDefault: false }))
+    const { container } = await mountCard()
+    const input = field<HTMLInputElement>(container, 'torrent-download-dir')
+    expect(input.value).toBe('')
+    expect(input.placeholder).toBe('/Users/you/Downloads/nagare')
+    await type(input, '  /Volumes/Anime/  ')
+    expect(container.textContent).toContain('有未保存的改动')
+    await submit(container)
+    expect(endpoints.updateTorrentConfig).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ downloadDir: '/Volumes/Anime/' }))
+    expect(input.value).toBe('/Volumes/Anime')
+    expect(container.textContent).not.toContain('有未保存的改动')
   })
 })
 
