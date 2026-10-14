@@ -112,7 +112,9 @@ type testEnv struct {
 	auth    *fakeAuth
 	sources *SourcesService
 	plugin  *fakeSourcePluginRuntime
-	torrent *fakeTorrent
+	// pluginService 是包住 plugin 的服务，安装来源的测试要给它接上存储与下载器。
+	pluginService *SourcePluginService
+	torrent       *fakeTorrent
 	// downloads 是磁力下载的替身（见 downloads_test.go）。
 	downloads *fakeDownloads
 	// calls 是跨替身的调用顺序记录。
@@ -151,6 +153,7 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 	env.sources = NewSourcesService(st, &rules.Fetcher{}, &rulesync.Syncer{}, filepath.Join(t.TempDir(), "rules"))
 	env.plugin = &fakeSourcePluginRuntime{status: sourceplugin.Status{Phase: "disabled"}}
 	pluginService := NewSourcePluginService(st, env.plugin, "test")
+	env.pluginService = pluginService
 	calls := []string{}
 	env.calls = &calls
 	record := func(op string) { calls = append(calls, op) }

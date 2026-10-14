@@ -11,3 +11,9 @@
 .source-plugin-sources li { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border: 1px solid var(--border-dim); border-radius: var(--radius-sm); background: var(--sunken); }
 .source-plugin-sources li > span:first-child { display: grid; gap: 3px; flex: 1; min-width: 0; }
 .source-plugin-sources li small { overflow-wrap: anywhere; color: var(--fg-muted); }
+.source-plugin-installed-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.source-plugin-installed-actions { display: flex; gap: 6px; flex: none; }
+.source-plugin-pack { font-size: 12px; }
+.source-plugin-pack summary { cursor: pointer; color: var(--fg-muted); }
+.source-plugin-pack ul { margin-top: 6px; }
+.source-plugin-sources .source-plugin-pack li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 4px 8px; background: transparent; }

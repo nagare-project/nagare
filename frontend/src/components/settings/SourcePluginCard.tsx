@@ -1,8 +1,9 @@
+import { Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { UseSourcePluginResult } from '../../hooks/useSourcePlugin'
-import type { PluginSource } from '../../lib/endpoints'
-import { errorText } from '../../lib/format'
+import type { InstalledPackage, PluginSource, SourcePluginView } from '../../lib/endpoints'
+import { errorText, formatDateTime, sourceKindLabel } from '../../lib/format'
 import { label, mono } from '../../theme'
 import './source-plugin.css'
 
@@ -104,8 +105,83 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
           </li>)}
         </ul>}
       </div>
+      <InstalledSources plugin={plugin} view={view} />
     </>}
   </section>
+}
+
+function InstalledSources({ plugin, view }: { plugin: UseSourcePluginResult; view: SourcePluginView }) {
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function remove(item: InstalledPackage): Promise<void> {
+    setRemoving(item.id)
+    setError(null)
+    try {
+      await plugin.uninstall(item.id)
+      setConfirming(null)
+    } catch (err) {
+      setError(errorText(err, '卸载来源失败'))
+    } finally {
+      setRemoving(null)
+    }
+  }
+
+  return <div className="source-plugin-sources">
+    <div className="source-plugin-installed-head">
+      <h3>从地址安装的来源 · {view.installed.length}</h3>
+      {view.installSupported && <Link to="/sources/install" className="link">从地址安装</Link>}
+    </div>
+    {!view.installSupported && <p className="source-plugin-note">
+      {view.status.phase === 'ready'
+        ? '当前插件版本不支持从地址安装来源，请更新 Nagare Source。'
+        : '启用并连接 Nagare Source 后，可以从地址安装来源文件或来源包。'}
+    </p>}
+    {view.installedError && <p className="result result--err" role="alert">{view.installedError}</p>}
+    {error !== null && <p className="result result--err" role="alert">{error}</p>}
+    {view.installed.length > 0 && <ul>
+      {view.installed.map(item => <li key={item.id}>
+        <span>
+          <strong>{item.name}</strong>
+          <small style={mono}>
+            {item.pack ? `来源包 · ${item.sources.length} 个来源` : item.id} · v{item.version} · {hostOf(item.url)}
+          </small>
+          {item.pack && <details className="source-plugin-pack">
+            <summary>包含的来源</summary>
+            <ul>
+              {item.sources.map(source => <li key={source.id}>
+                <span>{source.name}</span><small style={mono}>{source.id} · {sourceKindLabel(source.kind)}</small>
+              </li>)}
+            </ul>
+          </details>}
+          <small>安装于 {installedAt(item.installedAt)}</small>
+        </span>
+        {confirming === item.id ? <span className="source-plugin-installed-actions" role="group" aria-label={`确认卸载 ${item.name}`}>
+          <button type="button" className="btn btn--sm btn--danger" disabled={removing !== null}
+            onClick={() => void remove(item)}>
+            {removing === item.id ? '正在卸载…' : item.pack ? `确认卸载 ${item.sources.length} 个来源` : '确认卸载'}
+          </button>
+          <button type="button" className="btn btn--sm" disabled={removing !== null}
+            onClick={() => setConfirming(null)}>取消</button>
+        </span> : <button type="button" className="btn btn--sm" disabled={removing !== null}
+          onClick={() => setConfirming(item.id)} aria-label={`卸载 ${item.name}`}>卸载</button>}
+      </li>)}
+    </ul>}
+  </div>
+}
+
+function hostOf(raw: string): string {
+  try {
+    return new URL(raw).host
+  } catch {
+    return raw
+  }
+}
+
+function installedAt(raw: string): string {
+  const ms = Date.parse(raw)
+  return Number.isNaN(ms) ? raw : formatDateTime(ms)
 }
 
 function sourceStatusLabel(source: PluginSource): string {
@@ -127,7 +203,7 @@ function sourceStatusClass(source: PluginSource): string {
   return 'result--warn'
 }
 
-function PluginStatus({ view }: { view: Extract<UseSourcePluginResult['state'], { phase: 'ready' }>['data'] }) {
+function PluginStatus({ view }: { view: SourcePluginView }) {
   const labels: Record<string, string> = { disabled: '未启用', starting: '正在启动', ready: '已就绪', stopped: '已停止', failed: '启动失败' }
   return <dl className="kv-list">
     <dt>状态</dt><dd>{labels[view.status.phase] ?? view.status.phase}</dd>

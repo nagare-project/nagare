@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiAuthError } from '../lib/api'
-import { fetchSourcePlugin, updateSourcePluginConfig } from '../lib/endpoints'
+import { fetchSourcePlugin, uninstallSource, updateSourcePluginConfig } from '../lib/endpoints'
 import type { SourcePluginConfig, SourcePluginView } from '../lib/endpoints'
 import { errorText } from '../lib/format'
 
@@ -14,6 +14,7 @@ export interface UseSourcePluginResult {
   state: SourcePluginState
   reload: () => Promise<boolean>
   save: (config: SourcePluginConfig) => Promise<SourcePluginView>
+  uninstall: (id: string) => Promise<SourcePluginView>
 }
 
 /** 本地来源插件的读取与配置状态机。 */
@@ -44,5 +45,11 @@ export function useSourcePlugin(): UseSourcePluginResult {
     return data
   }, [])
 
-  return { state, reload, save }
+  const uninstall = useCallback(async (id: string) => {
+    const data = await uninstallSource(id)
+    setState({ phase: 'ready', data })
+    return data
+  }, [])
+
+  return { state, reload, save, uninstall }
 }

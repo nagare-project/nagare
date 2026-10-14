@@ -7,6 +7,8 @@ import {
   checkUpdate,
   fetchSources,
   fetchUpdate,
+  installSource,
+  previewSourceInstall,
   redetectMpv,
   reloadSources,
   searchMagnets,
@@ -16,6 +18,7 @@ import {
   shutdownNagare,
   streamSourceCandidates,
   syncSources,
+  uninstallSource,
   updateSourcePluginConfig,
   updateRulesConfig,
 } from './endpoints'
@@ -166,6 +169,19 @@ describe('本地来源插件端点', () => {
     expect(calls[0]).toEqual({
       url: '/api/source-plugin/config', method: 'POST', body: view.config,
     })
+  })
+
+  it('预览与安装只发送地址和摘要，卸载对 id 做路径编码', async () => {
+    const { calls } = stubFetch({})
+    const sha = 'a'.repeat(64)
+    await previewSourceInstall('https://example.invalid/s.json', '')
+    await installSource('https://example.invalid/s.json', sha)
+    await uninstallSource('bt/a b')
+    expect(calls).toEqual([
+      { url: '/api/source-plugin/sources/preview', method: 'POST', body: { url: 'https://example.invalid/s.json', sha256: '' } },
+      { url: '/api/source-plugin/sources/install', method: 'POST', body: { url: 'https://example.invalid/s.json', sha256: sha } },
+      { url: '/api/source-plugin/sources/installed/bt%2Fa%20b', method: 'DELETE', body: undefined },
+    ])
   })
 
   it('候选流按到达顺序逐条交给界面，并要求 done 收尾', async () => {

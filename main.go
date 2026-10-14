@@ -37,6 +37,7 @@ import (
 	"github.com/nagare-project/nagare/internal/rules"
 	"github.com/nagare-project/nagare/internal/rulesync"
 	"github.com/nagare-project/nagare/internal/selfupdate"
+	"github.com/nagare-project/nagare/internal/sourceinstall"
 	"github.com/nagare-project/nagare/internal/sourceplugin"
 	"github.com/nagare-project/nagare/internal/store"
 	"github.com/nagare-project/nagare/internal/torrentstream"
@@ -460,6 +461,11 @@ func buildServices(configDir string) (*services, error) {
 			log.Printf("来源插件：检测到安装包捆绑的 Nagare Source（%s）", bundled.Executable)
 		}
 	}
+	// 用户从地址安装的独立来源放在配置目录里，路径经环境变量交给插件。
+	pluginService.SetSourceInstaller(
+		sourceinstall.NewStore(filepath.Join(configDir, "installed-sources")),
+		sourceinstall.NewFetcher("nagare/"+version),
+	)
 	if err := pluginService.StartConfigured(); err != nil {
 		log.Printf("来源插件未能启动（不影响本地播放）：%v", err)
 	}

@@ -36,17 +36,32 @@ type fakeSourcePluginRuntime struct {
 	requests        []sourceplugin.ResolveRequest
 	lastRequest     sourceplugin.ResolveRequest
 	releaseRequests []sourceplugin.ReleaseSearchRequest
+
+	// capabilities 写进 Start 之后的 manifest；startErrs 依次作为每次 Start 的结果。
+	capabilities []string
+	startErrs    []error
+	starts       []sourceplugin.LaunchConfig
+	// sourcesFn 非空时代替 sources，模拟插件按当前启动参数加载的来源。
+	sourcesFn func(sourceplugin.LaunchConfig) []sourceplugin.Source
+	inspect   func(format, content string) (sourceplugin.SourceSummary, error)
+	inspected int
 }
 
 func (f *fakeSourcePluginRuntime) Start(config sourceplugin.LaunchConfig) error {
 	f.started = config
-	if f.startErr != nil {
-		f.status = sourceplugin.Status{Phase: "failed", Error: f.startErr.Error()}
-		return f.startErr
+	f.starts = append(f.starts, config)
+	startErr := f.startErr
+	if len(f.startErrs) > 0 {
+		startErr, f.startErrs = f.startErrs[0], f.startErrs[1:]
+	}
+	if startErr != nil {
+		f.status = sourceplugin.Status{Phase: "failed", Error: startErr.Error()}
+		return startErr
 	}
 	f.stopped = false
 	f.status = sourceplugin.Status{Phase: "ready", Manifest: &sourceplugin.Manifest{
 		ID: "org.example.plugin", Name: "Example", Version: "1", ProtocolVersions: []int{1}, SourceSchemaVersions: []int{1},
+		Capabilities: append([]string(nil), f.capabilities...),
 	}}
 	return nil
 }
@@ -59,7 +74,18 @@ func (f *fakeSourcePluginRuntime) Stop() {
 func (f *fakeSourcePluginRuntime) Status() sourceplugin.Status { return f.status }
 
 func (f *fakeSourcePluginRuntime) Sources(context.Context) ([]sourceplugin.Source, error) {
+	if f.sourcesFn != nil {
+		return f.sourcesFn(f.started), nil
+	}
 	return append([]sourceplugin.Source(nil), f.sources...), nil
+}
+
+func (f *fakeSourcePluginRuntime) InspectSource(_ context.Context, format, content string) (sourceplugin.SourceSummary, error) {
+	f.inspected++
+	if f.inspect == nil {
+		return sourceplugin.SourceSummary{}, errors.New("inspect not configured")
+	}
+	return f.inspect(format, content)
 }
 
 func (f *fakeSourcePluginRuntime) Candidates(_ context.Context, request sourceplugin.ResolveRequest, emit func(sourceplugin.Event) error) error {
