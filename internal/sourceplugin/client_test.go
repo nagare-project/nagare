@@ -106,6 +106,7 @@ func TestClientRejectsSourceStatusOutsidePluginAPIV1(t *testing.T) {
 
 func TestManagerStartsNegotiatesAndStopsChild(t *testing.T) {
 	t.Setenv("NAGARE_SOURCEPLUGIN_HELPER", "1")
+	t.Setenv(InstalledDirEnv, "")
 	executable, err := filepath.Abs(os.Args[0])
 	require.NoError(t, err)
 	manager := NewManager()
@@ -133,9 +134,13 @@ func TestSourcePluginHelperProcess(t *testing.T) {
 		os.Exit(2)
 	}
 	mux := http.NewServeMux()
+	name := "Helper"
+	if installed := os.Getenv(InstalledDirEnv); installed != "" {
+		name += " " + filepath.Base(installed)
+	}
 	mux.HandleFunc("GET /v1/manifest", func(w http.ResponseWriter, _ *http.Request) {
 		writeTestJSON(w, Manifest{
-			ID: "org.example.helper", Name: "Helper", Version: "1", ProtocolVersions: []int{1}, SourceSchemaVersions: []int{1},
+			ID: "org.example.helper", Name: name, Version: "1", ProtocolVersions: []int{1}, SourceSchemaVersions: []int{1},
 		})
 	})
 	_ = json.NewEncoder(os.Stdout).Encode(ReadyEvent{Event: "ready", Protocol: LaunchProtocol, URL: "http://" + listener.Addr().String()})

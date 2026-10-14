@@ -13,6 +13,9 @@ type LaunchConfig struct {
 	Executable string
 	Root       string
 	Version    string
+	// InstalledDir 是用户经确认后安装的独立来源目录（绝对路径，可不存在）。
+	// 非空时经环境变量 NAGARE_SOURCE_INSTALLED_DIR 交给插件；不支持的旧插件会忽略它。
+	InstalledDir string
 	// Arguments 只供进程级测试使用。生产环境保持 nil，由 Manager 添加固定且
 	// 不经过 shell 的 serve 参数。
 	Arguments []string

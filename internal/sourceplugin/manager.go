@@ -55,6 +55,9 @@ func (m *Manager) Start(config LaunchConfig) error {
 	}
 	command := exec.CommandContext(processContext, config.Executable, arguments...)
 	command.Stdin = nil
+	if config.InstalledDir != "" {
+		command.Env = append(os.Environ(), InstalledDirEnv+"="+config.InstalledDir)
+	}
 	stdout, err := command.StdoutPipe()
 	if err != nil {
 		cancel()
@@ -145,6 +148,9 @@ func validateLaunchConfig(config LaunchConfig) error {
 	}
 	if strings.TrimSpace(config.Version) == "" {
 		return errors.New("host version is required")
+	}
+	if config.InstalledDir != "" && !filepath.IsAbs(config.InstalledDir) {
+		return errors.New("installed sources directory must be an absolute path")
 	}
 	return nil
 }
@@ -283,6 +289,14 @@ func (m *Manager) Releases(ctx context.Context, request ReleaseSearchRequest, em
 		return err
 	}
 	return client.Releases(ctx, request, emit)
+}
+
+func (m *Manager) InspectSource(ctx context.Context, format, content string) (SourceSummary, error) {
+	client, err := m.readyClient()
+	if err != nil {
+		return SourceSummary{}, err
+	}
+	return client.InspectSource(ctx, format, content)
 }
 
 func (m *Manager) readyClient() (*Client, error) {

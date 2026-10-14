@@ -14,6 +14,7 @@ import (
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/player"
+	"github.com/nagare-project/nagare/internal/sourceinstall"
 	"github.com/nagare-project/nagare/internal/sourceplugin"
 	"github.com/nagare-project/nagare/internal/store"
 )
@@ -23,6 +24,7 @@ type SourcePluginRuntime interface {
 	sourceplugin.Runtime
 	Start(sourceplugin.LaunchConfig) error
 	Stop()
+	InspectSource(ctx context.Context, format, content string) (sourceplugin.SourceSummary, error)
 }
 
 // SourcePluginService 把持久化配置、进程生命周期和 Plugin API 查询收在一起。
@@ -33,6 +35,9 @@ type SourcePluginService struct {
 	hostVersion string
 	mu          sync.Mutex
 	bundled     *sourceplugin.Bundled
+	// installs 与 fetcher 支撑「从地址安装来源」；为 nil 时该功能关闭。
+	installs *sourceinstall.Store
+	fetcher  SourceFetcher
 }
 
 type SourcePluginView struct {
@@ -42,6 +47,11 @@ type SourcePluginView struct {
 	SourcesError string                   `json:"sourcesError,omitempty"`
 	// Bundled 是随安装包捆绑的插件位置（引擎 + 只含 BT 规则的 repo）；没捆时为 nil。
 	Bundled *BundledPluginView `json:"bundled,omitempty"`
+	// Installed 是用户从地址安装的记录（单个来源或来源包，含出处与成员），与插件是否运行无关。
+	Installed      []sourceinstall.Package `json:"installed"`
+	InstalledError string                  `json:"installedError,omitempty"`
+	// InstallSupported 表示当前运行的插件声明了 installed_sources 能力，可以安装来源。
+	InstallSupported bool `json:"installSupported"`
 }
 
 type BundledPluginView struct {
@@ -88,7 +98,10 @@ func (s *SourcePluginService) StartConfigured() error {
 	if !config.Enabled {
 		return nil
 	}
-	return s.runtime.Start(s.launchConfig(config))
+	s.mu.Lock()
+	launch := s.launchConfig(config)
+	s.mu.Unlock()
+	return s.runtime.Start(launch)
 }
 
 func (s *SourcePluginService) Stop() { s.runtime.Stop() }
@@ -98,8 +111,10 @@ func (s *SourcePluginService) Status() sourceplugin.Status { return s.runtime.St
 func (s *SourcePluginService) View(ctx context.Context) SourcePluginView {
 	view := SourcePluginView{
 		Config: s.store.SourcePluginConfig(), Status: s.runtime.Status(), Sources: []sourceplugin.Source{},
+		Installed: []sourceinstall.Package{},
 	}
 	s.mu.Lock()
+	installs := s.installs
 	if s.bundled != nil {
 		view.Bundled = &BundledPluginView{
 			Executable: s.bundled.Executable, Root: s.bundled.Root,
@@ -107,6 +122,14 @@ func (s *SourcePluginService) View(ctx context.Context) SourcePluginView {
 		}
 	}
 	s.mu.Unlock()
+	if installs != nil {
+		view.InstallSupported = supportsInstalledSources(view.Status)
+		if records, err := installs.List(); err != nil {
+			view.InstalledError = "读取已安装来源记录失败"
+		} else {
+			view.Installed = records
+		}
+	}
 	if view.Status.Phase != "ready" {
 		return view
 	}
@@ -172,7 +195,11 @@ func (s *SourcePluginService) restore(config store.SourcePluginConfig) {
 }
 
 func (s *SourcePluginService) launchConfig(config store.SourcePluginConfig) sourceplugin.LaunchConfig {
-	return sourceplugin.LaunchConfig{Executable: config.Executable, Root: config.Root, Version: s.hostVersion}
+	launch := sourceplugin.LaunchConfig{Executable: config.Executable, Root: config.Root, Version: s.hostVersion}
+	if s.installs != nil {
+		launch.InstalledDir = s.installs.SourcesDir()
+	}
+	return launch
 }
 
 func (s *SourcePluginService) Candidates(ctx context.Context, request sourceplugin.ResolveRequest, emit func(sourceplugin.Event) error) error {
