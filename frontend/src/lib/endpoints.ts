@@ -746,6 +746,84 @@ export interface SourcePluginView {
   sources: PluginSource[]
   sourcesError?: string
   bundled?: BundledPluginView
+  /** 用户从地址安装的来源与来源包（出处记录） */
+  installed: InstalledPackage[]
+  installedError?: string
+  /** 插件已就绪且声明了 installed_sources，才能从地址安装 */
+  installSupported: boolean
+}
+
+/** 安装包里的一个来源文件。 */
+export interface InstalledPackageSource {
+  id: string
+  name: string
+  kind: string
+  version: string
+  format: 'json' | 'yaml'
+}
+
+/**
+ * 一次从地址安装的结果：单个来源文件，或一个来源包（pack 为 true）。
+ * 单个来源的 id 就是来源 id；卸载时按这个 id 整体移除。
+ */
+export interface InstalledPackage {
+  id: string
+  name: string
+  description?: string
+  version: string
+  pack: boolean
+  url: string
+  sha256: string
+  installedAt: string
+  sources: InstalledPackageSource[]
+}
+
+/** 插件校验来源文件后给出的摘要。 */
+export interface SourceSummary {
+  id: string
+  name: string
+  kind: string
+  tier: number
+  version: string
+  enabled: boolean
+  description?: string
+  homepage?: string
+  ecosystem: string
+  upstream: string
+  license: string
+  allowedHosts: string[]
+}
+
+/** 预览里的一个来源：插件摘要，以及插件当前已有的同 id 来源。 */
+export interface SourcePreviewMember {
+  source: SourceSummary
+  existing?: PluginSource
+}
+
+/** 某个来源已经由另一个安装包提供，需要先卸载那个包。 */
+export interface SourceConflict {
+  sourceId: string
+  packageId: string
+  packageName: string
+}
+
+/** 安装前的确认内容：文件出处、包信息、每个来源的插件摘要、原文，以及冲突和将被更新的已装版本。 */
+export interface SourcePreview {
+  url: string
+  sha256: string
+  bytes: number
+  format: 'json' | 'yaml'
+  content: string
+  package: {
+    id: string
+    name: string
+    description?: string
+    version: string
+    pack: boolean
+  }
+  sources: SourcePreviewMember[]
+  installed?: InstalledPackage
+  conflicts: SourceConflict[]
 }
 
 export interface SourceResolveRequest {
@@ -820,6 +898,20 @@ export function fetchSourcePlugin(signal?: AbortSignal): Promise<SourcePluginVie
 
 export function updateSourcePluginConfig(config: SourcePluginConfig): Promise<SourcePluginView> {
   return requestJson<SourcePluginView>('/api/source-plugin/config', 'POST', config)
+}
+
+/** 下载来源文件并交给插件校验，不写盘；sha256 为空时不比对。 */
+export function previewSourceInstall(url: string, sha256: string, signal?: AbortSignal): Promise<SourcePreview> {
+  return requestJson<SourcePreview>('/api/source-plugin/sources/preview', 'POST', { url, sha256 }, signal)
+}
+
+/** 安装用户确认过的来源文件；sha256 必须是预览时看到的摘要。 */
+export function installSource(url: string, sha256: string): Promise<SourcePluginView> {
+  return requestJson<SourcePluginView>('/api/source-plugin/sources/install', 'POST', { url, sha256 })
+}
+
+export function uninstallSource(id: string): Promise<SourcePluginView> {
+  return requestJson<SourcePluginView>(`/api/source-plugin/sources/installed/${encodeURIComponent(id)}`, 'DELETE')
 }
 
 /** 逐行消费候选流；单行上限与后端插件契约同为 1 MiB。 */

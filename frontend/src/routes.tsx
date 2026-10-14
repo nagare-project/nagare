@@ -132,6 +132,25 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
+export interface SourceInstallRouteParams {
+  url?: string
+  sha256?: string
+}
+
+/**
+ * `/sources/install?url=&sha256=` 从地址安装来源：外部链接只能把人带到确认页，
+ * 安装必须在页内点击确认（后端对写操作强制 token，页面禁止被嵌入 iframe）。
+ */
+const sourceInstallRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sources/install',
+  validateSearch: (search: Record<string, unknown>): SourceInstallRouteParams => ({
+    url: coerceQuery(search.url),
+    sha256: coerceQuery(search.sha256),
+  }),
+  component: lazyRouteComponent(() => import('./pages/SourceInstallPage'), 'SourceInstallPage'),
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   animeRoute,
@@ -147,6 +166,7 @@ const routeTree = rootRoute.addChildren([
   watchRoute,
   searchRoute,
   settingsRoute,
+  sourceInstallRoute,
 ])
 
 /**

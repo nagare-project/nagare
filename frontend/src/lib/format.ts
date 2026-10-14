@@ -176,3 +176,10 @@ export function formatVersion(version: string): string {
   const bare = normalizeVersion(version)
   return bare === '' ? '—' : `v${bare}`
 }
+
+/** 来源插件的来源类型：bt 是磁力，web 是在线播放；未知类型原样显示。 */
+export function sourceKindLabel(kind: string): string {
+  if (kind === 'bt') return 'BT 磁力'
+  if (kind === 'web') return '在线播放'
+  return kind
+}

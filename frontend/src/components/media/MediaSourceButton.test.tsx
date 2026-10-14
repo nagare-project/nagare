@@ -32,6 +32,8 @@ const plugin: SourcePluginView = {
   config: { enabled: true, executable: '/opt/nagare-source', root: '/srv/sources' },
   status: { phase: 'ready', manifest: { id: 'source', name: 'Nagare Source', version: '0.1.0', protocolVersions: [1], sourceSchemaVersions: [1], capabilities: ['candidates'] } },
   sources: [{ id: 'web-a', name: '网页源 A', kind: 'web', tier: 1, version: '1', enabled: true, status: 'healthy', capabilities: ['hls'] }],
+  installed: [],
+  installSupported: false,
 }
 const online: SourceCandidate = {
   schema: 'nagare-candidate/v1', id: 'online-1', sourceId: 'web-a', tier: 1,

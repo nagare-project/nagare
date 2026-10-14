@@ -1,0 +1,19 @@
+/* `/sources/install`：从地址安装来源的确认页 */
+.lib-shell > .panel.settings-card { width: 100%; max-width: 46rem; }
+.source-install-form { display: grid; gap: 14px; }
+.source-install-id { margin-top: -0.6rem; color: var(--fg-muted); font-size: 12px; overflow-wrap: anywhere; }
+.source-install-review .kv-list { grid-template-columns: 6rem minmax(0, 1fr); }
+.source-install-url { overflow-wrap: anywhere; font-size: 12px; }
+.source-install-hosts { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.source-install-content { font-size: 13px; }
+.source-install-content summary { cursor: pointer; color: var(--fg-muted); }
+.source-install-content pre { max-height: 22rem; margin-top: 8px; padding: 10px 12px; overflow: auto; border: 1px solid var(--border-dim); border-radius: var(--radius-sm); background: var(--sunken); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.source-install-conflicts { margin: 6px 0 0; padding-left: 1.2em; }
+.source-install-members { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.source-install-members > li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border-dim); border-radius: var(--radius-sm); background: var(--sunken); }
+.source-install-members small { color: var(--fg-muted); font-size: 12px; overflow-wrap: anywhere; }
+.source-install-member-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.source-install-kind { flex: none; color: var(--fg-muted); font-size: 12px; }
+.source-install-member-hosts { display: flex; gap: 8px; font-size: 12px; }
+.source-install-member-hosts > span { flex: none; color: var(--fg-muted); }
+.source-install-member-hosts .source-install-hosts { display: flex; flex-wrap: wrap; gap: 2px 10px; }
