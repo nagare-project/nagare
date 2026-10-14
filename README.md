@@ -206,7 +206,8 @@ nagare **本体不内置任何磁力源**。磁力资源有两条来路，任选
 [Nagare Source](https://github.com/nagare-project/Nagare_Source) 的引擎和一份**只含 BT 来源**的规则目录，
 首次运行自动启用。作品页的「选集」直接列出按字幕组分组的磁力资源；这条路只请求 BT 来源，
 不会触发任何网页嗅探。**在线来源不在安装包里**：要用的话在设置页「来源」里自己指定完整的
-Nagare Source 仓库目录。边界与细节见 [docs/nagare-source.md](docs/nagare-source.md)。
+Nagare Source 仓库目录，或在「来源」里从地址安装来源文件或来源包（一个地址装一组来源；安装前会列出每个来源会访问的域名，需要确认）。
+边界与细节见 [docs/nagare-source.md](docs/nagare-source.md)。
 
 **B. 自己的规则仓库（高级）**：
 
