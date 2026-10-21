@@ -43,7 +43,7 @@ func (h *assocHarness) ensure() (store.Binding, DanmakuInfo) {
 func (h *assocHarness) watchedThenSync(t *testing.T, b store.Binding) {
 	t.Helper()
 	require.NoError(t, h.st.SetProgress(h.item.FileID, store.Progress{Completed: true}))
-	h.m.syncWatched(&session{item: h.item, finished: make(chan struct{}), binding: b})
+	h.m.syncWatched(&session{item: h.item, binding: b})
 }
 
 func frierenAssoc() *store.Association {

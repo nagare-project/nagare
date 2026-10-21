@@ -90,7 +90,7 @@ func spaceHarness(t *testing.T, binding store.Binding, group []int, space Episod
 		assert.Equal(t, binding.AnilistID, id)
 		return space, spaceErr
 	}
-	return m, client, &session{item: item, finished: make(chan struct{}), binding: binding}
+	return m, client, &session{item: item, binding: binding}
 }
 
 // 看完回写写的是作品集号，不是文件里的集号。
