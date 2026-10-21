@@ -7,13 +7,16 @@
 #   2. gh api repos/shinchiro/mpv-winbuild-cmake/git/ref/tags/<tag> --jq .object.sha 取 commit
 #   3. 下载两个文件，shasum -a 256 算哈希填进来
 #   4. 对照 THIRD_PARTY_NOTICES.md 里的组件表，与该 commit 的 packages/*.cmake 核一遍
-release_tag=20260902
-release_url=https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20260902
-commit=cd1edc11dc6887a50f705717619d879f5a93a488
-mpv_git=174b638f29
-asset=mpv-x86_64-20260902-git-174b638f29.7z
-url=https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260902/mpv-x86_64-20260902-git-174b638f29.7z
-sha256=00fe0b9fdab5d6699d13a9f320ba740b6c497d1b1fbc313708f76c987f63406b
+#
+# ⚠️ 上游只保留最近 30 个 release（每天一版，约一个月）：钉的这一版过期后 CI 缓存一失效，
+#    下载就是 404（2026-10-21 发 v0.6.1 时 20260902 那版就这样没了）。发版前先跑 snapshot。
+release_tag=20261021
+release_url=https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261021
+commit=1f8d2e76255abc48f0456d9be99b4cab9c6566e6
+mpv_git=e471496c56
+asset=mpv-x86_64-20261021-git-e471496c56.7z
+url=https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261021/mpv-x86_64-20261021-git-e471496c56.7z
+sha256=4a355f3e89c83fabc730d33fb4e759dfec747806ed2287b61a90d1681b83e8d3
 # 构建脚本源码快照（GPL「完整对应源码」的一部分，随 Release 一起挂）
-sources_url=https://github.com/shinchiro/mpv-winbuild-cmake/archive/cd1edc11dc6887a50f705717619d879f5a93a488.tar.gz
-sources_sha256=8b92a254771496b0dcc23017c2734bfa7545441d3e6a37958b063d6e7814a657
+sources_url=https://github.com/shinchiro/mpv-winbuild-cmake/archive/1f8d2e76255abc48f0456d9be99b4cab9c6566e6.tar.gz
+sources_sha256=0d2018d2dbc17c5ba97a791113adaa2833d1e8624df71645f0d816af87d86d38
