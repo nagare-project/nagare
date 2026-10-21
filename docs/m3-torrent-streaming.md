@@ -110,6 +110,20 @@ mpv  GET /stream/{capability}/t/{hash}/{index}   Range: bytes=12345-
 - **启动期从放行算起**：慢种子的缓冲能等两分钟，从管理器建好算起的话 mpv 一起来钉住就过期了。
 - **弹幕哈希的 reader 有上界**：它只读前 16MB，窗口与预读都止于 16MB，续播时不和 mpv 读位置上的
   窗口抢带宽。
+- **每个 peer 只排它 3 秒送得完的请求**（`pacer.go`）：anacrolix 给一个 peer 的那批请求大小与它
+  多快无关（对端声明的 reqq、上一批的两倍、约 960 块三者取小，最多约 15MB），又要整批收完才重排。
+  做种的人少时，播放位置的下一块只要排在某个慢 peer 那批的中间，mpv 就要干等它整批发完，或者等
+  别的 peer 自己那批收完、重排时把它抢走。现在照 libtorrent 的 `request_queue_time`（默认 3 秒）
+  按实测速度压低每个 peer 的上限：慢 peer 手上只挂几块，快 peer 每隔几秒就重排一次。同进程限速
+  做种实测（3 个做种方各 300KB/s、1MB 分片、按顺序尽快读 48MB）：改动前 2 分 16 秒、单次 Read
+  最长阻塞 43 秒；改动后跑了三次，51–71 秒、最长阻塞 3–12 秒。`TestPlaybackNotStalledBySlowPeersQueues` 守着
+  （3 个各 400KB/s、读 24MB：改动前六次 48–75 秒、最长阻塞 18–41 秒；改动后二十多次 16–38 秒、
+  最长阻塞 1–10 秒。断言放在 55 秒与 25 秒，CPU 被别的进程占满时改动后也会超，宁可偶尔放过）。
+  分辨「慢」与「闲」：两块之间空档超过 1 秒、而空档里没给它发过新请求，说明它一直欠着请求，
+  这段算进速度；发过就从发请求那一刻量起。只看空档的话，每秒不到 16KB 的 peer 永远测不出来。
+  同一轮还试过照 Animeko 把窗口外的分片设为不可请求（门槛放行后不再整集 Normal）：不封顶时
+  最长阻塞照样 46 秒；封顶之后各跑三次，两种做法的差别小于同一做法几次之间的波动，没有采用
+  —— 它的代价是做种多的种子也不再在后台下整集，往后拖进度条时那里没有提前下好。
 
 位置每移动 512KB 才重算一次优先级；优先级管理器按 torrent+file 共享，多个 reader 取并集
 （计算哈希的 reader 与 mpv 的 reader 并发存在）。起播门槛的判定按整片（每片都没有缺块才放行），
@@ -161,7 +175,8 @@ type MediaSource interface {
 | `handler.go` | HTTP 处理器：Range → 调优先级 → `ServeContent` |
 | `status.go` | 状态快照与实时采样（阶段、peer 数、速率、缓冲与下载进度） |
 | `source.go` | `Source`：磁力流的 `MediaSource` 实现 |
-| `trackers.go` | `NormalizeTrackers` + 只对公开种子补 tracker（用户配置，默认为空） |
+| `pacer.go` | 每个 peer 的请求队列按它的实测速度封顶（3 秒的量） |
+| `trackers.go` | 内置公共 tracker 组 + 用户追加；`NormalizeTrackers`；只对公开种子补 tracker |
 
 修改：
 
@@ -200,6 +215,8 @@ type MediaSource interface {
 [+] startup_integration_test.go（同进程限速做种）
   ├── 门槛到齐时只收了门槛那 8MB
   └── 大分片下缓冲进度按块前进、放行前不到 100%
+[+] playback_integration_test.go（同进程限速做种）
+  └── 三个慢做种方：按顺序读不会被某个 peer 排着的一大批请求卡住
 [+] handler.go                                      [+] 生命周期
   ├── 能力段错误 → 404                                ├── 停止播放 → 分片被删除
   ├── infohash 不匹配 → 404                           ├── 启动时清空残留目录
