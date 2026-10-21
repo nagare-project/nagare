@@ -441,9 +441,10 @@ local function draw_top(c)
 	local s = scale()
 	c:scrim(0, 0, S.w, 140 * s, 0.75, 0, 20)
 	local title = S.nagare_title or (S.title ~= "" and S.title) or "nagare"
-	c:text(32 * s, 22 * s, title, { size = 22 * s, bold = true, color = P.strong, font = FONT, outline = 0.6 * s })
+	c:text(32 * s, 22 * s, title, { size = 22 * s, bold = true, color = P.strong, font = FONT, outline = 1 * s, outline_opacity = 0.7 })
 	if S.info ~= "" then
-		c:text(32 * s, 54 * s, S.info, { size = 14 * s, color = P.fg, opacity = 0.7, font = FONT })
+		-- 弹幕密的时候顶部全是字：副标题也要描边，否则会被弹幕盖得看不清
+		c:text(32 * s, 54 * s, S.info, { size = 14 * s, color = P.fg, opacity = 0.85, font = FONT, outline = 0.8 * s, outline_opacity = 0.7 })
 	end
 	if not S.fullscreen then
 		local cy = 20 * s + 22 * s
