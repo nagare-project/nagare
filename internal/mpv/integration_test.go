@@ -6,10 +6,12 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -161,4 +163,118 @@ func TestIntegration_RealMPVLoadsNagareUI(t *testing.T) {
 			t.Fatal("10 秒内没收到界面脚本的消息：脚本没加载起来，或者 Lua 报错了")
 		}
 	}
+}
+
+// itTrack 是 track-list 里这里关心的字段。
+type itTrack struct {
+	Type     string `json:"type"`
+	External bool   `json:"external"`
+}
+
+func hasExternalSub(tracks []itTrack) bool {
+	for _, tr := range tracks {
+		if tr.Type == "sub" && tr.External {
+			return true
+		}
+	}
+	return false
+}
+
+// 验收：同一个 mpv 进程里 LoadNext 换文件，上一个文件的「全局选项」不能带过去 ——
+// 起播位置（--start）、外挂字幕（--sub-file）、强制标题、轨道编排关掉的可见性。
+// 同时钉住 mpv 换文件时的事件顺序：上一个文件 end-file(stop) → start-file → file-loaded，
+// 播放层靠这个顺序分清新旧文件的事件。没装 mpv 或 ffmpeg 就跳过。
+func TestIntegration_LoadNextResetsPerFileOptions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("-short 模式跳过真 mpv 集成测试")
+	}
+	mpvPath, err := exec.LookPath("mpv")
+	if err != nil {
+		t.Skip("未安装 mpv，跳过集成测试")
+	}
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("未安装 ffmpeg，跳过集成测试")
+	}
+	info, err := Detect(mpvPath)
+	require.NoError(t, err)
+
+	dir, err := os.MkdirTemp("", "nagnx")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	first, second := filepath.Join(dir, "a.mkv"), filepath.Join(dir, "b.mkv")
+	for _, media := range []string{first, second} {
+		out, err := exec.Command(ffmpeg, "-y", "-f", "lavfi", "-i", "testsrc2=duration=20:size=160x90:rate=5",
+			"-c:v", "libx264", "-preset", "ultrafast", media).CombinedOutput()
+		require.NoError(t, err, "ffmpeg 生成测试视频失败：%s", out)
+	}
+	sub := filepath.Join(dir, "a.srt")
+	require.NoError(t, os.WriteFile(sub, []byte("1\n00:00:00,000 --> 00:00:20,000\n第一集的对白\n"), 0o600))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	p, err := Launch(ctx, LaunchOptions{
+		MPVPath: info.Path, MediaPath: first, SubPath: sub, Title: "第一集", StartAt: 8,
+		SocketDir: dir, NoConfig: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = p.Close() })
+
+	// 第一个文件的 file-loaded 可能在 IPC 连上之前就发完了：改为轮询它真的在播
+	require.Eventually(t, func() bool {
+		var pos float64
+		return p.GetProperty("time-pos", &pos) == nil && pos >= 8
+	}, 10*time.Second, 50*time.Millisecond, "第一个文件没有从 --start 处起播")
+	var tracks []itTrack
+	require.NoError(t, p.GetProperty("track-list", &tracks))
+	require.True(t, hasExternalSub(tracks), "第一个文件应挂着 --sub-file 的外挂字幕")
+	// 模拟上一集的轨道编排关掉了弹幕可见性
+	require.NoError(t, p.SetProperty("sub-visibility", false))
+	require.NoError(t, p.SetProperty("secondary-sub-visibility", false))
+	drainEvents(p)
+
+	require.NoError(t, p.LoadNext(NextFile{Path: second, Title: "第二集"}))
+
+	var seen []string
+	deadline := time.After(10 * time.Second)
+	for loaded := false; !loaded; {
+		select {
+		case ev := <-p.Events():
+			switch ev.Kind {
+			case EventEnded:
+				seen = append(seen, "Ended:"+ev.Reason)
+			case EventFileStarted, EventFileLoaded:
+				seen = append(seen, ev.Kind.String())
+				loaded = ev.Kind == EventFileLoaded
+			}
+		case <-deadline:
+			t.Fatalf("10 秒内没等到第二个文件加载好，收到的事件：%v", seen)
+		}
+	}
+	assert.Equal(t, []string{"Ended:stop", "FileStarted", "FileLoaded"}, seen)
+
+	var pos float64
+	require.NoError(t, p.GetProperty("time-pos", &pos))
+	assert.Less(t, pos, 4.0, "第二个文件要从头播，不能沿用第一个文件的 --start=+8")
+	var path, mediaTitle, start string
+	require.NoError(t, p.GetProperty("path", &path))
+	assert.Equal(t, second, path)
+	require.NoError(t, p.GetProperty("media-title", &mediaTitle))
+	assert.Equal(t, "第二集", mediaTitle)
+	require.NoError(t, p.GetProperty("start", &start))
+	assert.Equal(t, "none", start)
+	var subFiles []string
+	require.NoError(t, p.GetProperty("sub-files", &subFiles))
+	assert.Empty(t, subFiles)
+	tracks = nil
+	require.NoError(t, p.GetProperty("track-list", &tracks))
+	assert.False(t, hasExternalSub(tracks), "第一个文件的外挂字幕不能挂到第二个文件上")
+	for _, name := range []string{"sub-visibility", "secondary-sub-visibility"} {
+		var visible bool
+		require.NoError(t, p.GetProperty(name, &visible))
+		assert.True(t, visible, "%s 要复位", name)
+	}
+
+	require.NoError(t, p.Close())
+	require.NoError(t, p.Err())
 }

@@ -61,7 +61,8 @@ type Player struct {
 	closeErr  error       // 仅 Close 兜底失败时非 nil，termMu 保护
 	closeReq  atomic.Bool // Close() 已请求：随后的退出/断开一律视为正常
 	sawQuit   atomic.Bool // 收到 mpv shutdown 事件：随后的断开是正常退出
-	endedOnce atomic.Bool // Ended 事件只发一次（eof-reached 与 end-file 会重复报告）
+	endedOnce atomic.Bool // 每个文件只发一次 Ended（eof-reached 与 end-file 会重复报告）；start-file 时复位
+	eofSeen   atomic.Bool // eof-reached 当前为真：EOF 只在它由假变真时发；start-file 时复位
 
 	stderrTail *boundedBuffer // mpv stderr 开头若干字节，异常退出时用于诊断
 }
@@ -92,9 +93,12 @@ func newPlayer(conn net.Conn, proc *exec.Cmd, waitCh <-chan error, endpoint, ini
 	return p, nil
 }
 
-// attach 基于一条已建立的 IPC 连接构造 Player，不管理任何进程。
-// 供测试用 fake socket 驱动完整协议路径；生产入口是 Launch。
-func attach(conn net.Conn, initialPath string) (*Player, error) {
+// Attach 基于一条已建立的 IPC 连接构造 Player，不管理任何进程（Close 只发 quit、断开连接）。
+// initialPath 是 State().Path 在 file-loaded 之前的初值。
+//
+// 生产入口是 Launch；这里给测试用：mpvtest.Fake 的连接交进来，就能在任何包里驱动完整的
+// 协议路径（internal/player 的测试经 Options.Launch 注入它）。
+func Attach(conn net.Conn, initialPath string) (*Player, error) {
 	return newPlayer(conn, nil, nil, "", initialPath, nil)
 }
 

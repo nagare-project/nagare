@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
+
+	errs "github.com/nagare-project/nagare/internal/errors"
 )
 
 const (
@@ -136,4 +139,101 @@ func (p *Player) SendUIState(state any) error {
 func (p *Player) SendUIToast(text, sub string) error {
 	_, err := p.Command("script-message-to", "nagare", "toast", text, sub)
 	return err
+}
+
+// SendUIUpNext 让播放器界面显示「下一集」卡片（倒计时 / 正在准备），card 序列化成 JSON 交给界面。
+func (p *Player) SendUIUpNext(card any) error {
+	b, err := json.Marshal(card)
+	if err != nil {
+		return err
+	}
+	_, err = p.Command("script-message-to", "nagare", "upnext", string(b))
+	return err
+}
+
+// ClearUIUpNext 收起「下一集」卡片。
+func (p *Player) ClearUIUpNext() error {
+	_, err := p.Command("script-message-to", "nagare", "upnext-clear")
+	return err
+}
+
+// SetKeepOpen 切换 keep-open：开着时播到尾 mpv 停在最后一帧（暂停）而不是关窗，
+// 留出放「下一集」卡片的时间；关着就是播完即退出（启动参数里的默认）。
+func (p *Player) SetKeepOpen(on bool) error {
+	v := "no"
+	if on {
+		v = "yes"
+	}
+	return p.SetProperty("keep-open", v)
+}
+
+// NextFile 是同一个窗口里接着播的下一个文件。
+type NextFile struct {
+	// Path 是交给 mpv 的路径或 URL（与 LaunchOptions.MediaPath 同义）。
+	Path string
+	// Title 是窗口标题与界面顶栏的 media-title；空串时只清掉上一集强制的 media-title（顶栏显示文件名），
+	// 窗口标题不动。
+	Title string
+	// StartAt 是起播秒数（>0 生效），否则从头播。
+	StartAt float64
+}
+
+// propReset 是换文件前要设的一个属性。
+type propReset struct {
+	name  string
+	value any
+}
+
+// nextFileResets 是换文件前要复位、但失败也不至于播错的选项（失败只记日志）。
+//
+// 这些都是全局选项：启动参数或上一集运行时设的属性（轨道编排设过 sid / secondary-sid /
+// 可见性）会原样带到下一个文件。复位不了的后果是字幕选错、弹幕开关沿用，播放本身不受影响。
+// speed（倍速）刻意不在这里：用户调过的倍速跟着走。
+var nextFileResets = []propReset{
+	{"sid", "auto"},
+	{"aid", "auto"},
+	{"secondary-sid", "no"},
+	{"sub-visibility", true},
+	{"secondary-sub-visibility", true},
+}
+
+// LoadNext 在同一个 mpv 进程里换到下一个文件：窗口、全屏、音量、着色器、倍速都保住。
+//
+// 必须复位的两项先做：起播位置（--start 是全局选项，不复位的话下一集从上一集的续播点起播）
+// 与外挂字幕（--sub-file 对之后的每个文件都生效，上一集的对白字幕会挂到下一集上）。
+// 任一失败就不发 loadfile，原文件照常播。其余复位失败只记日志。
+//
+// loadfile 只是排队：返回 nil 不代表新文件能播，打不开会以 end-file(error) 出现在事件里。
+func (p *Player) LoadNext(f NextFile) error {
+	start := "none"
+	if f.StartAt > 0 {
+		start = fmt.Sprintf("+%.3f", f.StartAt)
+	}
+	if err := p.SetProperty("start", start); err != nil {
+		return loadNextErr(err)
+	}
+	// 必须是空数组：nil 切片会序列化成 null
+	if err := p.SetProperty("sub-files", []string{}); err != nil {
+		return loadNextErr(err)
+	}
+
+	resets := []propReset{{"force-media-title", f.Title}}
+	if f.Title != "" {
+		resets = append(resets, propReset{"title", f.Title})
+	}
+	for _, r := range append(resets, nextFileResets...) {
+		if err := p.SetProperty(r.name, r.value); err != nil {
+			log.Printf("mpv: 换下一集前复位 %s 失败（照样换）：%v", r.name, err)
+		}
+	}
+
+	if _, err := p.ipc.call("loadfile", f.Path, "replace"); err != nil {
+		return loadNextErr(err)
+	}
+	return nil
+}
+
+// loadNextErr 是换集失败给用户看的说法：原文件还在播，恢复动作是从网页上重新开始。
+func loadNextErr(err error) error {
+	return errs.Wrap(errs.CategoryPlayback, "player.nav", "没能切到下一集", "关掉播放器后从网页上重新播放", err)
 }

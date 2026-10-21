@@ -18,6 +18,14 @@ const (
 	EventDied
 	// EventUIMessage：nagare 的播放器界面（ui/scripts/nagare）发来一条消息，Event.Args 是名字和参数。
 	EventUIMessage
+	// EventFileStarted：mpv 开始加载一个新文件（start-file）。此时 State 的 TimePos/Duration 已清零，
+	// 下一个文件的 Ended 重新可发 —— 同一个窗口里 loadfile 换文件时，靠它分清新旧文件的事件。
+	EventFileStarted
+	// EventEOF：eof-reached 由假变真（播到了文件尾）。每次上升沿都发、不去重：keep-open 下
+	// 用户拖回去再播到尾，会再来一次。与 Ended 不同，它不代表文件已卸载。
+	EventEOF
+	// EventEOFCleared：eof-reached 在 EOF 之后又落下（用户拖回去了，或文件被卸载）。
+	EventEOFCleared
 )
 
 // uiMessagePrefix 是界面脚本发消息时的第一个参数（script-message nagare-event <名字> ...）。
@@ -39,6 +47,12 @@ func (k EventKind) String() string {
 		return "Died"
 	case EventUIMessage:
 		return "UIMessage"
+	case EventFileStarted:
+		return "FileStarted"
+	case EventEOF:
+		return "EOF"
+	case EventEOFCleared:
+		return "EOFCleared"
 	default:
 		return "Unknown"
 	}
@@ -59,6 +73,13 @@ func (p *Player) handleIPCEvent(msg ipcMessage) {
 	switch msg.Event {
 	case "property-change":
 		p.handlePropertyChange(msg)
+	case "start-file":
+		// 新文件：上一个文件的结束标记、到尾标记与位置都不再适用。位置清零是为了
+		// 不让上一个文件最后的 23:40 被当成新文件的进度。
+		p.endedOnce.Store(false)
+		p.eofSeen.Store(false)
+		p.setState(func(s *State) { s.TimePos, s.Duration = 0, 0 })
+		p.emit(Event{Kind: EventFileStarted})
 	case "file-loaded":
 		// path 属性此时才有值，异步取一次刷新快照（见上：不能同步 call）
 		go p.refreshPath()
@@ -85,7 +106,7 @@ func (p *Player) handlePropertyChange(msg ipcMessage) {
 			return
 		}
 		p.setState(func(s *State) { s.TimePos = v })
-		p.emit(Event{Kind: EventTimePos, TimePos: v})
+		p.emitTimePos(v)
 	case "duration":
 		v, ok := decodeFloat(msg.Data)
 		if !ok {
@@ -100,15 +121,37 @@ func (p *Player) handlePropertyChange(msg ipcMessage) {
 		p.setState(func(s *State) { s.Paused = paused })
 		p.emit(Event{Kind: EventPause, Paused: paused})
 	case "eof-reached":
-		// keep-open 场景下 end-file 可能不来，这里兜底；与 end-file 去重
 		var reached *bool
 		if json.Unmarshal(msg.Data, &reached) != nil {
 			return
 		}
-		if reached != nil && *reached {
-			p.emitEnded("eof")
-		}
+		p.handleEOFReached(reached != nil && *reached)
 	}
+}
+
+// handleEOFReached 把 eof-reached 的变化转成事件。null（没有文件）按「没到尾」算。
+func (p *Player) handleEOFReached(reached bool) {
+	if !reached {
+		if p.eofSeen.CompareAndSwap(true, false) {
+			p.emit(Event{Kind: EventEOFCleared})
+		}
+		return
+	}
+	if p.eofSeen.CompareAndSwap(false, true) {
+		p.emit(Event{Kind: EventEOF})
+	}
+	// keep-open 场景下 end-file 可能不来，这里兜底；与 end-file 去重
+	p.emitEnded("eof")
+}
+
+// emitTimePos 只在事件通道不到半满时投递位置事件：time-pos 每秒推好几次，消费方一慢就会把
+// 通道塞满，按「丢最旧」腾位会把 Ended / FileStarted 这类生命周期事件挤掉。位置本身已经写进
+// State，丢掉的只是「位置变了」这个提醒，消费方读 State 拿到的永远是最新值。
+func (p *Player) emitTimePos(v float64) {
+	if len(p.events) >= cap(p.events)/2 {
+		return
+	}
+	p.emit(Event{Kind: EventTimePos, TimePos: v})
 }
 
 // decodeFloat 解出可能为 null 的数值属性；null 或解析失败返回 ok=false。
@@ -120,7 +163,8 @@ func decodeFloat(raw json.RawMessage) (float64, bool) {
 	return *v, true
 }
 
-// emitEnded 保证 Ended 只发一次：eof-reached 观察与 end-file 事件会先后报告同一次结束。
+// emitEnded 保证每个文件只发一次 Ended：eof-reached 观察与 end-file 事件会先后报告同一次结束。
+// 下一个文件的 start-file 会复位。
 func (p *Player) emitEnded(reason string) {
 	if !p.endedOnce.CompareAndSwap(false, true) {
 		return
