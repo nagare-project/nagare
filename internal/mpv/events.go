@@ -16,7 +16,13 @@ const (
 	EventEnded
 	// EventDied：进程退出或 IPC 断开后的终态事件；详情见 Err()。
 	EventDied
+	// EventUIMessage：nagare 的播放器界面（ui/scripts/nagare）发来一条消息，Event.Args 是名字和参数。
+	EventUIMessage
 )
+
+// uiMessagePrefix 是界面脚本发消息时的第一个参数（script-message nagare-event <名字> ...）。
+// mpv 把所有脚本的 script-message 都广播给 IPC 客户端，只认这个前缀的。
+const uiMessagePrefix = "nagare-event"
 
 // String 便于日志与测试失败信息可读。
 func (k EventKind) String() string {
@@ -31,6 +37,8 @@ func (k EventKind) String() string {
 		return "Ended"
 	case EventDied:
 		return "Died"
+	case EventUIMessage:
+		return "UIMessage"
 	default:
 		return "Unknown"
 	}
@@ -39,9 +47,10 @@ func (k EventKind) String() string {
 // Event 是 Player 推送的一条事件。仅与 Kind 对应的字段有意义。
 type Event struct {
 	Kind    EventKind
-	TimePos float64 // EventTimePos
-	Paused  bool    // EventPause
-	Reason  string  // EventEnded
+	TimePos float64  // EventTimePos
+	Paused  bool     // EventPause
+	Reason  string   // EventEnded
+	Args    []string // EventUIMessage：消息名在前，参数在后
 }
 
 // handleIPCEvent 在读循环 goroutine 内同步处理 mpv 事件，因此绝不能阻塞，
@@ -56,6 +65,10 @@ func (p *Player) handleIPCEvent(msg ipcMessage) {
 		p.emit(Event{Kind: EventFileLoaded})
 	case "end-file":
 		p.emitEnded(msg.Reason)
+	case "client-message":
+		if len(msg.Args) >= 2 && msg.Args[0] == uiMessagePrefix {
+			p.emit(Event{Kind: EventUIMessage, Args: append([]string(nil), msg.Args[1:]...)})
+		}
 	case "shutdown":
 		// mpv 正常退出前必广播 shutdown；据此把随后的连接断开判为正常
 		p.sawQuit.Store(true)

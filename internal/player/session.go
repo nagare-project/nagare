@@ -101,7 +101,13 @@ func (m *Manager) watch(sess *session) {
 	defer close(sess.finished)
 
 	var arrangeOnce sync.Once
-	arrange := func() { arrangeOnce.Do(func() { m.arrangeTracks(sess) }) }
+	arrange := func() {
+		arrangeOnce.Do(func() {
+			m.arrangeTracks(sess)
+			// 弹幕匹配完标题也可能升级成了作品名：编排完再推一次
+			m.pushUIState(sess)
+		})
+	}
 	fileLoaded, danmakuResolved := false, false
 	maybeArrange := func() {
 		if fileLoaded && danmakuResolved {
@@ -124,7 +130,10 @@ func (m *Manager) watch(sess *session) {
 			switch ev.Kind {
 			case mpv.EventFileLoaded:
 				fileLoaded = true
+				m.pushUIState(sess)
 				maybeArrange()
+			case mpv.EventUIMessage:
+				m.handleUIMessage(sess, ev.Args)
 			case mpv.EventTimePos:
 				if time.Since(lastFlush) >= progressFlushInterval {
 					m.flushProgress(sess, false)
@@ -261,6 +270,16 @@ func (m *Manager) arrangeTracks(sess *session) {
 		if err := sess.player.SetProperty("sid", danmakuID); err != nil {
 			sess.degradeDanmaku("选中弹幕轨失败：" + err.Error())
 			return
+		}
+	}
+	// 用户在播放器里关过弹幕：这一集也先关着（界面上的「弹」按钮随时能再打开）
+	if m.opts.Store.PlayerConfig().DanmakuHidden {
+		visibility := "secondary-sub-visibility"
+		if dialogueSubs == 0 {
+			visibility = "sub-visibility"
+		}
+		if err := sess.player.SetProperty(visibility, false); err != nil {
+			log.Printf("player: 按上次的设置关掉弹幕失败：%v", err)
 		}
 	}
 }

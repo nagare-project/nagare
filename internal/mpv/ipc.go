@@ -34,6 +34,7 @@ type ipcMessage struct {
 	ID        int64           `json:"id"`     // observe_property 注册时给的观察 id
 	Name      string          `json:"name"`   // property-change 的属性名
 	Reason    string          `json:"reason"` // end-file 的结束原因
+	Args      []string        `json:"args"`   // client-message 的参数（脚本 script-message 发来的）
 }
 
 // ipcConn 管一条到 mpv 的 IPC 连接：请求/响应配对、事件回调、断开收敛。

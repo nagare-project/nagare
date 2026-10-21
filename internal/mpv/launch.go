@@ -42,6 +42,10 @@ type LaunchOptions struct {
 	// Shaders 是按顺序加载的 GLSL 着色器（Anime4K，见 Anime4KShaders）。逐个用 --glsl-shaders-append 传：
 	// 整条列表要按系统用 : 或 ; 分隔，路径里带这两个字符就会被拆错。
 	Shaders []string
+	// ConfigDir 是 nagare 自己的 mpv 配置目录（见 PrepareUIConfig）；留空则 mpv 照常读用户自己的配置。
+	ConfigDir string
+	// Volume 是起播音量（nil = mpv 默认）；界面里调过的音量由 nagare 记住，下次起播带回来。
+	Volume *int
 }
 
 // streamCacheArgs 是网络流专用的 mpv 缓存参数。
@@ -136,11 +140,19 @@ func buildArgs(opts LaunchOptions, endpoint string) []string {
 		"--force-window",
 		"--keep-open=no",
 	}
+	if opts.ConfigDir != "" {
+		args = append(args, "--config-dir="+opts.ConfigDir)
+	}
+	if opts.Volume != nil {
+		args = append(args, fmt.Sprintf("--volume=%d", *opts.Volume))
+	}
 	if opts.NetworkStream {
 		args = append(args, streamCacheArgs...)
 	}
 	if opts.Title != "" {
 		args = append(args, "--title="+opts.Title)
+		// 窗口标题之外，界面顶栏读的是 media-title：不强制的话那里显示的是文件名
+		args = append(args, "--force-media-title="+opts.Title)
 	}
 	if opts.SubPath != "" {
 		args = append(args, "--sub-file="+opts.SubPath)
