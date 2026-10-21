@@ -1,7 +1,4 @@
-// tracker 补充。
-//
-// 本体不内置任何 tracker（与规则引擎「不内置任何源与 tracker」一致），
-// 列表全部来自用户配置、默认为空。
+// tracker 补充：内置的公共 tracker 组（DefaultTrackers，可整组关）加用户追加的。
 package torrentstream
 
 import (
@@ -24,6 +21,15 @@ import (
 // animeTrackerList（DeSireFire，2024-01 后停更）26 条「best」里只剩 5 条活着、
 // 还混着 M-Team 这种私有站，不能整表照抄；这里只取实测活的。
 // 用户可在设置里关掉整组，或在此之外追加自己的。
+//
+// 2026-10-21 扩到 16 条，为老番：做种的人少时，每多一个知道这个 swarm 的 tracker
+// 就多一份找到人的机会。候选是 Animeko 内置的 80 条（AnitorrentTorrentDownloader.kt），
+// 隔几分钟各 scrape 两轮（只查人数、不登记成 peer），四个样本是一部当天的新番和
+// 三个 2021 年的老合集。入选要两轮都活、老合集上报得出做种数，还要排掉三类：
+//   - 镜像：两轮报的人数逐位相同，等于同一个后端（zer0day.ch = opentrackr.org、
+//     tracker.auctor.tv = tracker.qu.ax、004430.xyz = tracker.nekomi.cn 等），多挂一条只多一次 announce；
+//   - archive.org 自家的 tracker：它是给 archive.org 自己的种子用的；
+//   - 域名本身带盗版字样的（foreverpirates、therarbg 一类）。
 var DefaultTrackers = []string{
 	"udp://tracker.opentrackr.org:1337/announce",
 	"udp://open.stealth.si:80/announce",
@@ -33,6 +39,14 @@ var DefaultTrackers = []string{
 	"udp://leet-tracker.moe:1337/announce",
 	"https://tracker.nekomi.cn:443/announce",
 	"https://tracker.zhuqiy.com:443/announce",
+	"udp://tracker.qu.ax:6969/announce",
+	"udp://tracker-udp.gbitt.info:80/announce",
+	"udp://t.overflow.biz:6969/announce",
+	"udp://tracker.peerfect.org:6969/announce",
+	"udp://tracker.breizh.pm:6969/announce",
+	"http://ipv4announce.sktorrent.eu:6969/announce",
+	"http://tracker.renfei.net:8080/announce",
+	"https://tracker.7471.top:443/announce",
 }
 
 // EffectiveTrackers 合成引擎实际使用的列表：内置组（未关闭时）在前、用户追加在后，

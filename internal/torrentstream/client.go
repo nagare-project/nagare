@@ -218,6 +218,9 @@ func newTorrentClient(cacheDir string, cfg Config) (*torrent.Client, error) {
 	// 告知用户（见 errPrivateTorrent）。
 	tc.DisableWebseeds = true   // 磁力的 ws= 参数会被当 webseed 执行：等于让用户粘的链接指使 nagare 对任意 URL 发 HTTP 请求
 	tc.DisableWebtorrent = true // WebRTC 对等体不在设计范围内，开着还会牵出 ICE/STUN 的第三方出站
+	// 每个 peer 只挂它 3 秒送得完的请求：做种的人少时，慢 peer 手上挂着的一大批请求里
+	// 只要有一块是播放位置的下一块，mpv 就要干等它整批发完（见 pacer.go）。
+	installRequestPacer(tc)
 
 	// anacrolix 默认把大量调试日志刷到 stderr，会淹掉 nagare 自己的日志；
 	// 而 tracker/peer 地址里可能带 passkey 一类凭证，也不该落盘。整条丢弃。

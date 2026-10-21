@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode"
@@ -232,7 +233,23 @@ func offlineClient(cacheDir string, cfg Config) (*torrent.Client, error) {
 	tc.DisablePEX = true
 	tc.DisableIPv6 = true // 同 startSeeder：只走 127.0.0.1
 	tc.Slogger = slog.New(slog.DiscardHandler)
+	pacer := installRequestPacer(tc)
+	testPacerMu.Lock()
+	testPacer = pacer
+	testPacerMu.Unlock()
 	return torrent.NewClient(tc)
+}
+
+// testPacer 是最近一个测试 client 的请求封顶状态，供用例确认回调真的接上了、停播后清干净了。
+var (
+	testPacerMu sync.Mutex
+	testPacer   *requestPacer
+)
+
+func currentTestPacer() *requestPacer {
+	testPacerMu.Lock()
+	defer testPacerMu.Unlock()
+	return testPacer
 }
 
 // newIntegrationEngine 起一个用「不出网 client」的引擎。
