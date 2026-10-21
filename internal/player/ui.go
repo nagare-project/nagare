@@ -179,7 +179,9 @@ func screenshotName(title string, pos float64, now time.Time) string {
 		clean = string(r[:screenshotTitleMax])
 	}
 	t := max(0, int(pos))
-	return fmt.Sprintf("%s %02d-%02d-%02d %s.png", clean, t/3600, t%3600/60, t%60, now.Format("20060102-150405.000"))
+	// JPG 而不是 PNG：mpv 截图时整个主循环停着，1080p 的 PNG 要编 3 秒（画面冻 3 秒、10MB），
+	// JPG（mpv 默认的 90 质量）0.1–0.4 秒、约 400KB
+	return fmt.Sprintf("%s %02d-%02d-%02d %s.jpg", clean, t/3600, t%3600/60, t%60, now.Format("20060102-150405.000"))
 }
 
 // takeScreenshot 截一张带字幕与弹幕的图放进截图目录，结果作为屏幕提示推回界面。
