@@ -10,9 +10,9 @@ nagare 二进制的第三方组件及其许可证。许可证以各上游源码�
 
 | | |
 | --- | --- |
-| 来源 | [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake) release **20260902**，资产 `mpv-x86_64-20260902-git-174b638f29.7z` |
-| mpv 修订 | git `174b638f29` |
-| 构建脚本修订 | `cd1edc11dc6887a50f705717619d879f5a93a488` |
+| 来源 | [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake) release **20261021**，资产 `mpv-x86_64-20261021-git-e471496c56.7z` |
+| mpv 修订 | git `e471496c56` |
+| 构建脚本修订 | `1f8d2e76255abc48f0456d9be99b4cab9c6566e6` |
 | 钉死记录 | [`scripts/windows/mpv.lock`](scripts/windows/mpv.lock)（含 sha256） |
 
 **整体许可证：GPLv3。** mpv 本身为 GPLv2 或更新版本；该构建的 FFmpeg 以
@@ -27,9 +27,9 @@ nagare 二进制的第三方组件及其许可证。许可证以各上游源码�
 
 - 构建脚本快照：每个 GitHub Release 附带 `mpv-winbuild-cmake-<commit>.tar.gz`，即上表所列
   修订版的 shinchiro 仓库源码，`packages/*.cmake` 里声明了每个组件的上游 git 地址与构建参数。
-- mpv 源码：<https://github.com/mpv-player/mpv>，修订 `174b638f29`。
+- mpv 源码：<https://github.com/mpv-player/mpv>，修订 `e471496c56`。
 - 其他组件：shinchiro 的构建在构建时拉取各上游仓库的当时 HEAD，精确修订版记录在该 release 的
-  构建日志中（<https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/33573448041>）。
+  构建日志中（<https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/39518569492>）。
   如需任一组件的源码副本而上述途径已不可用，请在本仓库开 issue，我们会提供。
 
 ### 组件一览
