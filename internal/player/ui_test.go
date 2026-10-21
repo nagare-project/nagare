@@ -123,9 +123,9 @@ func TestUILaunchOptionsCarryConfigDirAndVolume(t *testing.T) {
 
 func TestScreenshotName(t *testing.T) {
 	at := time.Date(2026, 10, 22, 21, 5, 9, 123_000_000, time.Local)
-	assert.Equal(t, "葬送的芙莉莲 00-12-03 20261022-210509.123.png", screenshotName("葬送的芙莉莲", 723.9, at))
-	assert.Equal(t, "a_b_c_ 01-00-00 20261022-210509.123.png", screenshotName(`a/b:c?`, 3600, at), "文件名里不能有路径分隔符等字符")
-	assert.Equal(t, "nagare 00-00-00 20261022-210509.123.png", screenshotName("  ", -5, at))
+	assert.Equal(t, "葬送的芙莉莲 00-12-03 20261022-210509.123.jpg", screenshotName("葬送的芙莉莲", 723.9, at))
+	assert.Equal(t, "a_b_c_ 01-00-00 20261022-210509.123.jpg", screenshotName(`a/b:c?`, 3600, at), "文件名里不能有路径分隔符等字符")
+	assert.Equal(t, "nagare 00-00-00 20261022-210509.123.jpg", screenshotName("  ", -5, at))
 	long := screenshotName(strings.Repeat("长", 200), 0, at)
 	assert.LessOrEqual(t, len(long), 255, "文件名不能超过 255 字节")
 }
