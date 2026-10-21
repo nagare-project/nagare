@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -63,8 +64,10 @@ func PrepareUIConfig(dir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("写出播放器界面: %w", err)
 	}
+	// 清理失败不算失败：新文件都已经写好了，多出来的旧文件最坏只是多加载一个脚本，
+	// 比因此整个退回别的配置好
 	if err := removeStale(root, want, managed); err != nil {
-		return "", fmt.Errorf("清理旧的播放器界面文件: %w", err)
+		log.Printf("mpv: 清理旧的播放器界面文件失败（不影响播放）：%v", err)
 	}
 	return root, nil
 }

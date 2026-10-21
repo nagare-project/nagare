@@ -58,7 +58,7 @@ local S = {
 	network = false, buffering = false, cache_speed = 0, ranges = {}, chapters = {},
 	tracks = {}, sid = false, aid = false, secondary_sid = false, secondary_visible = true, sub_visible = true,
 	elements = {}, hover_id = nil, pressed = nil, drag = nil, drag_time = nil, last_drag_seek = 0,
-	toast = nil, spin = 0, shown = false,
+	toast = nil, spin = 0, shown = false, flash_until = 0,
 }
 
 local overlay = mp.create_osd_overlay("ass-events")
@@ -148,11 +148,7 @@ local function scale()
 	return S.hidpi
 end
 
--- 鼠标是否落在界面会出现的上下两个区域里
-local function in_ui_zone(x, y)
-	local s = scale()
-	return y <= 140 * s or y >= S.h - 170 * s
-end
+local element_at -- 下面定义
 
 local function ui_visible()
 	if menu.is_open() or S.drag then
@@ -161,10 +157,15 @@ local function ui_visible()
 	if S.pause then
 		return true
 	end
+	-- 键盘快进快退：光标不在窗口里也露一下，让人看见跳到了哪
+	if mp.get_time() < S.flash_until then
+		return true
+	end
 	if not S.hover then
 		return false
 	end
-	if in_ui_zone(S.mx, S.my) then
+	-- 光标停在按钮、进度条上不收；停在别处两秒后收起（光标也会被 mpv 藏掉）
+	if S.shown and element_at(S.mx, S.my) then
 		return true
 	end
 	return mp.get_time() - S.last_move < HIDE_AFTER
@@ -177,7 +178,7 @@ local function add_element(id, x1, y1, x2, y2, on_click)
 	S.elements[#S.elements + 1] = { id = id, x1 = x1, y1 = y1, x2 = x2, y2 = y2, click = on_click }
 end
 
-local function element_at(x, y)
+element_at = function(x, y)
 	for i = #S.elements, 1, -1 do
 		local e = S.elements[i]
 		if x >= e.x1 and x <= e.x2 and y >= e.y1 and y <= e.y2 then
@@ -428,6 +429,9 @@ local function seek_geometry()
 end
 
 local function time_at(x)
+	if (S.duration or 0) <= 0 then
+		return nil
+	end
 	local x1, x2 = seek_geometry()
 	local frac = math.max(0, math.min(1, (x - x1) / math.max(1, x2 - x1)))
 	return frac * (S.duration or 0)
@@ -497,7 +501,7 @@ local function draw_seekbar(c)
 	-- 悬停：竖线 + 时间
 	if hovering and dur > 0 then
 		local hx = S.drag == "seek" and px or math.max(x1, math.min(x2, S.mx))
-		local ht = S.drag == "seek" and t or time_at(hx)
+		local ht = S.drag == "seek" and t or (time_at(hx) or 0)
 		if S.drag ~= "seek" then
 			c:rect(hx - 1 * s, cy - 9 * s, hx + 1 * s, cy + 9 * s, { color = "#FFFFFF", opacity = 0.85 })
 		end
@@ -695,6 +699,9 @@ end
 
 local function drag_seek(final)
 	local t = time_at(S.mx)
+	if not t then
+		return -- 片长还不知道（直播流、刚打开）：拖了也不知道该跳到哪
+	end
 	S.drag_time = t
 	local now = mp.get_time()
 	if final then
@@ -728,6 +735,9 @@ local function on_mouse_down()
 	end
 	S.pressed = e.id
 	if e.id == "seek" then
+		if (S.duration or 0) <= 0 then
+			return
+		end
 		S.drag = "seek"
 		drag_seek(false)
 	elseif e.id == "volume" then
@@ -756,7 +766,10 @@ local function on_mouse_up()
 	if not was_drag and not pressed and e then
 		pressed = e.id
 		if e.id == "seek" then
-			mp.commandv("seek", time_at(S.mx), "absolute+exact")
+			local t = time_at(S.mx)
+			if t then
+				mp.commandv("seek", t, "absolute+exact")
+			end
 		elseif e.id == "volume" then
 			drag_volume()
 		end
@@ -840,15 +853,36 @@ observe("secondary-sid", "native", function(v) S.secondary_sid = v end)
 observe("secondary-sub-visibility", "bool", function(v) S.secondary_visible = v ~= false end)
 observe("sub-visibility", "bool", function(v) S.sub_visible = v ~= false end)
 observe("demuxer-via-network", "bool", function(v) S.network = v or false end)
-observe("cache-speed", "number", function(v) S.cache_speed = v or 0 end)
 observe("chapter-list", "native", function(v) S.chapters = v or {} end)
-observe("demuxer-cache-state", "native", function(v) S.ranges = (v and v["seekable-ranges"]) or {} end)
+
+-- 这两个一秒变好几次：只在界面露着、或正在缓冲（要显示速度）时才值得重绘
+local function observe_quiet(name, kind, fn)
+	mp.observe_property(name, kind, function(_, v)
+		fn(v)
+		if S.shown or S.buffering then
+			request_render()
+		end
+	end)
+end
+observe_quiet("cache-speed", "number", function(v) S.cache_speed = v or 0 end)
+observe_quiet("demuxer-cache-state", "native", function(v) S.ranges = (v and v["seekable-ranges"]) or {} end)
 observe("paused-for-cache", "bool", function(v) S.buffering = v or false end)
 
--- 进度只在界面露着时才重绘；藏着的时候每帧重绘白白耗电
+-- 进度只在界面露着、且秒数变了时才重绘：每帧整屏重绘会让 mpv 的 CPU 翻倍
+local last_second
 mp.observe_property("time-pos", "number", function(_, v)
 	S.time = v or 0
-	if S.shown then
+	local sec = math.floor(S.time)
+	if S.shown and sec ~= last_second then
+		request_render()
+	end
+	last_second = sec
+end)
+
+-- 键盘快进快退时露一下界面（拖进度条时界面本来就开着）
+mp.observe_property("seeking", "bool", function(_, v)
+	if v and not S.drag then
+		S.flash_until = mp.get_time() + HIDE_AFTER
 		request_render()
 	end
 end)
@@ -878,10 +912,14 @@ mp.observe_property("speed", "number", function(_, v)
 	last_speed = v
 end)
 
--- 音量调完一秒后告诉 nagare，下次起播带回来
-local volume_timer
+-- 音量调完一秒后告诉 nagare，下次起播带回来。起播时的那个值（nagare 自己传的）不回写。
+local volume_timer, startup_volume
 mp.observe_property("volume", "number", function(_, v)
 	if not v then
+		return
+	end
+	if startup_volume == nil then
+		startup_volume = v
 		return
 	end
 	if volume_timer then
@@ -926,8 +964,9 @@ mp.add_key_binding(nil, "menu", open_context_menu)
 mp.add_key_binding(nil, "toggle-danmaku", toggle_danmaku)
 mp.add_key_binding(nil, "screenshot", screenshot)
 
--- 无边框窗口由界面自己画标题栏与窗口按钮；放在脚本里设而不是写进 mpv.conf：
--- 万一脚本没加载起来，窗口至少还有系统的边框可以关
+-- 无边框窗口由界面自己画标题栏与窗口按钮；mpv 自带的控制条也由这里关掉。都放在脚本里做而不是
+-- 写进 mpv.conf：万一脚本没加载起来，窗口还有系统边框，手上还有自带的控制条
 mp.set_property_bool("border", false)
+mp.commandv("script-message", "osc-visibility", "never", "no_osd")
 
 send("ready")

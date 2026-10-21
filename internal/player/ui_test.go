@@ -2,7 +2,9 @@ package player
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,17 +100,25 @@ func TestHandleUIMessageUpdatesPlayerConfig(t *testing.T) {
 
 func TestUILaunchOptionsCarryConfigDirAndVolume(t *testing.T) {
 	m, st, dir := newTestManager(t, nil)
-	configDir, volume := m.uiLaunchOptions()
+	configDir, noConfig, volume := m.uiLaunchOptions()
 	assert.Empty(t, configDir, "没配界面目录时不带 --config-dir")
+	assert.False(t, noConfig)
 	assert.Nil(t, volume, "从没调过音量时用 mpv 默认")
 
 	m.opts.UIConfigDir = func() (string, error) { return mpv.PrepareUIConfig(dir) }
 	_, err := st.UpdatePlayerConfig(func(c *store.PlayerConfig) { v := 55; c.Volume = &v })
 	require.NoError(t, err)
-	configDir, volume = m.uiLaunchOptions()
+	configDir, noConfig, volume = m.uiLaunchOptions()
 	assert.Equal(t, filepath.Join(dir, "mpv-config"), configDir)
+	assert.False(t, noConfig)
 	require.NotNil(t, volume)
 	assert.Equal(t, 55, *volume)
+
+	// 界面配置写不出来：退回 mpv 自带的控制条，但也不读用户自己的配置
+	m.opts.UIConfigDir = func() (string, error) { return "", errors.New("disk full") }
+	configDir, noConfig, _ = m.uiLaunchOptions()
+	assert.Empty(t, configDir)
+	assert.True(t, noConfig)
 }
 
 func TestScreenshotName(t *testing.T) {
@@ -116,4 +126,6 @@ func TestScreenshotName(t *testing.T) {
 	assert.Equal(t, "葬送的芙莉莲 00-12-03 20261022-210509.123.png", screenshotName("葬送的芙莉莲", 723.9, at))
 	assert.Equal(t, "a_b_c_ 01-00-00 20261022-210509.123.png", screenshotName(`a/b:c?`, 3600, at), "文件名里不能有路径分隔符等字符")
 	assert.Equal(t, "nagare 00-00-00 20261022-210509.123.png", screenshotName("  ", -5, at))
+	long := screenshotName(strings.Repeat("长", 200), 0, at)
+	assert.LessOrEqual(t, len(long), 255, "文件名不能超过 255 字节")
 }

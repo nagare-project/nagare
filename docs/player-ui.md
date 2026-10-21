@@ -19,13 +19,15 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 （mpv 会加载 `scripts/` 下的每一个文件）。只清理内置配置自己占的顶层路径，mpv 往配置目录里写的
 其他东西不碰。准备失败不阻断播放，mpv 退回它自带的控制条。
 
-`border=no` 由界面脚本在加载时设，不写进 `mpv.conf`：万一脚本没加载起来，窗口至少还有系统边框可以关。
+`border=no` 与关掉 mpv 自带的控制条（`script-message osc-visibility never`）都由界面脚本在加载时做，
+不写进 `mpv.conf`：万一脚本没加载起来，窗口还有系统边框，手上还有 mpv 自带的控制条。界面配置本身
+没准备好时（写不出文件），nagare 带 `--no-config` 起 mpv：退回自带的控制条，但也不读用户自己的配置。
 
 ## 文件
 
 | 文件 | 内容 |
 |---|---|
-| `internal/mpv/ui/mpv.conf` | 关掉 mpv 自带的控制条与进度提示；硬件解码 `hwdec=auto-safe`；关掉 mpv 自己的续播 |
+| `internal/mpv/ui/mpv.conf` | 关掉 mpv 自带的进度提示与屏幕文字（`osd-level=0`，界面用自己的提示）；硬件解码 `hwdec=auto-safe`；关掉 mpv 自己的续播 |
 | `internal/mpv/ui/input.conf` | 快捷键（见下表），没列出的键保留 mpv 默认 |
 | `internal/mpv/ui/scripts/nagare/main.lua` | 布局、自动隐藏、鼠标与键盘、缓冲提示、屏幕提示、与 nagare 的消息 |
 | `internal/mpv/ui/scripts/nagare/menu.lua` | 右键菜单与控制条按钮弹出的菜单（子菜单、悬停展开、键盘上下选择） |

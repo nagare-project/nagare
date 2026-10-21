@@ -212,7 +212,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	if err != nil {
 		return PlayResult{}, err
 	}
-	configDir, volume := m.uiLaunchOptions()
+	configDir, noConfig, volume := m.uiLaunchOptions()
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{
 		MPVPath:                mpvPath,
 		MediaPath:              src.MPVPath(),
@@ -225,6 +225,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 		NetworkStream:          isNetworkStream(src.MPVPath()),
 		Shaders:                m.shaders(),
 		ConfigDir:              configDir,
+		NoConfig:               noConfig,
 		Volume:                 volume,
 	})
 	if err != nil {

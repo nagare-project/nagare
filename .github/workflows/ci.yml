@@ -66,6 +66,12 @@ jobs:
           fi
       - name: go vet
         run: go vet ./...
+      - name: 播放器界面 Lua 语法检查
+        # 真 mpv 的界面集成测试在 CI 上跑不起来（没有 mpv、没有显示器），至少先挡住语法错误。
+        # 用 LuaJIT：macOS 上的 mpv 多半配它（Lua 5.1 语法），比 5.3/5.4 的 luac 更严。
+        run: |
+          sudo apt-get install -y --no-install-recommends luajit
+          for f in internal/mpv/ui/scripts/nagare/*.lua; do luajit -bl "$f" > /dev/null; done
       - name: go test
         run: go test ./...
       - name: govulncheck 漏洞扫描

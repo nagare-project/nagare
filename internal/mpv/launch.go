@@ -44,6 +44,9 @@ type LaunchOptions struct {
 	Shaders []string
 	// ConfigDir 是 nagare 自己的 mpv 配置目录（见 PrepareUIConfig）；留空则 mpv 照常读用户自己的配置。
 	ConfigDir string
+	// NoConfig：不读任何配置文件（--no-config），用在 nagare 的界面配置没准备好时 ——
+	// 退回 mpv 自带的控制条，但也不去读用户自己的配置（那会把自动接下一集、自己续播的冲突带回来）。
+	NoConfig bool
 	// Volume 是起播音量（nil = mpv 默认）；界面里调过的音量由 nagare 记住，下次起播带回来。
 	Volume *int
 }
@@ -142,6 +145,8 @@ func buildArgs(opts LaunchOptions, endpoint string) []string {
 	}
 	if opts.ConfigDir != "" {
 		args = append(args, "--config-dir="+opts.ConfigDir)
+	} else if opts.NoConfig {
+		args = append(args, "--no-config")
 	}
 	if opts.Volume != nil {
 		args = append(args, fmt.Sprintf("--volume=%d", *opts.Volume))

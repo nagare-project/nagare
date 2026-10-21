@@ -79,9 +79,13 @@ func TestBuildArgsUsesConfigDirAndVolume(t *testing.T) {
 	titled := buildArgs(LaunchOptions{MediaPath: "/media/a.mkv", Title: "葬送的芙莉莲 第 11 集"}, "/tmp/sock")
 	assert.Contains(t, titled, "--force-media-title=葬送的芙莉莲 第 11 集", "界面顶栏读 media-title，不强制就显示文件名")
 
+	fallback := buildArgs(LaunchOptions{MediaPath: "/media/a.mkv", NoConfig: true}, "/tmp/sock")
+	assert.Contains(t, fallback, "--no-config", "界面配置没准备好时也不能去读用户自己的配置")
+
 	plain := buildArgs(LaunchOptions{MediaPath: "/media/a.mkv"}, "/tmp/sock")
 	for _, a := range plain {
 		assert.NotContains(t, a, "--config-dir")
+		assert.NotContains(t, a, "--no-config")
 		assert.NotContains(t, a, "--volume")
 	}
 }
