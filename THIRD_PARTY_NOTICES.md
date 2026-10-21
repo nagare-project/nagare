@@ -121,6 +121,18 @@ nagare 二进制的第三方组件及其许可证。许可证以各上游源码�
 | 来源 | [bloc97/Anime4K](https://github.com/bloc97/Anime4K) 修订 `7684e9586f8dcc738af08a1cdceb024cc184f426`（`glsl/Restore`、`glsl/Upscale`） |
 | 文件 | `Anime4K_Clamp_Highlights` · `Anime4K_Restore_CNN_M` · `Anime4K_Restore_CNN_VL` · `Anime4K_Upscale_CNN_x2_S` · `Anime4K_Upscale_CNN_x2_M` · `Anime4K_Upscale_CNN_x2_VL`（MIT，版权归 bloc97，许可证见 [`internal/mpv/anime4k/LICENSE`](internal/mpv/anime4k/LICENSE) 与各文件头）；`Anime4K_AutoDownscalePre_x2` · `Anime4K_AutoDownscalePre_x4`（Unlicense，公有领域，见文件头） |
 
+## 播放器界面里的 thumbfast
+
+进度条缩略图由 thumbfast 生成：它随 nagare 的播放器界面一起内嵌在二进制里
+（[`internal/mpv/ui/scripts/thumbfast.lua`](internal/mpv/ui/scripts/thumbfast.lua)），起播时写进运行时目录交给
+mpv 加载。原样复制、未作改动；显示缩略图的界面代码是 nagare 自己的。
+
+| | |
+| --- | --- |
+| 来源 | [po5/thumbfast](https://github.com/po5/thumbfast) 修订 `0f711de3138c9bd6718209d819ac54022c23ded2` |
+| 许可证 | [Mozilla Public License 2.0](https://mozilla.org/MPL/2.0/)（文件级著佐权：分发的就是源码文件本身，许可证声明在文件头） |
+| 设置 | [`internal/mpv/ui/script-opts/thumbfast.conf`](internal/mpv/ui/script-opts/thumbfast.conf)（nagare 写的，不属于 thumbfast） |
+
 ## 前端依赖
 
 内嵌进二进制的浏览器界面（`frontend/package.json` 的 `dependencies`）：

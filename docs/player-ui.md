@@ -32,6 +32,8 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 | `internal/mpv/ui/scripts/nagare/main.lua` | 布局、自动隐藏、鼠标与键盘、缓冲提示、屏幕提示、与 nagare 的消息 |
 | `internal/mpv/ui/scripts/nagare/menu.lua` | 右键菜单与控制条按钮弹出的菜单（子菜单、悬停展开、键盘上下选择） |
 | `internal/mpv/ui/scripts/nagare/draw.lua` | 圆角矩形、渐变遮罩、文字、矢量图标 → ASS 绘图指令 |
+| `internal/mpv/ui/scripts/thumbfast.lua` | 进度条缩略图的生成（[po5/thumbfast](https://github.com/po5/thumbfast)，MPL-2.0，原样未改） |
+| `internal/mpv/ui/script-opts/thumbfast.conf` | thumbfast 的设置：192 宽、网络流不生成、闲置 10 分钟收掉缩略图进程 |
 | `internal/mpv/ui.go` | 内置配置的同步 |
 | `internal/player/ui.go` | 界面消息的处理、推给界面的状态、截图 |
 
@@ -43,6 +45,11 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
   （`Canvas:stroke_rect`）——叠一层透明形状盖不掉下面的填充。
 - 左键只在光标落在按钮、进度条上（或菜单开着、正在拖）时才接管；其余时候交还 mpv，拖动窗口与双击全屏
   才照常可用。
+- 进度条缩略图：thumbfast 广播 `thumbfast-info` 告诉界面尺寸和能不能用，界面在悬停 / 拖动进度条时
+  发 `script-message-to thumbfast thumb <秒> <x> <y>`、离开时发 `clear`，边框由界面自己画。thumbfast 另起
+  一个 mpv 去解码：它默认找 PATH 里的 mpv，Windows 包里的 mpv 是内置的、不在 PATH 里，所以 nagare 起播时用
+  `--script-opts-append=thumbfast-mpv_path=<这次用的 mpv>` 把路径给它。网络流（磁力、在线）上它是关的：
+  生成缩略图要读流里别的位置，磁力下等于多一个读位置和播放抢带宽。
 - 坐标是 OSD 像素（`osd-dimensions`），尺寸乘 `display-hidpi-scale`。窗口逻辑宽度不到 760 时进入窄窗口
   模式，收起音量条、快退快进与倍速。
 

@@ -67,12 +67,14 @@ func TestPrepareUIConfigRepairsModifiedFiles(t *testing.T) {
 func TestBuildArgsUsesConfigDirAndVolume(t *testing.T) {
 	volume := 70
 	args := buildArgs(LaunchOptions{
-		MediaPath: "/media/a.mkv",
-		ConfigDir: "/cfg/mpv-config",
-		Volume:    &volume,
+		MediaPath:  "/media/a.mkv",
+		ConfigDir:  "/cfg/mpv-config",
+		ScriptOpts: []string{"thumbfast-mpv_path=/opt/mpv, with comma/mpv"},
+		Volume:     &volume,
 	}, "/tmp/sock")
 	assert.Contains(t, args, "--config-dir=/cfg/mpv-config")
 	assert.Contains(t, args, "--volume=70")
+	assert.Contains(t, args, "--script-opts-append=thumbfast-mpv_path=/opt/mpv, with comma/mpv", "逐条传，值里的逗号不能被拆开")
 	// 媒体路径永远在最后、跟在 "--" 后面
 	assert.Equal(t, []string{"--", "/media/a.mkv"}, args[len(args)-2:])
 
