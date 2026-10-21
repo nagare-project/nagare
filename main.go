@@ -393,6 +393,11 @@ func buildServices(configDir string) (*services, error) {
 			}
 			return paths
 		},
+		// 播放器界面（nagare 自己的 mpv 配置目录）也写在运行时目录，每次起播同步一遍
+		UIConfigDir: func() (string, error) {
+			return mpv.PrepareUIConfig(runtimeDir)
+		},
+		ScreenshotDir: screenshotDir(),
 		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
 		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
 		OnSessionEnd: func() {
@@ -814,4 +819,17 @@ func openBrowser(url string) error {
 		}
 	}()
 	return nil
+}
+
+// screenshotDir 是播放器里截图的存放位置：系统「图片」文件夹下的 nagare 子目录（第一次截图时才创建）。
+// Linux 先看 XDG_PICTURES_DIR；找不到家目录时返回空串，截图交给 mpv 的默认位置。
+func screenshotDir() string {
+	if dir := os.Getenv("XDG_PICTURES_DIR"); dir != "" && runtime.GOOS == "linux" {
+		return filepath.Join(dir, "nagare")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	return filepath.Join(home, "Pictures", "nagare")
 }

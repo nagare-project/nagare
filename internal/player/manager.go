@@ -82,6 +82,11 @@ type Options struct {
 	// Shaders 返回每次起播要加载的 GLSL 着色器（Anime4K 超分；关掉时返回空）。每次起播、每次改设置时调。
 	// 可为 nil：不加载任何着色器。
 	Shaders func() []string
+	// UIConfigDir 准备好 nagare 自己的 mpv 配置目录（播放器界面，见 mpv.PrepareUIConfig）并返回它。
+	// 每次起播都调；可为 nil：mpv 照常读用户自己的配置（测试用）。
+	UIConfigDir func() (string, error)
+	// ScreenshotDir 是播放器里截图的存放目录，第一次截图时才创建。空串交给 mpv 的默认位置。
+	ScreenshotDir string
 }
 
 // DanmakuInfo 是弹幕链路的结果状态 —— 失败必须可见（CQ3：不静默）。
@@ -207,6 +212,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	if err != nil {
 		return PlayResult{}, err
 	}
+	configDir, noConfig, volume := m.uiLaunchOptions()
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{
 		MPVPath:                mpvPath,
 		MediaPath:              src.MPVPath(),
@@ -218,6 +224,9 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 		RedactMediaDiagnostics: sourceRedactsDiagnostics(src),
 		NetworkStream:          isNetworkStream(src.MPVPath()),
 		Shaders:                m.shaders(),
+		ConfigDir:              configDir,
+		NoConfig:               noConfig,
+		Volume:                 volume,
 	})
 	if err != nil {
 		return PlayResult{}, errs.Wrap(errs.CategoryPlayback, "player.launch",
@@ -576,6 +585,8 @@ func (m *Manager) RefreshShaders() (bool, error) {
 		return false, errs.Wrap(errs.CategoryPlayback, "player.shaders",
 			"没能把画质增强套到正在播放的窗口上", "下次开始播放时会按新设置加载", err)
 	}
+	// 网页上改的：播放器界面里的档位跟着变
+	m.pushUIState(sess)
 	return true, nil
 }
 

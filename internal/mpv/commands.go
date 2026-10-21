@@ -120,3 +120,20 @@ func (p *Player) Close() error {
 	defer p.termMu.Unlock()
 	return p.closeErr
 }
+
+// SendUIState 把界面要显示的状态（标题、副标题、画质增强档位……）推给播放器界面脚本。
+// 脚本可能还没加载完：那样这条会丢，脚本加载后会发 ready 再要一次。
+func (p *Player) SendUIState(state any) error {
+	b, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	_, err = p.Command("script-message-to", "nagare", "state", string(b))
+	return err
+}
+
+// SendUIToast 让播放器界面弹一条屏幕提示（sub 可空）。
+func (p *Player) SendUIToast(text, sub string) error {
+	_, err := p.Command("script-message-to", "nagare", "toast", text, sub)
+	return err
+}

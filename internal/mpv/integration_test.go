@@ -109,3 +109,56 @@ func TestIntegration_UserQuitIsNotAnError(t *testing.T) {
 	requireDoneWithin(t, p, 5*time.Second)
 	require.NoError(t, p.Err(), "用户主动退出 mpv 必须判为正常结束，而不是「IPC 意外断开」")
 }
+
+// 验收：真 mpv 加载 nagare 的播放器界面 —— 用内置配置目录启动，触发界面的截图快捷键，
+// 界面脚本要把 nagare-event screenshot 发回来。这条同时兜住 Lua 运行时报错：脚本没加载起来
+// 就收不到这条消息。
+func TestIntegration_RealMPVLoadsNagareUI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("-short 模式跳过真 mpv 集成测试")
+	}
+	mpvPath, err := exec.LookPath("mpv")
+	if err != nil {
+		t.Skip("未安装 mpv，跳过集成测试")
+	}
+	info, err := Detect(mpvPath)
+	require.NoError(t, err)
+
+	dir, err := os.MkdirTemp("", "nagui")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	configDir, err := PrepareUIConfig(dir)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	p, err := Launch(ctx, LaunchOptions{MPVPath: info.Path, SocketDir: dir, ConfigDir: configDir, Title: "nagare 界面集成测试"})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = p.Close() })
+
+	// 界面脚本可能比 IPC 连接晚一点加载好：重复触发，直到收到回信
+	got := make(chan Event, 1)
+	go func() {
+		for ev := range p.Events() {
+			if ev.Kind == EventUIMessage && len(ev.Args) > 0 && ev.Args[0] == "screenshot" {
+				got <- ev
+				return
+			}
+		}
+	}()
+	deadline := time.After(10 * time.Second)
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-got:
+			require.NoError(t, p.SendUIState(map[string]any{"title": "测试", "info": "第 1 集 · 本地媒体库", "anime4k": "off"}))
+			require.NoError(t, p.SendUIToast("已截图", ""))
+			return
+		case <-tick.C:
+			_, _ = p.Command("script-binding", "nagare/screenshot")
+		case <-deadline:
+			t.Fatal("10 秒内没收到界面脚本的消息：脚本没加载起来，或者 Lua 报错了")
+		}
+	}
+}

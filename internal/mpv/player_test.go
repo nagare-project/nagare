@@ -249,3 +249,27 @@ func TestEvents_DropOldestNeverBlocks(t *testing.T) {
 	require.Equal(t, EventTimePos, last.Kind)
 	require.Equal(t, float64(pushes-1), last.TimePos)
 }
+
+// 界面脚本发来的消息：只认 nagare-event 前缀，其余脚本的 script-message 不当成界面消息。
+func TestClientMessage_OnlyNagareUIMessagesBecomeEvents(t *testing.T) {
+	f := newFakeMPV(t)
+	p := attachTestPlayer(t, f, "")
+
+	f.pushEvent(t, map[string]any{"event": "client-message", "args": []string{"other-script", "hello"}})
+	f.pushEvent(t, map[string]any{"event": "client-message", "args": []string{"nagare-event"}}) // 没有名字
+	f.pushEvent(t, map[string]any{"event": "client-message", "args": []string{"nagare-event", "anime4k", "hq"}})
+
+	ev := waitEventKind(t, p, EventUIMessage)
+	assert.Equal(t, []string{"anime4k", "hq"}, ev.Args)
+}
+
+func TestSendUIState_SendsScriptMessageToUI(t *testing.T) {
+	f := newFakeMPV(t)
+	p := attachTestPlayer(t, f, "")
+
+	require.NoError(t, p.SendUIState(map[string]any{"info": "第 11 集 · 本地媒体库"}))
+	cmd := f.lastCommand(t)
+	require.Len(t, cmd, 4)
+	assert.Equal(t, []any{"script-message-to", "nagare", "state"}, cmd[:3])
+	assert.JSONEq(t, `{"info":"第 11 集 · 本地媒体库"}`, cmd[3].(string))
+}
