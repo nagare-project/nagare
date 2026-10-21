@@ -63,6 +63,11 @@ local S = {
 
 local overlay = mp.create_osd_overlay("ass-events")
 
+-- 进度条缩略图由 thumbfast（scripts/thumbfast.lua，MPL-2.0）生成，它广播 thumbfast-info 告诉我们
+-- 尺寸与能不能用（网络流上它是关的）；我们只负责告诉它画在哪、画哪一秒。
+local thumbfast = { width = 0, height = 0, disabled = true, available = false }
+local thumb_wanted, thumb_shown = false, false
+
 ------------------------------------------------------------------------
 -- 小工具
 
@@ -511,6 +516,17 @@ local function draw_seekbar(c)
 		local lx = math.max(lw / 2 + 4 * s, math.min(S.w - lw / 2 - 4 * s, hx))
 		c:rect(lx - lw / 2, cy - 44 * s, lx + lw / 2, cy - 20 * s, { color = "#000000", opacity = 0.75, radius = 5 * s })
 		c:text(lx, cy - 32 * s, label, { align = 5, size = 13 * s, color = P.fg, font = FONT })
+		-- 缩略图：时间提示正上方，左右不出窗口
+		if thumbfast.available and not thumbfast.disabled and thumbfast.width > 0 then
+			local tw, th = thumbfast.width, thumbfast.height
+			local margin = 8 * s
+			local tx = math.floor(math.min(S.w - tw - margin, math.max(margin, lx - tw / 2)))
+			local ty = math.floor(cy - 52 * s - th)
+			local b = math.max(1, 2 * s)
+			c:rect(tx - b, ty - b, tx + tw + b, ty + th + b, { color = "#FFFFFF", opacity = 0.85, radius = 4 * s })
+			mp.commandv("script-message-to", "thumbfast", "thumb", tostring(ht), tostring(tx), tostring(ty))
+			thumb_wanted, thumb_shown = true, true
+		end
 	end
 
 	-- 两端的时间
@@ -678,6 +694,7 @@ render = function()
 	local visible = ui_visible()
 	S.shown = visible
 	S.elements = {}
+	thumb_wanted = false
 	if visible then
 		draw_top(c)
 		draw_bottom(c)
@@ -692,6 +709,11 @@ render = function()
 	overlay.res_x, overlay.res_y = S.w, S.h
 	overlay.data = c:result()
 	overlay:update()
+	-- 离开进度条（或界面收起）：缩略图要单独清掉，它不在我们的 overlay 里
+	if thumb_shown and not thumb_wanted then
+		mp.commandv("script-message-to", "thumbfast", "clear")
+		thumb_shown = false
+	end
 	if not visible then
 		S.hover_id = nil
 	end
@@ -955,6 +977,13 @@ local function apply_state(json)
 end
 
 mp.register_script_message("state", apply_state)
+mp.register_script_message("thumbfast-info", function(json)
+	local data = utils.parse_json(json or "")
+	if type(data) == "table" and data.width and data.height then
+		thumbfast = data
+		request_render()
+	end
+end)
 mp.register_script_message("toast", function(text, sub)
 	if text and text ~= "" then
 		toast(text, (sub and sub ~= "") and sub or nil)

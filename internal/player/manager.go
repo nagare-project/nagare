@@ -226,6 +226,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 		Shaders:                m.shaders(),
 		ConfigDir:              configDir,
 		NoConfig:               noConfig,
+		ScriptOpts:             uiScriptOpts(configDir, mpvPath),
 		Volume:                 volume,
 	})
 	if err != nil {

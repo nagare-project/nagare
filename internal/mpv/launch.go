@@ -44,6 +44,9 @@ type LaunchOptions struct {
 	Shaders []string
 	// ConfigDir 是 nagare 自己的 mpv 配置目录（见 PrepareUIConfig）；留空则 mpv 照常读用户自己的配置。
 	ConfigDir string
+	// ScriptOpts 是交给界面脚本的 key=value（比如 thumbfast-mpv_path），逐条用 --script-opts-append 传：
+	// 合并成一条 --script-opts 时值里的逗号会被拆开，路径里完全可能有逗号。
+	ScriptOpts []string
 	// NoConfig：不读任何配置文件（--no-config），用在 nagare 的界面配置没准备好时 ——
 	// 退回 mpv 自带的控制条，但也不去读用户自己的配置（那会把自动接下一集、自己续播的冲突带回来）。
 	NoConfig bool
@@ -147,6 +150,9 @@ func buildArgs(opts LaunchOptions, endpoint string) []string {
 		args = append(args, "--config-dir="+opts.ConfigDir)
 	} else if opts.NoConfig {
 		args = append(args, "--no-config")
+	}
+	for _, kv := range opts.ScriptOpts {
+		args = append(args, "--script-opts-append="+kv)
 	}
 	if opts.Volume != nil {
 		args = append(args, fmt.Sprintf("--volume=%d", *opts.Volume))

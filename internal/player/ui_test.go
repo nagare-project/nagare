@@ -129,3 +129,8 @@ func TestScreenshotName(t *testing.T) {
 	long := screenshotName(strings.Repeat("长", 200), 0, at)
 	assert.LessOrEqual(t, len(long), 255, "文件名不能超过 255 字节")
 }
+
+func TestUIScriptOptsPassMPVPathToThumbnailer(t *testing.T) {
+	assert.Equal(t, []string{"thumbfast-mpv_path=C:\\nagare\\mpv\\mpv.exe"}, uiScriptOpts("/cfg", "C:\\nagare\\mpv\\mpv.exe"))
+	assert.Nil(t, uiScriptOpts("", "/usr/bin/mpv"), "没有 nagare 的界面配置时不传：那时也没有 thumbfast")
+}

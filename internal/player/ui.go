@@ -210,3 +210,12 @@ func (m *Manager) takeScreenshot(sess *session) {
 	}
 	toast("已截图", dir)
 }
+
+// uiScriptOpts 是交给界面脚本的设置。thumbfast 要另起一个 mpv 生成缩略图：它默认找 PATH 里的
+// mpv，而 Windows 包里的 mpv 是内置的、不在 PATH 里，所以把这次用的 mpv 的绝对路径给它。
+func uiScriptOpts(configDir, mpvPath string) []string {
+	if configDir == "" || mpvPath == "" {
+		return nil
+	}
+	return []string{"thumbfast-mpv_path=" + mpvPath}
+}

@@ -71,7 +71,7 @@ jobs:
         # 用 LuaJIT：macOS 上的 mpv 多半配它（Lua 5.1 语法），比 5.3/5.4 的 luac 更严。
         run: |
           sudo apt-get install -y --no-install-recommends luajit
-          for f in internal/mpv/ui/scripts/nagare/*.lua; do luajit -bl "$f" > /dev/null; done
+          for f in internal/mpv/ui/scripts/*.lua internal/mpv/ui/scripts/nagare/*.lua; do luajit -bl "$f" > /dev/null; done
       - name: go test
         run: go test ./...
       - name: govulncheck 漏洞扫描
