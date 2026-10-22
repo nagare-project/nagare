@@ -30,6 +30,9 @@ func Run(ctx context.Context, opts Options) {
 		items := buildMenu(opts)
 		terminateCh, replyTerminate := platformReady(opts)
 		go dispatch(ctx, opts, items, terminateCh, systray.Quit, replyTerminate)
+		if opts.OnReady != nil {
+			opts.OnReady()
+		}
 		if opts.Notice != nil {
 			// 通知不是关键路径：弹不出来只记日志，不影响托盘本身。
 			if err := showNotice(*opts.Notice); err != nil {
@@ -42,7 +45,7 @@ func Run(ctx context.Context, opts Options) {
 
 // menuChans 是菜单里会产生事件的那几项；不产生事件的（版本、地址）只是显示。
 type menuChans struct {
-	open, copyAddr, about, quit <-chan struct{}
+	open, openBrowser, copyAddr, about, quit <-chan struct{}
 }
 
 // buildMenu 按固定顺序搭托盘菜单（三平台同一份）：
@@ -50,7 +53,8 @@ type menuChans struct {
 //	nagare v0.3.0            ← 禁用行，只看
 //	http://127.0.0.1:8591/   ← 禁用行，只看
 //	──────────
-//	打开界面
+//	打开界面                 ← 桌面模式下叫「打开 nagare」，开的是窗口
+//	在浏览器中打开           ← 只在桌面模式下有
 //	复制登录链接
 //	──────────
 //	关于 nagare
@@ -60,13 +64,21 @@ func buildMenu(opts Options) menuChans {
 	systray.AddMenuItem("nagare v"+opts.Version, "当前版本").Disable()
 	systray.AddMenuItem(opts.Address, "界面地址（不含 token）").Disable()
 	systray.AddSeparator()
-	open := systray.AddMenuItem("打开界面", "在浏览器中打开 nagare")
-	copyAddr := systray.AddMenuItem("复制登录链接", "把带登录凭证的界面链接复制到剪贴板，贴到任何浏览器都能打开")
+	var m menuChans
+	if opts.Desktop {
+		m.open = systray.AddMenuItem("打开 nagare", "打开 nagare 的窗口").ClickedCh
+	} else {
+		m.open = systray.AddMenuItem("打开界面", "在浏览器中打开 nagare").ClickedCh
+	}
+	if opts.OnOpenBrowser != nil {
+		m.openBrowser = systray.AddMenuItem("在浏览器中打开", "在默认浏览器里打开 nagare 的界面").ClickedCh
+	}
+	m.copyAddr = systray.AddMenuItem("复制登录链接", "把带登录凭证的界面链接复制到剪贴板，贴到任何浏览器都能打开").ClickedCh
 	systray.AddSeparator()
-	about := systray.AddMenuItem("关于 nagare", "版本、数据目录、日志位置")
+	m.about = systray.AddMenuItem("关于 nagare", "版本、数据目录、日志位置").ClickedCh
 	systray.AddSeparator()
-	quit := systray.AddMenuItem("退出 nagare", "停止播放、回写进度并退出")
-	return menuChans{open: open.ClickedCh, copyAddr: copyAddr.ClickedCh, about: about.ClickedCh, quit: quit.ClickedCh}
+	m.quit = systray.AddMenuItem("退出 nagare", "停止播放、回写进度并退出").ClickedCh
+	return m
 }
 
 // dispatch 分发菜单事件。三条退出路径：
@@ -82,6 +94,10 @@ func dispatch(ctx context.Context, opts Options, m menuChans, terminateCh <-chan
 		case <-m.open:
 			if opts.OnOpen != nil {
 				opts.OnOpen()
+			}
+		case <-m.openBrowser: // 没有这一项时是 nil 通道，永远不会选中
+			if opts.OnOpenBrowser != nil {
+				opts.OnOpenBrowser()
 			}
 		case <-m.copyAddr:
 			if err := copyToClipboard(opts.URL); err != nil {

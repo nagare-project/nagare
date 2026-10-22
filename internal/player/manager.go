@@ -61,6 +61,9 @@ type Options struct {
 	MPV        *mpv.Runtime  // 共享探测状态；可为 nil（测试注入假 Launch 时不需要真实 mpv）
 	RuntimeDir string        // 弹幕 ASS、IPC socket 等运行时文件目录
 	Launch     Launcher      // 为 nil 时用 mpv.Launch
+	// EmbeddedMPV：Launch 跑的是进程内 libmpv（macOS 桌面窗口，internal/desktop），不要 mpv 可执行文件
+	// —— 探测不到也照样起播，也不把命令行 mpv 的路径交给 thumbfast（桌面窗口里先不出缩略图）。
+	EmbeddedMPV bool
 	// RemoteStallTimeout 控制在线媒体无进度的最长等待，非正值使用 45 秒。
 	RemoteStallTimeout time.Duration
 	// OnSessionEnd 在一次播放会话终结后调用（mpv 播完、用户关窗、或被 Stop）。
@@ -215,9 +218,13 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 
 	startAt := m.resumeAt(item.FileID)
 
-	mpvPath, err := m.mpvPath()
-	if err != nil {
-		return PlayResult{}, err
+	mpvPath := ""
+	if !m.opts.EmbeddedMPV {
+		path, err := m.mpvPath()
+		if err != nil {
+			return PlayResult{}, err
+		}
+		mpvPath = path
 	}
 	configDir, noConfig, volume := m.uiLaunchOptions()
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{

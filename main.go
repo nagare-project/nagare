@@ -17,7 +17,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -30,6 +29,7 @@ import (
 	"github.com/nagare-project/nagare/internal/api"
 	"github.com/nagare-project/nagare/internal/artcache"
 	"github.com/nagare-project/nagare/internal/config"
+	"github.com/nagare-project/nagare/internal/desktop"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/logfile"
 	"github.com/nagare-project/nagare/internal/mpv"
@@ -60,6 +60,7 @@ const shutdownGrace = 3 * time.Second
 type flags struct {
 	noBrowser bool // 启动时不自动开浏览器
 	noTray    bool // headless：brew services / Linux 服务，不占主线程放托盘
+	noWindow  bool // 有桌面窗口的构建里也用浏览器 + 独立的 mpv 窗口（见 desktop.go）
 	update    bool // 装上最新版本后退出（无界面场景：systemd / brew services / 纯终端）
 	// validateRules 是规则作者与规则仓库 CI 用的：校验一个目录里的规则并退出。
 	validateRules string
@@ -126,6 +127,7 @@ func main() {
 	var f flags
 	flag.BoolVar(&f.noBrowser, "no-browser", false, "启动时不自动打开浏览器")
 	flag.BoolVar(&f.noTray, "no-tray", false, "不显示菜单栏/托盘图标（headless：brew services、Linux 服务）")
+	flag.BoolVar(&f.noWindow, "no-window", false, "不用桌面窗口：浏览器 + 独立的 mpv 窗口（只对带桌面窗口的构建有意义）")
 	flag.BoolVar(&f.update, "update", false, "下载并安装最新版本后退出（无界面场景用；不自动重启）")
 	flag.StringVar(&f.validateRules, "validate-rules", "", "校验目录里的磁力源规则并退出（规则作者与规则仓库 CI 用）")
 	showVersion := flag.Bool("version", false, "打印版本号并退出")
@@ -185,7 +187,7 @@ func start(f flags) error {
 		return nil
 	}
 
-	svc, err := buildServices(configDir)
+	svc, err := buildServices(configDir, desktopEnabled(f, apiOnly))
 	if err != nil {
 		return err
 	}
@@ -341,7 +343,8 @@ func newAnimegoClient(st *store.Store) *animego.Client {
 }
 
 // buildServices 组装状态、mpv 探测、animego 客户端、播放编排、媒体库与磁力源规则。
-func buildServices(configDir string) (*services, error) {
+// window 为真时播放交给桌面窗口里的进程内 libmpv（desktop.go）。
+func buildServices(configDir string, window bool) (*services, error) {
 	// 状态与运行时目录（弹幕 ASS、mpv socket）都收在配置目录下。
 	st, err := store.Open(filepath.Join(configDir, "state.json"))
 	if err != nil {
@@ -376,7 +379,12 @@ func buildServices(configDir string) (*services, error) {
 	lib := api.NewLibraryService(st)
 	// 「看完」回写前把跨季连续编号的集号换成作品集号（总集数 + 偏移，都来自 animego 元数据）
 	spaces := api.NewEpisodeSpaces(client)
+	var launch player.Launcher
+	if window {
+		launch = desktop.Launch
+	}
 	mgr := player.New(player.Options{
+		Launch:        launch,
 		Store:         st,
 		Client:        client,
 		MPV:           mpvRT,
@@ -400,6 +408,8 @@ func buildServices(configDir string) (*services, error) {
 			return mpv.PrepareUIConfig(runtimeDir)
 		},
 		ScreenshotDir: screenshotDir(),
+		// 桌面窗口：在窗口里用进程内 libmpv 放（播放从哪个网页发起都一样），不要 mpv 可执行文件
+		EmbeddedMPV: window,
 		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
 		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
 		OnSessionEnd: func() {
@@ -565,7 +575,11 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	url := launchURL(port, cfg.Token)
 	configPath, _ := config.Path()
 	log.Printf("nagare %s 已启动：http://127.0.0.1:%d/（token 见 %s）", version, port, configPath)
-	if !f.noBrowser && !apiOnly {
+	window := desktopEnabled(f, apiOnly)
+	if window {
+		log.Print("桌面窗口：播放在 nagare 自己的窗口里")
+		desktop.Init(desktop.Options{URL: url, Origin: fmt.Sprintf("http://127.0.0.1:%d", port)})
+	} else if !f.noBrowser && !apiOnly {
 		openBrowserLogged(url)
 	}
 
@@ -574,7 +588,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		<-ctx.Done()
 	} else {
 		log.Printf("后台形态：%s", mode)
-		tray.Run(ctx, tray.Options{
+		trayOpts := tray.Options{
 			URL:     url,
 			Address: baseURL(port),
 			Version: version,
@@ -587,7 +601,11 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 			// macOS ⌘Q / 注销 / 关机：系统等我们答复，收尾（进度回写）完成才放行。
 			Done:   stopped,
 			Notice: backgroundNotice(configDir, mode),
-		})
+		}
+		if window {
+			trayOpts = withDesktop(trayOpts, url, aboutURL(port, cfg.Token), !f.noBrowser)
+		}
+		tray.Run(ctx, trayOpts)
 	}
 
 	<-stopped
@@ -771,67 +789,4 @@ func watchSignals(ctx context.Context, cancel context.CancelFunc) {
 		cancel()
 	case <-ctx.Done():
 	}
-}
-
-// launchURL 拼带 token 的首启地址：前端读取后会存入 sessionStorage 并从地址栏抹掉。
-func launchURL(port int, token string) string {
-	return fmt.Sprintf("http://127.0.0.1:%d/?token=%s", port, token)
-}
-
-// baseURL 是不带 token 的界面地址，给托盘 / Dock 菜单显示与复制用。
-func baseURL(port int) string {
-	return fmt.Sprintf("http://127.0.0.1:%d/", port)
-}
-
-// aboutURL 直接开到设置页的「关于」分区（版本、数据目录、日志位置）。
-func aboutURL(port int, token string) string {
-	return fmt.Sprintf("http://127.0.0.1:%d/settings?token=%s#about", port, token)
-}
-
-// openBrowserLogged 开浏览器，失败只记日志（日志里不带 URL —— 它含 token）。
-func openBrowserLogged(url string) {
-	if err := openBrowserFn(url); err != nil {
-		log.Printf("自动打开浏览器失败（请手动访问 http://127.0.0.1:<端口>/ 并按配置文件里的 token 登录）：%v", err)
-	}
-}
-
-// openBrowser 用系统默认浏览器打开 URL。
-// 不变量：url 只能是我们自己拼出来的 http://127.0.0.1:<port>/ 地址
-// —— exec.Command 不经 shell，但若将来把任何外部字符串传进来，要先防参数注入。
-// Start 之后在后台 Wait：open/xdg-open 几毫秒就退出，不 Wait 会留僵尸进程
-// —— nagare 是常驻进程，这个进程表残留会一直挂到退出。
-func openBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	// open/xdg-open 几毫秒就退出，不 Wait 会留僵尸进程；非零退出要说一声
-	// （xdg-open 找不到浏览器就是这种），否则用户只会看到「什么都没发生」。
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			log.Printf("打开浏览器的命令返回错误（请手动访问 http://127.0.0.1:<端口>/）：%v", err)
-		}
-	}()
-	return nil
-}
-
-// screenshotDir 是播放器里截图的存放位置：系统「图片」文件夹下的 nagare 子目录（第一次截图时才创建）。
-// Linux 先看 XDG_PICTURES_DIR；找不到家目录时返回空串，截图交给 mpv 的默认位置。
-func screenshotDir() string {
-	if dir := os.Getenv("XDG_PICTURES_DIR"); dir != "" && runtime.GOOS == "linux" {
-		return filepath.Join(dir, "nagare")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return ""
-	}
-	return filepath.Join(home, "Pictures", "nagare")
 }

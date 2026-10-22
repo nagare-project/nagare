@@ -10,8 +10,9 @@ extern void nagareDockTerminate(void);
 
 // 把进程从「菜单栏应用」提升为「Dock 应用」：Dock 图标 + 应用菜单 + Dock 右键菜单，
 // 并接管 NSApplicationDelegate 的重开 / 终止回调（其余仍转发给 systray 的 delegate）。
-// 必须在主线程、systray 就绪之后调用。
-void nagare_dock_setup(const char *appName, const char *address);
+// systray 就绪之后调用（内部切到主线程）。desktop：有桌面窗口，另加「编辑」「窗口」菜单
+// （网页里的复制粘贴、⌘W 关窗、⌘M 最小化），「复制登录链接」让出 ⌘C。
+void nagare_dock_setup(const char *appName, const char *address, bool desktop);
 
 // 答复系统「可以终止了」；nagare_dock_setup 之后、applicationShouldTerminate 返回
 // NSTerminateLater 之后才有意义。任意线程可调。

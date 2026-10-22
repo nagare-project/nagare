@@ -85,6 +85,7 @@ func (p *Player) handleIPCEvent(msg ipcMessage) {
 		go p.refreshPath()
 		p.emit(Event{Kind: EventFileLoaded})
 	case "end-file":
+		p.sawEnd.Store(true)
 		p.emitEnded(msg.Reason)
 	case "client-message":
 		if len(msg.Args) >= 2 && msg.Args[0] == uiMessagePrefix {

@@ -58,3 +58,8 @@ todos.md
 
 # Claude Code 的本地设置与 agent 工作树（整份仓库的副本）
 /.claude/
+
+# 开发期的 libmpv（IINA 的预编译 dylib + mpv 头文件，scripts/macos/fetch-libmpv-dev.sh 下载）。
+# 仅供本机开发，绝不能进仓库、进安装包
+/.libmpv-dev/
+/nagare-desktop-dev

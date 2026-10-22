@@ -39,7 +39,7 @@
 
 // ── Dock ──
 
-// 点 Dock 图标：没有窗口可以显示，等价于「打开界面」。
+// 点 Dock 图标：等价于「打开界面」（有桌面窗口时就是把窗口提到前面，见 Options.OnOpen）。
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
   nagareDockOpen();
   return NO;
@@ -90,7 +90,7 @@ static NagareAppDelegate *gDelegate;
 //   复制登录链接    ⌘C
 //   ──────────
 //   退出 Nagare     ⌘Q
-static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *address) {
+static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *address, BOOL desktop) {
   NSMenu *appMenu = [[NSMenu alloc] initWithTitle:appName];
   NSMenuItem *about = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"关于 %@", appName]
                                                  action:@selector(orderFrontStandardAboutPanel:)
@@ -100,17 +100,22 @@ static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *a
   NSMenuItem *addr = [[NSMenuItem alloc] initWithTitle:address action:nil keyEquivalent:@""];
   addr.enabled = NO;
   [appMenu addItem:addr];
-  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:@"打开界面"
+  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:desktop ? @"打开 nagare" : @"打开界面"
                                                 action:@selector(openInterface:)
                                          keyEquivalent:@"o"];
   open.target = d;
   [appMenu addItem:open];
+  // 有窗口时 ⌘C 要留给「编辑 › 拷贝」（网页里的文字），这一项就不带快捷键
   NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"复制登录链接"
                                                 action:@selector(copyAddress:)
-                                         keyEquivalent:@"c"];
+                                         keyEquivalent:desktop ? @"" : @"c"];
   copy.target = d;
   [appMenu addItem:copy];
   [appMenu addItem:[NSMenuItem separatorItem]];
+  if (desktop) {
+    [appMenu addItemWithTitle:[NSString stringWithFormat:@"隐藏 %@", appName] action:@selector(hide:) keyEquivalent:@"h"];
+    [appMenu addItem:[NSMenuItem separatorItem]];
+  }
   // terminate: 走 NSApplication → applicationShouldTerminate:，与注销 / 关机同一条路。
   NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:[NSString stringWithFormat:@"退出 %@", appName]
                                                 action:@selector(terminate:)
@@ -120,12 +125,12 @@ static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *a
 }
 
 // Dock 右键菜单：地址（只看）+ 打开界面 + 复制登录链接。退出由 Dock 自己提供。
-static NSMenu *buildDockMenu(NagareAppDelegate *d, NSString *address) {
+static NSMenu *buildDockMenu(NagareAppDelegate *d, NSString *address, BOOL desktop) {
   NSMenu *menu = [[NSMenu alloc] init];
   NSMenuItem *addr = [[NSMenuItem alloc] initWithTitle:address action:nil keyEquivalent:@""];
   addr.enabled = NO;
   [menu addItem:addr];
-  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:@"打开界面"
+  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:desktop ? @"打开 nagare" : @"打开界面"
                                                 action:@selector(openInterface:)
                                          keyEquivalent:@""];
   open.target = d;
@@ -138,6 +143,44 @@ static NSMenu *buildDockMenu(NagareAppDelegate *d, NSString *address) {
   return menu;
 }
 
+// 桌面窗口要的两个标准菜单：「编辑」让网页里的输入框能复制粘贴（没有这些菜单项，WKWebView 收不到
+// ⌘C / ⌘V），「窗口」给 ⌘W 关窗、⌘M 最小化、⌃⌘F 全屏。动作都走响应链（target 为 nil）。
+static NSMenuItem *submenu(NSString *title, NSArray<NSMenuItem *> *items) {
+  NSMenu *m = [[NSMenu alloc] initWithTitle:title];
+  for (NSMenuItem *it in items) [m addItem:it];
+  NSMenuItem *top = [[NSMenuItem alloc] initWithTitle:title action:nil keyEquivalent:@""];
+  top.submenu = m;
+  return top;
+}
+
+static NSMenuItem *item(NSString *title, SEL action, NSString *key, NSEventModifierFlags mods) {
+  NSMenuItem *it = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key];
+  it.keyEquivalentModifierMask = mods;
+  return it;
+}
+
+static void addDesktopMenus(NSMenu *mainMenu) {
+  NSEventModifierFlags cmd = NSEventModifierFlagCommand;
+  [mainMenu addItem:submenu(@"编辑", @[
+              item(@"撤销", @selector(undo:), @"z", cmd),
+              item(@"重做", @selector(redo:), @"Z", cmd),
+              [NSMenuItem separatorItem],
+              item(@"剪切", @selector(cut:), @"x", cmd),
+              item(@"拷贝", @selector(copy:), @"c", cmd),
+              item(@"粘贴", @selector(paste:), @"v", cmd),
+              item(@"全选", @selector(selectAll:), @"a", cmd),
+            ])];
+  NSMenuItem *windowMenu = submenu(@"窗口", @[
+    item(@"最小化", @selector(performMiniaturize:), @"m", cmd),
+    item(@"缩放", @selector(performZoom:), @"", 0),
+    item(@"进入全屏幕", @selector(toggleFullScreen:), @"f", cmd | NSEventModifierFlagControl),
+    [NSMenuItem separatorItem],
+    item(@"关闭窗口", @selector(performClose:), @"w", cmd),
+  ]);
+  [mainMenu addItem:windowMenu];
+  NSApp.windowsMenu = windowMenu.submenu;
+}
+
 static void runOnMain(dispatch_block_t block) {
   if ([NSThread isMainThread]) {
     block();
@@ -146,20 +189,21 @@ static void runOnMain(dispatch_block_t block) {
   }
 }
 
-void nagare_dock_setup(const char *appName, const char *address) {
+void nagare_dock_setup(const char *appName, const char *address, bool desktop) {
   NSString *name = [NSString stringWithUTF8String:appName];
   NSString *addr = [NSString stringWithUTF8String:address];
   runOnMain(^{
     NagareAppDelegate *d = [[NagareAppDelegate alloc] init];
     d.inner = NSApp.delegate;
-    d.dockMenu = buildDockMenu(d, addr);
+    d.dockMenu = buildDockMenu(d, addr, desktop);
     gDelegate = d;
     NSApp.delegate = d;
 
     NSMenu *mainMenu = [[NSMenu alloc] init];
     NSMenuItem *appItem = [[NSMenuItem alloc] init];
     [mainMenu addItem:appItem];
-    appItem.submenu = buildAppMenu(d, name, addr);
+    appItem.submenu = buildAppMenu(d, name, addr, desktop);
+    if (desktop) addDesktopMenus(mainMenu);
     NSApp.mainMenu = mainMenu;
 
     // 常规应用：Dock 图标（来自 bundle 的 CFBundleIconFile）+ 左上角应用菜单。

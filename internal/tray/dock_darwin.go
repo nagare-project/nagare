@@ -25,18 +25,19 @@ var dockOpts Options
 // dockTerminate 由 applicationShouldTerminate: 触发；带一格缓冲，系统连发两次也不阻塞主线程。
 var dockTerminate = make(chan struct{}, 1)
 
-// platformReady 在 systray 就绪后决定是否升成 Dock 应用：只有装成 .app 才升 ——
+// platformReady 在 systray 就绪后决定是否升成 Dock 应用：装成 .app 才升 ——
 // 裸二进制（Homebrew、tar.gz）没有图标资源，Dock 里会是一个空白的通用图标。
+// 有桌面窗口时例外：窗口要有 Dock 图标、应用菜单与 ⌘W / ⌘Q，裸二进制（开发构建）也升。
 func platformReady(opts Options) (<-chan struct{}, func()) {
 	dockOpts = opts
-	if !inAppBundle() {
+	if !inAppBundle() && !opts.Desktop {
 		return nil, func() {}
 	}
 	name := C.CString(appDisplayName)
 	defer C.free(unsafe.Pointer(name))
 	addr := C.CString(opts.Address)
 	defer C.free(unsafe.Pointer(addr))
-	C.nagare_dock_setup(name, addr)
+	C.nagare_dock_setup(name, addr, C.bool(opts.Desktop))
 	return dockTerminate, func() {
 		log.Print("tray: 收尾完成，答复系统可以终止")
 		C.nagare_dock_reply_terminate()

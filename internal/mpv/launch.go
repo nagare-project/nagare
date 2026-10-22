@@ -83,10 +83,8 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Player, error) {
 	}
 	// 存在性预检只对本地路径有意义：磁力边下边播传进来的是本机流端点
 	// （http://127.0.0.1:<port>/stream/...），对它 os.Stat 必然失败。
-	if opts.MediaPath != "" && !isRemoteURL(opts.MediaPath) {
-		if _, err := os.Stat(opts.MediaPath); err != nil {
-			return nil, fmt.Errorf("找不到要播放的文件 %q：%w。请确认文件仍在原位置", opts.MediaPath, err)
-		}
+	if err := CheckMedia(opts.MediaPath); err != nil {
+		return nil, err
 	}
 	socketDir := opts.SocketDir
 	if socketDir == "" {
