@@ -14,6 +14,7 @@ M.P = {
 	card = "#0B0B0B",
 	accent = "#6152DF",
 	accent_text = "#C7C2FF",
+	warn = "#FDBA74",
 }
 
 local function detect_font()

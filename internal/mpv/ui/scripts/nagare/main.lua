@@ -6,7 +6,8 @@
 --                  script-message-to nagare toast <文字> <小字>（截图结果等屏幕提示）
 --                  script-message-to nagare upnext <json> / upnext-clear（「下一集」卡片，见 upnext.lua）
 --   界面 → nagare：script-message nagare-event <名字> [参数]
---                  （ready / anime4k / danmaku / volume / screenshot / prev / next / upnext-now / upnext-cancel）
+--                  （ready / anime4k / danmaku / volume / screenshot / prev / next /
+--                   upnext-now / upnext-cancel / upnext-retry / upnext-close）
 -- nagare 经 JSON IPC 收到的是 client-message 事件（internal/mpv/events.go）。
 --
 -- 模块：core（共用状态、重绘调度、屏幕提示）、draw（ASS 绘图）、menu（菜单）、tracks（字幕与弹幕轨）、
@@ -257,7 +258,7 @@ local function draw_transport(c, cy, compact)
 end
 
 -- 上一集 / 下一集：nagare 告诉界面有才画；两边放不下（窄窗口、右边按钮多）就不画，
--- 右键菜单与 N / P 照样能用
+-- 右键菜单与 Shift+N / Shift+P 照样能用
 local function draw_nav(c, cy, left_limit, right_limit)
 	local s = scale()
 	local cx = S.w / 2
@@ -362,7 +363,7 @@ end
 -- 鼠标与按键分区
 
 -- 只在鼠标落在按钮、进度条上（或菜单开着、正在拖）时接管左键；其余时候左键交还 mpv，
--- 拖动窗口与双击全屏才照常可用。「下一集」卡片显示时接管 Esc（取消）与 Enter（立即播放），
+-- 拖动窗口与双击全屏才照常可用。「下一集」卡片显示时接管 Esc（取消）与 Enter（立即播放 / 重试），
 -- 菜单开着时让给菜单。
 local bound = { mouse = false, menu = false, upnext_esc = false, upnext_enter = false }
 
@@ -384,7 +385,7 @@ local function update_bindings()
 	set_section("menu", "nagare-menu-keys", menu.is_open())
 	local card_keys = upnext.visible() and not menu.is_open()
 	set_section("upnext_esc", "nagare-upnext-esc", card_keys)
-	set_section("upnext_enter", "nagare-upnext-enter", card_keys and upnext.countdown())
+	set_section("upnext_enter", "nagare-upnext-enter", card_keys and upnext.takes_enter())
 end
 
 local function render()
@@ -509,7 +510,7 @@ mp.set_key_bindings({
 	{ "kp_enter", menu_key("enter") },
 }, "nagare-menu-keys", "force")
 
--- 卡片的 Esc 与 Enter 分开两区：准备中只有「取消」，Enter 照旧是全屏
+-- 卡片的 Esc 与 Enter 分开两区：准备中只有「取消」，Enter 照旧是全屏（倒计时与出错时 Enter 归卡片）
 mp.set_key_bindings({
 	{ "esc", function() upnext.key("esc") end },
 }, "nagare-upnext-esc", "force")
