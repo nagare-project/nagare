@@ -29,7 +29,8 @@ func secondLaunchSurface(f flags, apiOnly bool) surface {
 	switch {
 	case f.noBrowser || apiOnly:
 		return surfaceNone
-	case f.noWindow:
+	case f.noWindow || f.noTray:
+		// --no-tray 与第一次启动同义：不用桌面窗口（desktopUsable 同样把它当作「没有窗口」）
 		return surfaceBrowser
 	default:
 		return surfaceWindow
@@ -51,7 +52,8 @@ var (
 // 先用实例标记文件把门（它在 0700 的配置目录里，别的 OS 用户伪造不了），再做带 token 的
 // 探测：没有标记就说明我方实例没起过，此时端口上的任何人都不是我们，直接按外来处理
 // —— 绝不把 token 发给它。冒充者能照抄 /api/health 的公开信封，「响应对得上」证明不了身份。
-// 请已有实例显示窗口同样带 token，所以只在探测确认是我方实例（ProbeRunning）之后才发。
+// 请已有实例显示窗口同样带 token，只在探测得到 ProbeRunning 之后才发：探测证明不了身份（门是
+// 标记文件），但 token 在探测时已经交给了同一个对端，这一下不会多泄露给任何人。
 func ensureSingleInstance(cfg *config.Config, configDir string, how surface) (alreadyRunning bool, err error) {
 	if !hasInstance(configDir) {
 		if portOccupied(cfg.Port) {

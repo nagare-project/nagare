@@ -162,6 +162,7 @@ func TestSecondLaunchSurfacesRunningInstance(t *testing.T) {
 func TestSecondLaunchSurface(t *testing.T) {
 	assert.Equal(t, surfaceWindow, secondLaunchSurface(flags{}, false))
 	assert.Equal(t, surfaceBrowser, secondLaunchSurface(flags{noWindow: true}, false))
+	assert.Equal(t, surfaceBrowser, secondLaunchSurface(flags{noTray: true}, false), "--no-tray 与第一次启动同义：不用桌面窗口")
 	assert.Equal(t, surfaceNone, secondLaunchSurface(flags{noBrowser: true}, false))
 	assert.Equal(t, surfaceNone, secondLaunchSurface(flags{noBrowser: true, noWindow: true}, false))
 	assert.Equal(t, surfaceNone, secondLaunchSurface(flags{}, true), "API-only")

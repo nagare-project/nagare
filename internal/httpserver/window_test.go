@@ -123,3 +123,35 @@ func TestShowWindowEndpointRequiresAuth(t *testing.T) {
 	assert.Equal(t, map[string]any{"shown": true}, decodeEnvelope(t, rec).Data)
 	assert.Equal(t, int32(1), calls.Load())
 }
+
+// 端口上的程序回 307 指向别处：不跟过去（否则 token 头会被带到它指的任何主机），按出错处理、退回开浏览器。
+func TestRequestShowWindowDoesNotFollowRedirects(t *testing.T) {
+	var elsewhere atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { elsewhere.Add(1) }))
+	t.Cleanup(target.Close)
+	port := startForeign(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+
+	shown, err := RequestShowWindow(port, config.NewToken())
+	require.Error(t, err)
+	assert.False(t, shown)
+	assert.Zero(t, elsewhere.Load(), "重定向不能把带 token 的请求带到别的主机")
+}
+
+// token 只走请求头，从不出现在地址里（地址会进日志、错误信息、代理）。
+func TestRequestShowWindowSendsTokenOnlyInHeader(t *testing.T) {
+	token := config.NewToken()
+	var rawQuery, header string
+	port := startForeign(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rawQuery, header = r.URL.RawQuery, r.Header.Get(TokenHeader)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"shown":true}}`))
+	}))
+
+	shown, err := RequestShowWindow(port, token)
+	require.NoError(t, err)
+	assert.True(t, shown)
+	assert.Empty(t, rawQuery, "地址里不能带任何查询参数")
+	assert.Equal(t, token, header)
+}

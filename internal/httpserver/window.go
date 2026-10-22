@@ -42,9 +42,12 @@ func (s *Server) handleShowWindow(w http.ResponseWriter, _ *http.Request) {
 // shown 为假且 err 为空：对端没有窗口，或是不认识这个端点的旧版本（404）—— 调用方退回开浏览器。
 // err 非空：请求本身出了问题（超时、被拒、回的不是我们的信封），调用方同样退回开浏览器，并记下原因。
 //
-// 同 Probe：会把 token 发给应答方，调用前必须先过 HasInstance 与 Probe（ProbeRunning）。
+// 同 Probe：token 在请求头里发给端口上的应答方。探测（Probe）证明不了对端是谁 —— 冒充者能照抄
+// /api/health 的公开信封；真正的身份门是配置目录里的实例标记文件（HasInstance）。所以调用前必须先过
+// HasInstance 与 Probe（ProbeRunning）：发给的是探测时已经拿到过 token 的同一个对端，不会多泄露给
+// 任何人。不跟随重定向（loopbackClient），对端回 3xx 按出错处理、退回开浏览器。
 func RequestShowWindow(port int, token string) (shown bool, err error) {
-	client := &http.Client{Timeout: probeTimeout}
+	client := loopbackClient()
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d%s", port, ShowWindowPath), nil)
 	if err != nil {
 		return false, fmt.Errorf("构造请求失败：%w", err)
