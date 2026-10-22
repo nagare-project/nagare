@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchPlayerStatus, fetchTorrentStatus, startTorrentPlay, stopTorrent } from '../lib/endpoints'
 import type {
   DanmakuStatus,
+  PlaybackFailure,
   PlayerStatus,
   TorrentFile,
   TorrentPlayData,
@@ -22,8 +23,11 @@ export type TorrentPlayState =
   | { phase: 'idle' }
   | { phase: 'starting'; magnet: string; title: string }
   | { phase: 'selecting'; magnet: string; title: string; files: TorrentFile[] }
-  /** fileId 是这次播放会话的标识：会话结束时据此认领 /api/player/status 里属于它的失败 */
-  | { phase: 'streaming'; magnet: string; title: string; danmaku: DanmakuStatus; fileId?: string }
+  /**
+   * fileId / playbackId 是这次播放会话的标识：会话结束时据此认领 /api/player/status 里属于它的失败。
+   * playbackId 标识 mpv 窗口 —— 窗口里切到合集的后续集后失败，fileId 已经不是起播的那个了。
+   */
+  | { phase: 'streaming'; magnet: string; title: string; danmaku: DanmakuStatus; fileId?: string; playbackId?: string }
   | { phase: 'error'; magnet: string; title: string; message: string }
 
 export interface UseTorrentPlayOptions {
@@ -62,14 +66,33 @@ export interface UseTorrentPlayResult {
 /** 查播放结束状态最多等多久：这段等待占着轮询互斥，后端卡住时不能把状态条一起卡住 */
 const ENDED_STATUS_TIMEOUT_MS = 5000
 
+/** 起播时后端给的会话标识；两项都可能缺席（旧后端只给 fileId，更旧的什么都不给） */
+interface SessionIdentity {
+  fileId?: string
+  playbackId?: string
+}
+
+function hasIdentity(session: SessionIdentity): boolean {
+  return Boolean(session.fileId) || Boolean(session.playbackId)
+}
+
+/**
+ * 失败是不是这次会话的：起播的那个文件，或同一个 mpv 窗口（窗口里切过集）。
+ * playbackId 只在两边都非空时才比，旧后端不给时与只认 fileId 完全一样。
+ */
+function failureBelongs(failure: PlaybackFailure, session: SessionIdentity): boolean {
+  if (session.fileId && failure.fileId === session.fileId) return true
+  return Boolean(session.playbackId) && Boolean(failure.playbackId) && failure.playbackId === session.playbackId
+}
+
 /** 这次播放会话异常收场的原因；查不到、超时或不属于它就是 undefined（查询失败不打断收摊）。 */
-async function endedFailure(playerStatus: () => Promise<PlayerStatus>, fileId: string): Promise<string | undefined> {
+async function endedFailure(playerStatus: () => Promise<PlayerStatus>, session: SessionIdentity): Promise<string | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), ENDED_STATUS_TIMEOUT_MS) })
   try {
     const status = await Promise.race([playerStatus(), timeout])
     const failure = status?.playbackFailure
-    return failure !== undefined && failure.fileId === fileId ? failure.reason : undefined
+    return failure !== undefined && failureBelongs(failure, session) ? failure.reason : undefined
   } catch (err) {
     console.error('读取播放结束状态失败', err)
     return undefined
@@ -158,7 +181,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
       if (!next.active && ended.phase === 'streaming') {
         // 磁力流中途断了供给时 mpv 也是「正常」退出：这一集没有记为看完，
         // 不说出来用户只会看到窗口没了、状态条也没了
-        const failure = ended.fileId === undefined ? undefined : await endedFailure(depsRef.current.playerStatus, ended.fileId)
+        const failure = hasIdentity(ended) ? await endedFailure(depsRef.current.playerStatus, ended) : undefined
         if (gen !== genRef.current) return
         setStatus(null)
         setZeroPeerTicks(0)
@@ -218,6 +241,7 @@ export function useTorrentPlay(options: UseTorrentPlayOptions = {}): UseTorrentP
           title: data.title,
           danmaku: data.danmaku,
           ...(data.fileId ? { fileId: data.fileId } : {}),
+          ...(data.playbackId ? { playbackId: data.playbackId } : {}),
         })
       } catch (err) {
         // 用户取消 / 组件卸载导致的 abort 不是错误，别弹「无法连接到后端」
