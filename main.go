@@ -17,12 +17,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/nagare-project/nagare/internal/animego"
@@ -77,9 +75,12 @@ type services struct {
 	mpv   *mpv.Runtime
 	// embeddedMPV：播放在桌面窗口的进程内 libmpv 上（desktop.go），设置页据此不再要命令行 mpv
 	embeddedMPV bool
-	auth        api.AnimegoAuth
-	player      *player.Manager
-	lib         *api.LibraryService
+	// window：这次运行用桌面窗口（desktop.go）；windowFallback 是本来要用、但这台机器上用不了的原因
+	window         bool
+	windowFallback string
+	auth           api.AnimegoAuth
+	player         *player.Manager
+	lib            *api.LibraryService
 	// identify 在后台给媒体库里还没认出作品的分组补上作品与封面（随 run 的 ctx 起停）。
 	identify *api.Identifier
 	sources  *api.SourcesService
@@ -189,10 +190,12 @@ func start(f flags) error {
 		return nil
 	}
 
-	svc, err := buildServices(configDir, desktopEnabled(f, apiOnly))
+	window, fallback := desktopDecision(f, apiOnly)
+	svc, err := buildServices(configDir, window)
 	if err != nil {
 		return err
 	}
+	svc.windowFallback = fallback
 	return run(cfg, configDir, svc, webFS, f, apiOnly)
 }
 
@@ -299,7 +302,7 @@ func newAnimegoClient(st *store.Store) *animego.Client {
 }
 
 // buildServices 组装状态、mpv 探测、animego 客户端、播放编排、媒体库与磁力源规则。
-// window 为真时播放交给桌面窗口里的进程内 libmpv（desktop.go）。
+// window 为真时播放交给桌面窗口（desktop.go）：macOS 是进程内 libmpv，Windows 是挂进窗口的 mpv.exe。
 func buildServices(configDir string, window bool) (*services, error) {
 	// 状态与运行时目录（弹幕 ASS、mpv socket）都收在配置目录下。
 	st, err := store.Open(filepath.Join(configDir, "state.json"))
@@ -339,6 +342,8 @@ func buildServices(configDir string, window bool) (*services, error) {
 	if window {
 		launch = desktop.Launch
 	}
+	// 只有 macOS 的窗口是进程内 libmpv（不要 mpv 可执行文件）；Windows 的窗口里放的仍是内置的 mpv.exe
+	inProcess := window && desktop.InProcess()
 	mgr := player.New(player.Options{
 		Launch:        launch,
 		Store:         st,
@@ -364,8 +369,8 @@ func buildServices(configDir string, window bool) (*services, error) {
 			return mpv.PrepareUIConfig(runtimeDir)
 		},
 		ScreenshotDir: screenshotDir(),
-		// 桌面窗口：在窗口里用进程内 libmpv 放（播放从哪个网页发起都一样），不要 mpv 可执行文件
-		EmbeddedMPV: window,
+		// 桌面窗口：在窗口里放（播放从哪个网页发起都一样）；进程内 libmpv 时不要 mpv 可执行文件
+		EmbeddedMPV: inProcess,
 		// 用户直接关掉 mpv 窗口时没有任何 API 请求发生，没有这个回调，
 		// 种子会一直挂在那里下载和上传（决议 M3-2 / M3-4：停播即停）。
 		OnSessionEnd: func() {
@@ -441,7 +446,7 @@ func buildServices(configDir string, window bool) (*services, error) {
 		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, identify: identify, sources: sources, sourcePlugin: pluginService,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
 		downloads: downloads, defaultDownloadDir: defaultDownloadDir,
-		selfUpdate: su, episodeSpaces: spaces, embeddedMPV: window,
+		selfUpdate: su, episodeSpaces: spaces, embeddedMPV: inProcess, window: window,
 	}, nil
 }
 
@@ -481,7 +486,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	window := desktopEnabled(f, apiOnly)
+	window := svc.window
 	mode := backgroundMode(f.noTray, apiOnly, window)
 	apiHandler, updater := buildHandlers(configDir, svc, cancel, mode)
 
@@ -494,7 +499,13 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	url := launchURL(port, cfg.Token)
 	// 窗口的地址要在服务开始接请求之前交给它：第二次启动的「显示窗口」一来就要建窗口，那时得知道载入哪里。
 	if window {
-		desktop.Init(desktop.Options{URL: url, Origin: fmt.Sprintf("http://127.0.0.1:%d", port)})
+		desktop.Init(desktop.Options{
+			URL:         url,
+			Origin:      fmt.Sprintf("http://127.0.0.1:%d", port),
+			DataDir:     configDir,
+			OpenBrowser: openBrowserLogged,
+			Quit:        cancel,
+		})
 	}
 
 	// 流端点接上磁力引擎，并把地址前缀回填给它（能力段与端口到这一步才确定）。
@@ -563,6 +574,8 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		}
 		if window {
 			trayOpts = withDesktop(trayOpts, url, aboutURL(port, cfg.Token), !f.noBrowser)
+			// Windows：托盘、窗口、WebView2 共用主线程上的一个消息循环；它等收尾完成（stopped）才返回
+			trayOpts.Loop = desktop.MainLoop(stopped)
 		}
 		tray.Run(ctx, trayOpts)
 	}
@@ -599,6 +612,7 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 		AnimegoBaseURL:  animego.DefaultBaseURL,
 		MPV:             svc.mpv,
 		EmbeddedMPV:     svc.embeddedMPV,
+		Desktop:         desktopStatus(svc.window, svc.windowFallback),
 		Version:         version,
 		Sources:         svc.sources,
 		SourcePlugin:    svc.sourcePlugin,
@@ -692,63 +706,4 @@ func listenAndBuild(
 		RegisterAPI: registerAPI,
 		ShowWindow:  showWindow,
 	}), ln, port, nil
-}
-
-// teardownOnCancel 起一个收尾 goroutine，返回的 channel 在收尾完成后关闭。
-//
-// 先关 HTTP 再停播放：Shutdown 会等在途请求（含 /api/shutdown 自己的响应）收尾，
-// 之后不再有新的 /api/play 能插进来 —— 否则它会趁 Stop 之后另起一个 mpv，
-// 而收尾只跑一次，那个进程就没人管了。磁力引擎放最后关，理由同上：
-// 停播放会触发会话终结回调，那里还要用到引擎。
-func teardownOnCancel(
-	ctx context.Context,
-	srv *httpserver.Server,
-	p *player.Manager,
-	engine *torrentstream.Engine,
-	downloads *torrentstream.Downloader,
-	plugin *api.SourcePluginService,
-) <-chan struct{} {
-	stopped := make(chan struct{})
-	go func() {
-		defer close(stopped)
-		<-ctx.Done()
-		log.Print("正在退出：停止播放并回写进度…")
-		graceCtx, cancelGrace := context.WithTimeout(context.Background(), shutdownGrace)
-		defer cancelGrace()
-		if err := srv.Shutdown(graceCtx); err != nil {
-			log.Printf("关闭 HTTP 服务：%v", err)
-		}
-		p.Stop()
-		if plugin != nil {
-			plugin.Stop()
-		}
-		// 播放停完再关引擎：Stop 会触发会话终结回调，那里还要碰引擎。
-		// 关闭时停做种并清空缓存目录（决议 M3-2 / M3-4：退出即停、退出即清）。
-		if engine != nil {
-			if err := engine.Close(); err != nil {
-				log.Printf("关闭磁力引擎：%v", err)
-			}
-		}
-		// 没下完的下载停下来，记录留着，下次启动接着下
-		if downloads != nil {
-			if err := downloads.Close(); err != nil {
-				log.Printf("关闭磁力下载：%v", err)
-			}
-		}
-	}()
-	return stopped
-}
-
-// watchSignals 把 Ctrl-C / SIGTERM 接到统一的 cancel；触发后即停止接管，
-// 这样第二次 Ctrl-C 走默认处理（强杀）—— 收尾卡死时的逃生口。
-func watchSignals(ctx context.Context, cancel context.CancelFunc) {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sig)
-	select {
-	case s := <-sig:
-		log.Printf("收到 %v，准备退出", s)
-		cancel()
-	case <-ctx.Done():
-	}
 }

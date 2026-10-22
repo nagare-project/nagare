@@ -45,6 +45,13 @@ func AttachEndpoint(ctx context.Context, endpoint, initialPath string) (*Player,
 	return attachInProcess(conn, endpoint, initialPath)
 }
 
+// DialEndpoint 另开一条连到 mpv IPC 端点的连接（mpv 的命名管道 / unix socket 都支持多个客户端）：Windows 的
+// 桌面窗口用它观察窗口状态（全屏、置顶……），不经 Player 那条由 internal/player 消费的连接。端点还没建好时按
+// Launch 同样的节奏重试，ctx 约束等待。
+func DialEndpoint(ctx context.Context, endpoint string) (net.Conn, error) {
+	return connectWithRetry(ctx, endpoint, nil, nil)
+}
+
 // attachInProcess 是 AttachEndpoint 连上之后的部分（测试经假 mpv 的连接直接调它）。
 func attachInProcess(conn net.Conn, endpoint, initialPath string) (*Player, error) {
 	p, err := newPlayer(conn, nil, nil, endpoint, initialPath, nil)

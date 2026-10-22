@@ -28,12 +28,27 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 		"player":     playerView(h.deps.Store.PlayerConfig()),
 		"torrent":    torrentView(h.deps.Store.TorrentConfig(), h.deps.Torrent, h.deps.TorrentCacheDir, h.deps.DefaultDownloadDir),
 		"background": map[string]any{"mode": backgroundModeView(h.deps.BackgroundMode)},
+		"desktop":    desktopView(h.deps.Desktop),
 		"animego": map[string]any{
 			"loggedIn": h.deps.Auth.LoggedIn(),
 			"email":    h.deps.Store.AnimegoSession().Email,
 			"baseUrl":  h.deps.AnimegoBaseURL,
 		},
 	})
+}
+
+// DesktopView 是桌面窗口（internal/desktop）的状态：播放在不在 nagare 自己的窗口里；退回了浏览器模式时
+// fallback 写原因（Windows 上没有 WebView2 运行时、或者它起不来），界面照原文显示，并给运行时的下载地址。
+type DesktopView struct {
+	Window   bool   `json:"window"`
+	Fallback string `json:"fallback,omitempty"`
+}
+
+func desktopView(get func() DesktopView) DesktopView {
+	if get == nil {
+		return DesktopView{}
+	}
+	return get()
 }
 
 // mpvView 把共享探测状态压成设置页用的视图；install 只在缺失时出现。

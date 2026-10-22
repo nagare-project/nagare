@@ -1,6 +1,9 @@
 package main
 
 import (
+	"log"
+
+	"github.com/nagare-project/nagare/internal/api"
 	"github.com/nagare-project/nagare/internal/desktop"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/tray"
@@ -12,11 +15,37 @@ import (
 // 所有播放（窗口里的网页、外部浏览器里的网页都一样）都在窗口里放，并把窗口提到前面 ——
 // 播放器的 Launch 换成 desktop.Launch，此外 internal/player 不知道窗口的存在。
 
-// desktopEnabled 决定这次运行用不用桌面窗口：这个构建得带着它（macOS + cgo + libmpv 标签），还要有
-// Cocoa 的事件循环（由托盘跑；--no-tray 时没有）和内嵌界面（API-only 时窗口里没东西可看）。
+// desktopEnabled 决定这次运行用不用桌面窗口：这个构建得带着它（macOS + cgo + libmpv 标签，或 Windows），还要有
+// 托盘跑的事件循环（--no-tray 时没有）和内嵌界面（API-only 时窗口里没东西可看）。
 // --no-window 退回以前的浏览器 + 独立 mpv 窗口。
 func desktopEnabled(f flags, apiOnly bool) bool {
-	return desktopUsable(desktop.Available(), f, apiOnly)
+	on, _ := desktopDecision(f, apiOnly)
+	return on
+}
+
+// desktopDecision 同 desktopEnabled，另外报告「本来要用、但这台机器上用不了」的原因（Windows 上没有 WebView2
+// 运行时）：那时退回浏览器模式，原因写进日志与设置页。
+func desktopDecision(f flags, apiOnly bool) (bool, string) {
+	if !desktopUsable(desktop.Available(), f, apiOnly) {
+		return false, ""
+	}
+	if err := desktop.Ready(); err != nil {
+		log.Printf("桌面窗口用不了，退回浏览器模式：%v", err)
+		return false, err.Error()
+	}
+	return true, ""
+}
+
+// desktopStatus 是设置页「播放窗口」一行的数据源：没用窗口时报启动时的退回原因，用着时报窗口此刻的状态
+// （Windows 的网页层可能中途起不来、退回浏览器）。
+func desktopStatus(window bool, fallback string) func() api.DesktopView {
+	return func() api.DesktopView {
+		if !window {
+			return api.DesktopView{Fallback: fallback}
+		}
+		s := desktop.State()
+		return api.DesktopView{Window: s.Active, Fallback: s.Fallback}
+	}
 }
 
 // desktopUsable 是 desktopEnabled 的判断本身；available（这个构建带不带窗口）单独拿出来好测。

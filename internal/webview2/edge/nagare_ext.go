@@ -166,6 +166,14 @@ func (i *ICoreWebView2) GetBrowserProcessID() (uint32, error) {
 	return pid, hrErr(hr)
 }
 
+// HasFullScreenElement 报告页面里有没有元素在全屏（预告片的全屏按钮）。上游的 GetContainsFullScreenElement
+// 拿 1 字节的 Go bool 接 4 字节的 BOOL，这里用 int32。
+func (i *ICoreWebView2) HasFullScreenElement() (bool, error) {
+	var v int32
+	hr, _, _ := i.vtbl.GetContainsFullScreenElement.Call(uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(&v)))
+	return v != 0, hrErr(hr)
+}
+
 // Reload 重新载入当前页面。
 func (i *ICoreWebView2) Reload() error {
 	hr, _, _ := i.vtbl.Reload.Call(uintptr(unsafe.Pointer(i)))

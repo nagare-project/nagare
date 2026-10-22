@@ -5,6 +5,7 @@ package tray
 import (
 	"context"
 	"log"
+	"runtime"
 	"time"
 
 	"fyne.io/systray"
@@ -27,6 +28,10 @@ func Run(ctx context.Context, opts Options) {
 	onReady := func() {
 		systray.SetTooltip("nagare v" + opts.Version + " · " + opts.Address)
 		applyIcon()
+		if leftClickOpens(opts) {
+			// Windows 的桌面窗口：左键点托盘图标打开窗口（同多数 Windows 应用），菜单在右键
+			systray.SetOnTapped(opts.OnOpen)
+		}
 		items := buildMenu(opts)
 		terminateCh, replyTerminate := platformReady(opts)
 		go dispatch(ctx, opts, items, terminateCh, systray.Quit, replyTerminate)
@@ -39,6 +44,12 @@ func Run(ctx context.Context, opts Options) {
 				log.Printf("tray: 首次启动提示弹不出来：%v", err)
 			}
 		}
+	}
+	if opts.Loop != nil {
+		// 消息循环归调用方（Windows 桌面窗口）：Register 在这个线程上建好托盘的隐藏窗口，Loop 处理它的消息
+		systray.Register(onReady, nil)
+		opts.Loop()
+		return
 	}
 	systray.Run(onReady, nil)
 }
@@ -76,6 +87,11 @@ func buildMenu(opts Options) menuChans {
 	systray.AddSeparator()
 	m.quit = systray.AddMenuItem("退出 nagare", "停止播放、回写进度并退出").ClickedCh
 	return m
+}
+
+// leftClickOpens：只在 Windows 的桌面模式下，左键点托盘图标直接打开窗口（macOS 的菜单栏图标照旧左键出菜单）。
+func leftClickOpens(opts Options) bool {
+	return runtime.GOOS == "windows" && opts.Desktop && opts.OnOpen != nil
 }
 
 // openItem 是菜单里「打开」那一项的文字与悬停提示：桌面模式开的是窗口，否则开浏览器。

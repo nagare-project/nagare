@@ -92,3 +92,20 @@ func TestBuildArgsPassesRemoteHeadersInStableOrder(t *testing.T) {
 	assert.Less(t, referer, userAgent)
 	assert.Equal(t, []string{"--", "https://media.example/ep.m3u8"}, args[len(args)-2:])
 }
+
+// Windows 桌面窗口：有父窗口时多带 --wid 与两条关闭项（mpv 自己的拖窗会把子窗口拖离宿主，拖放会绕过 nagare
+// 的进度记账）；媒体照旧在最后。没有父窗口时一个都不带（命令行 mpv 的老路逐字节不变，golden 测试另有守着）。
+func TestBuildArgsParentWindow(t *testing.T) {
+	args := buildArgs(LaunchOptions{MediaPath: `C:\v\ep01.mkv`, ParentWindow: 0x2A0B4C}, `\\.\pipe\x`)
+	assert.Contains(t, args, "--wid=2755404")
+	assert.Contains(t, args, "--no-window-dragging")
+	assert.Contains(t, args, "--drag-and-drop=no")
+	assert.Equal(t, []string{"--", `C:\v\ep01.mkv`}, args[len(args)-2:])
+
+	plain := buildArgs(LaunchOptions{MediaPath: `C:\v\ep01.mkv`}, `\\.\pipe\x`)
+	for _, a := range plain {
+		assert.NotContains(t, a, "wid")
+		assert.NotContains(t, a, "window-dragging")
+		assert.NotContains(t, a, "drag-and-drop")
+	}
+}
