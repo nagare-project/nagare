@@ -156,3 +156,40 @@ func TestDispatchAboutDoesNotQuit(t *testing.T) {
 	waitFor(t, func() bool { return len(abouts) == 1 }, "应触发 OnAbout")
 	assert.Empty(t, quits, "关于不应触发退出")
 }
+
+// 桌面模式：「打开」那一项开的是窗口，说法跟着变；浏览器模式照旧。
+func TestOpenItemByMode(t *testing.T) {
+	title, tip := openItem(true)
+	assert.Equal(t, "打开 nagare", title)
+	assert.Contains(t, tip, "窗口")
+	title, tip = openItem(false)
+	assert.Equal(t, "打开界面", title)
+	assert.Contains(t, tip, "浏览器")
+}
+
+// 「在浏览器中打开」只调 OnOpenBrowser，不碰 OnOpen、不退出；没有这一项（nil 通道）时其余照常。
+func TestDispatchOpenBrowser(t *testing.T) {
+	openCh, browserCh, quitCh := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	browser := make(chan struct{}, 2)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	opts := Options{
+		OnOpen:        func() { t.Error("「在浏览器中打开」不该开窗口") },
+		OnOpenBrowser: func() { browser <- struct{}{} },
+	}
+	go dispatch(ctx, opts, menuChans{open: openCh, openBrowser: browserCh, quit: quitCh}, nil, func() {}, noReply)
+	browserCh <- struct{}{}
+	browserCh <- struct{}{}
+	waitFor(t, func() bool { return len(browser) == 2 }, "两次点击应触发两次 OnOpenBrowser")
+}
+
+// 浏览器模式没有「在浏览器中打开」这一项：openBrowser 是 nil 通道，「打开界面」照常走 OnOpen。
+func TestDispatchWithoutOpenBrowserItem(t *testing.T) {
+	openCh, quitCh := make(chan struct{}), make(chan struct{})
+	opens := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go dispatch(ctx, Options{OnOpen: func() { opens <- struct{}{} }}, menuChans{open: openCh, quit: quitCh}, nil, func() {}, noReply)
+	openCh <- struct{}{}
+	waitFor(t, func() bool { return len(opens) == 1 }, "应触发 OnOpen")
+}

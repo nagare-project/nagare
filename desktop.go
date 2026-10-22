@@ -15,7 +15,12 @@ import (
 // Cocoa 的事件循环（由托盘跑；--no-tray 时没有）和内嵌界面（API-only 时窗口里没东西可看）。
 // --no-window 退回以前的浏览器 + 独立 mpv 窗口。
 func desktopEnabled(f flags, apiOnly bool) bool {
-	return desktop.Available() && !f.noTray && !f.noWindow && !apiOnly
+	return desktopUsable(desktop.Available(), f, apiOnly)
+}
+
+// desktopUsable 是 desktopEnabled 的判断本身；available（这个构建带不带窗口）单独拿出来好测。
+func desktopUsable(available bool, f flags, apiOnly bool) bool {
+	return available && !f.noTray && !f.noWindow && !apiOnly
 }
 
 // withDesktop 把托盘的打开入口改指到窗口。showAtStart 为假（--no-browser）时启动后不弹窗口。

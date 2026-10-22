@@ -63,3 +63,4 @@ todos.md
 # 仅供本机开发，绝不能进仓库、进安装包
 /.libmpv-dev/
 /nagare-desktop-dev
+/nagare-desktop-test

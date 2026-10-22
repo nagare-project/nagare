@@ -65,11 +65,8 @@ func buildMenu(opts Options) menuChans {
 	systray.AddMenuItem(opts.Address, "界面地址（不含 token）").Disable()
 	systray.AddSeparator()
 	var m menuChans
-	if opts.Desktop {
-		m.open = systray.AddMenuItem("打开 nagare", "打开 nagare 的窗口").ClickedCh
-	} else {
-		m.open = systray.AddMenuItem("打开界面", "在浏览器中打开 nagare").ClickedCh
-	}
+	title, tip := openItem(opts.Desktop)
+	m.open = systray.AddMenuItem(title, tip).ClickedCh
 	if opts.OnOpenBrowser != nil {
 		m.openBrowser = systray.AddMenuItem("在浏览器中打开", "在默认浏览器里打开 nagare 的界面").ClickedCh
 	}
@@ -79,6 +76,14 @@ func buildMenu(opts Options) menuChans {
 	systray.AddSeparator()
 	m.quit = systray.AddMenuItem("退出 nagare", "停止播放、回写进度并退出").ClickedCh
 	return m
+}
+
+// openItem 是菜单里「打开」那一项的文字与悬停提示：桌面模式开的是窗口，否则开浏览器。
+func openItem(desktop bool) (title, tooltip string) {
+	if desktop {
+		return "打开 nagare", "打开 nagare 的窗口"
+	}
+	return "打开界面", "在浏览器中打开 nagare"
 }
 
 // dispatch 分发菜单事件。三条退出路径：

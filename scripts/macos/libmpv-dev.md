@@ -27,8 +27,10 @@ scripts/macos/build-desktop-dev.sh       # 输出 ./nagare-desktop-dev，运行�
 ## 真机测试构建
 
 `-tags "libmpv desktoptest"` 多编一个遥控（`internal/desktop/testctl_darwin.*`）：设了
-`NAGARE_DESKTOP_TEST_ADDR=127.0.0.1:<端口>` 就在那里提供截窗口（`CGWindowListCreateImage` 截本进程的
-窗口，不要屏幕录制权限）、合成鼠标键盘、读窗口状态。正式构建没有这些文件。
+`NAGARE_DESKTOP_TEST_ADDR=127.0.0.1:<端口>` 与 `NAGARE_DESKTOP_TEST_SECRET_FILE=<文件>` 就在那里提供截窗口
+（`CGWindowListCreateImage` 截本进程的窗口，不要屏幕录制权限）、合成鼠标键盘、读窗口状态。遥控只认 Host 正好是
+这个地址、并且带着 `X-Nagare-Test-Secret` 请求头的请求；密钥每次运行随机生成，写进那个文件（0600），脚本从文件里读，
+别打印出来。正式构建没有这些文件。
 
 ```sh
 scripts/macos/build-desktop-dev.sh ./nagare-desktop-test -tags "libmpv desktoptest"

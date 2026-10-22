@@ -12,18 +12,27 @@ import (
 // 否则每次返回媒体库都会在网页上留一条「播放失败」。
 func TestInProcessDisconnectAfterEndFileIsNormal(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		endFile bool
-		wantErr bool
+		name     string
+		switched bool // 先在窗口里换过一集：上一集报过 end-file，新文件开始了
+		endFile  bool // 当前文件报 end-file
+		wantErr  bool
 	}{
-		{"报过 end-file 再断开", true, false},
-		{"没报 end-file 就断开", false, true},
+		{"报过 end-file 再断开", false, true, false},
+		{"没报 end-file 就断开", false, false, true},
+		{"上一集报过、换上的这一集没报", true, false, true},
+		{"换过集、这一集也报了", true, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFakeMPV(t)
 			p, err := attachInProcess(f.dial(t), "", "/fake/a.mkv")
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = p.Close() })
+			if tc.switched {
+				f.pushEvent(t, map[string]any{"event": "end-file", "reason": "stop"})
+				waitEventKind(t, p, EventEnded)
+				f.pushEvent(t, map[string]any{"event": "start-file"})
+				waitEventKind(t, p, EventFileStarted)
+			}
 			if tc.endFile {
 				f.pushEvent(t, map[string]any{"event": "end-file", "reason": "quit"})
 				waitEventKind(t, p, EventEnded)

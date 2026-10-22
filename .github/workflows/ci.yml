@@ -105,6 +105,36 @@ jobs:
           CGO_ENABLED: "0"
         run: go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/...
 
+  desktop-mac:
+    # macOS 桌面窗口（internal/desktop，构建标签 libmpv）的 Objective-C 只有带这个标签的 cgo 构建才编得到，
+    # 发布流水线也还不带它 —— 这个 job 让它至少能编、能过 vet、导航规则的测试能跑，不会悄悄烂掉。
+    # libmpv 用的是开发期的那份（IINA 的预编译 dylib，脚本里钉了 sha256）：只下载、只拿来链接，
+    # 不打包、不上传任何东西（这份 dylib 不能随发布出去，见 scripts/macos/libmpv-dev.md）。
+    name: macOS 桌面窗口（-tags libmpv）
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: 缓存开发期 libmpv 的下载
+        uses: actions/cache@v4
+        with:
+          path: .libmpv-dev/download
+          key: libmpv-dev-${{ hashFiles('scripts/macos/fetch-libmpv-dev.sh') }}
+      - name: 下载开发期 libmpv（只用来编译检查，绝不发布）
+        run: scripts/macos/fetch-libmpv-dev.sh
+      - name: go vet / 测试 / 编译
+        run: |
+          eval "$(scripts/macos/fetch-libmpv-dev.sh --print-env)"
+          export CGO_ENABLED=1 CGO_CFLAGS CGO_LDFLAGS MACOSX_DEPLOYMENT_TARGET=13.0
+          go vet -tags libmpv ./internal/desktop/...
+          go vet -tags "libmpv desktoptest" ./internal/desktop/...
+          go test -tags libmpv ./internal/desktop/...
+          go build -tags libmpv -o /dev/null .
+
   build:
     name: 交叉编译 ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
