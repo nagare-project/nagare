@@ -182,9 +182,10 @@ var libmpvProfile = []Option{
 
 // Libmpv 渲染成 libmpv 的形态（见 LibmpvSpec）。
 //
-// 与 argv 的差别只有三处，都是 libmpv 的起播方式决定的：列表整表设；不带文件时 idle=yes、带文件时
-// idle=once（句柄先空闲着建好，loadfile 之后播完即退出 —— 与命令行 mpv 播完关窗一致，会话照旧以
-// mpv 退出收尾）；libmpvProfile。值里不能有 NUL（C 字符串会被截断，argv 那边 exec 也会拒绝）。
+// 与 argv 的差别都是 libmpv 的起播方式决定的：列表整表设；分 Init / BeforeLoad 两段设；不带文件时
+// idle=yes、带文件时 idle=once（句柄先空闲着建好，loadfile 之后播完即退出 —— 与命令行 mpv 播完关窗
+// 一致，会话照旧以 mpv 退出收尾）；libmpvProfile。值里不能有 NUL（C 字符串会被截断，argv 那边 exec
+// 也会拒绝）。
 func (s LaunchSpec) Libmpv() (LibmpvSpec, error) {
 	if strings.IndexByte(s.Media, 0) >= 0 {
 		return LibmpvSpec{}, fmt.Errorf("媒体路径里有 NUL 字符，交不给 mpv")
@@ -231,19 +232,19 @@ func (o Option) libmpv() LibmpvOption {
 	return lo
 }
 
-// keyValues 把 "key=value" 逐项切开；同一个键出现多次时后者覆盖前者、位置留在第一次出现处
-// （与 argv 逐项 -append 的结果一致）。调用前已经 validate 过。
+// keyValues 把 "key=value" 逐项切开。同一个键出现多次时与 argv 逐项 -append 的结果一致：旧的那项
+// 去掉、新的排到最后（mpv 0.41 实测 a=1、b=2、a=3 得到 b=2,a=3）。调用前已经 validate 过。
 func keyValues(items []string) []KeyValue {
 	out := make([]KeyValue, 0, len(items))
-	index := map[string]int{}
 	for _, item := range items {
 		key, value, _ := strings.Cut(item, "=")
-		if i, ok := index[key]; ok {
-			out[i].Value = value
-			continue
+		kept := out[:0:0]
+		for _, kv := range out {
+			if kv.Key != key {
+				kept = append(kept, kv)
+			}
 		}
-		index[key] = len(out)
-		out = append(out, KeyValue{Key: key, Value: value})
+		out = append(kept, KeyValue{Key: key, Value: value})
 	}
 	return out
 }

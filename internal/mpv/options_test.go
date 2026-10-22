@@ -31,7 +31,7 @@ func TestLibmpvKitchenSink(t *testing.T) {
 		libStr("keep-open", "no"),
 		libStr("config-dir", "/cfg/a,b:c=d/mpv-config"),
 		{Name: "script-opts", Kind: OptionMap, Map: []KeyValue{
-			// 同一个键追加两次：后者覆盖前者，位置留在第一次（与 argv 逐项 -append 一致）
+			// 同一个键追加两次：后者覆盖前者（与 argv 逐项 -append 一致）
 			{Key: "thumbfast-mpv_path", Value: "/opt/override/mpv"},
 			{Key: "other", Value: "1,2"},
 		}},
@@ -58,6 +58,20 @@ func TestLibmpvKitchenSink(t *testing.T) {
 		}},
 	}, got.BeforeLoad)
 	assert.Equal(t, "https://media.example/ep.m3u8", got.Media)
+}
+
+// 键值列表里同一个键追加多次：旧的去掉、新的排到最后，与 mpv 对 --script-opts-append 的处理一致
+// （mpv 0.41 实测 a=1、b=2、a=3 读回 b=2,a=3）。
+func TestLibmpvMapRepeatedKeyMatchesMPV(t *testing.T) {
+	got, err := NewLaunchSpec(LaunchOptions{ScriptOpts: []string{"a=1", "b=2", "a=3=x"}}, "/s").Libmpv()
+	require.NoError(t, err)
+	for _, o := range got.Init {
+		if o.Name == "script-opts" {
+			assert.Equal(t, []KeyValue{{"b", "2"}, {"a", "3=x"}}, o.Map)
+			return
+		}
+	}
+	t.Fatal("没有 script-opts")
 }
 
 // 不带文件：一直空闲（与 argv 的 --idle=yes 一致）；没有 PerFile 的东西，BeforeLoad 只剩 force-window。
