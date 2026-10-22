@@ -116,7 +116,7 @@ thin() {
   cp -R "$prefix/share/licenses/." "$out/licenses/"
   cp -R "$prefix/share/nagare-libmpv/." "$out/info/$arch/"
   toolchain_fingerprint > "$out/info/$arch/toolchain.txt"
-  log "单架构产物：$out（$(ls "$out/Frameworks" | wc -l | tr -d ' ') 个动态库）"
+  log "单架构产物：${out}（$(ls "$out/Frameworks" | wc -l | tr -d ' ') 个动态库）"
 }
 
 universal() {

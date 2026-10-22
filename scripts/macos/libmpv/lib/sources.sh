@@ -40,14 +40,14 @@ fetch_source() {
   if [ -f "$dest" ] && [ "$(sha256_of "$dest")" = "$sha" ]; then
     return 0
   fi
-  log "下载 $name：$url"
+  log "下载 ${name}：$url"
   tmp="$dest.part"
   rm -f "$tmp"
   curl -fsSL --retry 5 --retry-delay 5 --connect-timeout 30 -o "$tmp" "$url" || die "下载失败：$url"
   actual=$(sha256_of "$tmp")
   if [ "$actual" != "$sha" ]; then
     rm -f "$tmp"
-    die "$file 的 sha256 不符：期望 $sha，实际 $actual"
+    die "$file 的 sha256 不符：期望 ${sha}，实际 $actual"
   fi
   mv "$tmp" "$dest"
 }
@@ -56,7 +56,7 @@ fetch_source() {
 extract_source() {
   local name=$1 dest=$2 archive
   archive=$(source_archive "$name")
-  [ -f "$archive" ] || die "源码未下载：$archive（先跑 fetch.sh）"
+  [ -f "$archive" ] || die "源码未下载：${archive}（先跑 fetch.sh）"
   [ "$(sha256_of "$archive")" = "$(lock_field "$name" 5)" ] || die "$archive 的 sha256 不符（下载后被改动过？）"
   rm -rf "$dest"
   mkdir -p "$dest"

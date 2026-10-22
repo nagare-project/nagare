@@ -28,7 +28,7 @@ die() { printf '错误：%s\n' "$*" >&2; exit 1; }
 require_tools() {
   local t
   for t in "$@"; do
-    command -v "$t" >/dev/null 2>&1 || die "缺少 $t（见 scripts/macos/libmpv/README.md「本地构建」）"
+    command -v "$t" >/dev/null 2>&1 || die "缺少 ${t}（见 scripts/macos/libmpv/README.md「本地构建」）"
   done
 }
 
@@ -42,7 +42,7 @@ sdk_path() {
 check_arch() {
   case "$1" in
     arm64 | x86_64) ;;
-    *) die "不支持的架构：$1（只有 arm64 / x86_64）" ;;
+    *) die "不支持的架构：${1}（只有 arm64 / x86_64）" ;;
   esac
 }
 

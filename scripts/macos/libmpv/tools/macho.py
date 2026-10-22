@@ -24,6 +24,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Iterator, List, Optional
 
 ARCHS = ("arm64", "x86_64")
 HEADERS = ("client.h", "render.h", "render_gl.h", "stream_cb.h")
@@ -34,24 +35,24 @@ MACHO_MAGICS = {
 }
 
 
-def run(*cmd):
+def run(*cmd: str) -> str:
     return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
 
 
-def is_macho(path):
+def is_macho(path: str) -> bool:
     with open(path, "rb") as f:
         return f.read(4) in MACHO_MAGICS
 
 
-def version_tuple(v):
+def version_tuple(v: str) -> tuple:
     return tuple(int(x) for x in v.split("."))
 
 
-def is_system(path):
+def is_system(path: str) -> bool:
     return path.startswith("/usr/lib/") or path.startswith("/System/Library/")
 
 
-def load_commands(path, arch):
+def load_commands(path: str, arch: str) -> dict:
     """解析 otool -l：返回 minos、sdk、装载名、依赖、LC_RPATH。"""
     out = run("otool", "-arch", arch, "-l", path)
     info = {"minos": None, "sdk": None, "id": None, "deps": [], "rpaths": []}
@@ -80,13 +81,13 @@ def load_commands(path, arch):
     return info
 
 
-def walk_files(root):
+def walk_files(root: str) -> Iterator[str]:
     for d, dirs, files in os.walk(root):
         for name in sorted(dirs + files):
             yield os.path.join(d, name)
 
 
-def machos(root):
+def machos(root: str) -> List[str]:
     found = []
     for sub in ("Frameworks", "MacOS"):
         base = os.path.join(root, sub)
@@ -97,12 +98,12 @@ def machos(root):
     return found
 
 
-def check(args):
+def check(args: argparse.Namespace) -> int:
     root = args.dir
     minos_max = version_tuple(args.minos)
     errors = []
 
-    def fail(msg):
+    def fail(msg: str) -> None:
         errors.append(msg)
         print("  ✗ " + msg)
 
@@ -159,7 +160,7 @@ def check(args):
     return 0
 
 
-def sha256(path):
+def sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -167,7 +168,7 @@ def sha256(path):
     return h.hexdigest()
 
 
-def read_text(path):
+def read_text(path: str) -> Optional[str]:
     try:
         with open(path, encoding="utf-8") as f:
             return f.read()
@@ -175,7 +176,7 @@ def read_text(path):
         return None
 
 
-def parse_lock(path):
+def parse_lock(path: str) -> List[dict]:
     rows = []
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -187,7 +188,7 @@ def parse_lock(path):
     return rows
 
 
-def manifest(args):
+def manifest(args: argparse.Namespace) -> int:
     root = args.dir
     data = {
         "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -248,7 +249,7 @@ def manifest(args):
     return 0
 
 
-def render_text(d):
+def render_text(d: dict) -> str:
     out = []
     w = out.append
     w("nagare 的 macOS libmpv（universal：arm64 + x86_64）")
@@ -302,7 +303,7 @@ def render_text(d):
     return "\n".join(out) + "\n"
 
 
-def main():
+def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("check")

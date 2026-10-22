@@ -47,7 +47,7 @@ closure() {
   while [ $changed = 1 ]; do
     changed=0
     for d in $todo; do
-      is_dep "$d" || die "未知组件：$d（可选：$DEP_ORDER）"
+      is_dep "$d" || die "未知组件：${d}（可选：${DEP_ORDER}）"
       case " $seen " in *" $d "*) continue ;; esac
       seen="$seen $d"
       todo="$todo $(dep_var "$d" deps)"
@@ -98,8 +98,8 @@ apply_patches() {
   [ -d "$here/patches/$dep" ] || return 0
   for p in "$here/patches/$dep"/*.patch; do
     [ -f "$p" ] || continue
-    log "$dep：打补丁 $(basename "$p")"
-    patch -d "$dir" -p1 -N --batch -i "$p" >/dev/null || die "$dep：补丁 $(basename "$p") 打不上"
+    log "${dep}：打补丁 $(basename "$p")"
+    patch -d "$dir" -p1 -N --batch -i "$p" >/dev/null || die "${dep}：补丁 $(basename "$p") 打不上"
   done
 }
 
@@ -117,19 +117,19 @@ build_dep() {
   extract_source "$first" "$SRC"
   apply_patches "$dep" "$SRC"
 
-  log "$dep（$ARCH）：开始编译"
+  log "${dep}（${ARCH}）：开始编译"
   local t0=$SECONDS
   "recipe_$dep"
 
   local inst="$DEST$PREFIX"
-  [ -d "$inst" ] || die "$dep 没有装出任何文件（期望在 $inst）"
+  [ -d "$inst" ] || die "$dep 没有装出任何文件（期望在 ${inst}）"
   # libtool 的 .la、文档与 man 都用不上；.la 里还写着构建机路径
   find "$inst" -name '*.la' -delete
   rm -rf "$inst/share/man" "$inst/share/doc" "$inst/share/info" "$inst/share/gtk-doc"
   local lic
   mkdir -p "$inst/share/licenses/$dep"
   for lic in $(dep_var "$dep" licenses); do
-    [ -f "$SRC/$lic" ] || die "$dep：许可证文件不存在：$lic"
+    [ -f "$SRC/$lic" ] || die "${dep}：许可证文件不存在：$lic"
     cp "$SRC/$lic" "$inst/share/licenses/$dep/"
   done
 
@@ -137,7 +137,7 @@ build_dep() {
   mv "$inst" "$stage"
   echo "$key" > "$stage/.nagare-key"
   rm -rf "$DEST" "$SRC"
-  log "$dep（$ARCH）：完成，用时 $((SECONDS - t0)) 秒"
+  log "${dep}（${ARCH}）：完成，用时 $((SECONDS - t0)) 秒"
 }
 
 deps=$(closure "$wanted")
@@ -149,7 +149,7 @@ if [ "$mode" = keys ]; then
   exit 0
 fi
 
-log "架构 $ARCH，组件：$deps"
+log "架构 ${ARCH}，组件：$deps"
 log "工具链：$(toolchain_fingerprint | tr '\n' ';')"
 for dep in $deps; do
   for s in $(dep_var "$dep" sources); do fetch_source "$s"; done
@@ -165,7 +165,7 @@ for dep in $deps; do
   key=$(dep_key "$dep")
   stage="$(stage_root "$ARCH")/$dep"
   if [ -f "$stage/.nagare-key" ] && [ "$(cat "$stage/.nagare-key")" = "$key" ]; then
-    log "$dep（$ARCH）：缓存命中 ${key:0:12}"
+    log "${dep}（${ARCH}）：缓存命中 ${key:0:12}"
   else
     build_dep "$dep" "$key"
     changed=true
@@ -183,4 +183,4 @@ for d in "$(stage_root "$ARCH")"/*; do
   changed=true
 done
 
-log "完成：$PREFIX（有组件重编：$changed）"
+log "完成：${PREFIX}（有组件重编：${changed}）"

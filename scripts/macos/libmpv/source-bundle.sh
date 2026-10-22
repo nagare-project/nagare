@@ -34,7 +34,7 @@ commit=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)
 cat > "$root/README.txt" <<EOF
 nagare 的 macOS libmpv 构建：完整对应源码（Corresponding Source）
 
-来自 nagare 仓库（https://github.com/nagare-project/nagare）提交 $commit。
+来自 nagare 仓库（https://github.com/nagare-project/nagare）提交 ${commit}。
 sources/                        versions.lock 列出的全部上游源码归档（逐个 sha256 校验过）
 scripts/macos/libmpv/           构建脚本、补丁（patches/）、版本锁（versions.lock）、验证脚本与测试片段
 .github/workflows/libmpv-macos.yml  CI 的构建与验证流程
@@ -52,4 +52,4 @@ EOF
 
 # 整理一遍：不带 macOS 的扩展属性 / AppleDouble 文件
 COPYFILE_DISABLE=1 tar --no-xattrs -czf "$out" -C "$tmp" "$name"
-log "源码包：$out（$(du -h "$out" | awk '{print $1}')）"
+log "源码包：${out}（$(du -h "$out" | awk '{print $1}')）"

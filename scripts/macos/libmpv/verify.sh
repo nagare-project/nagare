@@ -95,14 +95,14 @@ for arch in arm64 x86_64; do
   if [ ! -s "$comps" ]; then fail "缺少 info/$arch/ffmpeg-components.txt"; continue; fi
   missing=""
   for c in $REQUIRED_FF; do grep -qx "$c" "$comps" || missing="$missing $c"; done
-  [ -z "$missing" ] && pass "FFmpeg 组件齐全（$arch，$(wc -l < "$comps" | tr -d ' ') 个）" || fail "FFmpeg（$arch）缺少：$missing"
+  [ -z "$missing" ] && pass "FFmpeg 组件齐全（${arch}，$(wc -l < "$comps" | tr -d ' ') 个）" || fail "FFmpeg（${arch}）缺少：$missing"
   extra=""
   for c in $FORBIDDEN_FF; do grep -qx "$c" "$comps" && extra="$extra $c"; done
-  [ -z "$extra" ] && pass "FFmpeg 没有多余的编码器（$arch）" || fail "FFmpeg（$arch）不该有：$extra"
+  [ -z "$extra" ] && pass "FFmpeg 没有多余的编码器（${arch}）" || fail "FFmpeg（${arch}）不该有：$extra"
   if grep -q '^License: LGPL version 3 or later' "$OUT/info/$arch/ffmpeg-configure-summary.txt"; then
-    pass "FFmpeg 许可证 LGPL v3+（$arch）"
+    pass "FFmpeg 许可证 LGPL v3+（${arch}）"
   else
-    fail "FFmpeg 许可证不是预期的 LGPL v3+（$arch）：$(grep '^License' "$OUT/info/$arch/ffmpeg-configure-summary.txt")"
+    fail "FFmpeg 许可证不是预期的 LGPL v3+（${arch}）：$(grep '^License' "$OUT/info/$arch/ffmpeg-configure-summary.txt")"
   fi
 done
 
@@ -115,14 +115,14 @@ for arch in arm64 x86_64; do
     case "$f" in libmpv-shared | cplayer) continue ;; esac # 这两个不在 config.h 的列表里，下面运行时看
     case "$feats" in *" $f "*) ;; *) missing="$missing $f" ;; esac
   done
-  [ -z "$missing" ] && pass "mpv 特性齐全（$arch）" || fail "mpv（$arch）缺少特性：$missing"
+  [ -z "$missing" ] && pass "mpv 特性齐全（${arch}）" || fail "mpv（${arch}）缺少特性：$missing"
   for f in javascript vulkan libbluray libarchive rubberband sdl2-video; do
-    case "$feats" in *" $f "*) fail "mpv（$arch）不该开 $f" ;; esac
+    case "$feats" in *" $f "*) fail "mpv（${arch}）不该开 $f" ;; esac
   done
 done
 
 if $static_only; then
-  echo "静态检查：通过 $passed，失败 $failed"
+  echo "静态检查：通过 ${passed}，失败 $failed"
   [ $failed -eq 0 ] || { printf "失败项：$failures\n" >&2; exit 1; }
   exit 0
 fi
@@ -143,28 +143,28 @@ play_ok() {
   shift 2
   logf="$TMP/play-$arch-$name.log"
   if ! mpv_run "$arch" "$logf" --no-config --vo=null --ao=null --hwdec=no --msg-level=all=v "$@"; then
-    fail "播放 $name（$arch）：mpv 退出码非零"; show_log "$logf"; return
+    fail "播放 ${name}（${arch}）：mpv 退出码非零"; show_log "$logf"; return
   fi
   if grep -q -e 'Failed to initialize a decoder' -e 'Could not open codec' -e 'No video or audio streams' "$logf"; then
-    fail "播放 $name（$arch）：解码器报错"; grep -e 'Failed' -e 'Could not' "$logf" | head -5; return
+    fail "播放 ${name}（${arch}）：解码器报错"; grep -e 'Failed' -e 'Could not' "$logf" | head -5; return
   fi
-  pass "播放 $name（$arch）"
+  pass "播放 ${name}（${arch}）"
 }
 
 for arch in $arches; do
-  echo "== 运行检查（$arch）=="
+  echo "== 运行检查（${arch}）=="
   logf="$TMP/version-$arch.log"
   if mpv_run "$arch" "$logf" --no-config --version && grep -q "^mpv v$want_mpv" "$logf" \
     && grep -q "FFmpeg version: $want_ffmpeg" "$logf" && grep -q "libplacebo version: v$want_placebo" "$logf"; then
     pass "mpv --version：$(head -1 "$logf")"
   else
-    fail "mpv --version（$arch）与 versions.lock 不符"; show_log "$logf"
+    fail "mpv --version（${arch}）与 versions.lock 不符"; show_log "$logf"
   fi
 
   for f in h264-aac-ass.mkv hevc10-flac.mkv av1-opus.webm vp9-vorbis.webm; do
     play_ok "$arch" "$f" --frames=100 "$MEDIA/$f"
-    grep -q 'VO: \[null\]' "$TMP/play-$arch-$f.log" || fail "$f（$arch）：视频没有输出"
-    grep -q 'AO: \[null\]' "$TMP/play-$arch-$f.log" || fail "$f（$arch）：音频没有输出"
+    grep -q 'VO: \[null\]' "$TMP/play-$arch-$f.log" || fail "${f}（${arch}）：视频没有输出"
+    grep -q 'AO: \[null\]' "$TMP/play-$arch-$f.log" || fail "${f}（${arch}）：音频没有输出"
   done
 
   logf="$TMP/lua-$arch.log"
@@ -174,12 +174,12 @@ for arch in $arches; do
     "$MEDIA/h264-aac-ass.mkv" && grep -q "lua-check engine=LuaJIT_2\.1[^ ]* arch=$jit_arch " "$logf"; then
     pass "Lua：$(grep -o 'lua-check engine=[^ ]* arch=[^ ]*' "$logf" | head -1)"
   else
-    fail "Lua 检查（$arch）"; show_log "$logf"
+    fail "Lua 检查（${arch}）"; show_log "$logf"
   fi
 done
 
 arch=$HOST_ARCH
-echo "== 完整解码与功能检查（$arch）=="
+echo "== 完整解码与功能检查（${arch}）=="
 for f in mpeg2-ac3.ts h264-eac3-movtext.mp4 mpeg4-mp3.avi; do
   play_ok "$arch" "$f" --frames=100 "$MEDIA/$f"
 done
@@ -216,7 +216,7 @@ sub_drawn() {
   if [ -s "$a/00000001.png" ] && [ -s "$b/00000001.png" ] && ! cmp -s "$a/00000001.png" "$b/00000001.png"; then
     pass "字幕渲染：$label"
   else
-    fail "字幕渲染：$label（带字幕与不带字幕的画面相同，或没有输出）"; show_log "$TMP/sub-$label-on.log" 10
+    fail "字幕渲染：${label}（带字幕与不带字幕的画面相同，或没有输出）"; show_log "$TMP/sub-$label-on.log" 10
   fi
 }
 sub_drawn "ASS（libass + CoreText 字体回退）" "$MEDIA/h264-aac-ass.mkv" 1
@@ -234,7 +234,7 @@ for fmt in jpg png; do
   case "$fmt:$magic" in
     jpg:ffd8ff*) pass "截图 jpg" ;;
     png:89504e47) pass "截图 png" ;;
-    *) fail "截图 $fmt（文件头 $magic）"; show_log "$TMP/shot-$fmt.log" 10 ;;
+    *) fail "截图 ${fmt}（文件头 ${magic}）"; show_log "$TMP/shot-$fmt.log" 10 ;;
   esac
 done
 
@@ -246,7 +246,7 @@ thumb() {
   local size
   size=$(stat -f %z "$out" 2>/dev/null || echo 0)
   if [ "$size" = $((64 * 40 * 4)) ]; then pass "thumbfast 编码：$label"; else
-    fail "thumbfast 编码：$label（输出 $size 字节，应为 $((64 * 40 * 4))）"; show_log "$TMP/thumb-$label.log" 10
+    fail "thumbfast 编码：${label}（输出 $size 字节，应为 $((64 * 40 * 4))）"; show_log "$TMP/thumb-$label.log" 10
   fi
 }
 thumb swscale "lavfi-crop=w=120:h=72:x=0:y=0,scale=w=64:h=40,pad=w=64:h=40:x=-1:y=-1,format=bgra,hflip,vflip" \
@@ -300,8 +300,8 @@ https_case() {
   local logf="$TMP/https-$label.log" rc=0
   mpv_run "$arch" "$logf" --no-config --vo=null --ao=null --hwdec=no --frames=24 "$@" "$url" || rc=$?
   if [ "$expect" = ok ] && [ $rc -eq 0 ] && grep -q 'VO: \[null\]' "$logf"; then pass "HTTPS：$label"
-  elif [ "$expect" = reject ] && [ $rc -ne 0 ]; then pass "HTTPS：$label（按预期拒绝）"
-  else fail "HTTPS：$label（退出码 $rc）"; show_log "$logf" 15; fi
+  elif [ "$expect" = reject ] && [ $rc -ne 0 ]; then pass "HTTPS：${label}（按预期拒绝）"
+  else fail "HTTPS：${label}（退出码 ${rc}）"; show_log "$logf" 15; fi
 }
 https_case "校验证书 + 自定 CA" ok "$base/h264-aac-ass.mkv" --tls-verify=yes --tls-ca-file="$TMP/ca.pem"
 https_case "HLS 经 HTTPS" ok "$base/hls/index.m3u8" --tls-verify=yes --tls-ca-file="$TMP/ca.pem"
@@ -325,15 +325,15 @@ for arch in $arches; do
   rc=$?
   set -e
   if [ $rc -ne 0 ] || ! grep -q 'embed_test: basic OK' "$logf" || ! grep -q "^arch=$arch " "$logf"; then
-    fail "embed_test（$arch，退出码 $rc）"; show_log "$logf"; continue
+    fail "embed_test（${arch}，退出码 ${rc}）"; show_log "$logf"; continue
   fi
   # 装进来的每一个非系统镜像都必须来自包内的 Frameworks（证明 @rpath 生效，没有误用 runner 上的库）
   stray=$(grep -o 'dyld\[[0-9]*\]: <[^>]*> .*\|dyld\[[0-9]*\]: /.*' "$logf" | sed 's/^dyld\[[0-9]*\]: //; s/^<[^>]*> //' \
     | grep -v -e '^/usr/lib/' -e '^/System/' -e "^$bundle/" || true)
   loaded=$(grep -c "$bundle/Frameworks/" "$logf" || true)
-  if [ -n "$stray" ]; then fail "embed_test（$arch）装载了包外的库：$stray"
-  elif [ "$loaded" -lt 5 ]; then fail "embed_test（$arch）：DYLD_PRINT_LIBRARIES 里只看到 $loaded 个包内库"; show_log "$logf"
-  else pass "embed_test（$arch）：$(grep -o 'mpv-version=[^ ]*' "$logf")，$loaded 个库全部来自 Frameworks/"; fi
+  if [ -n "$stray" ]; then fail "embed_test（${arch}）装载了包外的库：$stray"
+  elif [ "$loaded" -lt 5 ]; then fail "embed_test（${arch}）：DYLD_PRINT_LIBRARIES 里只看到 $loaded 个包内库"; show_log "$logf"
+  else pass "embed_test（${arch}）：$(grep -o 'mpv-version=[^ ]*' "$logf")，$loaded 个库全部来自 Frameworks/"; fi
 done
 
 arch=$HOST_ARCH
@@ -343,10 +343,10 @@ for hw in no videotoolbox; do
   with_timeout 90 "$bundle/MacOS/embed_test" --render "$MEDIA/h264-aac-ass.mkv" "$hw" > "$logf" 2>&1
   rc=$?
   set -e
-  if [ $rc -eq 0 ]; then pass "render API（OpenGL，hwdec=$hw）：$(grep '^frames=' "$logf")"
-  elif [ $rc -eq 77 ]; then soft "render API（hwdec=$hw）：没有可用的 OpenGL 上下文，跳过"; show_log "$logf" 5
-  elif [ "$hw" = no ]; then fail "render API（OpenGL，hwdec=no，退出码 $rc）"; show_log "$logf"
-  else soft "render API（hwdec=$hw，退出码 $rc）"; show_log "$logf" 10; fi
+  if [ $rc -eq 0 ]; then pass "render API（OpenGL，hwdec=${hw}）：$(grep '^frames=' "$logf")"
+  elif [ $rc -eq 77 ]; then soft "render API（hwdec=${hw}）：没有可用的 OpenGL 上下文，跳过"; show_log "$logf" 5
+  elif [ "$hw" = no ]; then fail "render API（OpenGL，hwdec=no，退出码 ${rc}）"; show_log "$logf"
+  else soft "render API（hwdec=${hw}，退出码 ${rc}）"; show_log "$logf" 10; fi
 done
 
 # 命令行 mpv 自己开窗口（cocoa-cb）：浏览器模式靠它。需要图形会话，runner 上没有就只警告
@@ -369,7 +369,7 @@ for hw in h264-aac-ass.mkv hevc10-flac.mkv; do
 done
 
 echo
-echo "通过 $passed，失败 $failed，警告 $warned"
+echo "通过 ${passed}，失败 ${failed}，警告 $warned"
 if [ $failed -ne 0 ]; then
   printf "失败项：$failures\n" >&2
   exit 1
