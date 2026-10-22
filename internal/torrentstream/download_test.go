@@ -94,6 +94,30 @@ func (f *downloadFixture) waitState(id, state string) store.Download {
 	return store.Download{}
 }
 
+// downloadSeederKeepAlive 是下载用例里做种方的保活间隔（anacrolix 默认 1 分钟）。
+//
+// anacrolix v1.61.0 的连接写协程会丢唤醒（上游 anacrolix/torrent#1070；修复 #1078/#1071 只在
+// master 上，没进任何 tag）：它先 fillWriteBuffer、放掉 client 锁，之后才去取唤醒通道，落在这段
+// 空档里的 tickleWriter 直接作废，写协程一直睡到保活计时器到点。做种方读完一块数据、放进待发队列
+// 时撞上这个空档，那一块就压在它手里 60 秒；下载方这一批请求只差这一块，按 anacrolix 的成批请求
+// 不会补发，整条连接停住，用例在 30 秒上超时（CI run 39813377215 失败时的状态与本地复现一致）。
+//
+// 做种方在这里只是扮演对端，它的上传路径不是被测对象。保活压到 1 秒，丢一次唤醒最多耽误 1 秒：
+// 下载期间下载方一直 interested，做种方这条连接一直算 useful，每次到点都会写保活、重新上弦。
+// 下载器自己的 client 不改 —— 它那一侧丢了唤醒照样卡 60 秒，用例照样失败，不会被这里盖住。
+//
+// 只用在下载用例：边下边播的用例里下载方会阶段性地不 interested，v1.61.0 的保活计时器只在
+// 写出东西之后才重新上弦，那种空闲期里到点一次就再也不响，间隔调短反而更容易落进这种状态。
+const downloadSeederKeepAlive = time.Second
+
+// startDownloadSeeder 是下载用例用的做种方：startSeeder 加上更短的保活（见 downloadSeederKeepAlive）。
+func startDownloadSeeder(t *testing.T, dataDir string, mi *metainfo.MetaInfo) *torrent.Torrent {
+	t.Helper()
+	return startSeeder(t, dataDir, mi, func(cfg *torrent.ClientConfig) {
+		cfg.KeepAliveTimeout = downloadSeederKeepAlive
+	})
+}
+
 // linkDownloadSeeder 把做种方接到下载器的监听端口（client 懒建、关了又建时端口会变，所以反复喂）。
 func linkDownloadSeeder(t *testing.T, seedTor *torrent.Torrent, d *Downloader) {
 	t.Helper()
@@ -126,7 +150,7 @@ func TestDownloadCompletesIntoRootAndLeavesNoStaging(t *testing.T) {
 	f := newDownloadFixture(t)
 	seedDir := t.TempDir()
 	magnet, mi, data := buildTestTorrent(t, seedDir, "Show", testFile{name: "01.mkv", size: 2 << 20}, testFile{name: "02.mkv", size: 1 << 20})
-	seedTor := startSeeder(t, seedDir, mi)
+	seedTor := startDownloadSeeder(t, seedDir, mi)
 	d := f.downloader()
 	linkDownloadSeeder(t, seedTor, d)
 
@@ -158,7 +182,7 @@ func TestDownloadSingleFileDoesNotOverwriteExisting(t *testing.T) {
 	seedDir := t.TempDir()
 	magnet, mi, data := buildTestTorrent(t, seedDir, "", testFile{name: "movie.mkv", size: 1 << 20})
 	require.NoError(t, os.WriteFile(filepath.Join(f.root, "movie.mkv"), []byte("用户自己的文件"), 0o600))
-	seedTor := startSeeder(t, seedDir, mi)
+	seedTor := startDownloadSeeder(t, seedDir, mi)
 	d := f.downloader()
 	linkDownloadSeeder(t, seedTor, d)
 
@@ -188,7 +212,7 @@ func TestDownloadRefusesPrivateTorrent(t *testing.T) {
 	require.NoError(t, err)
 	mi.InfoBytes = infoBytes
 	magnet := metainfo.Magnet{InfoHash: mi.HashInfoBytes(), DisplayName: "pt.mkv"}.String()
-	seedTor := startSeeder(t, seedDir, mi)
+	seedTor := startDownloadSeeder(t, seedDir, mi)
 	d := f.downloader()
 	linkDownloadSeeder(t, seedTor, d)
 
@@ -204,7 +228,7 @@ func TestDownloadResumesAfterRestart(t *testing.T) {
 	f := newDownloadFixture(t)
 	seedDir := t.TempDir()
 	magnet, mi, data := buildTestTorrent(t, seedDir, "Show", testFile{name: "01.mkv", size: 1 << 20})
-	seedTor := startSeeder(t, seedDir, mi)
+	seedTor := startDownloadSeeder(t, seedDir, mi)
 
 	// 第一次：没有任何分享者，任务停在找元数据，然后 nagare 退出
 	first := NewDownloader(DownloaderOptions{Store: f.st, Root: func() string { return f.root }})
@@ -223,6 +247,41 @@ func TestDownloadResumesAfterRestart(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(f.root, "Show", "01.mkv"))
 	require.NoError(t, err)
 	assert.Equal(t, data["Show/01.mkv"], got)
+}
+
+// 上次最后一片刚记成完成、还没来得及挪出暂存目录 nagare 就退出了：重启后一个分享者都没有，
+// 也必须直接收尾。这条路上种子在 AddTorrentSpec 里就已经是「完成」，早于 run 开始等它 ——
+// 等法必须是电平（每轮重新看 Complete()），不能是只认之后那次变化的边沿。
+func TestDownloadResumeFinishesWhenAlreadyCompleteOnDisk(t *testing.T) {
+	f := newDownloadFixture(t)
+	magnet, mi, data := buildTestTorrent(t, t.TempDir(), "Show", testFile{name: "01.mkv", size: 1 << 20})
+	id := mi.HashInfoBytes().HexString()
+	staging := stagingDir(f.root, id)
+	require.NoError(t, os.MkdirAll(filepath.Join(staging, "Show"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(staging, "Show", "01.mkv"), data["Show/01.mkv"], 0o600))
+	require.NoError(t, writeMetaFile(staging, mi))
+	completion, err := storage.NewBoltPieceCompletion(staging)
+	require.NoError(t, err)
+	info, err := mi.UnmarshalInfo()
+	require.NoError(t, err)
+	for i := range info.NumPieces() {
+		require.NoError(t, completion.Set(metainfo.PieceKey{InfoHash: mi.HashInfoBytes(), Index: i}, true))
+	}
+	require.NoError(t, completion.Close())
+	require.NoError(t, f.st.PutDownload(store.Download{
+		ID: id, Magnet: magnet, Root: f.root, State: store.DownloadDownloading,
+		Name: "Show", Size: 1 << 20, AddedAt: time.Now().UnixMilli(),
+	}))
+
+	d := f.downloader()
+	d.Resume()
+	rec := f.waitState(id, store.DownloadDone)
+	assert.Equal(t, []string{filepath.Join(f.root, "Show")}, rec.Paths)
+	got, err := os.ReadFile(filepath.Join(f.root, "Show", "01.mkv"))
+	require.NoError(t, err)
+	assert.Equal(t, data["Show/01.mkv"], got)
+	assert.NoDirExists(t, staging)
+	assert.Equal(t, []string{f.root}, f.completions())
 }
 
 func TestDownloadRemoveStopsAndDeletesStaging(t *testing.T) {
