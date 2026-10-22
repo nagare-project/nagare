@@ -48,15 +48,20 @@ void nagareLog(NSString *format, ...) {
   nagareDesktopLog((char *)s.UTF8String);
 }
 
+// 排进主 run loop（常用模式与模态模式），不在当前调用里执行 —— 主线程上调也一样。
+static void onMainLater(dispatch_block_t block) {
+  NSArray *modes = @[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode,
+                      (__bridge NSString *)kCFRunLoopCommonModes ];
+  CFRunLoopPerformBlock(CFRunLoopGetMain(), (__bridge CFTypeRef)modes, block);
+  CFRunLoopWakeUp(CFRunLoopGetMain());
+}
+
 void nagareOnMain(dispatch_block_t block) {
   if ([NSThread isMainThread]) {
     block();
     return;
   }
-  NSArray *modes = @[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode,
-                      (__bridge NSString *)kCFRunLoopCommonModes ];
-  CFRunLoopPerformBlock(CFRunLoopGetMain(), (__bridge CFTypeRef)modes, block);
-  CFRunLoopWakeUp(CFRunLoopGetMain());
+  onMainLater(block);
 }
 
 void nagareCommand(NSArray<NSString *> *args) {
@@ -260,10 +265,14 @@ static void drainEvents(mpv_handle *h) {
   }
 }
 
-// mpv 的任意线程调
+// mpv 的任意线程调，而且调的时候 mpv 持着这个句柄的 wakeup_lock（client.c 的 wakeup_client 与
+// mpv_set_wakeup_callback 都是这样）。所以这里只能「排进主线程稍后做」，绝不能当场取事件：
+// 主线程上的 mpv_set_wakeup_callback 会同步回调一次，当场 mpv_wait_event 就要拿 ctx->lock，而 mpv 的
+// 核心线程此刻可能正持着 ctx->lock 发事件、等这把 wakeup_lock —— 两个线程互等，主线程永远卡死
+// （自建 libmpv 上实测：起播时 startSession 卡在这里，整个窗口不再响应）。client.h 也写明回调里不许调任何 API。
 static void onWakeup(void *ctx) {
   mpv_handle *h = ctx;
-  nagareOnMain(^{
+  onMainLater(^{
     drainEvents(h);
   });
 }
