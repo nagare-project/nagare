@@ -36,6 +36,7 @@ New-Item -ItemType Directory -Force -Path $cfgDir, $mediaDir, $shots | Out-Null
 
 $steps = New-Object System.Collections.ArrayList
 $script:proc = $null
+$script:startNo = 0
 $script:api = $null
 $script:ctl = $null
 
@@ -136,7 +137,10 @@ function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
     $env:NAGARE_DESKTOP_TEST_SECRET_FILE = $secret
     $env:NAGARE_DESKTOP_TEST_NO_WEBVIEW2 = ''
     foreach ($k in $extraEnv.Keys) { Set-Item -Path "env:$k" -Value $extraEnv[$k] }
-    $sp = @{ FilePath = $Exe; PassThru = $true }
+    $script:startNo++
+    $sp = @{ FilePath = $Exe; PassThru = $true
+        RedirectStandardError = (Join-Path $reportDir ("stderr-{0}.txt" -f $script:startNo))
+        RedirectStandardOutput = (Join-Path $reportDir ("stdout-{0}.txt" -f $script:startNo)) }
     if ($argv -and $argv.Count -gt 0) { $sp.ArgumentList = $argv }
     $script:proc = Start-Process @sp
     $ok = Wait-Until { Test-Path $secret } 30
@@ -249,12 +253,15 @@ Step '启动' {
 
 Step '媒体库' {
     $r = Api 'POST' '/api/library/folders' @{ path = $mediaDir }
+    $addInfo = ($r | ConvertTo-Json -Compress -Depth 8)
     $lib = (Api 'GET' '/api/library').data
     foreach ($c in @($lib.clusters)) { foreach ($g in @($c.groups)) { foreach ($it in @($g.items)) { $ep[[int]$it.episode] = $it.fileId } } }
     Ctl '/js' @{ code = 'location.reload(); true' } | Out-Null
     Start-Sleep -Seconds 3
     $shot = Snap 'library'
-    Add-Step '加测试片目录' ($ep.Count -ge 3) ("认出 $($ep.Count) 集") $shot
+    $detail = "认出 $($ep.Count) 集"
+    if ($ep.Count -lt 3) { $detail += "；加目录的回复：$addInfo" }
+    Add-Step '加测试片目录' ($ep.Count -ge 3) $detail $shot
 }
 
 Step '播放' {
@@ -410,6 +417,8 @@ Step '第二次启动' {
     Add-Step '第二次启动：新进程自己退出' $exited ("退出码 $(if ($exited) { $second.ExitCode } else { '没退出' })") $shot
     Add-Step '第二次启动：已有的窗口到前面（依赖「第二次启动」那项改动，未合入前会是浏览器被打开）' $null ("visible=$($s.visible) minimized=$($s.minimized) foreground=$($s.foreground)") ''
     if (-not $exited) { try { $second.Kill() } catch { } }
+    # 还没合入「第二次启动叫出窗口」时，第二个进程会打开默认浏览器；CI 上把它关掉，免得挡住后面的截图
+    if ($CI) { Get-Process -Name msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
 }
 
 Step '退出' {
@@ -460,6 +469,7 @@ if (Test-Path $logDir) {
     $token = if ($script:api) { $script:api.token } else { '' }
     foreach ($f in Get-ChildItem $logDir -File) {
         $t = Get-Content -Raw -Encoding UTF8 $f.FullName
+        if ($null -eq $t) { continue }
         if ($token) { $t = $t.Replace($token, '<token>') }
         $t = [regex]::Replace($t, '\b[0-9a-fA-F]{32,}\b', '<hex>')
         Set-Content -Encoding UTF8 -Path (Join-Path $reportDir ('log-' + $f.Name)) -Value $t

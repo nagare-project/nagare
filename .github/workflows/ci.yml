@@ -192,6 +192,8 @@ jobs:
           if-no-files-found: warn
       - name: 打用户的测试包
         if: always()
+        env:
+          PYTHONUTF8: "1" # runner 的控制台是 cp1252，打印中文会抛 UnicodeEncodeError
         run: python scripts/windows/desktoptest/build_kit.py dist/smoke/nagare.exe dist/mpv-win dist/webview2/MicrosoftEdgeWebview2Setup.exe dist/nagare-wintest-kit.zip
       - name: 上传测试包
         if: always()

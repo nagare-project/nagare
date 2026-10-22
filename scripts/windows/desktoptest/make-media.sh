@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 生成 Windows 桌面窗口测试用的片子（media/clip.mkv，约 1MB，产物已入库，平时不用跑）：
+# 生成 Windows 桌面窗口测试用的片子（media/clip.mkv，约 2MB —— 媒体库不收小于 1MB 的视频；产物已入库，平时不用跑）：
 # 40 秒 640x360 H.264 + AAC（testsrc2 的动态画面，看得出在不在播）+ 一条中日文 ASS 字幕（验 libass 的字体回退）。
 # 测试脚本把它复制成「- 01 / - 02 / - 03」三集，媒体库认成同一部作品，才能测「下一集」。
 # 需要带 libx264 的 ffmpeg。用法：make-media.sh [ffmpeg 路径]
@@ -26,7 +26,7 @@ Dialogue: 0,0:00:00.00,0:00:40.00,Default,,0,0,0,,nagare Windows 测试片 · �
 EOF
 
 "$ff" -hide_banner -loglevel error -y -f lavfi -i "testsrc2=s=640x360:r=24:d=40" -f lavfi -i "sine=f=330:r=48000:d=40" \
-  -c:v libx264 -preset veryslow -crf 36 -pix_fmt yuv420p -g 96 -c:a aac -b:a 32k -shortest "$work/av.mkv"
+  -c:v libx264 -preset veryslow -crf 30 -pix_fmt yuv420p -g 96 -c:a aac -b:a 32k -shortest "$work/av.mkv"
 mkdir -p "$here/media"
 "$ff" -hide_banner -loglevel error -y -i "$work/av.mkv" -i "$work/sub.ass" -map 0 -map 1 -c copy \
   -metadata:s:s:0 language=chi "$here/media/clip.mkv"

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -169,7 +168,7 @@ func start(f flags) error {
 		log.Printf("打开日志文件失败（仅输出到终端）：%v", err)
 	} else {
 		defer logF.Close()
-		log.SetOutput(io.MultiWriter(os.Stderr, logF))
+		log.SetOutput(logOutput(logF, os.Stderr)) // 先写文件：Windows 双击启动时没有控制台，见 logging.go
 	}
 	log.Printf("nagare %s 启动（%s/%s）", version, runtime.GOOS, runtime.GOARCH)
 
