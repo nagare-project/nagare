@@ -11,12 +11,23 @@ import (
 	"time"
 )
 
-const (
-	// commandTimeout 是单条 IPC 命令等待响应的上限。
-	commandTimeout = 5 * time.Second
-	// maxIPCLine 是单行 JSON 的读取上限（track-list 等属性可能很大）。
-	maxIPCLine = 2 * 1024 * 1024
-)
+// commandTimeout 是单条 IPC 命令等待响应的上限（变量只为测试能缩短它）。
+var commandTimeout = 5 * time.Second
+
+// maxIPCLine 是单行 JSON 的读取上限（track-list 等属性可能很大）。
+const maxIPCLine = 2 * 1024 * 1024
+
+// noResponseError 是「mpv 在时限内没应答」：卡死的 mpv 对后面的命令也不会应答，
+// 要连发几条命令的调用方据此提前收手，而不是逐条等满超时。
+type noResponseError struct{ msg string }
+
+func (e *noResponseError) Error() string { return e.msg }
+
+// isNoResponse 报告 err 是不是 mpv 没应答造成的。
+func isNoResponse(err error) bool {
+	var nr *noResponseError
+	return errors.As(err, &nr)
+}
 
 // ipcRequest 是发往 mpv 的一条命令。
 type ipcRequest struct {
@@ -69,18 +80,33 @@ func (c *ipcConn) call(cmd ...any) (json.RawMessage, error) {
 }
 
 func (c *ipcConn) callTimeout(timeout time.Duration, cmd ...any) (json.RawMessage, error) {
+	return c.send(timeout, fmt.Sprintf("%v", cmd), cmd)
+}
+
+// callRedacted 与 call 相同，但错误里只写命令名、不写参数：参数里有流端点地址时用它 ——
+// 地址里的能力段等同凭证，不能经错误流进日志与界面。mpv 自己的错误文字照常保留。
+func (c *ipcConn) callRedacted(cmd ...any) (json.RawMessage, error) {
+	label := "[…]"
+	if len(cmd) > 0 {
+		label = fmt.Sprintf("[%v …]", cmd[0])
+	}
+	return c.send(commandTimeout, label, cmd)
+}
+
+// send 是 call 的本体；label 是错误信息里描述这条命令的文字。
+func (c *ipcConn) send(timeout time.Duration, label string, cmd []any) (json.RawMessage, error) {
 	id, ch, err := c.register()
 	if err != nil {
-		return nil, fmt.Errorf("mpv 连接已断开，无法发送命令 %v：%w", cmd, err)
+		return nil, fmt.Errorf("mpv 连接已断开，无法发送命令 %s：%w", label, err)
 	}
 	defer c.unregister(id)
 
 	payload, err := json.Marshal(ipcRequest{Command: cmd, RequestID: id})
 	if err != nil {
-		return nil, fmt.Errorf("序列化 mpv 命令 %v 失败：%w", cmd, err)
+		return nil, fmt.Errorf("序列化 mpv 命令 %s 失败：%w", label, err)
 	}
 	if err := c.writeLine(payload); err != nil {
-		return nil, fmt.Errorf("向 mpv 发送命令 %v 失败（连接可能已断开）：%w", cmd, err)
+		return nil, fmt.Errorf("向 mpv 发送命令 %s 失败（连接可能已断开）：%w", label, err)
 	}
 
 	select {
@@ -89,11 +115,11 @@ func (c *ipcConn) callTimeout(timeout time.Duration, cmd ...any) (json.RawMessag
 			return nil, errors.New("mpv 连接在等待响应时断开，命令未完成；请重新发起播放")
 		}
 		if msg.Error != "" && msg.Error != "success" {
-			return nil, fmt.Errorf("mpv 拒绝命令 %v：%s", cmd, msg.Error)
+			return nil, fmt.Errorf("mpv 拒绝命令 %s：%s", label, msg.Error)
 		}
 		return msg.Data, nil
 	case <-time.After(timeout):
-		return nil, fmt.Errorf("mpv 在 %s 内未响应命令 %v，播放器可能已卡死；可关闭播放器后重试", timeout, cmd)
+		return nil, &noResponseError{msg: fmt.Sprintf("mpv 在 %s 内未响应命令 %s，播放器可能已卡死；可关闭播放器后重试", timeout, label)}
 	}
 }
 

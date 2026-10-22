@@ -1,12 +1,10 @@
-// 播放会话监督器：轨道编排（对白字幕主轨 + 弹幕副轨）、进度节流回写、
-// 结束收敛。「用户手动关掉 mpv」这类失败模式在这里兜住 —— 状态收敛，
-// 进度按最后已知位置写回，看完则回写 animego 账号。
+// 一集的播放：轨道编排（对白字幕主轨 + 弹幕副轨）、进度回写、看完回写 animego 账号。
+// 窗口级的事件循环与结束收敛在 playback.go —— 「用户手动关掉 mpv」这类失败模式在那里兜住。
 package player
 
 import (
 	"context"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -27,22 +25,33 @@ const danmakuTrackTitle = "nagare-danmaku"
 // markWatchedTimeout 是结束时回写 animego 的时限（不拖住退出流程）。
 const markWatchedTimeout = 10 * time.Second
 
+// session 是一集：窗口（playback，见 playback.go）里每播一个文件就是一个 session。
+// 进度、弹幕、匹配、「看完」回写都按集算；同一个窗口里换集时旧的一集收尾、新的一集开始。
 type session struct {
 	// 不可变字段（创建后只读，无需加锁）：
 	// src 是媒体来源（本地文件或磁力流），后台弹幕解析要用它算 16MB 哈希；
-	// item 是 src.Item() 的快照 —— 会话内所有下游只认这一份。
-	src      MediaSource
-	item     library.Item
-	player   *mpv.Player
-	finished chan struct{} // watcher 完成最终回写后关闭
+	// item 是 src.Item() 的快照 —— 这一集里所有下游只认这一份。
+	src  MediaSource
+	item library.Item
+	// player 是所在窗口的播放器（与 playback.player 同一个，只读副本）：轨道编排、推界面状态、
+	// 截图都按「这一集」做，拿着它就不必回头找窗口。
+	player *mpv.Player
 	// danmakuReady 在后台弹幕解析结束后关闭 —— 无论成功、失败还是无弹幕。
-	// watcher 靠它知道 assPath/binding 已定型，可以编排字幕轨了。
+	// 事件循环靠它知道 assPath/binding 已定型，可以编排字幕轨了。
 	danmakuReady chan struct{}
-	// assTarget 是本会话弹幕 ASS 的落点，每会话唯一 —— 快速切集时两个后台
-	// 解析不会撞同一个文件。会话终结时删除。
+	// assTarget 是这一集弹幕 ASS 的落点，每集唯一 —— 快速切集时两个后台
+	// 解析不会撞同一个文件。这一集收尾时删除。
 	assTarget string
+	// ctx 跟着这一集，后台弹幕解析用它。关窗时不取消（解析照样做完、落盘，见 newSession）；
+	// 只有在同一个窗口里换到别的集时，才由换集那边调 cancel 让被换走那一集的解析收手。
+	ctx    context.Context
+	cancel context.CancelFunc
+	// endOnce：收尾（最后一次进度、删弹幕文件、回写账号）每集恰好一次。
+	endOnce sync.Once
+	// syncOnce：「看完」回写每集至多发一次。
+	syncOnce sync.Once
 
-	// 可变字段（Play 后台 goroutine 与 watcher 并发访问，一律走 mu）：
+	// 可变字段（后台弹幕解析与事件循环并发访问，一律走 mu）：
 	mu      sync.Mutex
 	title   string
 	binding store.Binding
@@ -91,91 +100,6 @@ func (s *session) degradeDanmaku(reason string) {
 	s.danmaku = DanmakuInfo{State: "degraded", Reason: reason}
 	s.mu.Unlock()
 	log.Printf("player: 弹幕降级：%s", reason)
-}
-
-// watch 消费 mpv 事件直到会话终结：编排轨道、节流写进度、终态收敛。
-//
-// 弹幕轨编排要等两个条件都满足：mpv 已加载文件（能 sub-add）+ 后台弹幕已解析
-// 完（assPath 定型）。任一先到都不动手，避免对空 assPath 或未就绪的播放器操作。
-func (m *Manager) watch(sess *session) {
-	defer close(sess.finished)
-
-	var arrangeOnce sync.Once
-	arrange := func() {
-		arrangeOnce.Do(func() {
-			m.arrangeTracks(sess)
-			// 弹幕匹配完标题也可能升级成了作品名：编排完再推一次
-			m.pushUIState(sess)
-		})
-	}
-	fileLoaded, danmakuResolved := false, false
-	maybeArrange := func() {
-		if fileLoaded && danmakuResolved {
-			arrange()
-		}
-	}
-	// 本地副本：收到一次后置 nil，让该 case 之后永久阻塞（关闭的通道恒可读，
-	// 不置 nil 会把 select 转成忙等）。
-	danmakuReady := sess.danmakuReady
-	fallback := time.NewTimer(trackArrangeFallback)
-	defer fallback.Stop()
-
-	var lastFlush time.Time
-	endedByEOF := false
-	endedReason := ""
-
-	for {
-		select {
-		case ev := <-sess.player.Events():
-			switch ev.Kind {
-			case mpv.EventFileLoaded:
-				fileLoaded = true
-				m.pushUIState(sess)
-				maybeArrange()
-			case mpv.EventUIMessage:
-				m.handleUIMessage(sess, ev.Args)
-			case mpv.EventTimePos:
-				if time.Since(lastFlush) >= progressFlushInterval {
-					m.flushProgress(sess, false)
-					lastFlush = time.Now()
-				}
-			case mpv.EventEnded:
-				endedReason = ev.Reason
-				if ev.Reason == "eof" {
-					endedByEOF = true
-				}
-			}
-		case <-danmakuReady:
-			danmakuResolved = true
-			danmakuReady = nil
-			maybeArrange()
-		case <-fallback.C:
-			// file-loaded 事件可能被丢（Events 通道满时丢旧），兜底认定播放器已就绪。
-			fileLoaded = true
-			maybeArrange()
-		case <-sess.player.Done():
-			// 在线流被服务器掐断、磁力流断了供给时 mpv 同样报 eof：这种 eof 不能算看完
-			// （否则会把账号标成已看），而是一次来源故障。
-			premature := prematureEOF(sess.src, sess.player.State(), endedByEOF)
-			m.finalize(sess, endedByEOF && !premature)
-			if failure := playbackFailureFor(sess.src, sess.item.FileID, endedReason, sess.player.Err(), premature, time.Now().UnixMilli()); failure != nil {
-				m.setPlaybackFailure(failure)
-			}
-			// mpv 自然退出（播完/用户关窗）时收敛 current，Status 不再误报在播。
-			m.mu.Lock()
-			if m.current == sess {
-				m.current = nil
-			}
-			m.mu.Unlock()
-			// 放在函数体里而不是 defer 里：sess.finished 由顶部的 defer 关闭，
-			// 而 Stop 等的正是那个信号 —— 回调必须先跑完，换会话时新旧才不会重叠
-			// （磁力场景下重叠意味着新种子刚建好就被旧会话的收尾停掉）。
-			if m.opts.OnSessionEnd != nil {
-				m.opts.OnSessionEnd()
-			}
-			return
-		}
-	}
 }
 
 func playbackFailureFor(src MediaSource, fileID, endedReason string, playerErr error, premature bool, at int64) *PlaybackFailure {
@@ -288,7 +212,7 @@ func (m *Manager) arrangeTracks(sess *session) {
 //   - 位置小于 resumeMinSec 且未看完 → 不写。这同时挡住「续播后 mpv 秒退、
 //     time-pos 还停在 0」把此前真实进度砸掉的场景（对齐网页端策略）；
 //   - Completed 一旦为 true 就保持（重看不清除已看完标记）；
-//   - Synced 跟随旧值（回写成功后由 finalize 单独置位）。
+//   - Synced 跟随旧值（回写成功后由 syncWatched 单独置位）。
 func progressUpdate(prev store.Progress, hadPrev bool, st mpv.State, endedByEOF bool, nowMs int64) (store.Progress, bool) {
 	completed := endedByEOF || (st.Duration > 0 && st.TimePos >= completionRatio*st.Duration)
 	if hadPrev && prev.Completed {
@@ -308,9 +232,14 @@ func progressUpdate(prev store.Progress, hadPrev bool, st mpv.State, endedByEOF 
 	}, true
 }
 
-// flushProgress 把当前位置写进 store（按 progressUpdate 的规则）。
+// flushProgress 把播放器当前位置写进 store（按 progressUpdate 的规则）。
 func (m *Manager) flushProgress(sess *session, endedByEOF bool) {
-	st := sess.player.State()
+	m.flushProgressAt(sess, sess.player.State(), endedByEOF)
+}
+
+// flushProgressAt 按调用方给的播放器快照写这一集的进度。收尾时快照由调用方取：
+// 同一个窗口换集之后播放器的位置已经是下一集的了，不能再现读。
+func (m *Manager) flushProgressAt(sess *session, st mpv.State, endedByEOF bool) {
 	prev, hadPrev := m.opts.Store.Progress(sess.item.FileID)
 	p, write := progressUpdate(prev, hadPrev, st, endedByEOF, time.Now().UnixMilli())
 	if !write {
@@ -321,27 +250,11 @@ func (m *Manager) flushProgress(sess *session, endedByEOF bool) {
 	}
 }
 
-// finalize 是会话终态：最后一次进度回写 + 看完标记回写 animego 账号。
-func (m *Manager) finalize(sess *session, endedByEOF bool) {
-	m.flushProgress(sess, endedByEOF)
-
-	if err := sess.player.Err(); err != nil {
-		log.Printf("player: 会话异常结束：%v", err)
-	}
-
-	// 清掉本会话的弹幕 ASS。极少数情况下后台解析在此之后才落盘，残留由
-	// 启动时的 SweepRuntimeDir 兜底清掉。
-	if sess.assTarget != "" {
-		_ = os.Remove(sess.assTarget)
-	}
-
-	m.syncWatched(sess)
-}
-
 // syncWatched 把「这一集看完了」回写 animego 账号。
 //
-// 单独一个函数而不是塞在 finalize 里：它是 finalize 四件事中唯一会
+// 单独一个函数而不是塞在收尾（endEpisode）里：它是收尾几件事中唯一会
 // 走网络、也是唯一会失败给用户看的一件，值得能被单独测（测它不需要 mpv）。
+// 收尾经 kickSync 把它放到后台跑，不拖住窗口的事件循环。
 func (m *Manager) syncWatched(sess *session) {
 	p, ok := m.opts.Store.Progress(sess.item.FileID)
 	if !ok || !p.Completed || p.Synced {

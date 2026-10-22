@@ -199,7 +199,7 @@ func TestContinuousNumberingRetryWritesTheRightEpisode(t *testing.T) {
 			b, dan := m.ensureBinding(context.Background(), src, src.Item())
 			require.Equal(t, "ok", dan.State)
 			require.NoError(t, st.SetProgress(src.item.FileID, store.Progress{Completed: true}))
-			m.syncWatched(&session{item: src.item, finished: make(chan struct{}), binding: b})
+			m.syncWatched(&session{item: src.item, binding: b})
 			assert.Equal(t, []int{14}, client.marked)
 		})
 	}

@@ -474,9 +474,8 @@ func syncFixture(t *testing.T, client AnimegoClient) (*Manager, *session, string
 	// 与真实流程一致：开播时的匹配既在会话里，也落了盘
 	require.NoError(t, st.SetBinding(item.FileID, binding))
 	sess := &session{
-		item:     item,
-		finished: make(chan struct{}),
-		binding:  binding,
+		item:    item,
+		binding: binding,
 	}
 	return m, sess, dir
 }

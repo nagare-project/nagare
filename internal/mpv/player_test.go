@@ -216,13 +216,14 @@ func TestClose_IdempotentAndGraceful(t *testing.T) {
 }
 
 // 验收：不消费 Events() 时读循环不被卡住 —— 丢旧事件策略生效，命令通路仍可用。
+// （time-pos 另有节流，见 TestEvents_TimePosFloodKeepsRoomForLifecycleEvents；这里用界面消息灌满通道。）
 func TestEvents_DropOldestNeverBlocks(t *testing.T) {
 	f := newFakeMPV(t)
 	p := attachTestPlayer(t, f, "")
 
 	const pushes = eventBufferSize * 3
 	for i := 0; i < pushes; i++ {
-		f.pushEvent(t, map[string]any{"event": "property-change", "id": 1, "name": "time-pos", "data": float64(i)})
+		f.pushEvent(t, map[string]any{"event": "client-message", "args": []string{"nagare-event", "volume", fmt.Sprint(i)}})
 	}
 
 	// 事件全部写入 socket 之后才发起请求：应答排在事件之后，
@@ -232,22 +233,27 @@ func TestEvents_DropOldestNeverBlocks(t *testing.T) {
 	require.NoError(t, p.GetProperty("mpv-version", &version))
 	require.Equal(t, "mpv 0.41.0", version)
 
-	require.Equal(t, float64(pushes-1), p.State().TimePos, "状态应反映最新一条推送")
 	require.LessOrEqual(t, len(p.Events()), eventBufferSize)
 
 	// 丢的是旧事件：缓冲里最后一条应是最新推送
-	var last Event
+	events := drainEvents(p)
+	require.NotEmpty(t, events)
+	last := events[len(events)-1]
+	require.Equal(t, EventUIMessage, last.Kind)
+	require.Equal(t, []string{"volume", fmt.Sprint(pushes - 1)}, last.Args)
+}
+
+// drainEvents 取出通道里现有的全部事件（不等待）。
+func drainEvents(p *Player) []Event {
+	var out []Event
 	for {
 		select {
 		case ev := <-p.Events():
-			last = ev
-			continue
+			out = append(out, ev)
 		default:
+			return out
 		}
-		break
 	}
-	require.Equal(t, EventTimePos, last.Kind)
-	require.Equal(t, float64(pushes-1), last.TimePos)
 }
 
 // 界面脚本发来的消息：只认 nagare-event 前缀，其余脚本的 script-message 不当成界面消息。
