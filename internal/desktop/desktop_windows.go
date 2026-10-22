@@ -21,6 +21,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nagare-project/nagare/internal/mpv"
@@ -127,6 +128,8 @@ type app struct {
 	mu   sync.Mutex
 	opts Options
 	info Info
+	// running：消息循环在跑、窗口建好了（任意 goroutine 可读；测试遥控据此判断能不能问界面线程）
+	running atomic.Bool
 
 	threadID                uint32
 	dispatch                uintptr // 只收消息的窗口：uiQueue 的投递、等待的唤醒

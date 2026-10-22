@@ -66,6 +66,11 @@ jobs:
           fi
       - name: go vet
         run: go vet ./...
+      - name: go vet（Windows，含桌面窗口与它的测试构建）
+        # Windows 的桌面窗口（internal/desktop、internal/webview2）在 linux 上整个不编译，这里按 windows 目标查一遍
+        run: |
+          GOOS=windows go vet ./...
+          GOOS=windows go vet -tags desktoptest ./internal/desktop/...
       - name: 播放器界面 Lua 语法检查
         # 真 mpv 的界面集成测试在 CI 上跑不起来（没有 mpv、没有显示器），至少先挡住语法错误。
         # 用 LuaJIT：macOS 上的 mpv 多半配它（Lua 5.1 语法），比 5.3/5.4 的 luac 更严。
@@ -100,10 +105,99 @@ jobs:
       # 刚写入的媒体文件（「being used by another process」，等 3 秒也不放，连做种方
       # 那份都被占），像是 runner 的杀软 / 索引器在扫新文件，没有 Windows 机器无法定论。
       # 那个包的 Windows 专属代码只有 EADDRINUSE 判定一处，交叉编译已经覆盖。
-      - name: go test（mpv / tray / selfupdate）
+      - name: go test（mpv / tray / selfupdate / 桌面窗口）
         env:
           CGO_ENABLED: "0"
-        run: go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/...
+        # internal/desktop 在这里是真窗口：消息循环、两层切换、全屏、窗口位置、WebView2 运行时检测（runner 装着 Edge）。
+        # 根包只跑资源那两条：nagare.exe 的 manifest 在测试二进制里同样生效（PerMonitorV2）。
+        run: |
+          go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/... ./internal/desktop/...
+          go test -run 'TestProcessIsPerMonitorV2|TestWindowsResourcesHaveManifestAndIcon' .
+
+  desktop-windows-smoke:
+    # Windows 桌面窗口的冒烟测试：GitHub 的 Windows runner 有交互式桌面、装着 Edge / WebView2 运行时。
+    # 用测试构建（-tags desktoptest）起 nagare、在窗口里播测试片，跑与用户测试包同一份脚本
+    # （scripts/windows/desktoptest/run-wintest.ps1），截图与报告当 artifact 上传 —— 用户上真机之前，这是唯一能看到
+    # Windows 上实际行为的地方。顺带打一份给用户在 Boot Camp 里独立跑的测试包。
+    name: Windows 桌面窗口冒烟（截图）
+    runs-on: windows-latest
+    needs: frontend
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: 缓存 mpv 与 WebView2 bootstrapper 的下载
+        uses: actions/cache@v4
+        with:
+          path: .build-cache
+          key: win-deps-${{ hashFiles('scripts/windows/mpv.lock', 'scripts/windows/webview2.lock') }}
+      - name: 拉内置 mpv 与 WebView2 bootstrapper（sha256 钉死）
+        env:
+          NAGARE_MPV_CACHE_DIR: .build-cache
+        run: |
+          scripts/windows/fetch-mpv.sh
+          scripts/windows/fetch-webview2.sh
+      - name: 核对 bootstrapper 的微软签名
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature dist/webview2/MicrosoftEdgeWebview2Setup.exe
+          Write-Host "$($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { exit 1 }
+      - name: 测试脚本的语法
+        shell: pwsh
+        run: |
+          $errs = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/windows/desktoptest/run-wintest.ps1", [ref]$null, [ref]$errs)
+          if ($errs) { $errs | ForEach-Object { Write-Host $_ }; exit 1 }
+      - name: 编译测试构建（-tags desktoptest，与发布同样的 -H=windowsgui）
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist/smoke
+          go build -tags desktoptest -trimpath -ldflags "-s -w -H=windowsgui -X main.version=0.0.0-desktoptest+${GITHUB_SHA::7}" -o dist/smoke/nagare.exe .
+          cp -R dist/mpv-win dist/smoke/mpv
+      - name: 冒烟测试（真窗口、真 WebView2、真 mpv、真输入）
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/smoke-report" | Out-Null
+          ./scripts/windows/desktoptest/run-wintest.ps1 -Exe "$PWD/dist/smoke/nagare.exe" -Media "$PWD/scripts/windows/desktoptest/media/clip.mkv" -OutDir "$env:RUNNER_TEMP/smoke-report" -CI
+      - name: 失败时也收一张整屏截图
+        if: failure()
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
+          $bmp.Save("$env:RUNNER_TEMP/smoke-report/desktop-at-failure.png")
+      - name: 上传冒烟报告（截图 + 报告 + 日志）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-smoke-report
+          path: ${{ runner.temp }}/smoke-report/
+          if-no-files-found: warn
+      - name: 打用户的测试包
+        if: always()
+        run: python scripts/windows/desktoptest/build_kit.py dist/smoke/nagare.exe dist/mpv-win dist/webview2/MicrosoftEdgeWebview2Setup.exe dist/nagare-wintest-kit.zip
+      - name: 上传测试包
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nagare-wintest-kit
+          path: dist/nagare-wintest-kit.zip
+          if-no-files-found: warn
 
   # macOS 的 libmpv：与发布同一套（libmpv-macos.yml 以 workflow_call 调用，组件命中缓存时约 4 分钟），
   # 构建 + verify.sh 全套验证过了才出 artifact，下面的桌面窗口 job 用它。

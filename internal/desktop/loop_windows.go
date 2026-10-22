@@ -45,8 +45,10 @@ func (a *app) run(done <-chan struct{}) {
 		return
 	}
 	a.startQueue()
+	a.running.Store(true)
 
 	pumpUntilQuit()
+	a.running.Store(false)
 
 	// 托盘退出了（或 ctx 取消）：主进程正在收尾。窗口先藏起来，消息照常处理到收尾完成
 	a.beginQuit()

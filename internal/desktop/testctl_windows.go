@@ -68,12 +68,33 @@ func fail(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func onUI(f func()) error { return ui.q.call(5*time.Second, f) }
+func onUI(f func()) error {
+	if !ui.running.Load() {
+		return fmt.Errorf("桌面窗口没在跑（退回了浏览器模式？）")
+	}
+	return ui.q.call(5*time.Second, f)
+}
 
 // testState 是窗口此刻的全部状态（在界面线程上取）。
 func testState(w http.ResponseWriter, _ *http.Request) {
-	out := map[string]any{}
-	err := onUI(func() {
+	out := map[string]any{"mode": "none"} // none：没有窗口在跑（退回了浏览器模式，或还没起来 / 已经拆了）
+	var err error
+	if ui.running.Load() {
+		err = onUI(func() { fillState(out) })
+	}
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	info := State()
+	out["active"] = info.Active
+	out["fallback"] = info.Fallback
+	out["runtime"] = RuntimeVersion()
+	writeJSON(w, out)
+}
+
+func fillState(out map[string]any) {
+	{
 		a := ui
 		host := a.hostState()
 		cr := clientRect(a.top)
@@ -115,16 +136,7 @@ func testState(w http.ResponseWriter, _ *http.Request) {
 			}
 			out["mpv"] = props
 		}
-	})
-	if err != nil {
-		fail(w, err)
-		return
 	}
-	info := State()
-	out["active"] = info.Active
-	out["fallback"] = info.Fallback
-	out["runtime"] = RuntimeVersion()
-	writeJSON(w, out)
 }
 
 // testSnap 截窗口（从屏幕上截：mpv 的画面与 WebView2 都是别的进程画的，只有屏幕上那一份是合成好的）。

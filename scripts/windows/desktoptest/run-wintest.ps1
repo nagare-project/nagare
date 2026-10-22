@@ -1,0 +1,483 @@
+# nagare Windows 桌面窗口测试（测试构建 -tags desktoptest）。
+#
+# 用户手里的测试包（双击 run-test.cmd）与 CI 的 Windows 冒烟 job 跑的都是这一份。全程：
+#   - 用一个全新的临时配置目录（不碰你自己的 nagare 配置、不登录 animego）；
+#   - 起 nagare → 加测试片目录 → 在窗口里播 → 逐项检查控制（暂停 / 右键菜单 / 全屏 / 最大化 / 最小化 / 置顶 /
+#     下一集 / 返回媒体库 / 关窗口回写进度 / 退出）→ 每一步截图；
+#   - 最后（可跳过）模拟「没有 WebView2」再起一次，看退回浏览器模式；
+#   - 把截图、报告（report.json + report.txt）、日志（token 已抹掉）打成 nagare-wintest-report.zip。
+# 只用 Windows PowerShell 5.1 也有的写法（Win10 自带的就是 5.1）。
+[CmdletBinding()]
+param(
+    [string]$Exe = "",
+    [string]$Media = "",
+    [string]$OutDir = "",
+    [switch]$CI,
+    [switch]$SkipFallback,
+    [switch]$KeepTemp,
+    # 手动检查：起好 nagare（临时配置、测试片已加进媒体库），等你在窗口里自己试完按回车，再收日志
+    [switch]$Manual
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Off # 遥控的状态里有的字段只在播放时才有，读不到当空
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $Exe) { $Exe = Join-Path $here 'nagare\nagare.exe' }
+if (-not $Media) { $Media = Join-Path $here 'media\clip.mkv' }
+if (-not $OutDir) { $OutDir = [Environment]::GetFolderPath('Desktop') }
+
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$root = Join-Path $env:TEMP "nagare-wintest-$stamp"
+$cfgDir = Join-Path $root 'config'
+$mediaDir = Join-Path $root 'media'
+$shots = Join-Path $root 'report\screenshots'
+$reportDir = Join-Path $root 'report'
+New-Item -ItemType Directory -Force -Path $cfgDir, $mediaDir, $shots | Out-Null
+
+$steps = New-Object System.Collections.ArrayList
+$script:proc = $null
+$script:api = $null
+$script:ctl = $null
+
+function Note([string]$msg) { Write-Host ("[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $msg) }
+
+function Add-Step([string]$name, $ok, [string]$detail, [string]$shot = '', $state = $null) {
+    $o = [ordered]@{ name = $name; ok = $ok; detail = $detail; shot = $shot; time = (Get-Date -Format 's'); state = $state }
+    [void]$steps.Add($o)
+    $mark = if ($ok -eq $true) { 'OK  ' } elseif ($ok -eq $false) { 'FAIL' } else { 'INFO' }
+    Note "$mark $name  $detail"
+}
+
+function Wait-Until([scriptblock]$cond, [int]$TimeoutSec = 15, [int]$IntervalMs = 250) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        try { if (& $cond) { return $true } } catch { }
+        Start-Sleep -Milliseconds $IntervalMs
+    }
+    return $false
+}
+
+function Free-Port {
+    $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0)
+    $l.Start(); $p = $l.LocalEndpoint.Port; $l.Stop(); return $p
+}
+
+# ── nagare 的 API（带 token）与测试遥控（带每次运行的密钥） ──
+
+function Read-Config {
+    $f = Join-Path $cfgDir 'config.toml'
+    if (-not (Test-Path $f)) { return $null }
+    $t = Get-Content -Raw -Encoding UTF8 $f
+    $port = [regex]::Match($t, '(?m)^\s*port\s*=\s*(\d+)').Groups[1].Value
+    $token = [regex]::Match($t, '(?m)^\s*token\s*=\s*"([^"]+)"').Groups[1].Value
+    if (-not $port -or -not $token) { return $null }
+    return @{ base = "http://127.0.0.1:$port"; token = $token }
+}
+
+function Api([string]$method, [string]$path, $body = $null) {
+    $h = @{ 'X-Nagare-Token' = $script:api.token }
+    $req = @{ Uri = $script:api.base + $path; Method = $method; Headers = $h; UseBasicParsing = $true; TimeoutSec = 30 }
+    if ($null -ne $body) {
+        $req.Body = [Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Compress -Depth 6))
+        $req.ContentType = 'application/json; charset=utf-8'
+    }
+    $r = Invoke-WebRequest @req
+    $text = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())
+    return ($text | ConvertFrom-Json)
+}
+
+function Ctl([string]$path, [hashtable]$q = @{}) {
+    $parts = @()
+    foreach ($k in $q.Keys) { $parts += ('{0}={1}' -f $k, [uri]::EscapeDataString([string]$q[$k])) }
+    $uri = $script:ctl.base + $path
+    if ($parts.Count -gt 0) { $uri += '?' + ($parts -join '&') }
+    $r = Invoke-WebRequest -Uri $uri -Headers @{ 'X-Nagare-Test-Secret' = $script:ctl.secret } -UseBasicParsing -TimeoutSec 30
+    return [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())
+}
+
+function State { return (Ctl '/state' | ConvertFrom-Json) }
+function Prop($s, [string]$name) {
+    if ($null -eq $s -or -not ($s.PSObject.Properties.Name -contains 'mpv')) { return $null }
+    $m = $s.mpv
+    if ($m.PSObject.Properties.Name -contains $name) { return $m.$name }
+    return $null
+}
+
+$script:shotNo = 0
+function Snap([string]$name, [switch]$Full) {
+    $script:shotNo++
+    $file = '{0:D2}-{1}.png' -f $script:shotNo, $name
+    $q = @{ path = (Join-Path $shots $file) }
+    if ($Full) { $q.full = '1' }
+    try { Ctl '/snap' $q | Out-Null; return $file } catch { Note "截图失败：$($_.Exception.Message)"; return '' }
+}
+
+function Front { try { Ctl '/winop' @{ op = 'front' } | Out-Null; Start-Sleep -Milliseconds 300 } catch { } }
+function Tap([int]$vk, [string]$mods = '') { Front; Ctl '/input' @{ kind = 'tap'; vk = $vk; mods = $mods } | Out-Null }
+function Mouse([string]$kind, [int]$x, [int]$y, [string]$button = 'left') { Ctl '/input' @{ kind = $kind; x = $x; y = $y; button = $button } | Out-Null }
+function Mpv([string]$json) { return (Ctl '/mpv' @{ cmd = $json } | ConvertFrom-Json) }
+function Center($s) { return @([int]($s.client[0] / 2), [int]($s.client[1] / 2)) }
+
+function Step([string]$name, [scriptblock]$body) {
+    try { & $body } catch {
+        $shot = Snap 'error' -Full
+        Add-Step $name $false ("出错：" + $_.Exception.Message) $shot
+    }
+}
+
+# ── 起 / 停 nagare ──
+
+function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
+    $ctlPort = Free-Port
+    $secret = Join-Path $root 'testctl.secret'
+    Remove-Item -Force -ErrorAction SilentlyContinue $secret
+    $env:NAGARE_CONFIG_DIR = $cfgDir
+    $env:NAGARE_DESKTOP_TEST_ADDR = "127.0.0.1:$ctlPort"
+    $env:NAGARE_DESKTOP_TEST_SECRET_FILE = $secret
+    $env:NAGARE_DESKTOP_TEST_NO_WEBVIEW2 = ''
+    foreach ($k in $extraEnv.Keys) { Set-Item -Path "env:$k" -Value $extraEnv[$k] }
+    $sp = @{ FilePath = $Exe; PassThru = $true }
+    if ($argv -and $argv.Count -gt 0) { $sp.ArgumentList = $argv }
+    $script:proc = Start-Process @sp
+    $ok = Wait-Until { Test-Path $secret } 30
+    if (-not $ok) { throw "测试遥控没有起来（30 秒）：可能不是 desktoptest 构建，或 nagare 起不来" }
+    $script:ctl = @{ base = "http://127.0.0.1:$ctlPort"; secret = (Get-Content -Raw $secret).Trim() }
+    $ok = Wait-Until { $c = Read-Config; if ($null -eq $c) { return $false }; $script:api = $c; (Api 'GET' '/api/settings').success } 30
+    if (-not $ok) { throw "nagare 的 API 30 秒内没起来" }
+}
+
+function Stop-Nagare([int]$TimeoutSec = 40) {
+    if ($null -eq $script:proc) { return $true }
+    try { Api 'POST' '/api/shutdown' | Out-Null } catch { }
+    $exited = $script:proc.WaitForExit($TimeoutSec * 1000)
+    if (-not $exited) { try { $script:proc.Kill() } catch { } }
+    return $exited
+}
+
+function Progress([string]$fileId) {
+    $f = Join-Path $cfgDir 'state.json'
+    if (-not (Test-Path $f)) { return $null }
+    $s = Get-Content -Raw -Encoding UTF8 $f | ConvertFrom-Json
+    if ($null -eq $s.progress) { return $null }
+    $p = $s.progress.PSObject.Properties | Where-Object { $_.Name -eq $fileId } | Select-Object -First 1
+    if ($null -eq $p) { return $null }
+    return $p.Value
+}
+
+# ── 环境 ──
+
+function Collect-Env {
+    $os = Get-CimInstance Win32_OperatingSystem
+    $gpu = (Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }) -join '; '
+    $pv = @()
+    foreach ($k in @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+                     'HKCU:\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}')) {
+        try { $pv += ('{0} = {1}' -f $k, (Get-ItemProperty -Path $k -Name pv -ErrorAction Stop).pv) } catch { $pv += "$k = (无)" }
+    }
+    $others = @(Get-Process -Name nagare -ErrorAction SilentlyContinue)
+    return [ordered]@{
+        os = "$($os.Caption) $($os.Version) build $($os.BuildNumber)"
+        powershell = $PSVersionTable.PSVersion.ToString()
+        gpu = $gpu
+        webview2Registry = $pv
+        otherNagareRunning = $others.Count
+        exe = $Exe
+        ci = [bool]$CI
+    }
+}
+
+# ══════════════════════════════ 开始 ══════════════════════════════
+
+Note "测试目录：$root"
+if (-not (Test-Path $Exe)) { throw "找不到 $Exe（把整个测试包解压后再运行）" }
+if (-not (Test-Path $Media)) { throw "找不到测试片 $Media" }
+# 解压出来的文件带「来自网络」标记，不去掉的话 SmartScreen 会拦 nagare.exe 与 mpv.exe
+Get-ChildItem -Recurse -File (Split-Path -Parent $Exe) | Unblock-File -ErrorAction SilentlyContinue
+$envInfo = Collect-Env
+if ($envInfo.otherNagareRunning -gt 0 -and -not $CI) {
+    Write-Host '检测到另一个 nagare 在运行：请先从托盘退出它（右键托盘图标 → 退出 nagare），然后按回车继续。' -ForegroundColor Yellow
+    [void](Read-Host)
+}
+# ── WebView2 运行时：没有就用测试包里的 bootstrapper 装（与安装包内嵌的是同一份、同一条命令） ──
+function Has-Runtime($info) {
+    return (@($info.webview2Registry | Where-Object { $_ -match '= \d+\.\d+\.\d+\.\d+$' -and $_ -notmatch '= 0\.0\.0\.0$' }).Count -gt 0)
+}
+$wv2 = Join-Path $here 'MicrosoftEdgeWebview2Setup.exe'
+if (Has-Runtime $envInfo) {
+    Add-Step 'WebView2 运行时已安装' $null (($envInfo.webview2Registry) -join '；') ''
+} else {
+    Add-Step 'WebView2 运行时' $null '这台电脑上没有 WebView2 运行时（注册表两处都没有）' ''
+    if (-not $CI -and (Test-Path $wv2)) {
+        Write-Host '这台电脑没有 WebView2 运行时（nagare 的窗口要用）。按回车用测试包里的微软官方安装器静默安装（要联网，约 1–2 分钟）；输入 n 回车跳过。' -ForegroundColor Yellow
+        $answer = Read-Host
+        if ($answer -ne 'n') {
+            $p = Start-Process -FilePath $wv2 -ArgumentList '/silent', '/install' -Wait -PassThru
+            $envInfo = Collect-Env
+            Add-Step '用内嵌的 bootstrapper 静默安装 WebView2 运行时（/silent /install）' (($p.ExitCode -eq 0) -and (Has-Runtime $envInfo)) ("退出码 $($p.ExitCode)；" + (($envInfo.webview2Registry) -join '；')) ''
+        }
+    }
+}
+
+$names = @('[nagare-test] Nagare Windows 测试 - 01 [1080p].mkv', '[nagare-test] Nagare Windows 测试 - 02 [1080p].mkv', '[nagare-test] Nagare Windows 测试 - 03 [1080p].mkv')
+foreach ($n in $names) { Copy-Item $Media (Join-Path $mediaDir $n) }
+
+$ep = @{}
+if ($Manual) {
+    Step '手动检查' {
+        Start-Nagare @{} @()
+        Wait-Until { (State).webReady } 40 | Out-Null
+        Api 'POST' '/api/library/folders' @{ path = $mediaDir } | Out-Null
+        Ctl '/js' @{ code = 'location.reload(); true' } | Out-Null
+        Write-Host ''
+        Write-Host 'nagare 已经起来了（临时配置，测试片已在媒体库里）。请照 README-测试说明.txt 的「手动检查」逐项试，' -ForegroundColor Green
+        Write-Host '把结果写进测试包里的「手动检查记录.txt」并保存。全部试完后回到这个窗口按回车。' -ForegroundColor Green
+        [void](Read-Host)
+        Add-Step '手动检查结束' $null '' (Snap 'manual-end' -Full) (State)
+        [void](Stop-Nagare 40)
+        $notes = Join-Path $here '手动检查记录.txt'
+        if (Test-Path $notes) { Copy-Item $notes (Join-Path $reportDir 'manual-notes.txt') }
+    }
+} else {
+Step '启动' {
+    Start-Nagare @{} @()
+    $ok = Wait-Until { $s = State; $s.visible -and $s.webReady } 40
+    Start-Sleep -Seconds 2
+    $s = State
+    $shot = Snap 'startup'
+    Add-Step '启动：窗口显示、网页层（WebView2）就绪' ($ok -and $s.active) ("WebView2 $($s.runtime)；窗口 $($s.client[0])x$($s.client[1])，DPI $($s.dpi)；fallback=$($s.fallback)") $shot $s
+}
+
+Step '媒体库' {
+    $r = Api 'POST' '/api/library/folders' @{ path = $mediaDir }
+    $lib = (Api 'GET' '/api/library').data
+    foreach ($c in @($lib.clusters)) { foreach ($g in @($c.groups)) { foreach ($it in @($g.items)) { $ep[[int]$it.episode] = $it.fileId } } }
+    Ctl '/js' @{ code = 'location.reload(); true' } | Out-Null
+    Start-Sleep -Seconds 3
+    $shot = Snap 'library'
+    Add-Step '加测试片目录' ($ep.Count -ge 3) ("认出 $($ep.Count) 集") $shot
+}
+
+Step '播放' {
+    Api 'POST' '/api/play' @{ fileId = $ep[1] } | Out-Null
+    $ok = Wait-Until { $s = State; $s.mode -eq 'video' -and $s.child -and $s.ipcConnected } 30
+    Start-Sleep -Seconds 2
+    Front
+    $s = State
+    $shot = Snap 'playing'
+    Add-Step '在窗口里播放（mpv 挂进画面层）' $ok ("子窗口 enabled=$($s.childEnabled)、焦点在 mpv=$($s.focusIsChild)、前台=$($s.foreground)、mpv pid $($s.mpvPid)") $shot $s
+    Add-Step 'mpv 的子窗口已重新启用（--wid 下默认是 disabled）' ([bool]$s.childEnabled) '' '' $null
+}
+
+Step '控制条' {
+    $s = State; $c = Center $s
+    Front
+    Mouse 'move' ($c[0] - 40) ($c[1] - 20); Start-Sleep -Milliseconds 200; Mouse 'move' $c[0] $c[1]
+    $ok = Wait-Until { (Prop (State) 'user-data/nagare/shown') -eq $true } 5
+    $shot = Snap 'controls'
+    Add-Step '鼠标移到画面上，控制条出现（真实鼠标进得了 mpv 窗口）' $ok '' $shot
+}
+
+Step '暂停' {
+    Mpv '["set_property","pause",true]' | Out-Null
+    $ok1 = Wait-Until { (Prop (State) 'pause') -eq $true } 5
+    $shot = Snap 'paused-ipc'
+    Add-Step '经 mpv IPC 暂停' $ok1 '' $shot
+    Tap 0x20
+    $ok2 = Wait-Until { (Prop (State) 'pause') -eq $false } 5
+    Add-Step '按空格继续播放（真实键盘进得了 mpv 窗口）' $ok2 '' ''
+}
+
+Step '右键菜单' {
+    $s = State; $c = Center $s
+    Front
+    Mouse 'click' $c[0] $c[1] 'right'
+    $ok = Wait-Until { (Prop (State) 'user-data/nagare/capture') -eq $true } 5
+    Start-Sleep -Milliseconds 400
+    $shot = Snap 'context-menu'
+    Add-Step '右键菜单打开' $ok '' $shot
+    Tap 0x1B
+    Start-Sleep -Milliseconds 600
+    $s = State
+    Add-Step 'Esc 只关菜单，不返回媒体库' ($s.mode -eq 'video') ("mode=$($s.mode)") ''
+}
+
+Step '全屏' {
+    $s = State; $c = Center $s
+    Front
+    Mouse 'dblclick' $c[0] $c[1]
+    $ok = Wait-Until { (State).fullscreen } 5
+    Start-Sleep -Seconds 1
+    $shot = Snap 'fullscreen-dblclick' -Full
+    $s = State
+    Add-Step '双击画面进全屏（宿主窗口全屏、mpv 的属性跟着）' $ok ("mpv fullscreen=$(Prop $s 'fullscreen')") $shot $s
+    Tap 0x1B
+    $ok2 = Wait-Until { -not (State).fullscreen } 5
+    Start-Sleep -Milliseconds 500
+    $s = State
+    Add-Step 'Esc 退出全屏，仍在播放' ($ok2 -and $s.mode -eq 'video') ("mode=$($s.mode)") (Snap 'fullscreen-exit')
+    Tap 0x0D
+    $ok3 = Wait-Until { (State).fullscreen } 5
+    Mpv '["set_property","fullscreen",false]' | Out-Null
+    $ok4 = Wait-Until { -not (State).fullscreen } 5
+    Add-Step 'Enter 进全屏、mpv 改 fullscreen=no 退出（属性→窗口）' ($ok3 -and $ok4) '' ''
+}
+
+Step '最大化' {
+    Ctl '/winop' @{ op = 'maximize' } | Out-Null
+    $ok = Wait-Until { $s = State; $s.maximized -and (Prop $s 'window-maximized') -eq $true } 5
+    $shot = Snap 'maximized' -Full
+    Add-Step '窗口最大化，写回 mpv 的 window-maximized' $ok '' $shot
+    Ctl '/winop' @{ op = 'restore' } | Out-Null
+    $ok2 = Wait-Until { -not (State).maximized } 5
+    Mpv '["set_property","window-maximized",true]' | Out-Null
+    $ok3 = Wait-Until { (State).maximized } 5
+    Ctl '/winop' @{ op = 'restore' } | Out-Null
+    Wait-Until { -not (State).maximized } 5 | Out-Null
+    Add-Step '还原；mpv 请求最大化落到窗口上' ($ok2 -and $ok3) '' ''
+}
+
+Step '最小化' {
+    Mpv '["set_property","window-minimized",true]' | Out-Null
+    $ok = Wait-Until { (State).minimized } 5
+    $shot = Snap 'minimized' -Full
+    Ctl '/winop' @{ op = 'restore' } | Out-Null
+    $ok2 = Wait-Until { $s = State; -not $s.minimized -and $s.visible } 5
+    Add-Step 'mpv 请求最小化 → 窗口最小化，再还原' ($ok -and $ok2) '' $shot
+}
+
+Step '置顶' {
+    Tap 0x54
+    $ok = Wait-Until { (State).topmost } 5
+    Tap 0x54
+    $ok2 = Wait-Until { -not (State).topmost } 5
+    Add-Step '按 t 置顶 / 取消置顶' ($ok -and $ok2) '' ''
+}
+
+Step '下一集' {
+    Tap 0x4E 'shift'
+    $ok = Wait-Until { (Api 'GET' '/api/player/status').data.fileId -eq $ep[2] } 20
+    Start-Sleep -Seconds 2
+    $s = State
+    $shot = Snap 'next-episode'
+    Add-Step 'Shift+N 在同一个窗口里切到第 2 集' ($ok -and $s.mode -eq 'video') ("标题：$($s.title)") $shot $s
+}
+
+Step '返回' {
+    Start-Sleep -Seconds 3
+    Tap 0x1B
+    $ok = Wait-Until { $s = State; $s.mode -eq 'web' -and $s.sessionId -eq 0 } 10
+    Start-Sleep -Seconds 2
+    $p = Progress $ep[2]
+    $shot = Snap 'back-to-library'
+    $pos = if ($null -ne $p) { $p.positionSec } else { 0 }
+    Add-Step 'Esc 返回媒体库（换回网页层）' $ok '' $shot
+    Add-Step '返回后第 2 集的进度已写下' ($pos -gt 0) ("positionSec=$pos") ''
+}
+
+Step '关窗口' {
+    Api 'POST' '/api/play' @{ fileId = $ep[1] } | Out-Null
+    $ok = Wait-Until { $s = State; $s.mode -eq 'video' -and $s.child } 30
+    Start-Sleep -Seconds 4
+    $before = Progress $ep[1]
+    $t0 = if ($null -ne $before) { $before.updatedAt } else { 0 }
+    Ctl '/winop' @{ op = 'close' } | Out-Null
+    $ok2 = Wait-Until { $s = State; -not $s.visible -and $s.mode -eq 'web' } 15
+    $ok3 = Wait-Until { $p = Progress $ep[1]; $null -ne $p -and $p.updatedAt -gt $t0 } 10
+    $shot = Snap 'after-close' -Full
+    $st = (Api 'GET' '/api/player/status').data
+    Add-Step '播放中关窗口：停播、窗口藏起来、nagare 还在' ($ok -and $ok2 -and -not $st.playing) '' $shot
+    Add-Step '关窗口时进度已回写' $ok3 '' ''
+    Ctl '/show' | Out-Null
+    $ok4 = Wait-Until { $s = State; $s.visible -and $s.mode -eq 'web' } 10
+    Start-Sleep -Seconds 1
+    Add-Step '托盘「打开 nagare」（Show）重新显示窗口' $ok4 '' (Snap 'reopened')
+}
+
+Step '第二次启动' {
+    # nagare 开着时再启动一次（同一个配置目录）：新进程应该把已有的窗口叫到前面然后自己退出。
+    # 新进程不能带测试遥控的环境变量：它会重写密钥文件、抢同一个端口
+    $s0 = State
+    Ctl '/winop' @{ op = 'minimize' } | Out-Null
+    Start-Sleep -Milliseconds 500
+    $saved = @{ a = $env:NAGARE_DESKTOP_TEST_ADDR; f = $env:NAGARE_DESKTOP_TEST_SECRET_FILE }
+    $env:NAGARE_DESKTOP_TEST_ADDR = ''; $env:NAGARE_DESKTOP_TEST_SECRET_FILE = ''
+    $second = Start-Process -FilePath $Exe -PassThru
+    $env:NAGARE_DESKTOP_TEST_ADDR = $saved.a; $env:NAGARE_DESKTOP_TEST_SECRET_FILE = $saved.f
+    $exited = $second.WaitForExit(20000)
+    Start-Sleep -Seconds 2
+    $s = State
+    $shot = Snap 'second-launch' -Full
+    Add-Step '第二次启动：新进程自己退出' $exited ("退出码 $(if ($exited) { $second.ExitCode } else { '没退出' })") $shot
+    Add-Step '第二次启动：已有的窗口到前面（依赖「第二次启动」那项改动，未合入前会是浏览器被打开）' $null ("visible=$($s.visible) minimized=$($s.minimized) foreground=$($s.foreground)") ''
+    if (-not $exited) { try { $second.Kill() } catch { } }
+}
+
+Step '退出' {
+    Api 'POST' '/api/player/stop' | Out-Null
+    $exited = Stop-Nagare 40
+    $log = Join-Path $cfgDir 'logs\nagare.log'
+    $clean = (Test-Path $log) -and ((Get-Content -Raw -Encoding UTF8 $log) -match '已退出')
+    Add-Step '退出 nagare（收尾完成后进程结束）' ($exited -and $clean) ("进程退出=$exited，日志里有「已退出」=$clean") ''
+}
+
+if (-not $SkipFallback) {
+    Step '没有 WebView2' {
+        Start-Nagare @{ NAGARE_DESKTOP_TEST_NO_WEBVIEW2 = '1' } @('-no-browser')
+        $st = (Api 'GET' '/api/settings').data
+        $s = State
+        Add-Step '模拟没有 WebView2：退回浏览器模式，设置页写着原因' ((-not $st.desktop.window) -and $st.desktop.fallback) ("fallback：$($st.desktop.fallback)") '' $s
+        Api 'POST' '/api/play' @{ fileId = $ep[3] } | Out-Null
+        $ok = Wait-Until { (Api 'GET' '/api/player/status').data.playing } 20
+        Start-Sleep -Seconds 3
+        $shot = Snap 'fallback-separate-mpv' -Full
+        $s = State
+        Add-Step '退回模式下 mpv 单独开窗口播放' ($ok -and $s.mode -ne 'video') ("mode=$($s.mode)") $shot
+        Api 'POST' '/api/player/stop' | Out-Null
+        [void](Stop-Nagare 40)
+    }
+}
+
+} # 自动检查到此为止（-Manual 时跳过）
+
+# ── 报告 ──
+
+$failed = @($steps | Where-Object { $_.ok -eq $false }).Count
+$passed = @($steps | Where-Object { $_.ok -eq $true }).Count
+$report = [ordered]@{ summary = "通过 $passed 项，失败 $failed 项"; env = $envInfo; steps = $steps; when = (Get-Date -Format 's') }
+$report | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 (Join-Path $reportDir 'report.json')
+$lines = @("nagare Windows 桌面窗口测试  $(Get-Date)", $report.summary, '', '环境：')
+foreach ($k in $envInfo.Keys) { $lines += ('  {0}: {1}' -f $k, ($envInfo[$k] -join ' | ')) }
+$lines += ''
+foreach ($st in $steps) {
+    $mark = if ($st.ok -eq $true) { '[通过]' } elseif ($st.ok -eq $false) { '[失败]' } else { '[信息]' }
+    $lines += ('{0} {1}  {2}  {3}' -f $mark, $st.name, $st.detail, $st.shot)
+}
+$lines | Set-Content -Encoding UTF8 (Join-Path $reportDir 'report.txt')
+
+# 日志：抹掉 token 与任何 32 位十六进制串（能力段、token 都是这个形状）
+$logDir = Join-Path $cfgDir 'logs'
+if (Test-Path $logDir) {
+    $token = if ($script:api) { $script:api.token } else { '' }
+    foreach ($f in Get-ChildItem $logDir -File) {
+        $t = Get-Content -Raw -Encoding UTF8 $f.FullName
+        if ($token) { $t = $t.Replace($token, '<token>') }
+        $t = [regex]::Replace($t, '\b[0-9a-fA-F]{32,}\b', '<hex>')
+        Set-Content -Encoding UTF8 -Path (Join-Path $reportDir ('log-' + $f.Name)) -Value $t
+    }
+}
+$zipName = 'nagare-wintest-report.zip'
+if ($Manual) { $zipName = 'nagare-wintest-manual.zip' }
+$zip = Join-Path $OutDir $zipName
+Remove-Item -Force -ErrorAction SilentlyContinue $zip
+Compress-Archive -Path (Join-Path $reportDir '*') -DestinationPath $zip
+Note "报告：$zip（$($report.summary)）"
+if (-not $KeepTemp) { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $root }
+if (-not $CI) {
+    Write-Host ''
+    Write-Host "跑完了：$($report.summary)。请把桌面上的 $zipName 发回来。" -ForegroundColor Green
+    if (-not $Manual) { Write-Host '接着请双击 run-manual.cmd 做「手动检查」（见 README-测试说明.txt）。' }
+    Write-Host '按回车关闭这个窗口。'
+    [void](Read-Host)
+}
+if ($failed -gt 0) { exit 1 }
+exit 0
