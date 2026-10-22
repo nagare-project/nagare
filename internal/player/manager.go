@@ -109,6 +109,9 @@ type DanmakuInfo struct {
 // 而噪音会让人学会忽略这块区域，真出事时也就跟着被忽略了。
 type SyncInfo struct {
 	State string `json:"state"` // failed
+	// FileID 是没记上的那个文件。只有它自己后来回写成功才清掉这条留痕：同一个窗口里连着看，
+	// 上一集失败、这一集成功时，横幅说的那件事仍然成立。
+	FileID string `json:"fileId,omitempty"`
 	// Title / Episode 说清是哪一集没上去 —— 只说「同步失败」用户无从下手。
 	Title    string `json:"title,omitempty"`
 	Episode  int    `json:"episode,omitempty"`
@@ -437,7 +440,12 @@ func (m *Manager) Status() Status {
 		return Status{Playing: false, Sync: syncFailure, PlaybackFailure: playbackFailure}
 	}
 	sess := pb.episode()
+	// 先看栅栏再读位置：栅栏落下时新文件已经开始，播放器的位置已经清零重来
+	fenced := pb.fenced.Load()
 	st := pb.player.State()
+	if fenced {
+		st.TimePos, st.Duration = 0, 0
+	}
 	dan := sess.danmakuInfo()
 	return Status{
 		Playing:         true,
@@ -458,10 +466,19 @@ func (m *Manager) setPlaybackFailure(info *PlaybackFailure) {
 	m.mu.Unlock()
 }
 
-// setSyncFailure 记下一次回写失败；nil 表示清掉（成功了，或不再适用）。
+// setSyncFailure 记下一次回写失败（盖掉之前的那条：只留最近一次）。
 func (m *Manager) setSyncFailure(info *SyncInfo) {
 	m.mu.Lock()
 	m.lastSync = info
+	m.mu.Unlock()
+}
+
+// clearSyncFailure 在 fileID 回写成功后调：留痕说的正是这个文件才清掉，别的文件的失败照旧挂着。
+func (m *Manager) clearSyncFailure(fileID string) {
+	m.mu.Lock()
+	if m.lastSync != nil && m.lastSync.FileID == fileID {
+		m.lastSync = nil
+	}
 	m.mu.Unlock()
 }
 

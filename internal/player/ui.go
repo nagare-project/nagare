@@ -16,9 +16,10 @@ import (
 // 播放器界面（mpv 里的 nagare 控制条，见 internal/mpv/ui）与播放管理器之间的消息。
 //
 // 界面 → nagare：ready（脚本加载好了，要一次状态）、anime4k <off|fast|hq>、danmaku <shown|hidden>、
-// volume <0–130>、screenshot，以及切集用的 prev / next / upnext-now / upnext-cancel（见 upnext.go）。
+// volume <0–130>、screenshot，以及切集用的 prev / next / upnext-now / upnext-cancel /
+// upnext-retry / upnext-close（见 upnext.go）。
 // nagare → 界面：uiState（起播、弹幕编排完、画质增强改了、邻居变了的时候各推一次）、屏幕提示
-// （截图的结果、切集失败）、「下一集」卡片 upnext <json> 与收起卡片 upnext-clear。
+// （截图的结果、切集失败）、「下一集」卡片 upnext <json>（倒计时 / 正在准备 / 错误）与收起卡片 upnext-clear。
 
 // uiVolumeMax 是界面能记下的最大音量（mpv 默认 volume-max）。
 const uiVolumeMax = 130
@@ -107,11 +108,17 @@ func (m *Manager) pushUIState(sess *session) bool {
 	if sess == nil || sess.player == nil {
 		return false
 	}
-	if err := sess.player.SendUIState(buildUIState(sess, m.opts.Store.PlayerConfig())); err != nil {
+	if err := m.sendUIState(sess); err != nil {
 		log.Printf("player: 推送播放器界面状态失败：%v", err)
 		return false
 	}
 	return true
+}
+
+// sendUIState 是 pushUIState 去掉日志的那一半：调用方自己决定失败要不要说（见 probeUI）。
+// sess 与它的 player 必须非 nil。
+func (m *Manager) sendUIState(sess *session) error {
+	return sess.player.SendUIState(buildUIState(sess, m.opts.Store.PlayerConfig()))
 }
 
 // handleUIMessage 处理界面发来的一条消息。在会话的事件循环里同步调用（可以发 IPC 命令）。

@@ -36,6 +36,9 @@ type playback struct {
 	bg sync.WaitGroup
 	// uiReady：界面脚本发过 ready（它加载好了，收得到界面消息）。
 	uiReady atomic.Bool
+	// fenced：窗口里刚换了集、新文件还没开始（episodeLoop.fenced 的跨 goroutine 副本）。这期间播放器
+	// 报的位置还是上一个文件的，Status 据此按 0 报，不把上一集的 23:40 安到新的一集头上。
+	fenced atomic.Bool
 
 	mu sync.Mutex
 	ep *session // 正在播的这一集

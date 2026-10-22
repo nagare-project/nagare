@@ -107,6 +107,41 @@ func TestEpisodeNeighborRootLevelLooseFiles(t *testing.T) {
 	assert.Equal(t, ep2.FileID, next.FileID)
 }
 
+// 同一个季度文件夹里放了两部番（一个作品分组）：下一集只在同一部番里找，不会从《芙莉莲》跳到《胆大党》。
+func TestEpisodeNeighborMixedFolderStaysInShow(t *testing.T) {
+	root := t.TempDir()
+	writeVideos(t, filepath.Join(root, "2026-01"),
+		"[Sub] Frieren - 01 [1080p].mkv", "[Sub] Frieren - 02 [1080p].mkv", "[Sub] Frieren - 03 [1080p].mkv",
+		"[Sub] Dandadan - 01 [1080p].mkv", "[Sub] Dandadan - 02 [1080p].mkv")
+	lib := navLibrary(t, root)
+	f1 := itemByName(t, lib, "[Sub] Frieren - 01 [1080p].mkv")
+	f2 := itemByName(t, lib, "[Sub] Frieren - 02 [1080p].mkv")
+	f3 := itemByName(t, lib, "[Sub] Frieren - 03 [1080p].mkv")
+	d1 := itemByName(t, lib, "[Sub] Dandadan - 01 [1080p].mkv")
+	d2 := itemByName(t, lib, "[Sub] Dandadan - 02 [1080p].mkv")
+	lib.mu.RLock()
+	require.Equal(t, lib.fileCluster[f1.FileID], lib.fileCluster[d2.FileID], "前提：混放的两部番在同一个作品分组里")
+	lib.mu.RUnlock()
+
+	next, _, ok := lib.EpisodeNeighbor(f1.FileID, 1)
+	require.True(t, ok)
+	assert.Equal(t, f2.FileID, next.FileID, "只看集号会挑《胆大党》第 2 集")
+	next, _, ok = lib.EpisodeNeighbor(d1.FileID, 1)
+	require.True(t, ok)
+	assert.Equal(t, d2.FileID, next.FileID)
+	_, _, ok = lib.EpisodeNeighbor(d2.FileID, 1)
+	assert.False(t, ok, "《胆大党》第 2 集后面不能接《芙莉莲》第 3 集")
+
+	p, n := lib.EpisodeNeighbors(f3.FileID)
+	require.NotNil(t, p)
+	assert.Equal(t, f2.FileID, p.FileID)
+	assert.Nil(t, n)
+	p, n = lib.EpisodeNeighbors(d2.FileID)
+	require.NotNil(t, p)
+	assert.Equal(t, d1.FileID, p.FileID)
+	assert.Nil(t, n)
+}
+
 // 不在媒体库里的 fileId：没有邻居。
 func TestEpisodeNeighborUnknownFile(t *testing.T) {
 	lib := navLibrary(t, writeVideos(t, t.TempDir(), "[Sub] Frieren - 01 [1080p].mkv"))

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
@@ -45,10 +46,16 @@ type navState struct {
 	// 准备得慢时出「正在准备」卡片的定时器。
 	slow  *time.Timer
 	slowC <-chan time.Time
-	// cardShown：界面上挂着「下一集」卡片，换集结束或取消时要收起。
+	// auto：正在准备的这次换集是「下一集」那一套发起的（倒计时到点、卡片上的立即播放 / 重试），
+	// 不是用户自己按的 ⏭。用户从尾巴上拖回去时只收掉前者（见 leftEOF）。
+	auto bool
+	// cardShown：界面上挂着「下一集」卡片，换集结束或取消时要收起。errorCard：挂着的是错误卡片
+	// （下一集没能打开，等重试或关窗）。两者都只由 showCard / clearCard 改。
 	cardShown bool
-	// lastProbe 是上一次试探界面是否就绪的时刻（见 probeUI）。
-	lastProbe time.Time
+	errorCard bool
+	// lastProbe 是上一次试探界面是否就绪的时刻；probeWarned：试探失败已经记过一次日志（见 probeUI）。
+	lastProbe   time.Time
+	probeWarned bool
 }
 
 // prepResult 是后台准备下一集的结果。
@@ -58,8 +65,9 @@ type prepResult struct {
 	err    error
 }
 
-// requestSwitch 开始往 dir 方向换集（界面上的 ⏮ ⏭、倒计时到点、「立即播放」）。
-func (m *Manager) requestSwitch(w *windowLoop, dir Direction) {
+// requestSwitch 开始往 dir 方向换集。auto 为 true 是「下一集」那一套发起的（倒计时到点、卡片上的
+// 立即播放 / 重试），false 是用户按的 ⏮ ⏭。
+func (m *Manager) requestSwitch(w *windowLoop, dir Direction, auto bool) {
 	if m.opts.Navigator == nil {
 		return
 	}
@@ -72,6 +80,11 @@ func (m *Manager) requestSwitch(w *windowLoop, dir Direction) {
 	if target == nil {
 		// 界面在没有邻居时自己会提示；这里只是不做事（比如邻居刚被重扫掉、界面还没收到新状态）
 		log.Printf("player: 没有%s可切，忽略", dirWord(dir))
+		if dir == DirectionNext && w.parkedAtEOF() {
+			// 停在最后一帧等下一集，下一集却已经没了：照最后一集播完关窗，不留一个卡住的窗口
+			m.closeWindow(w)
+			return
+		}
 		if m.stopCountdown(w) {
 			m.clearCard(w)
 		}
@@ -82,6 +95,7 @@ func (m *Manager) requestSwitch(w *windowLoop, dir Direction) {
 	ctx, cancel := context.WithCancel(w.pb.ctx)
 	ch := make(chan prepResult, 1)
 	w.nav.phase, w.nav.prepCancel, w.nav.prepared, w.nav.target = switchPreparing, cancel, ch, target
+	w.nav.auto = auto
 	w.nav.slow = time.NewTimer(preparingCardDelay)
 	w.nav.slowC = w.nav.slow.C
 	nav, src := m.opts.Navigator, sess.src
@@ -108,7 +122,7 @@ func (m *Manager) cancelPrep(w *windowLoop) {
 	if w.nav.prepCancel != nil {
 		w.nav.prepCancel()
 	}
-	w.nav.prepCancel, w.nav.prepared, w.nav.target = nil, nil, nil
+	w.nav.prepCancel, w.nav.prepared, w.nav.target, w.nav.auto = nil, nil, nil, false
 	if w.nav.slow != nil {
 		w.nav.slow.Stop()
 	}
@@ -133,12 +147,10 @@ func (m *Manager) commitSwitch(w *windowLoop, res prepResult) {
 	m.cancelPrep(w)
 	pb, old := w.pb, w.loop.sess
 	if res.err != nil {
-		m.clearCard(w)
-		text, sub := switchFailureText(res.err, openFailedMsg(res.dir))
-		log.Printf("player: %s：%v", openFailedMsg(res.dir), res.err)
-		m.uiToast(old, text, sub)
-		// 邻居可能已经不在了（重扫过、文件被删）：重问一次，界面上的按钮跟着变
-		m.refreshNav(w)
+		title := openFailedMsg(res.dir)
+		log.Printf("player: %s：%v", title, res.err)
+		text, sub := switchFailureText(res.err, title)
+		m.switchFailed(w, failedSwitch{dir: res.dir, text: text, sub: sub, title: title, reason: cardReason(res.err, title)})
 		return
 	}
 
@@ -151,10 +163,10 @@ func (m *Manager) commitSwitch(w *windowLoop, res prepResult) {
 	premature := w.loop.premature || prematureEOF(old.src, st, w.loop.sawEOF)
 	if err := pb.player.LoadNext(mpv.NextFile{Path: src.MPVPath(), Title: title, StartAt: startAt}); err != nil {
 		w.nav.phase = switchIdle
-		m.clearCard(w)
+		failed := loadFailedMsg(res.dir)
+		log.Printf("player: %s：%v", failed, err)
 		_, sub := switchFailureText(err, "")
-		log.Printf("player: %s：%v", loadFailedMsg(res.dir), err)
-		m.uiToast(old, loadFailedMsg(res.dir), sub)
+		m.switchFailed(w, failedSwitch{dir: res.dir, text: failed, sub: sub, title: failed, reason: cardReason(err, failed)})
 		return
 	}
 
@@ -162,6 +174,8 @@ func (m *Manager) commitSwitch(w *windowLoop, res prepResult) {
 	old.cancel()
 	sess := m.newSession(pb, src, item, title)
 	sess.setNav(m.neighbors(src))
+	// 先立栅栏再换集：Status 一读到新的一集，位置就已经按「还没开始」报
+	pb.fenced.Store(true)
 	pb.setEpisode(sess)
 	w.loop.stop()
 	w.loop = newEpisodeLoop(sess)
@@ -176,6 +190,7 @@ func (m *Manager) liftFence(w *windowLoop) {
 	if w.nav.phase == switchFenced {
 		w.nav.phase = switchIdle
 	}
+	w.pb.fenced.Store(false)
 	// keep-open 停在上一集最后一帧时是暂停着的，pause 是全局属性：不放开的话新的一集也停着
 	if err := w.pb.player.SetPause(false); err != nil {
 		log.Printf("player: 换集后继续播放失败：%v", err)
@@ -201,6 +216,58 @@ func (m *Manager) refreshNav(w *windowLoop) {
 	sess := w.loop.sess
 	sess.setNav(m.neighbors(sess.src))
 	m.pushWindowState(w)
+}
+
+// failedSwitch 是一次没换成的切集：还在播这一集时弹的屏幕提示（text / sub），停在最后一帧时
+// 挂的错误卡片（title / reason）。
+type failedSwitch struct {
+	dir           Direction
+	text, sub     string
+	title, reason string
+}
+
+// switchFailed 处理换集失败（下一集打不开、LoadNext 没发出去），这一集原样留着。
+//
+// 还在播这一集：弹一条屏幕提示就够了，用户接着看。停在最后一帧等下一集（keep-open 开着）时，
+// 两秒的提示一过窗口就卡在最后一帧上 —— 所以重问一次邻居：没有下一集了就照最后一集播完关窗
+// （refreshNav → syncKeepOpen 那一步就关了），还有就挂错误卡片等用户点重试或关闭窗口。
+// 上一集没换成不算：那是用户自己按的，停在哪里都由他接着操作。
+func (m *Manager) switchFailed(w *windowLoop, f failedSwitch) {
+	parked := f.dir == DirectionNext && w.parkedAtEOF()
+	if !parked {
+		m.clearCard(w)
+		m.uiToast(w.loop.sess, f.text, f.sub)
+	}
+	// 邻居可能已经不在了（重扫过、文件被删）：重问一次，界面上的按钮跟着变
+	m.refreshNav(w)
+	if !parked || w.loop.closing {
+		return
+	}
+	next := w.loop.sess.navSnapshot().Next
+	if next == nil {
+		m.closeWindow(w)
+		return
+	}
+	m.showCard(w, upNextCard{Phase: cardPhaseError, Label: next.Label, Title: f.title, Reason: f.reason})
+}
+
+// cardReason 是错误卡片上的说明：分类错误的说法（与卡片标题重复时略过）加恢复动作；
+// 其余错误没有可说的细节，给一句通用的。
+func cardReason(err error, title string) string {
+	var ce *errs.E
+	if errors.As(err, &ce) {
+		var parts []string
+		if ce.UserMsg != "" && ce.UserMsg != title {
+			parts = append(parts, ce.UserMsg)
+		}
+		if ce.Recovery != "" {
+			parts = append(parts, ce.Recovery)
+		}
+		if len(parts) > 0 {
+			return strings.Join(parts, "。")
+		}
+	}
+	return "可以重试，或者关掉窗口回到网页上选这一集"
 }
 
 // switchFailureText 是切集失败的屏幕提示：分类错误用它自己的说法与恢复动作，其余用 fallback。

@@ -7,6 +7,7 @@ package episodenav
 import (
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/nagare-project/nagare/internal/library"
 )
@@ -20,6 +21,8 @@ const mainKind = "main"
 // 规则：
 //   - cur 自己必须是认出集号的正片，否则没有邻居（不知道自己是第几集，就无从谈「下一集」）；
 //   - 候选只看认出集号的正片，跳过 cur 本身（按 FileID：另一个库目录里的同一份副本也跳过）；
+//   - 候选必须是同一部作品（见 sameWork）：一个文件夹里混放两部番时它们是同一个作品分组，
+//     只看集号会从《芙莉莲》第 1 集「下一集」到《胆大党》第 2 集；
 //   - 下一集 = 集号比 cur 大的里面最小的，上一集 = 比 cur 小的里面最大的；集号可以有空缺
 //     （第 4 集后面直接是第 6 集），界面上照实显示真实集号；
 //   - 同一集有好几个版本时，依次偏好：与 cur 同一个目录 > 同一个字幕组 > 同一个分辨率 >
@@ -29,11 +32,12 @@ func Pick(cur library.Item, cands []library.Item, dir int) (int, bool) {
 	if !ok || dir == 0 {
 		return -1, false
 	}
+	curWork := workKey(cur)
 	best := -1
 	bestEp := 0
 	for i, c := range cands {
 		ep, ok := mainEpisode(c)
-		if !ok || c.FileID == cur.FileID || !beyond(ep, curEp, dir) {
+		if !ok || c.FileID == cur.FileID || !beyond(ep, curEp, dir) || !sameWork(cur, curWork, c) {
 			continue
 		}
 		switch {
@@ -44,6 +48,37 @@ func Pick(cur library.Item, cands []library.Item, dir int) (int, bool) {
 		}
 	}
 	return best, best >= 0
+}
+
+// sameWork 报告候选 c 与 cur（作品标题 curWork）是不是同一部作品的同一季：
+//   - 两边都认出了季号就必须相同；
+//   - 两边都从文件名里认出了作品标题，归一化之后必须相同；
+//   - 有一边认不出标题（「01.mkv」这种），就只认与 cur 同一个目录里的（混放两部番的文件夹里
+//     也没法更准了，跨目录则不冒这个险）。
+//
+// 已知的代价：同一部番换了个写法（一个字幕组写「葬送的芙莉莲」、另一个写「Sousou no Frieren」）
+// 会被当成两部 —— 那一集之后没有「下一集」，播完照常关窗。宁可不接，也不能自动播到另一部番上。
+func sameWork(cur library.Item, curWork string, c library.Item) bool {
+	if cur.ParsedSeason != nil && c.ParsedSeason != nil && *cur.ParsedSeason != *c.ParsedSeason {
+		return false
+	}
+	work := workKey(c)
+	if curWork == "" || work == "" {
+		return dirOf(c) == dirOf(cur)
+	}
+	return work == curWork
+}
+
+// workKey 是文件名里解析出的作品标题，归一化成 token 再拼起来（认不出为空串）。
+//
+// 不用 Item.ParsedTitle：文件在子目录里时它取的是【目录名】的标题（与网页端一致，见
+// library.BuildItems），混放两部番的文件夹里大家都一样，分不出来。
+func workKey(it library.Item) string {
+	title := library.ParseEpisodeMeta(it.FileName).Title
+	if title == nil {
+		return ""
+	}
+	return strings.Join(library.NormalizeTokens(*title), " ")
 }
 
 // mainEpisode 返回正片的集号；不是正片或认不出集号时 ok 为 false。

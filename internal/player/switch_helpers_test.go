@@ -147,6 +147,13 @@ func (n *fakeNav) setOpenErr(err error) {
 	n.mu.Unlock()
 }
 
+// setEps 换掉邻居表（模拟重扫：已经开播的那一集手里的邻居不变，Open 与重问按新表来）。
+func (n *fakeNav) setEps(eps []library.Item) {
+	n.mu.Lock()
+	n.eps = eps
+	n.mu.Unlock()
+}
+
 func (n *fakeNav) ctxErr() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -287,6 +294,51 @@ func lastUIState(t *testing.T, f *mpvtest.Fake) map[string]any {
 	var out map[string]any
 	require.NoError(t, json.Unmarshal([]byte(states[len(states)-1][3].(string)), &out))
 	return out
+}
+
+// awaitKeepOpen 等「有下一集、界面就绪」把 keep-open 打开。
+func awaitKeepOpen(t *testing.T, f *mpvtest.Fake) {
+	t.Helper()
+	eventually(t, func() bool { return count(f, "set_property", "keep-open", "yes") == 1 }, "有下一集、界面就绪：要开 keep-open")
+}
+
+// assertWindowOpen 断言窗口还没收尾。
+func assertWindowOpen(t *testing.T, pb *playback) {
+	t.Helper()
+	select {
+	case <-pb.finished:
+		t.Fatal("窗口不该关")
+	default:
+	}
+}
+
+// assertWindowFinished 断言窗口已经收尾（Play / Stop 返回时就该是这样）。
+func assertWindowFinished(t *testing.T, pb *playback) {
+	t.Helper()
+	select {
+	case <-pb.finished:
+	default:
+		t.Fatal("旧窗口还没收尾")
+	}
+}
+
+// awaitProcessed 发一条音量消息并等它落进设置：事件按顺序处理，它到了就说明之前推的事件都处理完了。
+func awaitProcessed(t *testing.T, h *navHarness, volume int) {
+	t.Helper()
+	uiMessage(t, h.fake, "volume", fmt.Sprint(volume))
+	eventually(t, func() bool {
+		v := h.st.PlayerConfig().Volume
+		return v != nil && *v == volume
+	}, "事件循环没处理到这里")
+}
+
+// fakeAt 是第 i 次 Launch 用的假 mpv（0 是 h.fake）。
+func (h *windowHarness) fakeAt(t *testing.T, i int) *mpvtest.Fake {
+	t.Helper()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	require.Greater(t, len(h.fakes), i, "还没有第 %d 个 mpv 窗口", i)
+	return h.fakes[i]
 }
 
 // indexOfCommand 是第一条以 prefix 开头的命令在全部命令里的位置（没有为 -1）。

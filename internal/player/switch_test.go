@@ -153,6 +153,10 @@ func TestSwitchStaleTimePosInsideFence(t *testing.T) {
 	time.Sleep(50 * time.Millisecond) // 让事件循环处理完它
 	_, ok := h.st.Progress(ep2.FileID)
 	assert.False(t, ok, "栅栏里的旧位置不能写成第二集的进度")
+	st := h.m.Status()
+	assert.Equal(t, ep2.FileID, st.FileID)
+	assert.Zero(t, st.Position, "栅栏里 Status 不能把上一个文件的位置安到第二集头上")
+	assert.Zero(t, st.Duration)
 
 	h.fake.Push(t, map[string]any{"event": "start-file"})
 	h.fake.Push(t, map[string]any{"event": "file-loaded"})
