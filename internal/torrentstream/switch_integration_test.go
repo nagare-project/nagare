@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -80,9 +81,29 @@ func (p *switchPack) fileData(index int) []byte {
 // assertServes 断言第 index 个文件的头 4KB 能经流端点拿到，且逐字节一致。
 func (p *switchPack) assertServes(t *testing.T, index int, msg string) {
 	t.Helper()
-	rec := doGet(p.engine.Handler(), "/t/"+p.ih+"/"+strconv.Itoa(index), "bytes=0-4095")
+	p.assertServesRange(t, index, 0, 4095, msg)
+}
+
+// assertServesRange 断言第 index 个文件的 [from, to] 能经流端点拿到，且逐字节一致。
+func (p *switchPack) assertServesRange(t *testing.T, index int, from, to int64, msg string) {
+	t.Helper()
+	rec := doGet(p.engine.Handler(), "/t/"+p.ih+"/"+strconv.Itoa(index), fmt.Sprintf("bytes=%d-%d", from, to))
 	require.Equal(t, http.StatusPartialContent, rec.Code, msg)
-	assert.True(t, bytes.Equal(p.fileData(index)[:4096], rec.Body.Bytes()), msg)
+	assert.True(t, bytes.Equal(p.fileData(index)[from:to+1], rec.Body.Bytes()), msg)
+}
+
+// missingOffset 返回 file 在种子分片 [first, end) 里第一个一块都还没下的分片在文件内的起点：
+// 从那里读一定要现拉。
+func missingOffset(t *testing.T, tor *torrent.Torrent, file *torrent.File, first, end int) int64 {
+	t.Helper()
+	info := tor.Info()
+	for idx := first; idx < end; idx++ {
+		if tor.PieceBytesMissing(idx) == info.Piece(idx).Length() {
+			return max(int64(idx)*info.PieceLength-file.Offset(), 0)
+		}
+	}
+	require.FailNow(t, "没有一块都还没下的分片")
+	return 0
 }
 
 func (p *switchPack) assertNotServed(t *testing.T, index int, msg string) {
@@ -194,14 +215,21 @@ func TestPackSwitchToSiblingKeepsOldFileServable(t *testing.T) {
 
 	// 被换走那一集的窗口停用：没下完的分片不再可请求（与第 2 集共用的边界分片除外）
 	assert.True(t, pmClosed(oldPM))
+	pmEp2 := currentPM(p.engine)
 	tor, file2 := currentFile(p.engine)
 	require.NotNil(t, file2)
 	ep1 := tor.Files()[1]
-	left := assertIdle(t, tor, ep1.BeginPieceIndex(), min(ep1.EndPieceIndex(), file2.BeginPieceIndex()), "被换走那一集的分片不该再下")
-	t.Logf("换集之后第 1 集还有 %d 片没下完（都已不可请求）", left)
+	ep1End := min(ep1.EndPieceIndex(), file2.BeginPieceIndex())
+	left := assertIdle(t, tor, ep1.BeginPieceIndex(), ep1End, "被换走那一集的分片不该再下")
+	require.Positive(t, left, "换集那一刻第 1 集还有没下完的分片，「不再下」才断言得到东西")
 
 	p.assertServes(t, 2, "新的一集能播")
 	p.assertServes(t, 1, "被换走那一集仍能服务：换集准备期间拖进度条不能 404")
+	// 头 4KB 早就在盘上了；被换走那一集还没下的那一段也得现拉得到
+	off := missingOffset(t, tor, ep1, ep1.BeginPieceIndex(), ep1End)
+	p.assertServesRange(t, 1, off, off+4095, "被换走那一集没下的部分也能现拉")
+	assert.Zero(t, readerCount(oldPM), "读完就注销：停用的管理器上不留 reader")
+	assertIdle(t, tor, ep1.BeginPieceIndex(), ep1End, "停用的管理器记着 reader 的账，但不写分片")
 	require.NoError(t, src1.Probe(context.Background()))
 	p.assertNotServed(t, 3, "没切过去的那一集不服务")
 
@@ -217,6 +245,7 @@ func TestPackSwitchToSiblingKeepsOldFileServable(t *testing.T) {
 
 	t.Run("预先取消的换集回到原来那一集", func(t *testing.T) {
 		pm2 := currentPM(p.engine)
+		require.Same(t, pmEp2, pm2)
 		canceled, cancel := context.WithCancel(context.Background())
 		cancel()
 		_, err := src2.OpenSibling(canceled, 1)
@@ -274,7 +303,7 @@ func TestPackSwitchToSiblingKeepsOldFileServable(t *testing.T) {
 		p.assertNotServed(t, 1, "谁都不播的第 1 集不再服务")
 	})
 
-	t.Run("窗口最终没换上：Discard 把种子换回去，迟到的 Discard 不撤后来的换集", func(t *testing.T) {
+	t.Run("窗口最终没换上：Discard 把种子换回窗口在播的那一集，迟到的 Discard 不撤后来的换集", func(t *testing.T) {
 		back.Discard() // 之后又换过文件：过时了，什么都不做
 		assert.Equal(t, switchPackFiles[3].name, p.engine.Status().FileName)
 
@@ -282,15 +311,17 @@ func TestPackSwitchToSiblingKeepsOldFileServable(t *testing.T) {
 		st := p.engine.Status()
 		assert.True(t, st.Active)
 		assert.Equal(t, PhaseReady, st.Phase)
-		assert.Equal(t, switchPackFiles[1].name, st.FileName, "回到换集之前活着的第 1 集")
-		assert.Same(t, pmEp1, currentPM(p.engine), "它的窗口原样重新启用")
-		assert.False(t, pmClosed(pmEp1))
-		p.assertServes(t, 1, "换回来的那一集")
-		p.assertServes(t, 2, "换集之前还能服务的也照旧")
+		assert.Equal(t, switchPackFiles[2].name, st.FileName,
+			"回到窗口还在播的第 2 集（下一集是从它切的），不是换集开始时活着的第 1 集")
+		assert.Same(t, pmEp2, currentPM(p.engine), "它的窗口原样重新启用")
+		assert.False(t, pmClosed(pmEp2))
+		assert.True(t, pmClosed(pmEp1), "窗口不在第 1 集上，它不再有优先级窗口")
+		p.assertServes(t, 2, "换回来的那一集")
+		p.assertNotServed(t, 1, "谁都不播的第 1 集不再服务")
 		p.assertNotServed(t, 3, "没换上去的那一集不服务")
 
 		third.Discard() // 重复调用无副作用
-		assert.Same(t, pmEp1, currentPM(p.engine))
+		assert.Same(t, pmEp2, currentPM(p.engine))
 	})
 }
 

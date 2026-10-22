@@ -248,7 +248,8 @@ type priorityManager struct {
 	lastStartup  bool
 
 	// closed：管理器已停用（合集里换到了另一集）。停用后不再改任何分片的优先级，
-	// reader 的登记与读位置照常记账 —— 换集失败、换回这一集时（reopen）窗口按它们的最新位置重画。
+	// reader 的登记与读位置照常记账（停用之后才连上的也一样，见 retiredFile）——
+	// 换集失败、换回这一集时（reopen）窗口按它们的最新位置重画。
 	closed bool
 	// touched 是这个管理器动过优先级的分片。停用时把它们全部降回 None：分片自己的优先级
 	// （Piece.SetPriority）不随 file.Cancel 清零，不降回去，被换走那一集的窗口会一直在下载。
@@ -286,6 +287,13 @@ func (pm *priorityManager) openGate() {
 	}
 	pm.gateOpenedAt = pm.now()
 	pm.apply()
+}
+
+// hasOpenedGate 报告起播门槛是否放行过。
+func (pm *priorityManager) hasOpenedGate() bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return !pm.gateOpenedAt.IsZero()
 }
 
 // addReader 登记一个读到文件尾的 reader（mpv 的流请求），返回句柄。
@@ -381,8 +389,8 @@ func (pm *priorityManager) close() {
 	}
 }
 
-// reopen 重新启用一个停用过的管理器（换集失败，回到这一集）：按 reader 的最新位置重画窗口。
-// 门槛与启动期的计时照旧，不从头再来。
+// reopen 重新启用一个停用过的管理器（换集失败，回到这一集）：按 reader 的最新位置重画窗口，
+// 包括停用期间才登记的 reader。门槛与启动期的计时照旧，不从头再来。
 func (pm *priorityManager) reopen() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()

@@ -466,7 +466,7 @@ func (s *session) startFile(tor *torrent.Torrent, sel selection) error {
 	// 合集里换文件：被换走的那一集留着能服务（见 retiredFile），旧窗口随即停用。
 	s.retired = nil
 	if prev != nil && prev != file {
-		s.retired = &retiredFile{index: s.index, file: prev, name: s.item.FileName}
+		s.retired = &retiredFile{index: s.index, file: prev, item: s.item, pm: prevPM}
 	}
 	s.file, s.index, s.item, s.pm = file, sel.Index, item, nil
 	s.buffered, s.gateOpen = 0, false

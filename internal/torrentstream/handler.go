@@ -138,9 +138,10 @@ func (e *Engine) streamFor(infohash string, index int) *streamTarget {
 
 // target 返回当前会话可服务的流；对不上返回 nil。
 //
-// 合集里刚被换走的那一集（retired）也照常服务，只是不挂优先级窗口（pm 为 nil，读多少由
-// anacrolix 自己的 reader 预读决定）：换集准备期间旧的一集还在播，这时拖一下进度条 mpv 就会
-// 带着旧地址重新请求，回 404 会让 mpv 直接结束这一集。
+// 合集里刚被换走的那一集（retired）也照常服务：换集准备期间旧的一集还在播，这时拖一下进度条
+// mpv 就会带着旧地址重新请求，回 404 会让 mpv 直接结束这一集。它的 reader 登记在它停用了的
+// 管理器上：只记账、不改分片优先级（读多少由 anacrolix 自己的 reader 预读决定），换集没成、
+// 换回这一集时窗口按这些 reader 的位置重画（见 retiredFile）。
 func (s *session) target(infohash string, index int) *streamTarget {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -156,7 +157,7 @@ func (s *session) target(infohash string, index int) *streamTarget {
 	case s.file != nil && s.index == index:
 		file, pm, name = s.file, s.pm, s.item.FileName
 	case s.retired != nil && s.retired.index == index:
-		file, name = s.retired.file, s.retired.name
+		file, pm, name = s.retired.file, s.retired.pm, s.retired.item.FileName
 	default:
 		return nil
 	}

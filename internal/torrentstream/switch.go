@@ -7,8 +7,9 @@
 // 收掉这个会话，换集随即以「种子已经停了」返回、交还 prepMu，不会把 Prepare 晾在锁上等满缓冲上限。
 //
 // 换集期间会话一直是活的（Status.Active 为真、phase 是 buffering），网页上的状态条不会收摊；
-// 被换走的那一集照常能服务（retiredFile），只是不再有优先级窗口。换集失败时回到换集之前的那一集：
-// 它的窗口按 mpv 的最新读位置重画（priorityManager.reopen），而不是从起播状态重来。
+// 被换走的那一集照常能服务（retiredFile），只是不再有优先级窗口。换集失败（或窗口最终没换上）时回到
+// 窗口还在播的那一集（windowFile）：它的窗口按 mpv 的最新读位置重画（priorityManager.reopen），
+// 而不是从起播状态重来。
 package torrentstream
 
 import (
@@ -31,13 +32,18 @@ const opSwitch = "torrentstream.switch"
 //
 // 换集准备期间旧的一集还在播，这时拖一下进度条 mpv 会带着旧地址重新请求；回 404 会让 mpv 直接结束
 // 这一集，用户看到的是「点了下一集，窗口没了」。
+//
+// pm 是它停用了的优先级管理器。这时连上来的 reader 照样登记在上面（停用的管理器只记账、不写分片），
+// 换集没成、换回这一集时（reopen）窗口才按 mpv 的真实读位置重画；不登记的话，换回来的管理器上只有
+// 换集之前就连着的 reader，mpv 拖到的新位置前后没下完的分片只剩 Normal。
 type retiredFile struct {
 	index int
 	file  *torrent.File
-	name  string
+	item  library.Item
+	pm    *priorityManager
 }
 
-// fileState 是换集之前那一集的全部状态，换集失败时照原样换回去（见 session.restore）。
+// fileState 是一集活着时的全部状态，换集失败时照原样换回去（见 session.restore、windowFile）。
 type fileState struct {
 	file    *torrent.File
 	index   int
@@ -82,8 +88,9 @@ func (s *Source) OpenSibling(ctx context.Context, dir int) (*Source, error) {
 	return next, nil
 }
 
-// Discard 在窗口最终没有换上这一集时调用（换集被取消了、mpv 没切过去）：把种子换回换集之前的那一集，
-// 它的优先级窗口按 mpv 的最新读位置重画 —— 不然窗口还在播旧的一集，种子却在下新的一集。
+// Discard 在窗口最终没有换上这一集时调用（换集被取消了、mpv 没切过去）：把种子换回窗口还在播的那一集
+// （发起这次换集的 Source，见 windowFile），它的优先级窗口按 mpv 的最新读位置重画 —— 不然窗口还在播
+// 旧的一集，种子却在下新的一集。
 // 只对 OpenSibling 交出的 Source 有效；之后又换过文件（再切了一次、网页上重新播了）时什么都不做。
 // 要拿 prepMu，可能阻塞，调用方放到后台。
 func (s *Source) Discard() {
@@ -116,10 +123,15 @@ func (e *Engine) switchFile(ctx context.Context, from *Source, dir int) (*Source
 	if !ok {
 		return nil, errSwitchStopped(dir, nil)
 	}
+	// 换不成、或者窗口最终没换上时，种子回到窗口还在播的那一集（from），不一定是此刻活着的那一集
+	back, ok := windowFile(before, from.index)
+	if !ok {
+		return nil, errSwitchStopped(dir, nil)
+	}
 	// 要切去的那一集已经是活的（上一次换过去了、窗口却没跟上，还停在旧的一集）：不用重来，等它缓冲好就行
 	if before.index != target.index {
 		if err := sess.startFile(tor, selection{Index: target.index, Item: target.item}); err != nil {
-			sess.restore(before)
+			sess.restore(back)
 			if sess.isClosed() {
 				return nil, errSwitchStopped(dir, err)
 			}
@@ -133,7 +145,7 @@ func (e *Engine) switchFile(ctx context.Context, from *Source, dir int) (*Source
 	started := time.Now()
 	readBefore := usefulBytesRead(tor)
 	if err := sess.waitBuffered(ctx); err != nil {
-		sess.restore(before)
+		sess.restore(back)
 		return nil, switchFailure(ctx, sess, dir, err)
 	}
 	sess.openGate()
@@ -141,8 +153,31 @@ func (e *Engine) switchFile(ctx context.Context, from *Source, dir int) (*Source
 	sess.logBuffered(tor, time.Since(started), usefulBytesRead(tor)-readBefore)
 	out := sess.newSource()
 	gen := sess.bumpFileGen()
-	out.discard = func() { e.revertSwitch(sess, gen, before) }
+	out.discard = func() { e.revertSwitch(sess, gen, back) }
 	return out, nil
+}
+
+// windowFile 是窗口里正在播的那一集（第 fromIndex 个文件）此刻的状态，live 是此刻活着的那一集。
+// 换集失败、或者窗口最终没换上准备好的那一集时，种子回到的是它，而不是换集开始时活着的那一集。
+//
+// 两者不同的时候：上一次换过去了、窗口却没跟上（mpv 还在播被换走的那一集），活着的是另一集。
+// 这时从窗口那一集又切了一次、又撤回（两次换集接连被放弃，第一次的 Discard 因为第二次换集而过时），
+// 回到「换集开始时活着的那一集」就成了窗口在播一集、种子在下另一集，而窗口这一集没有优先级窗口。
+// 被换走的那一集回到活着的样子时，它之后活着的那一集不再留着服务：窗口不在它上面。
+func windowFile(live fileState, fromIndex int) (fileState, bool) {
+	if live.index == fromIndex {
+		return live, true
+	}
+	r := live.retired
+	if r == nil || r.index != fromIndex {
+		return fileState{}, false
+	}
+	// 文件这一级回到放行门槛之后的 Normal（同 session.openGate）；交出过 Source 的都放行过
+	prio := torrent.PiecePriorityNone
+	if r.pm != nil && r.pm.hasOpenedGate() {
+		prio = torrent.PiecePriorityNormal
+	}
+	return fileState{file: r.file, index: r.index, item: r.item, pm: r.pm, phase: live.phase, prio: prio}, true
 }
 
 // revertSwitch 把一次窗口没有跟上的换集换回去（Source.Discard）。会话已经不是当前会话、
@@ -208,7 +243,8 @@ func (s *session) keepServable(fromIndex int, before fileState) {
 	}
 }
 
-// restore 换集没成：回到换集之前的那一集。会话已经结束、文件根本没换过时什么都不做。
+// restore 换集没成：回到 before 那一集（窗口还在播的那一集，见 windowFile）。会话已经结束、
+// 文件根本没换过时什么都不做。
 //
 // 顺序与 startFile 一致：先停用失败那一集的窗口、再取消它，然后按 mpv 的最新读位置重画旧的窗口，
 // 最后才把旧文件的其余部分放开（窗口先钉上，见 session.openGate）。

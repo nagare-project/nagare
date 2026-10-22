@@ -84,3 +84,64 @@ func TestPriorityManagerReopenRedrawsAtLatestPosition(t *testing.T) {
 	pm.reopen() // 重复调用无副作用
 	assert.Equal(t, torrent.PiecePriorityNow, rec.state[9])
 }
+
+// readerCount 在锁内数管理器上登记着的 reader。
+func readerCount(pm *priorityManager) int {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return len(pm.readers)
+}
+
+// 停用之后才登记的 reader（换集准备期间拖进度条，mpv 带着旧地址重连）：照常记账、一个分片都不写；
+// 换回这一集时窗口按它的最新位置画。
+func TestPriorityManagerTracksReadersAddedAfterClose(t *testing.T) {
+	clock := &fakeClock{at: time.Now()}
+	pm, rec := newTestManager(clock)
+	pm.openGate()
+	clock.advance(startupWindow + time.Second)
+	pm.close()
+	closed := len(rec.calls)
+
+	late := pm.addReader(10 << 20)
+	pm.report(late, 10<<20+updateStride) // 跨过 stride
+	pm.report(late, 30<<20)
+	head := pm.addReaderUpTo(0, 16<<20)
+	pm.report(head, 4<<20)
+	assert.Len(t, rec.calls, closed, "停用期间登记、上报都不写分片")
+	pm.mu.Lock()
+	require.Contains(t, pm.readers, late)
+	assert.Equal(t, int64(30<<20), pm.readers[late].pos, "读位置照常记账")
+	pm.mu.Unlock()
+
+	pm.reopen()
+	assert.Equal(t, torrent.PiecePriorityNow, rec.state[29], "按停用后才登记的 reader 的最新位置画（30MB 回退 1MB）")
+	assert.Equal(t, torrent.PiecePriorityNext, rec.state[40])
+	assert.Equal(t, torrent.PiecePriorityNow, rec.state[3], "有上界的 reader 也照常画")
+	assert.NotContains(t, rec.state, 20, "登记时的旧位置（10MB 之后的 Next 档）不留窗口")
+}
+
+// 停用之后才登记、却一直没换回来的 reader（换集成功了；之后被换走那一集又被下一次换集替掉、或会话收掉）：
+// 注销时干净放掉，从头到尾不写任何分片。
+func TestPriorityManagerReleasesReadersOfClosedManager(t *testing.T) {
+	clock := &fakeClock{at: time.Now()}
+	pm, rec := newTestManager(clock)
+	pm.openGate()
+	pm.close()
+	closed := len(rec.calls)
+
+	ids := []int{pm.addReader(5 << 20), pm.addReader(50 << 20), pm.addReaderUpTo(0, 16<<20)}
+	for _, id := range ids {
+		pm.report(id, 60<<20)
+	}
+	clock.advance(startupWindow + time.Second) // 启动期在停用期间结束：也不能借机重算
+	pm.report(ids[0], 70<<20)
+	pm.openGate()
+	pm.close()
+	for _, id := range ids {
+		pm.removeReader(id)
+	}
+	pm.removeReader(ids[0]) // 重复注销无副作用
+
+	assert.Zero(t, readerCount(pm), "注销之后不留 reader")
+	assert.Len(t, rec.calls, closed, "停用之后一个分片都不写")
+}
