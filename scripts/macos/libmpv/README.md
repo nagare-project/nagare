@@ -103,7 +103,7 @@ scripts/macos/libmpv/verify.sh out
 ## 升级版本
 
 1. 改 `versions.lock` 那一行的版本、文件名、地址，下载算 sha256：`shasum -a 256 <文件>`。
-   libplacebo 的四个子模块要跟着它新版本钉的提交走（`gh api repos/haasn/libplacebo/contents/3rdparty?ref=<tag>`）。
+   libplacebo 的五个子模块要跟着它新版本钉的提交走（`gh api repos/haasn/libplacebo/contents/3rdparty?ref=<tag>`）。
 2. 新版本改了构建选项就改 `lib/recipes.sh` 里对应的 `recipe_*`；`patches/` 里已被上游收进去的补丁删掉。
 3. 推到 `ci/libmpv-macos` 跑一遍：只有改了的组件和依赖它的组件会重编。`VERIFY.txt` 全过、`MANIFEST.txt`
    里的版本与 minos 对得上才算完。

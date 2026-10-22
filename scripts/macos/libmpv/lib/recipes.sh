@@ -97,14 +97,16 @@ recipe_lcms2() {
     -Dfastfloat=false -Dthreaded=false
 }
 
-# libplacebo 的 OpenGL 加载器由 glad 在构建时生成（要 jinja / markupsafe），fast_float 是头文件库。
-# 这四个是上游仓库里的 git 子模块，版本与 libplacebo v7.360.1 钉的提交一致。
-libplacebo_sources="libplacebo libplacebo/glad libplacebo/jinja libplacebo/markupsafe libplacebo/fast_float"
+# libplacebo 的 OpenGL 加载器由 glad 在构建时生成（要 jinja / markupsafe），fast_float 是头文件库；
+# 不编 Vulkan 也要 Vulkan-Headers（vulkan/stubs.c 用到它的类型；只在编译期用，不进二进制）。
+# 这五个是上游仓库里的 git 子模块，版本与 libplacebo v7.360.1 钉的提交一致。
+libplacebo_sources="libplacebo libplacebo/glad libplacebo/jinja libplacebo/markupsafe libplacebo/fast_float
+  libplacebo/Vulkan-Headers"
 libplacebo_deps="lcms2"
 libplacebo_licenses="LICENSE"
 recipe_libplacebo() {
   local sub
-  for sub in glad jinja markupsafe fast_float; do
+  for sub in glad jinja markupsafe fast_float Vulkan-Headers; do
     extract_source "libplacebo/$sub" "$SRC/3rdparty/$sub"
   done
   # render API 只有 OpenGL：不编 Vulkan / D3D11 / shaderc / glslang
