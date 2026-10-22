@@ -57,6 +57,8 @@ type selection struct {
 	Item  library.Item
 	Files []FileChoice
 	Need  bool
+	// cands 是这个种子里全部可播放的候选（出错时为空）。会话留着它，合集里找上一集 / 下一集用。
+	cands []candidate
 }
 
 // selectFile 按「过滤 → 手选 → 插件指明 → 唯一 → 集号命中 → 交给用户」决定播哪个文件。
@@ -66,6 +68,16 @@ func selectFile(entries []fileEntry, req PrepareRequest) (selection, error) {
 			"这条资源的文件数异常，可能不是正常的影视发布", "换一条资源试试")
 	}
 	cands, videoCount := buildCandidates(entries)
+	sel, err := chooseFile(cands, videoCount, req)
+	if err != nil {
+		return selection{}, err
+	}
+	sel.cands = cands
+	return sel, nil
+}
+
+// chooseFile 是 selectFile 去掉解析之后的那一半：在候选里挑要播的那一个。
+func chooseFile(cands []candidate, videoCount int, req PrepareRequest) (selection, error) {
 	if videoCount == 0 {
 		return selection{}, errs.New(errs.CategoryInput, "torrentstream.select",
 			"这条资源里没有可播放的视频文件", "换一条资源试试")

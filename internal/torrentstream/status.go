@@ -72,7 +72,10 @@ func (s *session) refresh() {
 	defer s.mu.Unlock()
 	s.peers = stats.ActivePeers
 	s.seeders = stats.ConnectedSeeders
-	s.buffered, s.gateOpen, s.progress = buffered, open, progress
+	// 采样期间合集里可能已经换了文件：算的是旧文件的门槛，不能写到新文件头上（见 switch.go）
+	if s.file == file {
+		s.buffered, s.gateOpen, s.progress = buffered, open, progress
+	}
 	if s.sampleAt.IsZero() {
 		s.sampleAt, s.lastRead, s.lastWrite = now, read, written
 		return
@@ -95,7 +98,9 @@ func (s *session) refreshGate() {
 	buffered, open := gateProgress(tor, file)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.buffered, s.gateOpen = buffered, open
+	if s.file == file {
+		s.buffered, s.gateOpen = buffered, open
+	}
 }
 
 // gateReady 报告最近一次 refresh 时起播门槛是否已经放行。

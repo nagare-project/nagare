@@ -278,6 +278,65 @@ describe('useTorrentPlay · 正常路径', () => {
     await hook.unmount()
   })
 
+  it('同一个 mpv 窗口里切到后续集后失败（fileId 变了、playbackId 相同）：照样说出来', async () => {
+    const deps = makeDeps()
+    deps.start.mockResolvedValue({ ...PLAYING, fileId: 't:abc/2', playbackId: 'pb-1' })
+    deps.playerStatus.mockResolvedValue({ playing: false, playbackFailure: { fileId: 't:abc/3', playbackId: 'pb-1', reason: '媒体流在播完前就断了', at: 1 } })
+    const hook = await mountPlay(deps)
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    expect(hook.result.current.state).toMatchObject({ phase: 'streaming', fileId: 't:abc/2', playbackId: 'pb-1' })
+
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toMatchObject({ phase: 'error', title: 'Frieren - 01' })
+    expect(hook.result.current.state.phase === 'error' && hook.result.current.state.message).toContain('播完前就断了')
+    await hook.unmount()
+  })
+
+  it('fileId 与 playbackId 都对不上的失败属于别的窗口：照常收摊', async () => {
+    const deps = makeDeps()
+    deps.start.mockResolvedValue({ ...PLAYING, fileId: 't:abc/2', playbackId: 'pb-1' })
+    deps.playerStatus.mockResolvedValue({ playing: false, playbackFailure: { fileId: 't:abc/3', playbackId: 'pb-2', reason: '媒体流在播完前就断了', at: 1 } })
+    const hook = await mountPlay(deps)
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toEqual({ phase: 'idle' })
+    expect(deps.playerStatus).toHaveBeenCalledOnce()
+    await hook.unmount()
+  })
+
+  it('playbackId 只在两边都有时才参与认领：缺一边时只看 fileId', async () => {
+    const deps = makeDeps()
+    // 起播响应没有 playbackId（旧后端），失败带着别的文件且没有 playbackId
+    deps.start.mockResolvedValue({ ...PLAYING, fileId: 't:abc/2' })
+    deps.playerStatus.mockResolvedValue({ playing: false, playbackFailure: { fileId: 't:abc/3', reason: '媒体流在播完前就断了', at: 1 } })
+    const hook = await mountPlay(deps)
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toEqual({ phase: 'idle' })
+
+    // 起播响应只给 playbackId、失败没有 playbackId：同样不认领
+    deps.playerStatus.mockClear()
+    deps.start.mockResolvedValue({ ...PLAYING, playbackId: 'pb-1' })
+    deps.poll.mockResolvedValue(makeStatus())
+    await act(async () => {
+      hook.result.current.play(MAGNET, TITLE)
+    })
+    deps.poll.mockResolvedValue(makeStatus({ active: false }))
+    await advance(INTERVAL)
+    expect(hook.result.current.state).toEqual({ phase: 'idle' })
+    expect(deps.playerStatus).toHaveBeenCalledOnce()
+    await hook.unmount()
+  })
+
   it('starting 期间后端还没建好会话（active=false）不会把界面收掉', async () => {
     const deps = makeDeps()
     deps.poll.mockResolvedValue(makeStatus({ active: false, phase: 'idle' }))

@@ -246,6 +246,14 @@ type priorityManager struct {
 	nextID       int
 	applied      map[int]torrent.PiecePriority
 	lastStartup  bool
+
+	// closed：管理器已停用（合集里换到了另一集）。停用后不再改任何分片的优先级，
+	// reader 的登记与读位置照常记账（停用之后才连上的也一样，见 retiredFile）——
+	// 换集失败、换回这一集时（reopen）窗口按它们的最新位置重画。
+	closed bool
+	// touched 是这个管理器动过优先级的分片。停用时把它们全部降回 None：分片自己的优先级
+	// （Piece.SetPriority）不随 file.Cancel 清零，不降回去，被换走那一集的窗口会一直在下载。
+	touched map[int]struct{}
 }
 
 // newPriorityManager 建立管理器。now 可注入，便于测试启动期的边界。
@@ -259,6 +267,7 @@ func newPriorityManager(base windowInput, set prioritySetter, now func() time.Ti
 		now:     now,
 		readers: make(map[int]*readerSlot),
 		applied: make(map[int]torrent.PiecePriority),
+		touched: make(map[int]struct{}),
 	}
 	pm.lastStartup = true
 	// 建好就把缓冲期的钉住写下去，不等第一个 reader。
@@ -278,6 +287,13 @@ func (pm *priorityManager) openGate() {
 	}
 	pm.gateOpenedAt = pm.now()
 	pm.apply()
+}
+
+// hasOpenedGate 报告起播门槛是否放行过。
+func (pm *priorityManager) hasOpenedGate() bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return !pm.gateOpenedAt.IsZero()
 }
 
 // addReader 登记一个读到文件尾的 reader（mpv 的流请求），返回句柄。
@@ -342,8 +358,60 @@ func (pm *priorityManager) inStartup() bool {
 	return pm.gateOpenedAt.IsZero() || pm.now().Sub(pm.gateOpenedAt) < startupWindow
 }
 
-// apply 重算窗口并把差量写下去。调用方必须持有 pm.mu。
+// close 停用管理器：它动过的分片全部降回 None，此后不再改任何分片的优先级。重复调用无副作用。
+//
+// 换到合集里另一集时，必须在 file.Cancel 【之前】调：file.Cancel 只把文件这一级降成 None，
+// 窗口里的分片各自的优先级（Now / Next / Readahead，以及离开窗口后降成的 Normal）原样留着，
+// 被换走那一集的读位置前后几十 MB 会接着和新的一集抢带宽。被换走那一集的 reader 还在读
+// （mpv 换文件前的最后几次请求、或者换集失败之后接着播），它们上报的位置照常记账，见 closed。
+//
+// 降回 None 的那一批写在 pm.mu 之外：每一片都要拿 client 锁，大合集里是上千次；这期间 mpv 还在经这个
+// 管理器读旧的一集，report 不该被它卡住。置位 closed 之后 apply 什么都不写，锁外写不会与它交错；
+// close 与 reopen 都只在 Engine.prepMu 里调（startFile、换集失败或撤回时的 restore），彼此也不会交错。
+func (pm *priorityManager) close() {
+	pm.mu.Lock()
+	if pm.closed {
+		pm.mu.Unlock()
+		return
+	}
+	idxs := make([]int, 0, len(pm.touched))
+	for idx := range pm.touched {
+		idxs = append(idxs, idx)
+	}
+	pm.closed = true
+	pm.touched = make(map[int]struct{})
+	pm.applied = make(map[int]torrent.PiecePriority)
+	pm.mu.Unlock()
+
+	sort.Ints(idxs)
+	for _, idx := range idxs {
+		pm.set(idx, torrent.PiecePriorityNone)
+	}
+}
+
+// reopen 重新启用一个停用过的管理器（换集失败，回到这一集）：按 reader 的最新位置重画窗口，
+// 包括停用期间才登记的 reader。门槛与启动期的计时照旧，不从头再来。
+func (pm *priorityManager) reopen() {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if !pm.closed {
+		return
+	}
+	pm.closed = false
+	pm.apply()
+}
+
+// write 写下一个分片的优先级，并记下动过它（close 时要降回去）。调用方必须持有 pm.mu。
+func (pm *priorityManager) write(idx int, prio torrent.PiecePriority) {
+	pm.set(idx, prio)
+	pm.touched[idx] = struct{}{}
+}
+
+// apply 重算窗口并把差量写下去。调用方必须持有 pm.mu。停用后什么都不做。
 func (pm *priorityManager) apply() {
+	if pm.closed {
+		return
+	}
 	in := pm.base
 	in.startup = pm.inStartup()
 	in.buffering = pm.gateOpenedAt.IsZero()
@@ -354,13 +422,13 @@ func (pm *priorityManager) apply() {
 	want := computeWindow(in)
 
 	for _, idx := range changedByPriority(want, pm.applied) {
-		pm.set(idx, want[idx])
+		pm.write(idx, want[idx])
 	}
 	// 离开窗口的分片降回 Normal（不是 None）：它仍属于用户选中的这个文件，
 	// 只是不再紧急。降成 None 会把已经排好的请求整段作废。
 	for idx := range pm.applied {
 		if _, ok := want[idx]; !ok {
-			pm.set(idx, torrent.PiecePriorityNormal)
+			pm.write(idx, torrent.PiecePriorityNormal)
 		}
 	}
 

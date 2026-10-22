@@ -163,6 +163,8 @@ export interface DanmakuStatus {
 export interface PlayData {
 	/** 后端为这次媒体会话生成的稳定标识，用于匹配异步播放失败。 */
   fileId?: string
+  /** 这次打开的 mpv 窗口的标识；窗口里切到上/下一集时 fileId 会变，它不变。旧后端不给。 */
+  playbackId?: string
   title: string
   danmaku: DanmakuStatus
 }
@@ -201,7 +203,10 @@ export interface PlayingStatus {
 export type PlayerStatus = PlayingStatus | { playing: false; sync?: SyncFailure; playbackFailure?: PlaybackFailure }
 
 export interface PlaybackFailure {
+  /** 失败时窗口里正在播的那个文件，可能已是同一窗口里切过去的后续集 */
   fileId: string
+  /** 失败发生在哪个 mpv 窗口；旧后端不给 */
+  playbackId?: string
   reason: string
   at: number
 }
@@ -1020,8 +1025,11 @@ export type TorrentPlayRequest = ({ magnet: string; torrentUrl?: never } | { mag
  */
 export type TorrentPlayData =
   | { needSelection: true; files: TorrentFile[] }
-  /** fileId 用来认领播放会话结束时 /api/player/status 里属于这一次的失败 */
-  | { needSelection: false; fileId?: string; title: string; danmaku: DanmakuStatus }
+  /**
+   * fileId / playbackId 用来认领播放会话结束时 /api/player/status 里属于这一次的失败；
+   * playbackId 标识 mpv 窗口，窗口里切到合集的后续集时 fileId 会变而它不变。
+   */
+  | { needSelection: false; fileId?: string; playbackId?: string; title: string; danmaku: DanmakuStatus }
 
 /** 磁力配置与缓存占用（GET /api/settings 的 torrent 字段） */
 export interface TorrentSettings {

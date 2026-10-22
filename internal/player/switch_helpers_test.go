@@ -60,12 +60,16 @@ type fakeNav struct {
 	// wrap 把条目包成媒体源；nil 时是本地文件源。
 	wrap func(library.Item) MediaSource
 	// openErr 非 nil 时 Open 一律失败；gate 非 nil 时 Open 等它关闭（或 ctx 取消）。
-	openErr error
-	gate    chan struct{}
+	// ignoreCancel：Open 不理 ctx 取消、只等 gate（取消之后才准备好的来源，比如磁力缓冲刚好到齐）。
+	openErr      error
+	gate         chan struct{}
+	ignoreCancel bool
 
 	neighborCalls int
 	opens         []Direction
 	openCtxErr    error
+	// discards 是准备好、最终没换上去的来源被 Discard 的次数。
+	discards int
 }
 
 func (n *fakeNav) source(it library.Item) MediaSource {
@@ -110,12 +114,15 @@ func (n *fakeNav) Neighbors(src MediaSource) Neighbors {
 func (n *fakeNav) Open(ctx context.Context, src MediaSource, dir Direction) (Opened, error) {
 	n.mu.Lock()
 	n.opens = append(n.opens, dir)
-	gate, openErr := n.gate, n.openErr
+	gate, openErr, done := n.gate, n.openErr, ctx.Done()
+	if n.ignoreCancel {
+		done = nil
+	}
 	n.mu.Unlock()
 	if gate != nil {
 		select {
 		case <-gate:
-		case <-ctx.Done():
+		case <-done:
 			n.mu.Lock()
 			n.openCtxErr = ctx.Err()
 			n.mu.Unlock()
@@ -132,7 +139,19 @@ func (n *fakeNav) Open(ctx context.Context, src MediaSource, dir Direction) (Ope
 		return Opened{}, errs.New(errs.CategoryFS, "player.nav", "没有下一集了", "媒体库里已经找不到它")
 	}
 	it := n.eps[i]
-	return Opened{Source: n.source(it), SubPath: n.subs[it.FileID]}, nil
+	return Opened{Source: n.source(it), SubPath: n.subs[it.FileID], Discard: n.discard}, nil
+}
+
+func (n *fakeNav) discard() {
+	n.mu.Lock()
+	n.discards++
+	n.mu.Unlock()
+}
+
+func (n *fakeNav) discardCount() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.discards
 }
 
 func (n *fakeNav) setGate(ch chan struct{}) {

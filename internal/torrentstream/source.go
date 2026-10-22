@@ -23,6 +23,8 @@ type Source struct {
 	// 播放管线拿它校验弹幕匹配没有认成别的作品；只在本机用，磁力本身从不随它发往任何地方。
 	anilistID int
 	titles    []string
+	// discard 只在合集里换集得到的 Source 上有：窗口最终没换上这一集时把种子换回原来那一集（见 switch.go）。
+	discard func()
 }
 
 // WithMatchHints 返回带上目录作品身份的副本（Source 构造后只读，不就地改）。

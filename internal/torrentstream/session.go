@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -75,10 +74,16 @@ type session struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu       sync.Mutex
-	tor      *torrent.Torrent
-	file     *torrent.File
-	pm       *priorityManager
+	mu   sync.Mutex
+	tor  *torrent.Torrent
+	file *torrent.File
+	pm   *priorityManager
+	// retired 是合集里刚被换走的那一集（见 switch.go），到下一次换文件或会话结束为止照常服务。
+	retired *retiredFile
+	// cands 是这个种子里可播放的候选，选集时算一次；合集里找上一集 / 下一集用。只整体替换，不就地改。
+	cands []candidate
+	// fileGen 每换一次文件（startFile、换集成功）加一：迟到的「换回去」据此认出自己已经过时（见 switch.go）。
+	fileGen  uint64
 	item     library.Item
 	index    int
 	infohash string
@@ -298,6 +303,7 @@ func (s *session) run(ctx context.Context, req PrepareRequest) (PrepareResult, e
 	if err != nil {
 		return PrepareResult{}, err
 	}
+	s.setCandidates(sel.cands)
 	if sel.Need {
 		s.markAwaiting()
 		return PrepareResult{NeedSelection: true, Files: sel.Files}, nil
@@ -449,17 +455,32 @@ func (s *session) startFile(tor *torrent.Torrent, sel selection) error {
 
 	item := sel.Item
 	// FileID 稳定且跨会话可续播：同一条磁力的同一个文件永远是同一个 id。
-	item.FileID = "t:" + tor.InfoHash().HexString() + "/" + strconv.Itoa(sel.Index)
+	item.FileID = torrentFileID(tor.InfoHash().HexString(), sel.Index)
 
 	s.mu.Lock()
-	prev := s.file
-	s.file, s.index, s.item = file, sel.Index, item
+	if s.closed { // 刚被并发 Stop 掉：别把文件挂回一个已经收掉的会话上
+		s.mu.Unlock()
+		return errSessionStopped()
+	}
+	prev, prevPM := s.file, s.pm
+	// 合集里换文件：被换走的那一集留着能服务（见 retiredFile），旧窗口随即停用。
+	s.retired = nil
+	if prev != nil && prev != file {
+		s.retired = &retiredFile{index: s.index, file: prev, item: s.item, pm: prevPM}
+	}
+	s.file, s.index, s.item, s.pm = file, sel.Index, item, nil
+	s.buffered, s.gateOpen = 0, false
+	s.fileGen++
 	s.infohash = tor.InfoHash().HexString()
 	// awaiting 与它的计时器永远同进同退，别让二者分家。
 	s.awaiting = false
 	s.stopAwaitTimerLocked()
 	s.mu.Unlock()
 
+	// 先停用旧窗口、再取消旧文件：顺序反了，窗口里的分片会以各自的优先级接着下（见 priorityManager.close）
+	if prevPM != nil {
+		prevPM.close()
+	}
 	if prev != nil && prev != file {
 		prev.Cancel()
 	}
@@ -563,7 +584,7 @@ func (s *session) close() {
 	s.closed = true
 	s.stopAwaitTimerLocked()
 	tor := s.tor
-	s.tor, s.file, s.pm = nil, nil, nil
+	s.tor, s.file, s.pm, s.retired = nil, nil, nil, nil
 	s.phase = PhaseIdle
 	s.mu.Unlock()
 
