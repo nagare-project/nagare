@@ -132,7 +132,8 @@ uchardet_sources="uchardet"
 uchardet_deps=""
 uchardet_licenses="COPYING"
 recipe_uchardet() {
-  cmake_install "$SRC" -DBUILD_BINARY=OFF -DBUILD_STATIC=OFF -DCHECK_SSE2=OFF
+  # CHECK_SSE2 保持默认：关掉它在 x86_64 上会换成 clang 不认的 -ffloat-store
+  cmake_install "$SRC" -DBUILD_BINARY=OFF -DBUILD_STATIC=OFF
 }
 
 # nagare 的播放器界面是 Lua 写的

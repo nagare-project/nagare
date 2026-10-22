@@ -113,7 +113,8 @@ build_dep() {
   mkdir -p "$OBJ" "$DEST"
 
   local first
-  first=$(dep_var "$dep" sources | awk '{print $1}')
+  # shellcheck disable=SC2046 # 故意按空白拆开（清单可以跨行）
+  first=$(printf '%s\n' $(dep_var "$dep" sources) | head -1)
   extract_source "$first" "$SRC"
   apply_patches "$dep" "$SRC"
 
