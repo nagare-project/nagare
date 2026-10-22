@@ -59,10 +59,13 @@ type sessionPrep struct {
 
 // beginSession（界面线程）：换到画面层、开一个新会话号。网页层坏了就不在窗口里播（ok 为假，单独开 mpv 窗口）。
 func (a *app) beginSession() sessionPrep {
-	if a.top == 0 || a.quitting || a.webFailed != "" {
+	if a.top == 0 || a.quitting {
 		return sessionPrep{}
 	}
-	a.ensureWeb()
+	a.ensureWeb() // 同步就能看出起不来的（没有配置目录、建不了用户数据目录）在这里就退回
+	if a.webFailed != "" {
+		return sessionPrep{}
+	}
 	a.seq++
 	a.sessionID = a.seq
 	a.session = nil // 上一个会话（若还在退出）的消息从此对不上号，忽略

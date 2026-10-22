@@ -53,7 +53,7 @@ func registerClass(name string, proc uintptr, brush uintptr, icon windows.Handle
 		hIcon:         icon,
 		hIconSm:       icon,
 	}
-	if r, _, err := pRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc))); r == 0 {
+	if r, _, err := pRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc))); r == 0 && err != windows.ERROR_CLASS_ALREADY_EXISTS {
 		return fmt.Errorf("注册窗口类 %s 失败：%w", name, err)
 	}
 	return nil

@@ -174,6 +174,42 @@ func (i *ICoreWebView2) HasFullScreenElement() (bool, error) {
 	return v != 0, hrErr(hr)
 }
 
+// scriptResult 收 ExecuteScript 的结果（JSON 文本）。
+type scriptResult struct {
+	done func(result string, err error)
+}
+
+func (*scriptResult) QueryInterface(_, _ uintptr) uintptr { return 0 }
+func (*scriptResult) AddRef() uintptr                     { return 1 }
+func (*scriptResult) Release() uintptr                    { return 1 }
+
+func (r *scriptResult) ExecuteScriptCompleted(errorCode uintptr, result *uint16) uintptr {
+	if err := hrErr(errorCode); err != nil {
+		r.done("", err)
+		return 0
+	}
+	r.done(windows.UTF16PtrToString(result), nil)
+	return 0
+}
+
+// liveScripts 持有在途的回调对象（COM 那边存的是裸指针，结果回来之前不能被 GC 收走）。只在界面线程上碰。
+var liveScripts = map[*iCoreWebView2ExecuteScriptCompletedHandler]struct{}{}
+
+// RunScript 在页面里执行 js，结果（JSON 文本）经 done 回来（界面线程上）。只给测试遥控用。
+func (i *ICoreWebView2) RunScript(js string, done func(result string, err error)) error {
+	var h *iCoreWebView2ExecuteScriptCompletedHandler
+	h = newICoreWebView2ExecuteScriptCompletedHandler(&scriptResult{done: func(res string, err error) {
+		delete(liveScripts, h)
+		done(res, err)
+	}})
+	liveScripts[h] = struct{}{}
+	if err := i.ExecuteScript(js, h); err != nil {
+		delete(liveScripts, h)
+		return err
+	}
+	return nil
+}
+
 // Reload 重新载入当前页面。
 func (i *ICoreWebView2) Reload() error {
 	hr, _, _ := i.vtbl.Reload.Call(uintptr(unsafe.Pointer(i)))

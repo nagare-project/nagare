@@ -44,11 +44,7 @@ func (a *app) run(done <-chan struct{}) {
 		a.pumpUntilDone(quitPumpLimit)
 		return
 	}
-	self := a.threadID
-	a.q.mu.Lock()
-	a.q.onUI = func() bool { return currentThreadID() == self }
-	a.q.mu.Unlock()
-	a.q.start(func() bool { return postMessage(a.dispatch, wmAppRun, 0, 0) })
+	a.startQueue()
 
 	pumpUntilQuit()
 
@@ -59,6 +55,15 @@ func (a *app) run(done <-chan struct{}) {
 	a.savePlacement()
 	a.destroyWindows()
 	a.q.close()
+}
+
+// startQueue 让 uiQueue 往这个线程上的消息窗口投递（建好 dispatch 之后、在这个线程上调）。
+func (a *app) startQueue() {
+	self := currentThreadID()
+	a.q.mu.Lock()
+	a.q.onUI = func() bool { return currentThreadID() == self }
+	a.q.mu.Unlock()
+	a.q.start(func() bool { return postMessage(a.dispatch, wmAppRun, 0, 0) })
 }
 
 // pumpUntilQuit 处理消息直到 WM_QUIT（嵌套的 pumpWait 取到 WM_QUIT 会补投，这里照样收得到）。

@@ -6,9 +6,12 @@
 ;     不需要管理员、不弹 UAC；卸载信息写 HKCU
 ;   - 无代码签名：SmartScreen 会拦一次，README 有「更多信息 → 仍要运行」说明
 ;   - 覆盖安装前先试删旧 nagare.exe，删不掉说明还在运行 —— 提示从托盘退出
+;   - 桌面窗口要 WebView2 运行时：两处注册表（按机器 / 按用户）都没有时，静默跑内嵌的 Evergreen Bootstrapper
+;     （按用户装，不弹 UAC）。装不上不算安装失败：nagare 会退回浏览器模式
 Unicode true
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
+!include "LogicLib.nsh"
 
 !ifndef VERSION
   !error "缺少 /DVERSION=<版本>"
@@ -31,6 +34,11 @@ Unicode true
 !define HOMEPAGE "https://github.com/nagare-project/nagare"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 !define APP_KEY "Software\${APP_NAME}"
+; WebView2 运行时的两处注册表（微软 distribution 一文的检测办法，与 internal/desktop/bootstrap.go 逐字一致，
+; 测试核对）。HKCU 那条别抄 Wails 的宏：它少了 Clients 后面的反斜杠，永远查不到按用户装的运行时。
+!define WEBVIEW2_GUID "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+!define WEBVIEW2_MACHINE_KEY "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\${WEBVIEW2_GUID}"
+!define WEBVIEW2_USER_KEY "Software\Microsoft\EdgeUpdate\Clients\${WEBVIEW2_GUID}"
 
 Name "${APP_NAME}"
 OutFile "${OUTFILE}"
@@ -67,6 +75,12 @@ LangString AbortRunning ${LANG_SIMPCHINESE} "已取消：nagare 仍在运行。"
 LangString AbortRunning ${LANG_ENGLISH} "Aborted: nagare is still running."
 LangString UninstallShortcut ${LANG_SIMPCHINESE} "卸载 nagare"
 LangString UninstallShortcut ${LANG_ENGLISH} "Uninstall nagare"
+LangString WebView2Installing ${LANG_SIMPCHINESE} "正在安装 WebView2 运行时（nagare 的窗口要用）…"
+LangString WebView2Installing ${LANG_ENGLISH} "Installing the WebView2 Runtime (used by the nagare window)…"
+LangString WebView2Failed ${LANG_SIMPCHINESE} "WebView2 运行时没装上（代码 $0）。nagare 照样能用：界面会在浏览器里打开。"
+LangString WebView2Failed ${LANG_ENGLISH} "The WebView2 Runtime was not installed (code $0). nagare still works: its UI opens in the browser."
+LangString WebView2Present ${LANG_SIMPCHINESE} "WebView2 运行时已安装。"
+LangString WebView2Present ${LANG_ENGLISH} "The WebView2 Runtime is already installed."
 
 ; ---- exe 版本信息（资源管理器属性页）----
 VIProductVersion "${VERSION_NUMERIC}"
@@ -92,6 +106,38 @@ VIAddVersionKey /LANG=${LANG_SIMPCHINESE} "LegalCopyright" "AGPL-3.0"
   proceed:
 !macroend
 
+; WebView2 运行时：pv 存在且不是空串 / 0.0.0.0 就算装了（卸载后可能留下 0.0.0.0）。两处都没有才跑 bootstrapper。
+!macro WebView2Installed _KEYROOT _KEY _OUT
+  ClearErrors
+  ReadRegStr ${_OUT} ${_KEYROOT} "${_KEY}" "pv"
+  ${If} ${Errors}
+  ${OrIf} ${_OUT} == ""
+  ${OrIf} ${_OUT} == "0.0.0.0"
+    StrCpy ${_OUT} ""
+  ${EndIf}
+!macroend
+
+Function EnsureWebView2
+  !insertmacro WebView2Installed HKLM "${WEBVIEW2_MACHINE_KEY}" $0
+  !insertmacro WebView2Installed HKCU "${WEBVIEW2_USER_KEY}" $1
+  ${If} $0 != ""
+  ${OrIf} $1 != ""
+    DetailPrint "$(WebView2Present)"
+    Return
+  ${EndIf}
+  DetailPrint "$(WebView2Installing)"
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File "${SRCDIR}/MicrosoftEdgeWebview2Setup.exe"
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install' $0
+  ${If} ${Errors}
+  ${OrIf} $0 != 0
+    DetailPrint "$(WebView2Failed)"
+  ${EndIf}
+  SetOutPath "$INSTDIR"
+FunctionEnd
+
 Section "nagare" SecMain
   SectionIn RO
   SetOutPath "$INSTDIR"
@@ -106,6 +152,7 @@ Section "nagare" SecMain
   File /r "${SRCDIR}/nagare-source"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
+  Call EnsureWebView2
 
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\nagare.exe"

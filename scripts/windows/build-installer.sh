@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 用 makensis 把 nagare.exe + 内置 mpv 打成按用户安装的 NSIS 安装包。
+# 用 makensis 把 nagare.exe + 内置 mpv + WebView2 bootstrapper 打成按用户安装的 NSIS 安装包。
 # 由 .goreleaser.yaml 的 windows build post hook 调用（fetch-mpv.sh 已先把 mpv 放到 dist/mpv-win）。
 # 用法：scripts/windows/build-installer.sh <nagare.exe 路径> <版本> <输出目录>
 # 产物：<输出目录>/nagare-<版本>_Windows_x86_64-setup.exe
@@ -37,6 +37,10 @@ cp -R "$mpv_dir" "$stage/mpv"
 plugin_dir="$root/dist/source-plugin/Windows_x86_64"
 [ -d "$plugin_dir" ] || { echo "缺少 ${plugin_dir}，先跑 scripts/release/fetch-source-plugin.sh windows amd64" >&2; exit 1; }
 cp -R "$plugin_dir" "$stage/nagare-source"
+# WebView2 Evergreen Bootstrapper（fetch-webview2.sh 钉了 sha256）：两处注册表都没有运行时，安装时才跑它
+webview2="$root/dist/webview2/MicrosoftEdgeWebview2Setup.exe"
+[ -f "$webview2" ] || { echo "缺少 $webview2，先跑 scripts/windows/fetch-webview2.sh" >&2; exit 1; }
+cp "$webview2" "$stage/"
 
 outfile="$out/nagare-${version}_Windows_x86_64-setup.exe"
 rm -f "$outfile"
