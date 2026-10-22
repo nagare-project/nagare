@@ -236,10 +236,15 @@ func tapKey(vk uint16, mods []string) error {
 	return send(seq...)
 }
 
-// forceForeground 是测试用的抢前台（正式代码里不这么做）：挂到当前前台线程的输入队列上再 SetForegroundWindow，
-// 外加一下 Alt 让系统认为刚有过用户输入。CI 的会话里没有人点窗口，不这样 SendInput 落不到我们的窗口上。
+// forceForeground 是测试用的抢前台（正式代码里不这么做）：挂到当前前台线程的输入队列上再 SetForegroundWindow；
+// 还不行才按住 Alt 再抢一次。CI 的会话里没有人点窗口，不这样 SendInput 落不到我们的窗口上。
+// Alt 不能单按一下：单按 Alt 会让窗口进「菜单模式」，接下来的一下按键（空格、t、Enter）就被吃掉了 ——
+// 所以中间夹一下 F24（mpv 里没有绑定），Alt 松开时就不是「单按」。
 func forceForeground(hwnd uintptr) {
 	fg, _, _ := pGetForegroundWindow.Call()
+	if fg == hwnd {
+		return
+	}
 	self := currentThreadID()
 	var fgThread uintptr
 	if fg != 0 {
@@ -249,10 +254,14 @@ func forceForeground(hwnd uintptr) {
 		pAttachThreadInput.Call(uintptr(self), fgThread, 1)
 		defer pAttachThreadInput.Call(uintptr(self), fgThread, 0)
 	}
-	_ = send(keyEvent(vkMenu, false), keyEvent(vkMenu, true))
 	if boolCall(pIsIconic, hwnd) {
 		pShowWindow.Call(hwnd, swRestore)
 	}
 	pBringWindowToTop.Call(hwnd)
+	if boolCall(pSetForegroundWindow, hwnd) {
+		return
+	}
+	_ = send(keyEvent(vkMenu, false))
 	pSetForegroundWindow.Call(hwnd)
+	_ = send(keyEvent(vkF24, false), keyEvent(vkF24, true), keyEvent(vkMenu, true))
 }

@@ -393,6 +393,10 @@ func topProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {
 			a.web.focus()
 		}
 		return 0
+	case wmSysCommand:
+		if r, handled := a.sysCommand(hwnd, w, l); handled {
+			return r
+		}
 	case wmClose:
 		a.closeToBackground()
 		return 0
@@ -405,6 +409,28 @@ func topProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {
 		return 0
 	}
 	return defWindowProc(hwnd, m, w, l)
+}
+
+// sysCommand 处理系统命令里会进模态循环的那几个（SC_KEYMENU：单按 Alt、Alt+空格）。
+//
+// mpv 的子窗口收到 Alt 之后由它的 DefWindowProc 把 WM_SYSCOMMAND 跨线程「发」（SendMessage）给我们的顶层窗口；我们
+// 的 DefWindowProc 在处理它的过程中进入菜单的模态循环，循环不结束，mpv 的窗口线程就一直卡在那次 SendMessage 里 ——
+// 画面冻住、看门狗把 mpv 当卡死结束掉（CI 的冒烟测试实测：单按一下 Alt，8 秒后 mpv 被杀）。所以：
+//   - 别的线程发来的系统命令先放回自己的消息队列（PostMessage），马上返回，mpv 的线程不等我们；
+//   - 播放时单按 Alt（lParam 为 0）直接吞掉：没有菜单栏，「菜单模式」只会吃掉接下来的一下按键（空格、t、Enter）。
+//     Alt+空格（lParam 为空格）照常弹出系统菜单（移动、大小、关闭……）。
+func (a *app) sysCommand(hwnd uintptr, w, l uintptr) (uintptr, bool) {
+	if w&0xFFF0 != scKeyMenu {
+		return 0, false
+	}
+	if l == 0 && a.mode == modeVideo {
+		return 0, true
+	}
+	if boolCall(pInSendMessage) {
+		postMessage(hwnd, wmSysCommand, w, l)
+		return 0, true
+	}
+	return 0, false
 }
 
 func hostProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {

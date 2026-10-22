@@ -37,8 +37,9 @@ const (
 	// childSearchLimit 是等 mpv 建好子窗口的上限（mpv 在初始化 VO 时才建窗口，慢机器上要一两秒）。
 	childSearchLimit = 30 * time.Second
 	childSearchStep  = 50 * time.Millisecond
-	// hungStrikes：IsHungAppWindow 连续这么多秒为真（它自己要 5 秒没处理消息才算）就结束 mpv。
-	hungStrikes  = 3
+	// hungStrikes：IsHungAppWindow 连续这么多秒为真（它自己要 5 秒没处理消息才算）就结束 mpv。宁可晚一点：
+	// mpv 的窗口线程跨线程等我们的窗口时（系统菜单这类模态循环）也会被系统算作「没响应」，误杀等于用户的播放没了。
+	hungStrikes  = 10
 	watchdogStep = time.Second
 	ipcDialLimit = 15 * time.Second
 	ipcReplyWait = 5 * time.Second

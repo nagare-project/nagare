@@ -16,7 +16,9 @@ param(
     [switch]$SkipFallback,
     [switch]$KeepTemp,
     # 手动检查：起好 nagare（临时配置、测试片已加进媒体库），等你在窗口里自己试完按回车，再收日志
-    [switch]$Manual
+    [switch]$Manual,
+    # 退路：不重新启用 mpv 的子窗口，输入由 nagare 经 IPC 转发（NAGARE_DESKTOP_INPUT=ipc）
+    [switch]$IpcInput
 )
 
 $ErrorActionPreference = 'Stop'
@@ -136,6 +138,8 @@ function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
     $env:NAGARE_DESKTOP_TEST_ADDR = "127.0.0.1:$ctlPort"
     $env:NAGARE_DESKTOP_TEST_SECRET_FILE = $secret
     $env:NAGARE_DESKTOP_TEST_NO_WEBVIEW2 = ''
+    $env:NAGARE_DESKTOP_INPUT = ''
+    if ($IpcInput) { $env:NAGARE_DESKTOP_INPUT = 'ipc' }
     foreach ($k in $extraEnv.Keys) { Set-Item -Path "env:$k" -Value $extraEnv[$k] }
     $script:startNo++
     $sp = @{ FilePath = $Exe; PassThru = $true
@@ -272,7 +276,11 @@ Step '播放' {
     $s = State
     $shot = Snap 'playing'
     Add-Step '在窗口里播放（mpv 挂进画面层）' $ok ("子窗口 enabled=$($s.childEnabled)、焦点在 mpv=$($s.focusIsChild)、前台=$($s.foreground)、mpv pid $($s.mpvPid)") $shot $s
-    Add-Step 'mpv 的子窗口已重新启用（--wid 下默认是 disabled）' ([bool]$s.childEnabled) '' '' $null
+    if ($IpcInput) {
+        Add-Step 'IPC 转发模式：mpv 的子窗口保持 disabled，输入落在 nagare 的画面层' ((-not $s.childEnabled) -and $s.ipcInput) '' '' $null
+    } else {
+        Add-Step 'mpv 的子窗口已重新启用（--wid 下默认是 disabled）' ([bool]$s.childEnabled) '' '' $null
+    }
 }
 
 Step '控制条' {
@@ -306,6 +314,21 @@ Step '右键菜单' {
     Start-Sleep -Milliseconds 600
     $s = State
     Add-Step 'Esc 只关菜单，不返回媒体库' ($s.mode -eq 'video') ("mode=$($s.mode)") ''
+}
+
+Step '单按 Alt' {
+    # 单按一下 Alt：Windows 会让窗口进「菜单模式」。mpv 的窗口把它转给 nagare 的窗口时如果被挡住，mpv 的窗口线程
+    # 会卡住（画面冻住、看门狗会把 mpv 结束掉）。按完 Alt 之后空格必须照常管用，8 秒后 mpv 必须还活着、没卡。
+    Front
+    Mpv '["set_property","pause",false]' | Out-Null
+    Ctl '/input' @{ kind = 'tap'; vk = 0x12 } | Out-Null
+    Start-Sleep -Milliseconds 300
+    Ctl '/input' @{ kind = 'tap'; vk = 0x20 } | Out-Null
+    $ok = Wait-Until { (Prop (State) 'pause') -eq $true } 5
+    Start-Sleep -Seconds 8
+    $s = State
+    Add-Step '单按 Alt 之后：空格照常暂停，mpv 的窗口没卡住、没被看门狗结束' ($ok -and $s.mode -eq 'video' -and -not $s.childHung -and -not $s.killedByWatchdog) ("childHung=$($s.childHung) killed=$($s.killedByWatchdog)") (Snap 'after-alt')
+    Mpv '["set_property","pause",false]' | Out-Null
 }
 
 Step '全屏' {
@@ -384,7 +407,8 @@ Step '返回' {
 Step '关窗口' {
     Api 'POST' '/api/play' @{ fileId = $ep[1] } | Out-Null
     $ok = Wait-Until { $s = State; $s.mode -eq 'video' -and $s.child } 30
-    Start-Sleep -Seconds 4
+    Mpv '["set_property","pause",false]' | Out-Null
+    Start-Sleep -Seconds 7 # 进度要过 5 秒才记（更短的当作没看）
     $before = Progress $ep[1]
     $t0 = if ($null -ne $before) { $before.updatedAt } else { 0 }
     Ctl '/winop' @{ op = 'close' } | Out-Null
@@ -477,6 +501,7 @@ if (Test-Path $logDir) {
 }
 $zipName = 'nagare-wintest-report.zip'
 if ($Manual) { $zipName = 'nagare-wintest-manual.zip' }
+if ($IpcInput) { $zipName = $zipName.Replace('.zip', '-ipc-input.zip') }
 $zip = Join-Path $OutDir $zipName
 Remove-Item -Force -ErrorAction SilentlyContinue $zip
 Compress-Archive -Path (Join-Path $reportDir '*') -DestinationPath $zip

@@ -67,6 +67,7 @@ var (
 	pCreateSolidBrush         = gdi32.NewProc("CreateSolidBrush")
 	pShellExecuteW            = shell32.NewProc("ShellExecuteW")
 	pGetCurrentThreadId       = kernel32.NewProc("GetCurrentThreadId")
+	pInSendMessage            = user32.NewProc("InSendMessage")
 )
 
 const (
@@ -126,6 +127,7 @@ const (
 	sizeMinimized = 1
 	sizeMaximized = 2
 
+	scKeyMenu  = 0xF100
 	scMinimize = 0xF020
 	scMaximize = 0xF030
 	scRestore  = 0xF120

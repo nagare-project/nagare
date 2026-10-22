@@ -114,3 +114,22 @@ func TestWindowPlacementRoundTrip(t *testing.T) {
 		assert.False(t, ok, "不在任何显示器上的位置不用")
 	})
 }
+
+// 播放时单按 Alt 不进「菜单模式」（会吃掉下一下按键，mpv 的窗口线程还会卡在跨线程的 SendMessage 里）；
+// 网页层时、Alt+空格（系统菜单）照常交给系统。
+func TestAltAloneIsSwallowedDuringPlayback(t *testing.T) {
+	l := startLoop(t, true)
+	a := l.a
+	l.onUI(t, func() {
+		prep := a.beginSession()
+		_, handled := a.sysCommand(a.top, scKeyMenu, 0)
+		assert.True(t, handled, "播放时单按 Alt")
+		_, handled = a.sysCommand(a.top, scKeyMenu, uintptr(' '))
+		assert.False(t, handled, "Alt+空格照常弹系统菜单（同线程发来的不用推迟）")
+		a.endSession(prep.id)
+		_, handled = a.sysCommand(a.top, scKeyMenu, 0)
+		assert.False(t, handled, "网页层时照常")
+		_, handled = a.sysCommand(a.top, scMinimize, 0)
+		assert.False(t, handled, "别的系统命令不管")
+	})
+}
