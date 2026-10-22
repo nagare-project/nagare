@@ -1,8 +1,7 @@
 # homebrew-nagare
 
 [nagare](https://github.com/nagare-project/nagare) 的 [Homebrew](https://brew.sh) tap。
-一个仓库只有一件事：告诉 Homebrew 去哪儿下 nagare 的 macOS dmg、它的 SHA-256 是多少、
-以及它依赖 mpv。
+一个仓库只有一件事：告诉 Homebrew 去哪儿下 nagare 的 macOS dmg、它的 SHA-256 是多少。
 
 > 这个目录是主仓库 `nagare/packaging/homebrew/` 里的**待发布内容**，会被推成独立仓库
 > `nagare-project/homebrew-nagare`。维护说明见主仓库的
@@ -21,10 +20,10 @@ brew install --cask nagare
 装完：
 
 - 「应用程序」里出现 `Nagare.app`，与手动下 dmg 装的是**同一个 app**。
-- **mpv 一起装好了**（cask 声明了 `depends_on formula: "mpv"`），不用再单独装——
-  这是走这条渠道最主要的好处，macOS 上 nagare 不捆绑 mpv。
-- nagare 是**菜单栏应用**（不占 Dock），启动后浏览器自动打开界面
-  （`http://127.0.0.1:8590`，只监听本机）。
+- **mpv 已内置**：`Nagare.app` 自带 libmpv（在 nagare 自己的窗口里播放）与命令行 mpv
+  （进度条缩略图、浏览器模式），不用另装，cask 也不再依赖 Homebrew 的 mpv。
+- 启动后 Dock 里有 nagare 的图标，界面在 nagare 自己的窗口里打开
+  （网页照旧从 `http://127.0.0.1:8590` 载入，只监听本机）。
 
 系统要求 **macOS 13（Ventura）或更新**，Intel 与 Apple Silicon 通用。
 更老的系统 `brew install` 会直接拒绝——产物的部署目标就钉在 13.0。

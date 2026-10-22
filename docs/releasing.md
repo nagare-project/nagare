@@ -79,7 +79,10 @@ tag 推上去会触发 `release.yml`，产出一个 **draft** Release。人工�
 - [ ] 产物齐了：`.dmg` / `.app.zip` / `-setup.exe` / Windows `.zip` / 三个 `.tar.gz` / `.deb` / `.rpm`
 - [ ] dmg 里的 `Nagare.app` 能双击打开（macOS 会拦一次，点「仍要打开」）
 - [ ] Windows 安装包装完托盘有图标、浏览器能打开界面
-- [ ] `mpv-sources/` 在（GPL 合规：Windows 包内置 mpv 的完整对应源码）
+- [ ] `mpv-sources/` 两个都在（GPL 合规，流水线的「校验 mpv 的对应源码都在」一步会查）：
+      `mpv-winbuild-cmake-<提交>.tar.gz`（Windows 包内置 mpv 的构建脚本快照）与
+      `libmpv-macos-source-<构建号>.tar.gz`（Nagare.app 里 libmpv 的完整对应源码，约 65 MB）
+- [ ] dmg 约 65–70 MB、`.app.zip` 约 60 MB（v0.6.1 是 41.8 / 36.6 MB；差的那部分是 libmpv 与命令行 mpv）
 - [ ] **点了 Publish release 之后**，`nagare-project/scoop-nagare` 的 `bucket/nagare.json`
       版本号是新的（draft 期间它指向的地址还是 404，见「可选渠道：Scoop bucket」）
 - [ ] **点了 Publish release 之后**，`release.yml` 的 `homebrew` job 自动跑起来了，
@@ -90,11 +93,44 @@ tag 推上去会触发 `release.yml`，产出一个 **draft** Release。人工�
 
 ```bash
 goreleaser check
-MINISIGN_KEY_FILE=$PWD/nagare.key goreleaser release --snapshot --clean --skip=publish
 ```
 
-本机 cgo 环境不全时可以 `CGO_ENABLED=0` 覆盖，那样出的 `.app` 没有托盘，
-但流水线其余部分照样能验。
+整条 snapshot 以 CI 为准（`gh workflow run release.yml --ref <分支> -f snapshot=true`）：
+`darwin-desktop` 构建要 `LIBMPV_DIR` / `LIBMPV_SOURCE` 两个环境变量（见下一节），本机没有就在模板求值时失败。
+要在本机跑，先取一份 libmpv 产物（`gh run download <libmpv-macos.yml 的运行号> -n libmpv-macos-universal -n
+libmpv-macos-source`，各放进自己的空目录），用 `scripts/macos/libmpv/unpack.sh` 解开核对，把它打印的两行 export 出来，
+再 `MINISIGN_KEY_FILE=$PWD/nagare.key goreleaser release --snapshot --clean --skip=publish`。
+本机 cgo 环境不全时可以 `CGO_ENABLED=0` 覆盖，只对裸二进制那个 `darwin` 构建有效（没有托盘）；
+桌面窗口版钉死了 `CGO_ENABLED=1`，链接不过就是链接不过。
+
+### macOS：Nagare.app 里的 libmpv
+
+macOS 的 `Nagare.app` 在自己的窗口里放视频：进程内链接 libmpv（render API），所以 libmpv 和它的依赖
+都打进包里。这套 libmpv 是 nagare 自己从源码构建的（[`scripts/macos/libmpv/`](../scripts/macos/libmpv/README.md)），
+**发布时在同一次运行里现编、现验**：
+
+1. `release.yml` 的 `libmpv` job 以 `workflow_call` 调 [`libmpv-macos.yml`](../.github/workflows/libmpv-macos.yml)
+   ——与它单独跑时同一套脚本、同一套组件缓存（main 上编过的组件 tag 上直接命中，约 4 分钟）。
+   `verify.sh` 全套验证（解码、字幕、render API、命令行 mpv 的窗口、HDR 截图……）过了才上传 artifact。
+2. 构建 job `needs` 它：下载 `libmpv-macos-universal` / `libmpv-macos-source` 两个 artifact，
+   `scripts/macos/libmpv/unpack.sh` 按 `manifest.json` 逐个核对文件的 sha256、再跑一遍 Mach-O 静态检查，
+   核对过的路径写进 `LIBMPV_DIR` / `LIBMPV_SOURCE`。缺 artifact、对不上清单、两包不是同一次构建，都直接失败。
+3. goreleaser 的 `darwin-desktop` 构建带 `-tags libmpv` 链接它（`-extldflags` 只加一条
+   `LC_RPATH @executable_path/../Frameworks`），`build-app.sh` 把 23 个 dylib 复制进 `Contents/Frameworks/`、
+   命令行 mpv 复制成 `Contents/MacOS/mpv`、许可证与构建清单放进 `Contents/Resources/libmpv/`，由里到外 ad-hoc 签名，
+   再用 `macho.py bundle` 查包里每个 Mach-O（universal、minos ≤ 13.0、装载名与依赖都在包里、只有一条 rpath、签名有效），
+   最后把源码包放进 `dist/mpv-sources/` —— checksums 与 Release 都收它。
+4. goreleaser 之后：`check-gpl-sources.sh` 确认两份对应源码都进了 `checksums.txt`、macOS 那份就是包里那套 libmpv 的；
+   `TestReleaseAppZip`（`internal/selfupdate`）用客户端自更新**同一套** Go 解包代码解开 `.app.zip`、验签名，
+   并在 runner（arm64）上跑一次解出来的 `nagare -version` 与 `mpv --version` —— Apple Silicon 上能不能把 Frameworks
+   里的库全部加载起来，我们手上没有那种 Mac，只在这里看得到。
+
+macOS 的裸二进制 `nagare-<版本>_MacOS_universal.tar.gz` **不带** libmpv（另一个 `darwin` 构建，没有 libmpv 标签）：
+归档里没有 `Frameworks/`，链接了 libmpv 的二进制在那里根本起不来。它的行为与以前一样（浏览器 + 系统装的 mpv）。
+
+> **TODO（TLS，待定）**：这套 libmpv 用 mbedTLS，它不读系统钥匙串；mpv 本身默认 `tls-verify=no`（与 Windows 包、
+> Homebrew 的 mpv 一样，这是现在的基线，本轮不改）。要校验证书时给 https 来源传
+> `--tls-verify=yes --tls-ca-file=/etc/ssl/cert.pem`（macOS 自带这份 CA 列表，verify.sh 测过通过 / 拒绝两种情况）。
 
 ---
 
@@ -404,8 +440,8 @@ Scoop 应用目录里的 `nagare.exe` 与 `mpv\`。
 ## 可选渠道：Homebrew cask（macOS）
 
 Homebrew 装的是 **dmg 里的那个 `Nagare.app`**，与用户手动下 dmg 拖进「应用程序」
-得到的是同一份字节。走这条渠道最主要的好处是 **mpv 作为依赖自动装上**——
-macOS 上 nagare 不捆绑 mpv（决议 A5），手动装的用户得自己 `brew install mpv`。
+得到的是同一份字节。`Nagare.app` 自带 libmpv 与命令行 mpv（见「macOS：Nagare.app 里的 libmpv」），
+cask 不再依赖 Homebrew 的 mpv；这条渠道的好处只剩一条命令装好、`brew` 记着版本。
 
 cask 定义在本仓库 [`packaging/homebrew/Casks/nagare.rb`](../packaging/homebrew/Casks/nagare.rb)，
 由 [`scripts/release/publish-homebrew-cask.sh`](../scripts/release/publish-homebrew-cask.sh)
@@ -536,7 +572,7 @@ Command Line Tools 是新版；跑不动时至少要跑 `brew style`。
 ```bash
 brew tap-new nagare-check/casktest --no-git
 cp dist/homebrew/Casks/nagare.rb "$(brew --repository)/Library/Taps/nagare-check/homebrew-casktest/Casks/"
-brew info --cask nagare-check/casktest/nagare   # 应显示 macOS >= 13、依赖 mpv、artifact 是 App
+brew info --cask nagare-check/casktest/nagare   # 应显示 macOS >= 13、artifact 是 App（不再依赖 mpv）
 brew untap nagare-check/casktest                 # 用完删掉
 ```
 
@@ -544,7 +580,7 @@ brew untap nagare-check/casktest                 # 用完删掉
 
 ```bash
 brew tap nagare-project/nagare
-brew install --cask nagare      # 会连带装 mpv
+brew install --cask nagare
 brew info --cask nagare         # 版本号、依赖、artifact 对不对
 open -a Nagare                  # 首次仍会被 Gatekeeper 拦，这是预期行为
 brew uninstall --cask nagare    # 只删 app，配置目录必须还在

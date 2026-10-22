@@ -9,9 +9,9 @@
 #   - mpv v0.41.0 的四个公开头文件（client.h / render.h / render_gl.h / stream_cb.h），sha256 钉死。
 #
 # 为什么不能发：iina/deps-buildscripts 仓库没有许可证文件，而 GPL 要求随二进制提供对应的构建
-# 脚本 —— 用它的二进制发版做不到合规。发布版用我们自己构建的 libmpv（另一条流水线，分支
-# ci/libmpv-macos）。这里的产物只放在仓库根的 .libmpv-dev/（已 gitignore），不进 dist/、
-# 不进 .app、不进任何 Release。
+# 脚本 —— 用它的二进制发版做不到合规。发布版用我们自己构建的 libmpv（scripts/macos/libmpv/，
+# 发布流水线现编现验）。这里的产物只放在仓库根的 .libmpv-dev/（已 gitignore），不进 dist/、
+# 不进 .app、不进任何 Release（build-app.sh 只收按 manifest.json 核对得上的自建产物）。
 #
 # 用法：
 #   scripts/macos/fetch-libmpv-dev.sh              下载、校验、解压到 .libmpv-dev/

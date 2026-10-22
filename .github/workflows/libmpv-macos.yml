@@ -3,10 +3,13 @@
 # 完整对应源码包。两个架构都在 arm64 的 runner 上编（x86_64 交叉编译）；Intel runner 2027 年下线。
 #
 # 每个组件单独缓存（build.sh 按组件的键判断要不要重编），所以只改 mpv 的参数时不会重编 FFmpeg。
-# 这条流水线只产出 artifact，不发布任何东西；接进 goreleaser / build-app.sh 是后面的事。
+# 这条流水线只产出 artifact（libmpv-macos-universal / libmpv-macos-source），不发布任何东西。
+# 发布流水线（release.yml）以 workflow_call 调它：同一套脚本、同一套缓存键，产物在同一次运行里
+# 交给 goreleaser 与 scripts/macos/build-app.sh 打进 Nagare.app。
 name: libmpv (macOS)
 
 on:
+  workflow_call:
   workflow_dispatch:
   # 只在构建脚本或这条流水线本身改了时跑（冷编约 13 分钟、全命中缓存约 4 分钟），别的改动不触发
   push:
@@ -22,8 +25,10 @@ on:
 permissions:
   contents: read
 
+# 被 release.yml 调用时 github.workflow 是调用方的名字（Release）：发布里的这一段与单独跑的
+# 不在同一个并发组，main 上一次推送触发的构建不会把正在发布的那次取消掉（反过来也一样）。
 concurrency:
-  group: libmpv-macos-${{ github.ref }}
+  group: libmpv-macos-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:

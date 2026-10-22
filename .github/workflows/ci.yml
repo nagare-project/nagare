@@ -107,7 +107,8 @@ jobs:
 
   desktop-mac:
     # macOS 桌面窗口（internal/desktop，构建标签 libmpv）的 Objective-C 只有带这个标签的 cgo 构建才编得到，
-    # 发布流水线也还不带它 —— 这个 job 让它至少能编、能过 vet、导航规则的测试能跑，不会悄悄烂掉。
+    # 其余 job 都不带它 —— 这个 job 让它在每个 PR 上至少能编、能过 vet、测试能跑，不会悄悄烂掉。
+    # （发布流水线也带它，链接的是同一次运行里现编的自建 libmpv，见 release.yml；这里为了快，用开发期那份。）
     # libmpv 用的是开发期的那份（IINA 的预编译 dylib，脚本里钉了 sha256）：只下载、只拿来链接，
     # 不打包、不上传任何东西（这份 dylib 不能随发布出去，见 scripts/macos/libmpv-dev.md）。
     name: macOS 桌面窗口（-tags libmpv）

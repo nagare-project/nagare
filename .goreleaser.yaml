@@ -1,9 +1,13 @@
 # nagare 发布流水线（GoReleaser v2 OSS）。零证书方案：
-#   macOS    universal 二进制 → ad-hoc 签名的 Nagare.app → dmg（scripts/macos/build-app.sh）
+#   macOS    Nagare.app（桌面窗口：进程内链接 nagare 自建的 libmpv，再带一个命令行 mpv）→ ad-hoc 签名
+#            → dmg + 自更新用的 .app.zip（scripts/macos/build-app.sh）；另有不带 libmpv 的裸二进制 tar.gz
 #   Windows  无签名 NSIS 按用户安装包 + 便携 zip，两者都内置 mpv（scripts/windows/*）
 #   Linux    tar.gz + deb/rpm，依赖系统 mpv
 # 前端构建不在这里做：release workflow 先 bun run build，before hook 只检查 web/ 就位。
-# 本机验证：goreleaser check && goreleaser release --snapshot --clean --skip=publish
+# macOS 的 libmpv 也不在这里编：release workflow 在同一次运行里调 libmpv-macos.yml 构建并验证，
+# 再用 scripts/macos/libmpv/unpack.sh 解开，经环境变量 LIBMPV_DIR / LIBMPV_SOURCE 交过来 ——
+# 两个变量没设，darwin-desktop 构建的模板求值就失败（不会悄悄出一个没有桌面窗口的 .app）。
+# 本机验证：goreleaser check；整条 snapshot 只能在 CI 跑（gh workflow run release.yml -f snapshot=true）
 #
 # 可选分发渠道：scoops（Windows，见文件末尾）已接。其余（winget / aurs）各自需要独立的
 # 清单仓库与推送 token，等 Release 形态稳定后再接。
@@ -29,9 +33,12 @@ before:
     - scripts/release/check-web.sh
 
 builds:
-  # macOS：托盘用 fyne.io/systray，需要 cgo，所以只能在 macOS runner 上原生编；
+  # macOS 裸二进制（MacOS_universal.tar.gz，终端里直接跑的那种；自更新的 ChannelDirect 也下它）：
+  # 不带 libmpv 标签 —— 归档里没有 Frameworks/，链接了 libmpv 的二进制在这里根本起不来。
+  # 行为与以前一样：浏览器 + 独立的 mpv 窗口，mpv 用系统装的（Homebrew）。
+  # 托盘用 fyne.io/systray，需要 cgo，所以只能在 macOS runner 上原生编；
   # 两个 arch 再由 universal_binaries 合成一个。
-  # CGO_ENABLED 默认 1（CI 必须是 1，否则 .app 没有托盘）；本机 SDK 过旧链接不过时可用
+  # CGO_ENABLED 默认 1（CI 必须是 1，否则没有托盘）；本机 SDK 过旧链接不过时可用
   # `CGO_ENABLED=0 goreleaser release --snapshot ...` 临时覆盖，只验证流水线其余部分。
   - id: darwin
     binary: nagare
@@ -57,6 +64,30 @@ builds:
       pre:
         - cmd: scripts/release/fetch-source-plugin.sh darwin {{ .Arch }}
           output: true
+
+  # macOS 桌面窗口版（Nagare.app 里的那个 nagare）：同一份代码多带 libmpv 构建标签（internal/desktop），
+  # 进程内链接 nagare 自建的 libmpv（scripts/macos/libmpv/，release workflow 构建并验证后经 LIBMPV_DIR 交过来）。
+  #   - CGO_ENABLED 钉 1：桌面窗口离不开 cgo；=0 会静默编成没有窗口的桩，build-app.sh 也会因此失败。
+  #   - LC_RPATH 只要 @executable_path/../Frameworks 这一条：用 -extldflags 只在最终链接加一次，不写进
+  #     CGO_LDFLAGS（那会按 cgo 包的个数重复出现）；build-app.sh 仍会核对、不对就改成只有这一条。
+  #   - 部署目标与上面一样钉 13.0（libmpv 本身也是 minos 13.0，build-app.sh 逐个 Mach-O 查）。
+  #   - 两个 arch 都链接同一套 universal 的 dylib，再由 universal_binaries 合成。
+  # 捆绑插件的拉取只在上面的 darwin 构建里做（两个构建共用 dist/source-plugin/MacOS_universal）。
+  - id: darwin-desktop
+    binary: nagare
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    tags: [libmpv]
+    env:
+      - CGO_ENABLED=1
+      - MACOSX_DEPLOYMENT_TARGET=13.0
+      - CGO_CFLAGS=-mmacosx-version-min=13.0 -I{{ .Env.LIBMPV_DIR }}/include
+      - CGO_LDFLAGS=-mmacosx-version-min=13.0 -L{{ .Env.LIBMPV_DIR }}/Frameworks
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -extldflags=-Wl,-rpath,@executable_path/../Frameworks
+    mod_timestamp: "{{ .CommitTimestamp }}"
 
   # Windows：纯 Go 交叉编译；-H=windowsgui 去掉控制台窗口（界面在浏览器 + 托盘）。
   - id: windows
@@ -102,9 +133,15 @@ universal_binaries:
     ids: [darwin]
     name_template: nagare
     replace: true # 只发 universal，不单发 amd64 / arm64
+  # Nagare.app：桌面窗口版的 universal → build-app.sh 组装（libmpv + 命令行 mpv + 插件）、签名、
+  # 出 dmg 与 .app.zip，并把 libmpv 的完整对应源码放进 dist/mpv-sources/。
+  - id: darwin-desktop-universal
+    ids: [darwin-desktop]
+    name_template: nagare
+    replace: true
     hooks:
       post:
-        - cmd: scripts/macos/build-app.sh "{{ .Path }}" "{{ .Version }}" dist
+        - cmd: scripts/macos/build-app.sh "{{ .Path }}" "{{ .Version }}" dist "{{ .Env.LIBMPV_DIR }}" "{{ .Env.LIBMPV_SOURCE }}"
           output: true
 
 # 归档命名：nagare-<版本>_<MacOS|Linux|Windows>_<universal|x86_64|arm64>
@@ -184,7 +221,8 @@ nfpms:
 checksum:
   name_template: checksums.txt
   algorithm: sha256
-  # dmg / setup.exe / .app.zip / mpv 构建脚本快照不是 goreleaser 自己的归档，显式纳入校验。
+  # dmg / setup.exe / .app.zip / mpv 源码（Windows 的构建脚本快照、macOS 的 libmpv 完整对应源码）
+  # 不是 goreleaser 自己的归档，显式纳入校验。
   # 自更新的信任链就架在这份清单上，漏掉哪个产物，哪个产物就没法被校验。
   extra_files:
     - glob: dist/*.dmg
@@ -250,12 +288,13 @@ release:
     - glob: dist/*.dmg
     - glob: dist/*.app.zip # 自更新用：ad-hoc 签名的 Nagare.app 整包
     - glob: dist/*-setup.exe
-    - glob: dist/mpv-sources/* # GPL 合规：Windows 包内 mpv 的构建脚本源码快照
+    - glob: dist/mpv-sources/* # GPL 合规：Windows 包内 mpv 的构建脚本快照 + macOS 包内 libmpv 的完整对应源码
   footer: |
     ---
     安装步骤（macOS「仍要打开」/ Windows「仍要运行」、mpv 依赖、校验方法）见
     [README「安装」](https://github.com/nagare-project/nagare#安装)。
-    Windows 包内置的 mpv 及其许可证信息见 `THIRD_PARTY_NOTICES.md`。
+    Windows 包内置的 mpv、macOS 包内置的 libmpv 与命令行 mpv，以及它们的许可证与对应源码
+    （`mpv-winbuild-cmake-*.tar.gz` / `libmpv-macos-source-*.tar.gz`）见 `THIRD_PARTY_NOTICES.md`。
 
 # Scoop（Windows 可选渠道）：发版时把 manifest 推到 nagare-project/scoop-nagare。
 #

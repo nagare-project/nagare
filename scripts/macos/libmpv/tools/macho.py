@@ -15,6 +15,23 @@
   macho.py manifest <产物目录> --lock versions.lock --patches patches/ [--mpv-version 文件]
       写出 manifest.json 与 MANIFEST.txt：组件版本 / 许可证 / 源码哈希、补丁、工具链、
       每个文件的 sha256，每个 Mach-O 的架构、minos、装载名、依赖与 LC_RPATH。
+
+  macho.py verify-manifest <产物目录>
+      按 manifest.json 逐个核对文件（大小与 sha256），多出来、少了的都算失败。发布流水线下载
+      artifact 之后用它确认拿到的就是那次构建、验证过的那一套。
+
+  macho.py bundle <Nagare.app> [--minos 13.0]
+      检查组装好的 Nagare.app（scripts/macos/build-app.sh 调用），任何一条不过就以非零退出：
+        * bundle 里没有符号链接
+        * 每个 Mach-O 都是 arm64 + x86_64 的 universal —— 只有 MacOS/nagare-source-<arch>（捆绑的
+          Nagare Source 引擎，运行时按 GOARCH 挑一个）是单架构，且架构必须与文件名对得上
+        * 每个切片的 minos 不高于 --minos（= Info.plist 的 LSMinimumSystemVersion）
+        * Frameworks/ 里只有 dylib，装载名都是 @rpath/<文件名>，没有 LC_RPATH
+        * MacOS/nagare 与 MacOS/mpv 都只有一条 LC_RPATH：@executable_path/../Frameworks；
+          其余可执行文件要么没有 LC_RPATH，要么只有这一条
+        * MacOS/ 下的 Mach-O 都有可执行权限；MacOS/nagare 链接 @rpath/libmpv.2.dylib
+        * 依赖要么是系统库，要么是 @rpath/<Frameworks 里确有的文件>；Frameworks 里每个库都有人用
+        * 每个 Mach-O 的 ad-hoc 签名有效
 """
 
 import argparse
@@ -159,6 +176,137 @@ def check(args: argparse.Namespace) -> int:
         print(f"静态检查失败：{len(errors)} 项", file=sys.stderr)
         return 1
     print(f"静态检查通过：{len(files)} 个 Mach-O")
+    return 0
+
+
+# Nagare.app 里允许单架构的 Mach-O：捆绑的 Nagare Source 引擎（scripts/release/fetch-source-plugin.sh
+# 按 GOARCH 各放一个，运行时挑与 nagare 同架构的那个）。文件名后缀 → lipo 的架构名。
+BUNDLE_THIN = {"MacOS/nagare-source-arm64": "arm64", "MacOS/nagare-source-amd64": "x86_64"}
+# 必须链接 Frameworks 的可执行文件（只有一条 LC_RPATH，且就是 MPV_RPATH）
+BUNDLE_LINKED = ("MacOS/nagare", "MacOS/mpv")
+
+
+def bundle(args: argparse.Namespace) -> int:
+    contents = os.path.join(args.app, "Contents")
+    minos_max = version_tuple(args.minos)
+    errors = []
+
+    def fail(msg: str) -> None:
+        errors.append(msg)
+        print("  ✗ " + msg)
+
+    if not os.path.isdir(contents):
+        print(f"不是一个 .app：{args.app}", file=sys.stderr)
+        return 1
+    found = []
+    for path in walk_files(contents):
+        rel = os.path.relpath(path, contents)
+        if os.path.islink(path):
+            fail(f"符号链接：{rel} -> {os.readlink(path)}")
+        elif os.path.isfile(path) and is_macho(path):
+            found.append(rel)
+
+    fw_dir = os.path.join(contents, "Frameworks")
+    frameworks = set(os.listdir(fw_dir)) if os.path.isdir(fw_dir) else set()
+    for name in sorted(frameworks):
+        rel = f"Frameworks/{name}"
+        if rel not in found:
+            fail(f"{rel}：Frameworks/ 里只该有 dylib")
+    for rel in BUNDLE_LINKED:
+        if rel not in found:
+            fail(f"缺少 {rel}")
+
+    used = set()
+    for rel in found:
+        errors_before = len(errors)
+        path = os.path.join(contents, rel)
+        name = os.path.basename(rel)
+        is_dylib = rel.startswith("Frameworks/")
+        if rel.startswith("MacOS/") and not os.stat(path).st_mode & 0o111:
+            fail(f"{rel}：没有可执行权限")
+        archs = sorted(run("lipo", "-archs", path).split())
+        want = [BUNDLE_THIN[rel]] if rel in BUNDLE_THIN else sorted(ARCHS)
+        if archs != want:
+            fail(f"{rel}：架构是 {' '.join(archs)}，应为 {' + '.join(want)}")
+        for arch in archs:
+            lc = load_commands(path, arch)
+            tag = f"{rel} [{arch}]"
+            if lc["minos"] is None:
+                fail(f"{tag}：读不到 LC_BUILD_VERSION / LC_VERSION_MIN_MACOSX")
+            elif version_tuple(lc["minos"]) > minos_max:
+                fail(f"{tag}：minos {lc['minos']} 高于 {args.minos} —— 老系统上打不开")
+            if is_dylib:
+                if lc["id"] != f"@rpath/{name}":
+                    fail(f"{tag}：装载名是 {lc['id']}，应为 @rpath/{name}")
+                if lc["rpaths"]:
+                    fail(f"{tag}：不该有 LC_RPATH，实际 {lc['rpaths']}")
+            elif rel in BUNDLE_LINKED:
+                if lc["rpaths"] != [MPV_RPATH]:
+                    fail(f"{tag}：LC_RPATH 应只有 {MPV_RPATH}，实际 {lc['rpaths']}")
+            elif lc["rpaths"] not in ([], [MPV_RPATH]):
+                fail(f"{tag}：LC_RPATH 只能是空或 {MPV_RPATH}，实际 {lc['rpaths']}")
+            if rel == "MacOS/nagare" and "@rpath/libmpv.2.dylib" not in lc["deps"]:
+                fail(f"{tag}：没有链接 @rpath/libmpv.2.dylib（没带 libmpv 构建标签？）")
+            for dep in lc["deps"]:
+                if is_system(dep):
+                    continue
+                lib = dep[len("@rpath/"):] if dep.startswith("@rpath/") else None
+                if lib in frameworks:
+                    used.add(lib)
+                    continue
+                fail(f"{tag}：依赖 {dep} 既不是系统库，也不在 Frameworks/ 里")
+        sig = subprocess.run(["codesign", "--verify", "--strict", path], capture_output=True, text=True)
+        if sig.returncode != 0:
+            fail(f"{rel}：签名无效：{sig.stderr.strip()}")
+        if len(errors) == errors_before:
+            print(f"  ✓ {rel}（{' '.join(archs)}）")
+    for name in sorted(frameworks - used):
+        if f"Frameworks/{name}" in found:
+            fail(f"Frameworks/{name}：没有任何 Mach-O 依赖它")
+
+    if errors:
+        print(f"Nagare.app 检查失败：{len(errors)} 项", file=sys.stderr)
+        return 1
+    print(f"Nagare.app 检查通过：{len(found)} 个 Mach-O")
+    return 0
+
+
+def verify_manifest(args: argparse.Namespace) -> int:
+    root = args.dir
+    with open(os.path.join(root, "manifest.json"), encoding="utf-8") as f:
+        data = json.load(f)
+    listed = {}
+    for entry in data.get("files", []):
+        rel = entry.get("path", "")
+        if not rel or os.path.isabs(rel) or ".." in rel.split("/"):
+            print(f"  ✗ 清单里有不合法的路径：{rel!r}", file=sys.stderr)
+            return 1
+        listed[rel] = entry
+    errors = 0
+    seen = set()
+    for path in walk_files(root):
+        rel = os.path.relpath(path, root)
+        if os.path.islink(path):
+            print(f"  ✗ 符号链接：{rel}")
+            errors += 1
+            continue
+        if os.path.isdir(path) or rel in ("manifest.json", "MANIFEST.txt"):
+            continue
+        seen.add(rel)
+        entry = listed.get(rel)
+        if entry is None:
+            print(f"  ✗ 清单里没有：{rel}")
+            errors += 1
+        elif os.path.getsize(path) != entry.get("size") or sha256(path) != entry.get("sha256"):
+            print(f"  ✗ 与清单不符：{rel}")
+            errors += 1
+    for rel in sorted(set(listed) - seen):
+        print(f"  ✗ 缺少：{rel}")
+        errors += 1
+    if errors:
+        print(f"按清单核对失败：{errors} 项", file=sys.stderr)
+        return 1
+    print(f"按清单核对通过：{len(seen)} 个文件")
     return 0
 
 
@@ -318,8 +466,14 @@ def main() -> int:
     m.add_argument("--patches", required=True)
     m.add_argument("--minos", default="13.0")
     m.add_argument("--mpv-version")
+    v = sub.add_parser("verify-manifest")
+    v.add_argument("dir")
+    b = sub.add_parser("bundle")
+    b.add_argument("app")
+    b.add_argument("--minos", default="13.0")
     a = p.parse_args()
-    return check(a) if a.cmd == "check" else manifest(a)
+    handlers = {"check": check, "manifest": manifest, "verify-manifest": verify_manifest, "bundle": bundle}
+    return handlers[a.cmd](a)
 
 
 if __name__ == "__main__":
