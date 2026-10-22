@@ -24,7 +24,7 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 		"arch":       runtime.GOARCH,
 		"dataDir":    h.deps.DataDir,
 		"logPath":    h.deps.LogPath,
-		"mpv":        mpvView(h.deps.MPV),
+		"mpv":        mpvView(h.deps.MPV, h.deps.EmbeddedMPV),
 		"player":     playerView(h.deps.Store.PlayerConfig()),
 		"torrent":    torrentView(h.deps.Store.TorrentConfig(), h.deps.Torrent, h.deps.TorrentCacheDir, h.deps.DefaultDownloadDir),
 		"background": map[string]any{"mode": backgroundModeView(h.deps.BackgroundMode)},
@@ -37,7 +37,13 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 }
 
 // mpvView 把共享探测状态压成设置页用的视图；install 只在缺失时出现。
-func mpvView(rt *mpv.Runtime) map[string]any {
+//
+// 桌面窗口（embedded）：播放用的是进程内 libmpv，命令行 mpv 有没有都不影响 ——
+// found 恒为真并带 embedded:true、source:"embedded"，不给安装指引。只认 found 的旧界面照样不再提示安装。
+func mpvView(rt *mpv.Runtime, embedded bool) map[string]any {
+	if embedded {
+		return map[string]any{"found": true, "embedded": true, "source": "embedded"}
+	}
 	var (
 		info mpv.Info
 		err  error
@@ -75,7 +81,7 @@ func (h *Handler) mpvDetect(w http.ResponseWriter, _ *http.Request) {
 	} else {
 		log.Printf("api: 重新探测到 mpv %s（%s，来源：%s）", info.Version, info.Path, info.Source)
 	}
-	httpserver.WriteJSON(w, http.StatusOK, mpvView(h.deps.MPV))
+	httpserver.WriteJSON(w, http.StatusOK, mpvView(h.deps.MPV, h.deps.EmbeddedMPV))
 }
 
 // shutdown 让界面里的「退出」按钮（Linux 无托盘时的唯一出口）能收掉整个进程：

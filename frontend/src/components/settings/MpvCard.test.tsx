@@ -19,6 +19,8 @@ const MISSING: MpvInfo = {
   },
 }
 
+const EMBEDDED: MpvInfo = { found: true, embedded: true, source: 'embedded' }
+
 const FOUND: MpvInfo = {
   found: true,
   path: '/opt/homebrew/bin/mpv',
@@ -48,6 +50,19 @@ afterEach(async () => {
   vi.resetAllMocks()
   vi.restoreAllMocks()
   Reflect.deleteProperty(navigator, 'clipboard')
+})
+
+describe('MpvCard · 桌面窗口内置', () => {
+  it('显示已就绪与「内置在 nagare 的窗口里」，没有安装指引，也没有「重新检测」', async () => {
+    const m = await mount(<MpvCard mpv={EMBEDDED} onReload={vi.fn()} />)
+    mounted.push(m.unmount)
+    const { container } = m
+    expect(container.querySelector('.kv-list dd')?.textContent).toBe('已就绪 ✓')
+    expect(container.textContent).toContain('内置在 nagare 的窗口里')
+    expect(container.querySelector('.alert-warn')).toBeNull()
+    expect(container.querySelector('.mpv-command-text')).toBeNull()
+    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '重新检测')).toBe(false)
+  })
 })
 
 describe('MpvCard · 未找到', () => {

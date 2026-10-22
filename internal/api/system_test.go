@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"runtime"
 	"testing"
@@ -21,12 +22,13 @@ type settingsView struct {
 	DataDir  string `json:"dataDir"`
 	LogPath  string `json:"logPath"`
 	MPV      struct {
-		Found   bool   `json:"found"`
-		Path    string `json:"path"`
-		Version string `json:"version"`
-		Source  string `json:"source"`
-		Hint    string `json:"hint"`
-		Install *struct {
+		Found    bool   `json:"found"`
+		Embedded bool   `json:"embedded"`
+		Path     string `json:"path"`
+		Version  string `json:"version"`
+		Source   string `json:"source"`
+		Hint     string `json:"hint"`
+		Install  *struct {
 			Command string `json:"command"`
 			URL     string `json:"url"`
 			Note    string `json:"note"`
@@ -126,9 +128,41 @@ func TestMPVDetectWithoutRuntime(t *testing.T) {
 	rec := (&testEnv{mux: mux}).do(t, http.MethodPost, "/api/mpv/detect", "")
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 
-	view := mpvView(nil)
+	view := mpvView(nil, false)
 	assert.Equal(t, false, view["found"])
 	assert.NotNil(t, view["install"])
+}
+
+// 桌面窗口（EmbeddedMPV）：播放用进程内 libmpv，命令行 mpv 找不找得到都报已就绪、带 embedded，
+// 不给安装指引 —— 引导、媒体库的红点与横幅都只认 found。
+func TestSettingsEmbeddedMPV(t *testing.T) {
+	env := newEnvDeps(t, true, func(d *Deps) { d.EmbeddedMPV = true })
+	env.mpvDetect = func(string) (mpv.Info, error) { return mpv.Info{}, errors.New("未找到 mpv") }
+	rec := env.do(t, http.MethodPost, "/api/mpv/detect", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	s := getSettings(t, env)
+	assert.True(t, s.MPV.Found)
+	assert.True(t, s.MPV.Embedded)
+	assert.Equal(t, "embedded", s.MPV.Source)
+	assert.Nil(t, s.MPV.Install, "桌面窗口里没有要装的 mpv")
+	assert.Empty(t, s.MPV.Hint)
+
+	var detected struct {
+		Found    bool `json:"found"`
+		Embedded bool `json:"embedded"`
+	}
+	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &detected))
+	assert.True(t, detected.Found && detected.Embedded, "重新检测也按桌面窗口报")
+}
+
+// 不是桌面窗口时照旧：没有 embedded 字段，找不到就给安装指引。
+func TestSettingsCommandLineMPVUnchanged(t *testing.T) {
+	env := newEnv(t)
+	s := getSettings(t, env)
+	assert.True(t, s.MPV.Found)
+	assert.False(t, s.MPV.Embedded)
+	assert.Equal(t, "path", s.MPV.Source)
 }
 
 // shutdown：先回 200 空信封，再（异步、约 100ms 后）触发退出回调。

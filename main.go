@@ -72,12 +72,14 @@ const cliUpdateTimeout = 15 * time.Minute
 
 // services 是主进程持有的全部业务对象。
 type services struct {
-	lists  *animego.Client
-	store  *store.Store
-	mpv    *mpv.Runtime
-	auth   api.AnimegoAuth
-	player *player.Manager
-	lib    *api.LibraryService
+	lists *animego.Client
+	store *store.Store
+	mpv   *mpv.Runtime
+	// embeddedMPV：播放在桌面窗口的进程内 libmpv 上（desktop.go），设置页据此不再要命令行 mpv
+	embeddedMPV bool
+	auth        api.AnimegoAuth
+	player      *player.Manager
+	lib         *api.LibraryService
 	// identify 在后台给媒体库里还没认出作品的分组补上作品与封面（随 run 的 ctx 起停）。
 	identify *api.Identifier
 	sources  *api.SourcesService
@@ -485,7 +487,7 @@ func buildServices(configDir string, window bool) (*services, error) {
 		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, identify: identify, sources: sources, sourcePlugin: pluginService,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
 		downloads: downloads, defaultDownloadDir: defaultDownloadDir,
-		selfUpdate: su, episodeSpaces: spaces,
+		selfUpdate: su, episodeSpaces: spaces, embeddedMPV: window,
 	}, nil
 }
 
@@ -639,6 +641,7 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 		RemoteArt:       api.NewRemoteArt(animego.DefaultBaseURL, 4096),
 		AnimegoBaseURL:  animego.DefaultBaseURL,
 		MPV:             svc.mpv,
+		EmbeddedMPV:     svc.embeddedMPV,
 		Version:         version,
 		Sources:         svc.sources,
 		SourcePlugin:    svc.sourcePlugin,

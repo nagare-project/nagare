@@ -245,7 +245,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	})
 	if err != nil {
 		return PlayResult{}, errs.Wrap(errs.CategoryPlayback, "player.launch",
-			"启动 mpv 失败", "确认 mpv 已安装且可运行（mpv --version）", err)
+			"启动 mpv 失败", m.launchRecovery(), err)
 	}
 
 	pb := newPlayback(pl)
@@ -358,6 +358,20 @@ func (m *Manager) writeDanmakuASS(ctx context.Context, path string, episodeID in
 		return 0, fmt.Errorf("生成弹幕字幕失败：%w", err)
 	}
 	return stats.Converted, nil
+}
+
+// 起播失败时给用户的恢复办法。命令行 mpv 是「确认装好了」；桌面窗口里的 mpv 在进程里、随 nagare 一起，
+// 没有可装的东西 —— 那多半是 nagare 自己的问题，重启或者报给我们。
+const (
+	recoveryCheckMPV = "确认 mpv 已安装且可运行（mpv --version）"
+	recoveryEmbedded = "重启 nagare 再试；还不行请把日志（设置 › 关于里的日志位置）发给我们"
+)
+
+func (m *Manager) launchRecovery() string {
+	if m.opts.EmbeddedMPV {
+		return recoveryEmbedded
+	}
+	return recoveryCheckMPV
 }
 
 // mpvPath 从共享探测状态取 mpv 路径；未找到时给出带安装指引的播放类错误

@@ -217,7 +217,8 @@ export interface PlaybackFailure {
 export type Platform = 'darwin' | 'linux' | 'windows'
 
 /** mpv 是怎么被找到的：显式配置 / 随包内置 / PATH / 各平台常见安装位置 */
-export type MpvSource = 'explicit' | 'bundled' | 'path' | 'known'
+/** embedded：桌面窗口里的进程内 libmpv（不需要另装 mpv） */
+export type MpvSource = 'explicit' | 'bundled' | 'path' | 'known' | 'embedded'
 
 /** found=false 时的安装引导（按平台生成）；windows 的 command 为空串（只给 url） */
 export interface MpvInstallGuide {
@@ -228,6 +229,8 @@ export interface MpvInstallGuide {
 
 export interface MpvInfo {
   found: boolean
+  /** 播放在 nagare 桌面窗口里的进程内 libmpv 上：恒为已就绪，没有路径、版本与安装指引 */
+  embedded?: boolean
   path?: string
   version?: string
   source?: MpvSource

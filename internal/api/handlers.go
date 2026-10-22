@@ -52,9 +52,12 @@ type Deps struct {
 	RemoteArt      *RemoteArt
 	AnimegoBaseURL string
 	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
-	Version        string
-	Sources        *SourcesService
-	SourcePlugin   *SourcePluginService
+	// EmbeddedMPV：播放在桌面窗口里的进程内 libmpv 上（internal/desktop），不要命令行 mpv。
+	// 设置载荷里的 mpv 据此报「已就绪 · 内置」，界面不再提示安装。
+	EmbeddedMPV  bool
+	Version      string
+	Sources      *SourcesService
+	SourcePlugin *SourcePluginService
 	// Torrent 是磁力边下边播引擎；nil 表示引擎启动失败，磁力端点整体降级
 	// （返回 503 并在设置页显示原因），其余功能不受影响。
 	Torrent TorrentAPI

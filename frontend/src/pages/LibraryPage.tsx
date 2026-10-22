@@ -232,9 +232,11 @@ function MpvChip({ state }: { state: SettingsState }) {
   const title =
     mpv === null
       ? 'mpv 状态未知'
-      : mpv.found
-        ? `mpv 已就绪${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
-        : 'mpv 未找到'
+      : mpv.embedded === true
+        ? 'mpv 已就绪 · 内置在 nagare 的窗口里'
+        : mpv.found
+          ? `mpv 已就绪${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
+          : 'mpv 未找到'
   return (
     <span className="mpv-chip" title={title}>
       <span className={dotClass} aria-hidden="true" />
