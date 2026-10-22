@@ -86,9 +86,9 @@ type Options struct {
 	UIConfigDir func() (string, error)
 	// ScreenshotDir 是播放器里截图的存放目录，第一次截图时才创建。空串交给 mpv 的默认位置。
 	ScreenshotDir string
-	// Navigator 为同一个窗口里的上一集 / 下一集找邻居并把它准备好（见 nav.go）。
-	// 可为 nil：窗口里不切集，播完即关窗，与没有这个功能时完全一样。
-	// （目前只定义了接缝，窗口里的切集还没接上：非 nil 时行为也暂与 nil 相同。）
+	// Navigator 为同一个窗口里的上一集 / 下一集找邻居并把它准备好（见 nav.go、switch.go）。
+	// 可为 nil：窗口里不切集，播完即关窗，与没有这个功能时完全一样（不设 keep-open，
+	// 界面状态里的 nav 恒为两个 false）。
 	Navigator Navigator
 }
 
@@ -206,14 +206,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	// 窗口标题先用文件名派生的本地标题，匹配到官方标题后由后台升级。
 	title := pickTitle(store.Binding{}, item)
 
-	startAt := 0.0
-	if p, ok := m.opts.Store.Progress(item.FileID); ok {
-		resumable := p.PositionSec > resumeMinSec &&
-			(p.DurationSec <= 0 || p.PositionSec < completionRatio*p.DurationSec)
-		if resumable {
-			startAt = p.PositionSec
-		}
-	}
+	startAt := m.resumeAt(item.FileID)
 
 	mpvPath, err := m.mpvPath()
 	if err != nil {
@@ -243,6 +236,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 
 	pb := newPlayback(pl)
 	sess := m.newSession(pb, src, item, title)
+	sess.setNav(m.neighbors(src))
 	pb.setEpisode(sess)
 	// 在后台解析开始之前取：之后读到的可能已经是解析结果，与「立即返回、弹幕后台解析」的约定不符
 	loading := sess.danmakuInfo()
@@ -254,6 +248,19 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	go m.resolveDanmaku(sess)
 
 	return PlayResult{FileID: item.FileID, Title: title, Danmaku: loading, PlaybackID: pb.id}, nil
+}
+
+// resumeAt 是这个文件的续播位置：上次看到一半（超过 resumeMinSec、还没到看完的比例）就从那里接着播，
+// 否则从头播（0）。起播与窗口里切到下一集都按这一条。
+func (m *Manager) resumeAt(fileID string) float64 {
+	p, ok := m.opts.Store.Progress(fileID)
+	if !ok {
+		return 0
+	}
+	if p.PositionSec > resumeMinSec && (p.DurationSec <= 0 || p.PositionSec < completionRatio*p.DurationSec) {
+		return p.PositionSec
+	}
+	return 0
 }
 
 // isNetworkStream 判断交给 mpv 的是不是一条 HTTP 流（磁力边下边播、在线候选），

@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,7 @@ func TestBuildUIStateTitleAndInfo(t *testing.T) {
 		name    string
 		src     MediaSource
 		binding store.Binding
+		nav     Neighbors
 		cfg     store.PlayerConfig
 		want    uiState
 	}{
@@ -54,6 +56,19 @@ func TestBuildUIStateTitleAndInfo(t *testing.T) {
 			want: uiState{Title: "Frieren", Info: "第 11 集 · 磁力边下边播", Anime4K: "off"},
 		},
 		{
+			name: "有上一集与下一集：带上按钮与集号说法",
+			src:  NewLocalSource(item),
+			nav:  Neighbors{Prev: &Neighbor{Episode: 10, Label: "第 10 集"}, Next: &Neighbor{Episode: 13, Label: "第 13 集"}},
+			want: uiState{Title: "Frieren", Info: "第 11 集 · 本地媒体库", Anime4K: "off",
+				Nav: uiNav{Prev: true, Next: true, PrevLabel: "第 10 集", NextLabel: "第 13 集"}},
+		},
+		{
+			name: "只有下一集",
+			src:  NewLocalSource(item),
+			nav:  Neighbors{Next: &Neighbor{Episode: 12, Label: "第 12 集"}},
+			want: uiState{Title: "Frieren", Info: "第 11 集 · 本地媒体库", Anime4K: "off", Nav: uiNav{Next: true, NextLabel: "第 12 集"}},
+		},
+		{
 			name: "解析不出集号：只写来源",
 			src:  NewLocalSource(library.Item{FileName: "movie.mkv"}),
 			want: uiState{Title: "movie.mkv", Info: "本地媒体库", Anime4K: "off"},
@@ -61,10 +76,17 @@ func TestBuildUIStateTitleAndInfo(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sess := &session{src: tc.src, item: tc.src.Item(), binding: tc.binding}
+			sess := &session{src: tc.src, item: tc.src.Item(), binding: tc.binding, nav: tc.nav}
 			assert.Equal(t, tc.want, buildUIState(sess, tc.cfg))
 		})
 	}
+}
+
+// nav 没有 omitempty：没有邻居时也要发两个 false，界面据此藏起按钮（而不是沿用上一集的）。
+func TestUIStateJSONAlwaysCarriesNav(t *testing.T) {
+	b, err := json.Marshal(uiState{Title: "t", Info: "i", Anime4K: "off"})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"title":"t","info":"i","anime4k":"off","nav":{"prev":false,"next":false}}`, string(b))
 }
 
 func TestHandleUIMessageUpdatesPlayerConfig(t *testing.T) {

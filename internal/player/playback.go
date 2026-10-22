@@ -85,7 +85,7 @@ func (m *Manager) newSession(pb *playback, src MediaSource, item library.Item, t
 	}
 }
 
-// episodeLoop 是窗口事件循环里「这一集」的状态。
+// episodeLoop 是窗口事件循环里「这一集」的状态。窗口里换集时整个换掉。
 //
 // 弹幕轨编排要等两个条件都满足：mpv 已加载文件（能 sub-add）+ 后台弹幕已解析
 // 完（assPath 定型）。任一先到都不动手，避免对空 assPath 或未就绪的播放器操作。
@@ -100,22 +100,18 @@ type episodeLoop struct {
 	// fallback：file-loaded 事件可能被丢（Events 通道满时丢旧），到点兜底认定播放器已就绪。
 	fallback    *time.Timer
 	lastFlush   time.Time
-	sawEOF      bool   // 这一集收到过 eof 结束
+	sawEOF      bool   // 这一集播到了尾（keep-open 下跟着 EOF 的沿，拖回去就清掉）
 	endedReason string // mpv 报的最近一次结束原因
-}
-
-// noteEnded 记下这一集的结束原因（窗口终结时据此判断看完与否、是不是播放失败）。
-//
-// 现在跟着 Ended 走：keep-open=no，每个文件播完都有一个 Ended。开了 keep-open 之后要改跟
-// EventEOF / EventEOFCleared 的沿 —— 拖回去再播到尾不会再来 Ended，停在尾巴上换集也没有 Ended(stop)。
-func (l *episodeLoop) noteEnded(ev mpv.Event) {
-	if ev.Kind != mpv.EventEnded {
-		return
-	}
-	l.endedReason = ev.Reason
-	if ev.Reason == "eof" {
-		l.sawEOF = true
-	}
+	// fenced：刚在窗口里换到这一集，新文件还没开始（start-file / file-loaded 都还没到）。
+	// 这期间通道里的位置、暂停、结束、到尾事件都是上一个文件的，一律丢掉；界面消息照常处理。
+	fenced bool
+	// premature：到尾时已判定为网络流提前断供（已经关窗），窗口收尾时照此记一次播放失败。
+	premature bool
+	// closing：到尾之后由我们关窗（提前断供或没有下一集了）。之后 eof-reached 落下是文件被卸载，
+	// 不是用户拖回去了，不能把 sawEOF 清掉。
+	closing bool
+	// sidecar 是换过来的这一集要外挂的对白字幕，文件加载好时 sub-add 一次（开播那一集走 --sub-file）。
+	sidecar string
 }
 
 func newEpisodeLoop(sess *session) *episodeLoop {
@@ -128,26 +124,79 @@ func newEpisodeLoop(sess *session) *episodeLoop {
 
 func (l *episodeLoop) stop() { l.fallback.Stop() }
 
-// watchWindow 消费 mpv 事件直到窗口终结：编排轨道、节流写进度、处理界面消息、终态收敛。
+// note 记下这一集的结束状态（窗口终结时据此判断看完与否、是不是播放失败）。
+//
+// keep-open=no 时每个文件播完都有一个 Ended，跟着它走。开着 keep-open 时还要跟 EOF / EOFCleared
+// 的沿：播到尾 mpv 停在最后一帧不结束文件，拖回去再播到尾不会再来 Ended（每个文件只发一次），
+// 停在尾巴上换集也可能没有 Ended(stop)。
+func (l *episodeLoop) note(ev mpv.Event, keepOpen bool) {
+	switch ev.Kind {
+	case mpv.EventEnded:
+		l.endedReason = ev.Reason
+		if ev.Reason == "eof" {
+			l.sawEOF = true
+		}
+	case mpv.EventEOF:
+		if keepOpen {
+			l.sawEOF, l.endedReason = true, "eof"
+		}
+	case mpv.EventEOFCleared:
+		if keepOpen && !l.closing {
+			l.sawEOF, l.endedReason = false, ""
+		}
+	}
+}
+
+// passFence 报告 ev 该不该交给这一集处理，以及这条事件是不是让栅栏落下了。
+// 栅栏在新文件的 start-file 或 file-loaded（先到的那个）落下。
+func (l *episodeLoop) passFence(ev mpv.Event) (pass, lifted bool) {
+	if !l.fenced {
+		return true, false
+	}
+	switch ev.Kind {
+	case mpv.EventFileStarted, mpv.EventFileLoaded:
+		l.fenced = false
+		return true, true
+	case mpv.EventUIMessage:
+		return true, false
+	default:
+		return false, false
+	}
+}
+
+// windowLoop 是 watchWindow 那个 goroutine 独占的状态：正在播的这一集的 episodeLoop 与切集状态。
+// 只在窗口事件循环里读写，不加锁。
+type windowLoop struct {
+	pb   *playback
+	loop *episodeLoop
+	nav  navState
+}
+
+// watchWindow 消费 mpv 事件直到窗口终结：编排轨道、节流写进度、处理界面消息、在窗口里换集、终态收敛。
 func (m *Manager) watchWindow(pb *playback) {
 	defer close(pb.finished)
-	loop := newEpisodeLoop(pb.episode())
-	defer loop.stop()
+	w := &windowLoop{pb: pb, loop: newEpisodeLoop(pb.episode())}
+	defer func() { w.loop.stop() }()
 
 	for {
 		select {
 		case ev := <-pb.player.Events():
-			m.handleEvent(pb, loop, ev)
-		case <-loop.danmakuReady:
-			loop.danmakuResolved = true
-			loop.danmakuReady = nil
-			m.maybeArrange(loop)
-		case <-loop.fallback.C:
-			loop.fileLoaded = true
-			m.maybeArrange(loop)
+			m.handleEvent(w, ev)
+		case <-w.loop.danmakuReady:
+			w.loop.danmakuResolved = true
+			w.loop.danmakuReady = nil
+			m.maybeArrange(w)
+		case <-w.loop.fallback.C:
+			m.fileReady(w)
+		case <-w.nav.countdownC:
+			m.countdownFired(w)
+		case <-w.nav.slowC:
+			m.preparingSlow(w)
+		case res := <-w.nav.prepared:
+			m.commitSwitch(w, res)
 		case <-pb.player.Done():
-			drainFinalEvents(pb, loop)
-			m.endWindow(pb, loop)
+			drainFinalEvents(w)
+			m.endWindow(w)
 			return
 		}
 	}
@@ -159,11 +208,13 @@ func (m *Manager) watchWindow(pb *playback) {
 // 那条 Ended(eof) 就丢了 —— 网络流提前断掉（下载停滞）因此记不成播放失败，在线来源的
 // 自动换源也就不会触发。事件是在 Done 关闭之前投递的，这时一定都在通道里。
 // 其余事件要对着活的播放器处理（推界面状态、编排字幕轨），窗口已经没了，不再处理。
-func drainFinalEvents(pb *playback, loop *episodeLoop) {
+func drainFinalEvents(w *windowLoop) {
 	for {
 		select {
-		case ev := <-pb.player.Events():
-			loop.noteEnded(ev)
+		case ev := <-w.pb.player.Events():
+			if pass, _ := w.loop.passFence(ev); pass {
+				w.loop.note(ev, w.nav.keepOpen)
+			}
 		default:
 			return
 		}
@@ -171,37 +222,89 @@ func drainFinalEvents(pb *playback, loop *episodeLoop) {
 }
 
 // handleEvent 处理一条 mpv 事件。在窗口的事件循环里同步调用（可以发 IPC 命令）。
-func (m *Manager) handleEvent(pb *playback, loop *episodeLoop, ev mpv.Event) {
-	sess := loop.sess
+func (m *Manager) handleEvent(w *windowLoop, ev mpv.Event) {
+	loop := w.loop
+	pass, lifted := loop.passFence(ev)
+	if lifted {
+		m.liftFence(w)
+	}
+	if !pass {
+		return
+	}
+	loop.note(ev, w.nav.keepOpen)
 	switch ev.Kind {
 	case mpv.EventFileLoaded:
-		loop.fileLoaded = true
-		m.pushUIState(sess)
-		m.maybeArrange(loop)
+		m.fileReady(w)
 	case mpv.EventUIMessage:
-		if len(ev.Args) > 0 && ev.Args[0] == "ready" {
-			pb.uiReady.Store(true)
-		}
-		m.handleUIMessage(sess, ev.Args)
+		m.handleWindowUIMessage(w, ev.Args)
 	case mpv.EventTimePos:
 		if time.Since(loop.lastFlush) >= progressFlushInterval {
-			m.flushProgress(sess, false)
+			m.flushProgress(loop.sess, false)
 			loop.lastFlush = time.Now()
 		}
-	case mpv.EventEnded:
-		loop.noteEnded(ev)
+		m.probeUI(w)
+	case mpv.EventEOF:
+		m.reachedEOF(w)
+	case mpv.EventEOFCleared:
+		m.leftEOF(w)
+	}
+}
+
+// fileReady 是「播放器里这一集的文件加载好了」：file-loaded 到了，或兜底定时器到点（事件被丢了，
+// 或者第一个文件在 IPC 连上之前就加载完了）。换过来的这一集先挂外挂对白字幕，
+// 再编排弹幕轨 —— 编排要数对白字幕有几条。
+func (m *Manager) fileReady(w *windowLoop) {
+	loop := w.loop
+	// 已经加载好了就不必再兜底（否则 8 秒后再推一遍状态）
+	loop.fallback.Stop()
+	if loop.fenced {
+		// file-loaded 与 start-file 都被丢了（通道满时丢旧）：到点就当新文件已经开始
+		loop.fenced = false
+		m.liftFence(w)
+	}
+	loop.fileLoaded = true
+	m.addSidecar(loop)
+	m.pushWindowState(w)
+	m.maybeArrange(w)
+}
+
+// handleWindowUIMessage 处理界面消息：切集相关的在这里（要动窗口状态），其余交给 handleUIMessage。
+func (m *Manager) handleWindowUIMessage(w *windowLoop, args []string) {
+	if len(args) == 0 || m.handleNavMessage(w, args[0]) {
+		return
+	}
+	ready := args[0] == "ready"
+	if ready {
+		w.pb.uiReady.Store(true)
+	}
+	m.handleUIMessage(w.loop.sess, args)
+	if ready {
+		m.syncKeepOpen(w)
 	}
 }
 
 // maybeArrange 在文件加载好、弹幕也解析完之后编排一次字幕轨。
-func (m *Manager) maybeArrange(loop *episodeLoop) {
+func (m *Manager) maybeArrange(w *windowLoop) {
+	loop := w.loop
 	if loop.arranged || !loop.fileLoaded || !loop.danmakuResolved {
 		return
 	}
 	loop.arranged = true
 	m.arrangeTracks(loop.sess)
 	// 弹幕匹配完标题也可能升级成了作品名：编排完再推一次
-	m.pushUIState(loop.sess)
+	m.pushWindowState(w)
+}
+
+// pushWindowState 把这一集的状态推给界面，并据此重新决定 keep-open。
+//
+// 推得过去就说明界面脚本已经加载好了：mpv 对不存在的脚本 script-message-to 会报错。界面加载好时
+// 发的 ready 可能在 IPC 连上之前就发完了（第一个文件的 file-loaded 也一样），丢了它不能让这个窗口
+// 永远不接下一集。
+func (m *Manager) pushWindowState(w *windowLoop) {
+	if m.pushUIState(w.loop.sess) {
+		w.pb.uiReady.Store(true)
+	}
+	m.syncKeepOpen(w)
 }
 
 // endWindow 是窗口终结（mpv 播完退出、用户关窗、被 Stop）之后的收尾，顺序有讲究：
@@ -209,18 +312,26 @@ func (m *Manager) maybeArrange(loop *episodeLoop) {
 //  1. 这一集收尾：最后一次进度落盘、删弹幕文件，「看完」回写放到后台；
 //  2. OnSessionEnd（磁力停做种删分片）—— 不必等账号回写，但必须在 finished 关闭之前：
 //     Stop 等的正是 finished，回调先跑完，换会话时新旧才不会重叠（磁力场景下重叠意味着
-//     新种子刚建好就被旧会话的收尾停掉）；
+//     新种子刚建好就被旧会话的收尾停掉）。按窗口算，每个窗口恰好一次：窗口里换集不调它；
 //  3. 有限期地等后台回写；
 //  4. 同一把锁里发布 PlaybackFailure 并摘下 current。回写失败必须在「不在播了」的同时就
 //     看得见：网页一读到 playing=false 就停止轮询，横幅读的就是那最后一次的 sync；
 //  5. finished 由 watchWindow 的 defer 关闭。
-func (m *Manager) endWindow(pb *playback, loop *episodeLoop) {
+func (m *Manager) endWindow(w *windowLoop) {
+	pb, loop := w.pb, w.loop
 	sess := loop.sess
+	m.abandonSwitch(w)
 	st := pb.player.State()
 	// 在线流被服务器掐断、磁力流断了供给时 mpv 同样报 eof：这种 eof 不能算看完
 	// （否则会把账号标成已看），而是一次来源故障。
-	premature := prematureEOF(sess.src, st, loop.sawEOF)
-	m.endEpisode(pb, sess, st, loop.sawEOF && !premature)
+	premature := loop.premature || prematureEOF(sess.src, st, loop.sawEOF)
+	endedByEOF := loop.sawEOF && !premature
+	if loop.fenced {
+		// 换集刚发出、新文件还没开始窗口就没了：播放器里的位置还是上一个文件的，
+		// 不能落到这一集的进度上
+		st, premature, endedByEOF = mpv.State{}, false, false
+	}
+	m.endEpisode(pb, sess, st, endedByEOF)
 	pb.cancel()
 
 	playerErr := pb.player.Err()

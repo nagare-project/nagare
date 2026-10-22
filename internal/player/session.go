@@ -57,6 +57,21 @@ type session struct {
 	binding store.Binding
 	assPath string
 	danmaku DanmakuInfo
+	// nav 是这一集的前后邻居（开播时问一次 Navigator；切集失败时重问）。界面状态从网页那边
+	// （RefreshShaders）也会推，所以同样走 mu。
+	nav Neighbors
+}
+
+func (s *session) navSnapshot() Neighbors {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.nav
+}
+
+func (s *session) setNav(n Neighbors) {
+	s.mu.Lock()
+	s.nav = n
+	s.mu.Unlock()
 }
 
 func (s *session) danmakuInfo() DanmakuInfo {
