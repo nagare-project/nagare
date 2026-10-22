@@ -61,13 +61,18 @@ closure() {
 
 # 缓存键。按 DEP_ORDER（已是拓扑序）依次算，结果放在 KEY_<组件> 里；
 # 工具链指纹与脚本哈希先算好，避免在子 shell 里反复调用 xcodebuild。
-# 键里带 lib/env.sh（编译助手）但不带本文件：改了 build_dep 装出来的内容（stage 的布局、
-# 许可证的位置……）时，把下面的 KEY_FORMAT 加一，强制全部重编。
-KEY_FORMAT=2
+# 除了组件自己的 recipe，影响 stage 内容的公共函数也按函数体（declare -f，不含注释）进键：
+# 改了它们会全部重编，只改注释不会。新增这类函数时要加进 KEY_FUNCTIONS；
+# 只有 stage/ 目录本身的布局变了才需要把 KEY_FORMAT 加一。
+KEY_FORMAT=3
+KEY_FUNCTIONS="isolate_pkg_config meson_machine_file meson_install cmake_install autotools_install
+  arch_flags arch_triple meson_cpu can_run_arch sdk_path extract_source
+  build_dep scrub_destdir apply_patches ff_list"
 compute_keys() {
   local fp helpers dep key s d p
   fp=$(toolchain_fingerprint)
-  helpers=$(sha256_of "$here/lib/env.sh")
+  # shellcheck disable=SC2086 # 按空白拆成函数名
+  helpers=$(declare -f $KEY_FUNCTIONS | shasum -a 256 | awk "{print \$1}")
   for dep in $DEP_ORDER; do
     key=$(
       {
@@ -106,7 +111,7 @@ apply_patches() {
 # 有的构建系统在 make install DESTDIR=… 时重新链接，把暂存区的路径写进了装载名
 # （FFmpeg 就是：SHLIBDIR 里带着 $(DESTDIR)）。统一把这个前缀去掉，库才指向真正的 prefix。
 scrub_destdir() {
-  local inst=$1 f id dep args
+  local inst=$1 f id dep args out
   find "$inst" -type f | while read -r f; do
     case "$(head -c 4 "$f" | xxd -p)" in cffaedfe | cafebabe) ;; *) continue ;; esac
     args=()
@@ -117,9 +122,9 @@ scrub_destdir() {
     done
     [ ${#args[@]} -gt 0 ] || continue
     log "$(basename "$f")：去掉装载名里的 DESTDIR"
-    install_name_tool "${args[@]}" "$f" 2>/dev/null
+    out=$(install_name_tool "${args[@]}" "$f" 2>&1) || die "install_name_tool 改不了 ${f}：$out"
     # arm64 上签名失效的代码不能加载，后面的组件构建时可能要用到它
-    codesign --force --sign - "$f" 2>/dev/null
+    out=$(codesign --force --sign - "$f" 2>&1) || die "codesign 签不了 ${f}：$out"
   done
 }
 

@@ -37,6 +37,8 @@ jobs:
         arch: [arm64, x86_64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # 后面会跑上游的 configure 脚本，不把 token 留在 .git/config 里
 
       - name: 构建工具
         run: |
@@ -121,6 +123,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # 后面会跑上游的 configure 脚本，不把 token 留在 .git/config 里
 
       - name: 准备
         run: |

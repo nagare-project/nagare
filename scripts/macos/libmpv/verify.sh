@@ -10,6 +10,7 @@
 #   thumbfast 那套编码参数 / Lua / nagare 自己的界面脚本 / 本机 HTTPS（含证书校验与 HLS）/
 #   cocoa-cb 窗口 / 一个链接 libmpv 的 C 程序（经 @rpath 装载 + render API 画帧）。
 # 标成「可选」的项目失败只发警告：它们依赖 runner 有没有 GPU / VideoToolbox / 图形会话。
+# CI 里（GITHUB_ACTIONS）或 LIBMPV_STRICT=1 时，render API 与 nagare 界面脚本不许跳过。
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -22,6 +23,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 OUT=$(cd "$1" && pwd)
 static_only=false
 [ "${2:-}" = --static-only ] && static_only=true
+# CI 里（或 LIBMPV_STRICT=1）不许「跳过」嵌入要用的两项：render API 与 nagare 界面脚本
+strict=false
+if [ -n "${GITHUB_ACTIONS:-}" ] || [ "${LIBMPV_STRICT:-}" = 1 ]; then strict=true; fi
 
 MEDIA="$here/tests/media"
 # 各项的日志放这里。设了 LIBMPV_VERIFY_DIR 就用它且不删（CI 失败时上传），否则用临时目录。
@@ -49,6 +53,8 @@ failures=""
 pass() { passed=$((passed + 1)); printf '  ✓ %s\n' "$1"; }
 fail() { failed=$((failed + 1)); failures="$failures\n  - $1"; printf '  ✗ %s\n' "$1"; }
 soft() { warned=$((warned + 1)); warn "可选项未通过：$1"; }
+# 严格模式下算失败，否则只警告
+skip_or_fail() { if $strict; then fail "$1"; else soft "$1"; fi; }
 
 # with_timeout <秒> 命令...（macOS 没有 timeout，用 perl 的 alarm）
 with_timeout() {
@@ -123,7 +129,7 @@ done
 
 if $static_only; then
   echo "静态检查：通过 ${passed}，失败 $failed"
-  [ $failed -eq 0 ] || { printf "失败项：$failures\n" >&2; exit 1; }
+  [ $failed -eq 0 ] || { printf '失败项：%b\n' "$failures" >&2; exit 1; }
   exit 0
 fi
 
@@ -135,6 +141,8 @@ want_placebo=$(lock_field libplacebo 2)
 arches="$HOST_ARCH"
 if [ "$HOST_ARCH" = arm64 ]; then
   if can_run_arch x86_64; then arches="arm64 x86_64"; else warn "没有 Rosetta，x86_64 切片只做了静态检查"; fi
+else
+  warn "Intel 机器跑不了 arm64：arm64 切片只做了静态检查"
 fi
 
 # 播一个文件：退出码 0，VO / AO 起来了，没有解码器报错
@@ -231,7 +239,7 @@ for fmt in jpg png; do
   mkdir -p "$d"
   mpv_run "$arch" "$TMP/shot-$fmt.log" --no-config --vo=image --vo-image-format="$fmt" --vo-image-outdir="$d" \
     --ao=null --frames=1 "$MEDIA/hevc10-flac.mkv" || true
-  magic=$(head -c 4 "$d/00000001.$fmt" 2>/dev/null | xxd -p)
+  magic=$(head -c 4 "$d/00000001.$fmt" 2>/dev/null | xxd -p || true)
   case "$fmt:$magic" in
     jpg:ffd8ff*) pass "截图 jpg" ;;
     png:89504e47) pass "截图 png" ;;
@@ -258,7 +266,7 @@ thumb zimg "lavfi=[zscale=w=64:h=40],format=bgra" "$MEDIA/hevc10-flac.mkv"
 # 加载成功的标志：脚本起来后会把 mpv 自带的控制条设成 never。源码包里没有 internal/，那里跳过
 logf="$TMP/nagare-ui.log"
 if [ ! -d "$REPO_ROOT/internal/mpv/ui" ]; then
-  soft "没有 internal/mpv/ui（源码包里不带），跳过界面脚本检查"
+  skip_or_fail "没有 internal/mpv/ui（源码包里不带），跳过界面脚本检查"
 elif mpv_run "$arch" "$logf" --config-dir="$REPO_ROOT/internal/mpv/ui" --vo=null --ao=null --frames=48 \
   --msg-level=all=v "$MEDIA/h264-aac-ass.mkv" && grep -q 'user-data/osc/visibility="never"' "$logf" \
   && ! grep -q -i -e 'lua error' -e 'stack traceback' "$logf"; then
@@ -344,18 +352,27 @@ for arch in $arches; do
   else pass "embed_test（${arch}）：$(grep -o 'ffmpeg-version=[^ ]*' "$logf")，$loaded 个库全部来自 Frameworks/"; fi
 done
 
-arch=$HOST_ARCH
-for hw in no videotoolbox; do
-  logf="$TMP/render-$hw.log"
-  set +e
-  with_timeout 90 "$bundle/MacOS/embed_test" --render "$MEDIA/h264-aac-ass.mkv" "$hw" > "$logf" 2>&1
-  rc=$?
-  set -e
-  if [ $rc -eq 0 ]; then pass "render API（OpenGL，hwdec=${hw}）：$(grep '^frames=' "$logf")"
-  elif [ $rc -eq 77 ]; then soft "render API（hwdec=${hw}）：没有可用的 OpenGL 上下文，跳过"; show_log "$logf" 5
-  elif [ "$hw" = no ]; then fail "render API（OpenGL，hwdec=no，退出码 ${rc}）"; show_log "$logf"
-  else soft "render API（hwdec=${hw}，退出码 ${rc}）"; show_log "$logf" 10; fi
+# render API：本机架构测软解与 VideoToolbox，x86_64 切片（Rosetta）测软解
+for arch in $arches; do
+  hws=no
+  [ "$arch" = "$HOST_ARCH" ] && hws="no videotoolbox"
+  pre=()
+  [ "$arch" = "$HOST_ARCH" ] || pre=(arch "-$arch")
+  for hw in $hws; do
+    logf="$TMP/render-$arch-$hw.log"
+    set +e
+    with_timeout 90 ${pre[@]+"${pre[@]}"} "$bundle/MacOS/embed_test" --render "$MEDIA/h264-aac-ass.mkv" "$hw" \
+      > "$logf" 2>&1
+    rc=$?
+    set -e
+    label="render API（OpenGL，${arch}，hwdec=${hw}）"
+    if [ $rc -eq 0 ]; then pass "${label}：$(grep '^frames=' "$logf")"
+    elif [ $rc -eq 77 ]; then skip_or_fail "${label}：没有可用的 OpenGL 上下文"; show_log "$logf" 5
+    elif [ "$hw" = no ]; then fail "${label}，退出码 ${rc}"; show_log "$logf"
+    else soft "${label}，退出码 ${rc}"; show_log "$logf" 10; fi
+  done
 done
+arch=$HOST_ARCH
 
 # 命令行 mpv 自己开窗口（cocoa-cb）：浏览器模式靠它。需要图形会话，没有就只警告。
 # 本地跑 verify.sh 时屏幕上会闪过一个 2 秒的 mpv 窗口，这是这一项在测
@@ -381,6 +398,6 @@ done
 echo
 echo "通过 ${passed}，失败 ${failed}，警告 $warned"
 if [ $failed -ne 0 ]; then
-  printf "失败项：$failures\n" >&2
+  printf '失败项：%b\n' "$failures" >&2
   exit 1
 fi
