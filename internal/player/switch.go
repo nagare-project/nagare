@@ -235,7 +235,7 @@ func (m *Manager) commitSwitch(w *windowLoop, res prepResult) {
 	w.loop.fenced, w.loop.sidecar = true, res.opened.SubPath
 	w.nav.phase = switchFenced
 	m.clearCard(w)
-	go m.resolveDanmaku(sess)
+	m.startResolve(sess)
 }
 
 // liftFence 在新文件开始之后调用：栅栏落下，换集结束。界面状态等文件加载好再推（fileReady）。

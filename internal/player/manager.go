@@ -163,6 +163,10 @@ type Status struct {
 type Manager struct {
 	opts Options
 
+	// resolving 数着还在后台解析弹幕的会话。关窗之后它们照样做完、落盘（见 newSession），
+	// 收尾不等它们；只有测试要等：临时目录得等它们写完才能删。
+	resolving sync.WaitGroup
+
 	startMu sync.Mutex
 	mu      sync.Mutex
 	current *playback
@@ -248,7 +252,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	m.mu.Unlock()
 	go m.watchWindow(pb)
 	go m.watchRemoteProgress(pb)
-	go m.resolveDanmaku(sess)
+	m.startResolve(sess)
 
 	return PlayResult{FileID: item.FileID, Title: title, Danmaku: loading, PlaybackID: pb.id}, nil
 }
@@ -301,6 +305,15 @@ func sourceRedactsDiagnostics(source MediaSource) bool {
 // 这段是纯后台工作，不阻塞播放也不占用请求，放宽只影响一个后台 goroutine
 // 的存活时长。
 const danmakuResolveTimeout = 120 * time.Second
+
+// startResolve 在后台解析这一集的弹幕（计入 resolving）。
+func (m *Manager) startResolve(sess *session) {
+	m.resolving.Add(1)
+	go func() {
+		defer m.resolving.Done()
+		m.resolveDanmaku(sess)
+	}()
+}
 
 // resolveDanmaku 在后台完成 懒哈希 → 匹配 → 弹幕 ASS，把结果落回 session，
 // 最后关闭 danmakuReady 通知事件循环可以编排字幕轨了。用这一集的 ctx 而不是 Play 的请求 ctx：

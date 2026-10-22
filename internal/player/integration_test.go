@@ -46,6 +46,7 @@ func TestPlayRealMPVEndToEnd(t *testing.T) {
 		RuntimeDir:   dir,
 		OnSessionEnd: func() { sessionEnds.Add(1) },
 	})
+	waitResolving(t, m)
 
 	items := library.BuildItems([]library.SourceFile{{
 		RelPath: filepath.Base(media), AbsPath: media, Size: 1, MTimeMs: 1,

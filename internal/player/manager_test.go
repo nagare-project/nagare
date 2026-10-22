@@ -58,7 +58,19 @@ func newTestManager(t *testing.T, client AnimegoClient) (*Manager, *store.Store,
 	st, err := store.Open(filepath.Join(dir, "state.json"))
 	require.NoError(t, err)
 	m := New(Options{Store: st, Client: client, RuntimeDir: dir})
+	waitResolving(t, m)
 	return m, st, dir
+}
+
+// waitResolving 让测试收尾时先等后台弹幕解析做完，再删临时目录：关窗之后解析照样落盘，
+// 与 t.TempDir 的清理撞上就是「directory not empty」。t.Cleanup 后进先出，所以要在 t.TempDir 之后调。
+func waitResolving(t *testing.T, m *Manager) {
+	t.Helper()
+	t.Cleanup(func() {
+		if !waitTimeout(&m.resolving, 10*time.Second) {
+			t.Error("后台弹幕解析 10 秒内没有做完")
+		}
+	})
 }
 
 // testItem 造一个指向真实临时文件的条目（hash 计算要读它）。

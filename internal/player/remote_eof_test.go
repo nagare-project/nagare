@@ -45,6 +45,7 @@ func TestRemoteTruncatedStreamIsFailureNotCompletion(t *testing.T) {
 	st, err := store.Open(filepath.Join(dir, "state.json"))
 	require.NoError(t, err)
 	m := New(Options{Store: st, RuntimeDir: dir, MPV: mpv.NewRuntimeWith(func(string) (mpv.Info, error) { return info, nil }, "")})
+	waitResolving(t, m)
 	defer m.Stop()
 	result, err := m.Play(context.Background(), NewRemoteSource(RemoteSourceOptions{
 		SourceID: "fixture", CandidateID: "truncated", Title: "截断测试", Episode: 1, URL: server.URL + "/ep.mp4",
