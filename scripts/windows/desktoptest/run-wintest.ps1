@@ -249,13 +249,16 @@ if ($Manual) {
 Step '启动' {
     Start-Nagare @{} @()
     $ok = Wait-Until { $s = State; $s.visible -and $s.webReady } 40
-    Start-Sleep -Seconds 2
+    # 等网页真的画出来（首屏是 SPA，网页层就绪之后还要一两秒）
+    $script:hintText = ''
+    [void](Wait-Until { $script:hintText = (Ctl '/js' @{ code = "(document.querySelector('.background-hint-text') || {}).textContent || ''" }).Trim().Trim('"'); $script:hintText -ne '' } 15)
+    Start-Sleep -Seconds 1
     $s = State
     $shot = Snap 'startup'
     Add-Step '启动：窗口显示、网页层（WebView2）就绪' ($ok -and $s.active) ("WebView2 $($s.runtime)；窗口 $($s.client[0])x$($s.client[1])，DPI $($s.dpi)；fallback=$($s.fallback)") $shot $s
     $ua = (Ctl '/js' @{ code = 'navigator.userAgent' }).Trim()
     Add-Step '网页层的 User-Agent 末尾带 NagareDesktop（网页据此说「关闭窗口」）' ($ua -match ' NagareDesktop"?$') $ua ''
-    $hint = (Ctl '/js' @{ code = "(document.querySelector('.background-hint-text') || {}).textContent || ''" }).Trim()
+    $hint = $script:hintText
     $settings = (Api 'GET' '/api/settings').data
     Add-Step '后台形态是 window，提示条说「关闭窗口」' (($settings.background.mode -eq 'window') -and ($hint -match '关闭窗口')) ("mode=$($settings.background.mode)；提示条：$hint") ''
 }

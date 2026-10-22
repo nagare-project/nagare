@@ -173,6 +173,13 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/smoke-report" | Out-Null
           ./scripts/windows/desktoptest/run-wintest.ps1 -Exe "$PWD/dist/smoke/nagare.exe" -Media "$PWD/scripts/windows/desktoptest/media/clip.mkv" -OutDir "$env:RUNNER_TEMP/smoke-report" -CI
+      - name: 冒烟测试（退路：输入经 IPC 转发，NAGARE_DESKTOP_INPUT=ipc）
+        # 正常路径是重新启用 mpv 的子窗口；这条退路平时不走，跑一遍是为了它真用得上的时候没坏。不挡流水线。
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./scripts/windows/desktoptest/run-wintest.ps1 -Exe "$PWD/dist/smoke/nagare.exe" -Media "$PWD/scripts/windows/desktoptest/media/clip.mkv" -OutDir "$env:RUNNER_TEMP/smoke-report" -CI -SkipFallback -IpcInput
       - name: 失败时也收一张整屏截图
         if: failure()
         shell: pwsh

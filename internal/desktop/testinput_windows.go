@@ -16,7 +16,6 @@ import (
 )
 
 var (
-	dwmapi                 = windows.NewLazySystemDLL("dwmapi.dll")
 	pDwmGetWindowAttribute = dwmapi.NewProc("DwmGetWindowAttribute")
 	pGetWindowTextW        = user32.NewProc("GetWindowTextW")
 	pGetDC                 = user32.NewProc("GetDC")

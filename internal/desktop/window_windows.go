@@ -108,9 +108,24 @@ func (a *app) createWindows() error {
 	if a.videoHost, err = createWindow(0, classVideo, "", wsChild|wsClipChildren|wsClipSiblings, 0, 0, 0, 0, a.top); err != nil {
 		return err
 	}
+	useDarkTitleBar(a.top)
 	a.restorePlacement()
 	a.layout()
 	return nil
+}
+
+// useDarkTitleBar 让系统标题栏用深色（界面是近黑的，浅色标题栏在上面很扎眼）。DWMWA_USE_IMMERSIVE_DARK_MODE 是 20；
+// Windows 10 20H1 之前的版本用 19。都不认就照旧是浅色，不算错。
+func useDarkTitleBar(hwnd uintptr) {
+	on := int32(1)
+	for _, attr := range []uintptr{20, 19} {
+		if err := pDwmSetWindowAttribute.Find(); err != nil {
+			return
+		}
+		if hr, _, _ := pDwmSetWindowAttribute.Call(hwnd, attr, uintptr(unsafe.Pointer(&on)), unsafe.Sizeof(on)); hr == 0 {
+			return
+		}
+	}
 }
 
 func (a *app) destroyWindows() {

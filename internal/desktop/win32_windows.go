@@ -15,6 +15,9 @@ var (
 	gdi32    = windows.NewLazySystemDLL("gdi32.dll")
 	shell32  = windows.NewLazySystemDLL("shell32.dll")
 	kernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	dwmapi   = windows.NewLazySystemDLL("dwmapi.dll")
+
+	pDwmSetWindowAttribute = dwmapi.NewProc("DwmSetWindowAttribute")
 
 	pRegisterClassExW         = user32.NewProc("RegisterClassExW")
 	pCreateWindowExW          = user32.NewProc("CreateWindowExW")
