@@ -1,7 +1,9 @@
 package desktop
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,6 +66,25 @@ func TestLibmpvSpecWithoutUIConfig(t *testing.T) {
 	assert.False(t, ok)
 	vo, _ := findOpt(spec.Init, "vo")
 	assert.Equal(t, "libmpv", vo.String)
+}
+
+// libmpv 在 mpv_initialize 里才解析 mpv.conf，会盖过之前设的选项（与命令行相反，见 mpv.LibmpvSpec.Init）。
+// 桌面窗口多带的那几条、以及宿主在 C 里先设的 fullscreen / window-maximized，界面配置里都不能出现。
+func TestUIConfigDoesNotOverrideEmbeddedOptions(t *testing.T) {
+	conf, err := os.ReadFile(filepath.Join("..", "mpv", "ui", "mpv.conf"))
+	require.NoError(t, err)
+	names := []string{"fullscreen", "window-maximized"}
+	for _, o := range embeddedOptions("/cfg") {
+		names = append(names, o.Name)
+	}
+	for _, line := range strings.Split(string(conf), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, _, _ := strings.Cut(line, "=")
+		assert.NotContains(t, names, strings.TrimSpace(key), "ui/mpv.conf 会在 libmpv 里盖过宿主设的 %s", key)
+	}
 }
 
 func TestStubIsUnavailable(t *testing.T) {
