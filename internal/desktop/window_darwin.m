@@ -529,6 +529,10 @@ static void ensureWindow(void) {
   if ([cfg.preferences respondsToSelector:NSSelectorFromString(@"setElementFullscreenEnabled:")]) {
     [cfg.preferences setValue:@YES forKey:@"elementFullscreenEnabled"];
   }
+  // 网页据此知道自己在 nagare 的窗口里（提示条说「关闭窗口」而不是「关闭标签页」）。只在 WebKit 默认的那段后面
+  // 追加一个记号、不替换它：发现页的 YouTube 预告片会看它。约定见 docs/player-ui.md「宿主与网页」。
+  NSString *appName = cfg.applicationNameForUserAgent;
+  cfg.applicationNameForUserAgent = appName.length ? [appName stringByAppendingString:@" NagareDesktop"] : @"NagareDesktop";
   gWeb = [[WKWebView alloc] initWithFrame:root.bounds configuration:cfg];
   gWeb.navigationDelegate = gController;
   gWeb.UIDelegate = gController;

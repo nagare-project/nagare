@@ -252,9 +252,11 @@ export interface AnimegoInfo {
  * - `dock`：macOS .app，Dock 图标 + 菜单栏图标
  * - `menubar`：macOS 裸二进制（Homebrew），只有右上角菜单栏图标
  * - `tray`：Windows / Linux 系统托盘
+ * - `window`：nagare 自己的桌面窗口（macOS：Dock + 菜单栏「流」；Windows：托盘）。关窗口不退出；
+ *   同一个界面也可能开在外部浏览器里，措辞再看 `inDesktopWindow()`
  * - `none`：`--no-tray`、API-only 或没有托盘的桌面（退出只能靠设置页 / Ctrl+C）
  */
-export type BackgroundMode = 'dock' | 'menubar' | 'tray' | 'none'
+export type BackgroundMode = 'dock' | 'menubar' | 'tray' | 'window' | 'none'
 
 export interface BackgroundInfo {
   mode: BackgroundMode

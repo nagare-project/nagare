@@ -74,8 +74,9 @@ type Deps struct {
 	// DataDir / LogPath 展示给用户：数据在哪、出问题看哪个文件。
 	DataDir string
 	LogPath string
-	// BackgroundMode 是本次运行的后台形态（tray.Mode 的字符串值：none / menubar / dock / tray），
-	// 界面据此告诉用户「关掉标签页后去哪里找它、怎么退出」。
+	// BackgroundMode 是本次运行的后台形态（tray.Mode 的字符串值：none / menubar / dock / tray / window），
+	// 界面据此告诉用户「关掉标签页（桌面窗口里是关掉窗口）后去哪里找它、怎么退出」。
+	// window 是后加的：用桌面窗口时取代 dock / menubar / tray，其余四个值的含义不变。
 	BackgroundMode string
 }
 

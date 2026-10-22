@@ -527,7 +527,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mode := backgroundMode(f.noTray, apiOnly)
+	mode := backgroundMode(f.noTray, apiOnly, desktopEnabled(f, apiOnly))
 	apiHandler, updater := buildHandlers(configDir, svc, cancel, mode)
 
 	srv, ln, port, err := listenAndBuild(cfg, configDir, webFS, apiHandler, updater)

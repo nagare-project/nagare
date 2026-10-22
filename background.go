@@ -5,21 +5,27 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/nagare-project/nagare/internal/tray"
 )
 
-// 「nagare 在后台运行」这件事用户看不见：界面在浏览器里，关掉标签页什么都不会提示。
+// 「nagare 在后台运行」这件事用户看不见：界面在浏览器里，关掉标签页什么都不会提示
+// （桌面窗口同理：关掉窗口 nagare 照旧在跑，下载和做种也不停）。
 // 三层提示（2026-09-14 用户定）：Dock / 托盘图标本身、首次启动一条系统通知、
 // 界面顶部一条可关闭的提示条。这个文件管前两层的文案与「只在首次启动弹」的判定。
 
 // noticeMarker 是「首次启动通知已经弹过」的标记文件名（放在配置目录）。
 const noticeMarker = ".background-notice-shown"
 
-// backgroundMode 汇总本次运行的后台形态：--no-tray 与 API-only（没有界面可开）都按无图标算。
-func backgroundMode(noTray, apiOnly bool) tray.Mode {
+// backgroundMode 汇总本次运行的后台形态：--no-tray 与 API-only（没有界面可开）都按无图标算；
+// 用桌面窗口时是 ModeWindow（窗口本身就要托盘的事件循环，见 desktopUsable，不会与无图标同时成立）。
+func backgroundMode(noTray, apiOnly, window bool) tray.Mode {
 	if noTray || apiOnly {
 		return tray.ModeNone
+	}
+	if window {
+		return tray.ModeWindow
 	}
 	return tray.CurrentMode()
 }
@@ -39,12 +45,18 @@ func backgroundNotice(configDir string, mode tray.Mode) *tray.Notice {
 	if err := os.WriteFile(marker, []byte("nagare 首次启动提示已弹出\n"), 0o600); err != nil {
 		log.Printf("写首次启动标记失败（下次启动会再提示一次）：%v", err)
 	}
-	return &tray.Notice{Title: "nagare 在后台运行中", Body: noticeBody(mode)}
+	return &tray.Notice{Title: "nagare 在后台运行中", Body: noticeBody(mode, runtime.GOOS)}
 }
 
-// noticeBody 按形态告诉用户「去哪里找它、怎么退出」。
-func noticeBody(mode tray.Mode) string {
+// noticeBody 按形态告诉用户「去哪里找它、怎么退出」。goos 只在桌面窗口时用到（Dock 与托盘的措辞不同）。
+// 桌面窗口不说「做种」：关窗口会停播，边下边播的种子随之停下（M3-2），下完的下载也不做种。
+func noticeBody(mode tray.Mode, goos string) string {
 	switch mode {
+	case tray.ModeWindow:
+		if goos == "windows" {
+			return "关闭窗口不会退出，正在进行的下载会继续。从系统托盘图标（可能折叠在 ^ 里）可重新打开窗口或退出。"
+		}
+		return "关闭窗口不会退出，正在进行的下载会继续。点 Dock 图标或菜单栏的「流」可重新打开，⌘Q 退出。"
 	case tray.ModeDock:
 		return "关闭浏览器不会退出。点 Dock 图标可重新打开界面，⌘Q 或菜单栏图标可退出。"
 	case tray.ModeMenuBar:
