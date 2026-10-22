@@ -228,6 +228,9 @@ static NSString *keyName(NSEvent *e) {
   return [modifierPrefix(e.modifierFlags) stringByAppendingString:base];
 }
 
+// 与 mpv v0.41.0 自己的 macOS 前端一致（osdep/mac/input_helper.swift 228-229：3 → MBTN_FORWARD、
+// 4 → MBTN_BACK）。别的应用多半把 3 当「后退」，这里照 mpv：同一份 input.conf 在命令行 mpv 与桌面窗口里
+// 意思一样。
 static NSString *mouseButtonName(NSInteger button) {
   switch (button) {
     case 0: return @"MBTN_LEFT";

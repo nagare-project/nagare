@@ -10,9 +10,9 @@
 // 没人读的选项：这里观察它们、落到 NSWindow 上，用户在窗口上的操作再写回去。
 //
 // 线程：所有 AppKit 与 mpv 句柄的操作都在主线程。Go 那边经 nagareOnMain 切过来；mpv 的唤醒回调同样
-// 切过来再取事件。会话结束时宿主收到 MPV_EVENT_SHUTDOWN：先释放渲染上下文再 mpv_destroy，然后
-// 换回网页。nagare 这边的收尾（进度落盘、OnSessionEnd）不经过这里：它跟着 IPC 上的 shutdown 走，
-// 与命令行下用户关掉 mpv 窗口是同一条路。
+// 切过来再取事件。会话结束时宿主收到 MPV_EVENT_SHUTDOWN：在主线程释放渲染上下文、换回网页，
+// mpv_destroy 放到后台（见 teardownMpv）。nagare 这边的收尾（进度落盘、OnSessionEnd）不经过这里：
+// 它跟着 IPC 连接的断开走（mpv.AttachEndpoint），与命令行下用户关掉 mpv 窗口落到同一个终态。
 #import <WebKit/WebKit.h>
 #include "desktop_internal_darwin.h"
 #include "desktop_darwin.h"
@@ -97,22 +97,51 @@ static double titlebarInset(void) {
   return ceil(NSMaxX([zoom convertRect:zoom.bounds toView:nil]));
 }
 
+// 异步设属性与异步命令的结果：mpv_set_property_async 对值不合法也先返回 0，真正的错误随后以
+// MPV_EVENT_SET_PROPERTY_REPLY / COMMAND_REPLY 的 error 回来。每次调用带一个非零的 reply_userdata，
+// 记下它对应的属性名，回来报错时写进日志（不写值：值里可能有请求头、地址）。
+static NSMutableDictionary<NSNumber *, NSString *> *gPendingReplies;
+static uint64_t gNextReply;
+
+static uint64_t trackReply(const char *name) {
+  if (!gPendingReplies) gPendingReplies = [NSMutableDictionary dictionary];
+  uint64_t rid = ++gNextReply;
+  gPendingReplies[@(rid)] = @(name);
+  return rid;
+}
+
+static void untrackReply(uint64_t rid, int error) {
+  if (rid == 0) return;
+  NSString *name = gPendingReplies[@(rid)];
+  if (!name) return;
+  [gPendingReplies removeObjectForKey:@(rid)];
+  if (error < 0) nagareLog(@"mpv 没接受 %@：%s", name, mpv_error_string(error));
+}
+
+// 异步设一个属性并跟踪结果（调用立即失败时当场记日志）
+static int setPropertyAsync(mpv_handle *h, const char *name, mpv_format format, void *data) {
+  uint64_t rid = trackReply(name);
+  int r = mpv_set_property_async(h, rid, name, format, data);
+  if (r < 0) untrackReply(rid, r);
+  return r;
+}
+
 static void publishInset(void) {
   if (!gMpv) return;
   double v = titlebarInset();
-  mpv_set_property_async(gMpv, 0, "user-data/nagare/titlebar-inset", MPV_FORMAT_DOUBLE, &v);
+  setPropertyAsync(gMpv, "user-data/nagare/titlebar-inset", MPV_FORMAT_DOUBLE, &v);
 }
 
 void nagarePublishHidpi(void) {
   if (!gMpv || !gWin) return;
   double v = gWin.backingScaleFactor;
-  mpv_set_property_async(gMpv, 0, "user-data/nagare/hidpi", MPV_FORMAT_DOUBLE, &v);
+  setPropertyAsync(gMpv, "user-data/nagare/hidpi", MPV_FORMAT_DOUBLE, &v);
 }
 
 static void setMpvFlag(const char *name, BOOL value) {
   if (!gMpv) return;
   int v = value ? 1 : 0;
-  mpv_set_property_async(gMpv, 0, name, MPV_FORMAT_FLAG, &v);
+  setPropertyAsync(gMpv, name, MPV_FORMAT_FLAG, &v);
 }
 
 // ───────────────────────── 两层切换 ─────────────────────────
@@ -146,14 +175,21 @@ static void showWeb(void) {
 
 // ───────────────────────── mpv 会话 ─────────────────────────
 
+// 收掉会话。渲染上下文在主线程释放（必须在 mpv_destroy 之前，且只能在渲染线程）；mpv_destroy 挪到后台：
+// 它要等核心整个退出才返回，核心卡在 I/O 上时（比如 /Volumes 下掉线的 SMB）会一直等 —— 在主线程等就是
+// 窗口冻住。全局量先清空，之后迟到的唤醒对不上 gMpv == h，直接忽略。⌘Q 时进程在系统答复之后就退了，
+// 后台这一步做没做完都无所谓（核心的收尾不碰我们的状态）。
 static void teardownMpv(BOOL toWeb) {
   mpv_handle *h = gMpv;
   gMpv = NULL;
-  nagareFreeRenderContext();  // 必须在 mpv_destroy 之前
+  [gPendingReplies removeAllObjects];
+  nagareFreeRenderContext();
   nagareMediaKeysStop();
   if (h) {
     mpv_set_wakeup_callback(h, NULL, NULL);
-    mpv_destroy(h);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+      mpv_destroy(h);
+    });
   }
   if (toWeb && gWin) showWeb();
 }
@@ -210,6 +246,10 @@ static void drainEvents(mpv_handle *h) {
       case MPV_EVENT_PROPERTY_CHANGE:
         handleProperty(ev->data);
         break;
+      case MPV_EVENT_SET_PROPERTY_REPLY:
+      case MPV_EVENT_COMMAND_REPLY:
+        untrackReply(ev->reply_userdata, ev->error);
+        break;
       case MPV_EVENT_SHUTDOWN:
         nagareLog(@"mpv 会话结束，换回网页");
         teardownMpv(YES);
@@ -235,7 +275,7 @@ static int applyOption(mpv_handle *h, NSDictionary *o, BOOL asProperty) {
   int kind = [o[@"kind"] intValue];
   if (kind == NAGARE_OPT_STRING) {
     const char *v = [o[@"value"] UTF8String];
-    return asProperty ? mpv_set_property_async(h, 0, name, MPV_FORMAT_STRING, &v) : mpv_set_option_string(h, name, v);
+    return asProperty ? setPropertyAsync(h, name, MPV_FORMAT_STRING, &v) : mpv_set_option_string(h, name, v);
   }
   NSArray<NSString *> *items = o[@"items"];
   NSArray<NSString *> *values = o[@"values"];
@@ -249,7 +289,7 @@ static int applyOption(mpv_handle *h, NSDictionary *o, BOOL asProperty) {
   }
   mpv_node_list list = {.num = (int)n, .values = nodes, .keys = keys};
   mpv_node root = {.format = kind == NAGARE_OPT_MAP ? MPV_FORMAT_NODE_MAP : MPV_FORMAT_NODE_ARRAY, .u.list = &list};
-  int r = asProperty ? mpv_set_property_async(h, 0, name, MPV_FORMAT_NODE, &root) : mpv_set_option(h, name, MPV_FORMAT_NODE, &root);
+  int r = asProperty ? setPropertyAsync(h, name, MPV_FORMAT_NODE, &root) : mpv_set_option(h, name, MPV_FORMAT_NODE, &root);
   free(nodes);
   free(keys);
   return r;
@@ -317,7 +357,9 @@ static NSString *loadSession(NSArray<NSDictionary *> *opts, NSString *media) {
   }
   if (media.length) {
     const char *argv[] = {"loadfile", media.UTF8String, "replace", NULL};
-    mpv_command_async(gMpv, 0, argv);
+    uint64_t rid = trackReply("loadfile");
+    int r = mpv_command_async(gMpv, rid, argv);
+    if (r < 0) untrackReply(rid, r);
   }
   return nil;
 }
@@ -327,15 +369,22 @@ static NSString *loadSession(NSArray<NSDictionary *> *opts, NSString *media) {
 @interface NagareWindowController : NSObject <NSWindowDelegate, WKNavigationDelegate, WKUIDelegate>
 @end
 
-static BOOL isOurs(NSURL *u) {
-  NSURL *o = [NSURL URLWithString:gOrigin ?: @""];
-  if (!o.port || !u.port || ![u.scheme isEqualToString:@"http"]) return NO;
-  BOOL loopback = [u.host isEqualToString:@"127.0.0.1"] || [u.host isEqualToString:@"localhost"];
-  return loopback && [u.port isEqualToNumber:o.port];
-}
-
-static BOOL opensOutside(NSURL *u) {
-  return [@[ @"http", @"https", @"mailto" ] containsObject:u.scheme.lowercaseString ?: @""];
+// 按 nav_darwin.m 的规则处理一次导航；返回 WebKit 这一次该放行还是取消
+static WKNavigationActionPolicy applyNav(NSURLRequest *req, BOOL newWindow, BOOL subframe) {
+  NSURL *u = req.URL;
+  switch (nagareNavDecision(u, newWindow, subframe, gOrigin)) {
+    case NagareNavAllow:
+      return WKNavigationActionPolicyAllow;
+    case NagareNavLoadHere:  // target=_blank / window.open 指向我们自己：就在这个窗口里开
+      [gWeb loadRequest:req];
+      return WKNavigationActionPolicyCancel;
+    case NagareNavExternal:
+      [[NSWorkspace sharedWorkspace] openURL:u];
+      return WKNavigationActionPolicyCancel;
+    default:
+      nagareLog(@"网页层拦下了一个 %@: 导航", u.scheme ?: @"(无协议)");  // 只记协议，地址里可能有东西
+      return WKNavigationActionPolicyCancel;
+  }
 }
 
 @implementation NagareWindowController
@@ -418,39 +467,21 @@ static BOOL opensOutside(NSURL *u) {
   nagarePublishHidpi();
 }
 
-// 网页：本机界面在窗口里开；外链与 target=_blank 交给默认浏览器；内嵌框架（预告片）照常
+// 网页的导航：规则见 nav_darwin.m（窗口里只开我们自己的源，外链交给默认浏览器，其余拦下）
 - (void)webView:(WKWebView *)wv
     decidePolicyForNavigationAction:(WKNavigationAction *)a
                     decisionHandler:(void (^)(WKNavigationActionPolicy))decide {
-  NSURL *u = a.request.URL;
-  if (a.targetFrame && !a.targetFrame.isMainFrame) {
-    decide(WKNavigationActionPolicyAllow);
-    return;
-  }
-  if (isOurs(u) || !opensOutside(u)) {
-    if (!a.targetFrame) {  // target=_blank 指向本机界面：就在这个窗口里开
-      [gWeb loadRequest:a.request];
-      decide(WKNavigationActionPolicyCancel);
-      return;
-    }
-    decide(WKNavigationActionPolicyAllow);
-    return;
-  }
-  [[NSWorkspace sharedWorkspace] openURL:u];
-  decide(WKNavigationActionPolicyCancel);
+  BOOL subframe = a.targetFrame && !a.targetFrame.isMainFrame;
+  decide(applyNav(a.request, a.targetFrame == nil, subframe));
 }
 
+// window.open 与没先经过上面那条的 target=_blank：同一套规则，永远不开第二个网页窗口
 - (WKWebView *)webView:(WKWebView *)wv
     createWebViewWithConfiguration:(WKWebViewConfiguration *)cfg
                forNavigationAction:(WKNavigationAction *)a
                     windowFeatures:(WKWindowFeatures *)f {
-  NSURL *u = a.request.URL;
-  if (isOurs(u)) {
-    [gWeb loadRequest:a.request];
-  } else if (opensOutside(u)) {
-    [[NSWorkspace sharedWorkspace] openURL:u];
-  }
-  return nil;  // 不开第二个网页窗口
+  applyNav(a.request, YES, NO);
+  return nil;
 }
 
 - (void)webViewWebContentProcessDidTerminate:(WKWebView *)wv {

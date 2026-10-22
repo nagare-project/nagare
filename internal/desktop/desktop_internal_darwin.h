@@ -39,6 +39,12 @@ void nagareMediaKeysStart(void);
 void nagareMediaKeysUpdate(NSString *title, BOOL paused);
 void nagareMediaKeysStop(void);
 
+// ── nav_darwin.m ──
+// 网页层的导航怎么处理：放行、在这个窗口里开（target=_blank 指向我们自己）、交给默认浏览器、拦下。
+// newWindow：target=_blank / window.open；subframe：内嵌框架里的导航。
+typedef NS_ENUM(int, NagareNav) { NagareNavAllow = 0, NagareNavLoadHere = 1, NagareNavExternal = 2, NagareNavCancel = 3 };
+NagareNav nagareNavDecision(NSURL *u, BOOL newWindow, BOOL subframe, NSString *origin);
+
 // ── window_darwin.m ──
 // 把当前的屏幕缩放发给界面（user-data/nagare/hidpi）；换屏、改缩放时调。
 void nagarePublishHidpi(void);

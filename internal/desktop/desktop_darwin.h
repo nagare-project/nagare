@@ -36,4 +36,7 @@ int nagare_desktop_load(const nagare_mpv_opt *opts, int n, const char *media, ch
 // 起播半路失败：收掉这个会话并换回网页。
 void nagare_desktop_abort(void);
 
+// 网页层导航规则（nav_darwin.m）的 C 入口，给测试用：返回 0 放行、1 在窗口里开、2 交给默认浏览器、3 拦下。
+int nagare_nav_decision(const char *url, int newWindow, int subframe, const char *origin);
+
 #endif

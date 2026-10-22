@@ -150,6 +150,20 @@ func marshal(opts []mpv.LibmpvOption) (*C.nagare_mpv_opt, func()) {
 	return arr, free
 }
 
+// navDecision 是 nav_darwin.m 导航规则的 Go 入口（给测试用）：0 放行、1 在窗口里开、2 交给默认浏览器、3 拦下。
+func navDecision(url string, newWindow, subframe bool, origin string) int {
+	cu, co := C.CString(url), C.CString(origin)
+	defer C.free(unsafe.Pointer(cu))
+	defer C.free(unsafe.Pointer(co))
+	b := func(v bool) C.int {
+		if v {
+			return 1
+		}
+		return 0
+	}
+	return int(C.nagare_nav_decision(cu, b(newWindow), b(subframe), co))
+}
+
 //export nagareDesktopLog
 func nagareDesktopLog(msg *C.char) {
 	log.Printf("desktop: %s", C.GoString(msg))

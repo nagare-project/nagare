@@ -140,6 +140,8 @@ char *nagare_test_state(void) {
         @"frames" : @(gFramesRendered),
         @"drags" : @(gWindowDrags),
         @"webPath" : u.path ?: @"",  // 不带查询串（首个地址里有 token）
+        @"webScheme" : u.scheme ?: @"",
+        @"webTitle" : nagareWebView().title ?: @"",
         @"webHidden" : @(nagareWebView().hidden),
         @"screens" : screens,
         @"activationPolicy" : @(NSApp.activationPolicy),
