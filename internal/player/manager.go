@@ -61,6 +61,9 @@ type Options struct {
 	MPV        *mpv.Runtime  // 共享探测状态；可为 nil（测试注入假 Launch 时不需要真实 mpv）
 	RuntimeDir string        // 弹幕 ASS、IPC socket 等运行时文件目录
 	Launch     Launcher      // 为 nil 时用 mpv.Launch
+	// EmbeddedMPV：Launch 跑的是进程内 libmpv（macOS 桌面窗口，internal/desktop），不要 mpv 可执行文件
+	// —— 探测不到也照样起播，也不把命令行 mpv 的路径交给 thumbfast（桌面窗口里先不出缩略图）。
+	EmbeddedMPV bool
 	// RemoteStallTimeout 控制在线媒体无进度的最长等待，非正值使用 45 秒。
 	RemoteStallTimeout time.Duration
 	// OnSessionEnd 在一次播放会话终结后调用（mpv 播完、用户关窗、或被 Stop）。
@@ -215,9 +218,13 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 
 	startAt := m.resumeAt(item.FileID)
 
-	mpvPath, err := m.mpvPath()
-	if err != nil {
-		return PlayResult{}, err
+	mpvPath := ""
+	if !m.opts.EmbeddedMPV {
+		path, err := m.mpvPath()
+		if err != nil {
+			return PlayResult{}, err
+		}
+		mpvPath = path
 	}
 	configDir, noConfig, volume := m.uiLaunchOptions()
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{
@@ -238,7 +245,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	})
 	if err != nil {
 		return PlayResult{}, errs.Wrap(errs.CategoryPlayback, "player.launch",
-			"启动 mpv 失败", "确认 mpv 已安装且可运行（mpv --version）", err)
+			"启动 mpv 失败", m.launchRecovery(), err)
 	}
 
 	pb := newPlayback(pl)
@@ -351,6 +358,20 @@ func (m *Manager) writeDanmakuASS(ctx context.Context, path string, episodeID in
 		return 0, fmt.Errorf("生成弹幕字幕失败：%w", err)
 	}
 	return stats.Converted, nil
+}
+
+// 起播失败时给用户的恢复办法。命令行 mpv 是「确认装好了」；桌面窗口里的 mpv 在进程里、随 nagare 一起，
+// 没有可装的东西 —— 那多半是 nagare 自己的问题，重启或者报给我们。
+const (
+	recoveryCheckMPV = "确认 mpv 已安装且可运行（mpv --version）"
+	recoveryEmbedded = "重启 nagare 再试；还不行请把日志（设置 › 关于里的日志位置）发给我们"
+)
+
+func (m *Manager) launchRecovery() string {
+	if m.opts.EmbeddedMPV {
+		return recoveryEmbedded
+	}
+	return recoveryCheckMPV
 }
 
 // mpvPath 从共享探测状态取 mpv 路径；未找到时给出带安装指引的播放类错误

@@ -88,6 +88,9 @@ const MPV_MISSING: SettingsData = {
   },
 }
 
+/** 桌面窗口（进程内 libmpv）：命令行 mpv 有没有都无所谓，后端恒报已就绪 + embedded */
+const MPV_EMBEDDED: SettingsData = { ...SETTINGS, mpv: { found: true, embedded: true, source: 'embedded' } }
+
 const PLAYER: PlayerStatus = { playing: false }
 
 const UPDATE: UpdateView = {
@@ -278,6 +281,17 @@ describe('LibraryPage（整页冒烟）', () => {
     await unmount()
   })
 
+  it('桌面窗口里 mpv 是内置的：状态点是绿的、说明是内置，不出「未检测到 mpv」的提示条', async () => {
+    stubFetch(MPV_EMBEDDED)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    expect(container.querySelector('.mpv-dot--ok')).not.toBeNull()
+    expect(container.querySelector('.mpv-dot--missing')).toBeNull()
+    expect(container.querySelector('.mpv-chip')?.getAttribute('title')).toContain('内置')
+    expect(container.textContent).not.toContain('未检测到 mpv')
+    expect(container.textContent).not.toContain('去设置安装 mpv')
+    await unmount()
+  })
+
   /** 库为空 + 未配规则仓库：最"空"的首次运行状态 */
   function stubFirstRun(
     settings: SettingsData = SETTINGS,
@@ -357,6 +371,17 @@ describe('LibraryPage（整页冒烟）', () => {
     if (button === undefined) throw new Error(`找不到按钮：${text}`)
     return button
   }
+
+  it('桌面窗口的引导屏：mpv 一项直接是已就绪 · 内置，不给安装命令', async () => {
+    stubFirstRun(MPV_EMBEDDED)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const step = container.querySelector('.onboard-step')!
+    expect(step.querySelector('.onboard-dot--done')).not.toBeNull()
+    expect(step.textContent).toContain('内置')
+    expect(step.textContent).not.toContain('brew install mpv')
+    expect(step.querySelector('button')).toBeNull()
+    await unmount()
+  })
 
   it('库为空时显示引导屏，四个准备项齐全', async () => {
     stubFirstRun()

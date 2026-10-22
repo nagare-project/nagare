@@ -78,6 +78,9 @@ func (p *Player) handleIPCEvent(msg ipcMessage) {
 		// 不让上一个文件最后的 23:40 被当成新文件的进度。
 		p.endedOnce.Store(false)
 		p.eofSeen.Store(false)
+		// sawEnd 也跟着复位：它的意思是「当前这个文件报过 end-file」。mpv 退出前总会给当前文件报一次
+		// end-file（被打断的加载也报），所以复位之后正常结束照样认得出来
+		p.sawEnd.Store(false)
 		p.setState(func(s *State) { s.TimePos, s.Duration = 0, 0 })
 		p.emit(Event{Kind: EventFileStarted})
 	case "file-loaded":
@@ -85,6 +88,7 @@ func (p *Player) handleIPCEvent(msg ipcMessage) {
 		go p.refreshPath()
 		p.emit(Event{Kind: EventFileLoaded})
 	case "end-file":
+		p.sawEnd.Store(true)
 		p.emitEnded(msg.Reason)
 	case "client-message":
 		if len(msg.Args) >= 2 && msg.Args[0] == uiMessagePrefix {

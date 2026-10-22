@@ -136,6 +136,12 @@ func newEnvNoTorrent(t *testing.T) *testEnv {
 
 func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 	t.Helper()
+	return newEnvDeps(t, withTorrent, nil)
+}
+
+// newEnvDeps 同 newEnvWith，构造 Handler 之前再让 mod 改一下 Deps（nil 表示不改）。
+func newEnvDeps(t *testing.T, withTorrent bool, mod func(*Deps)) *testEnv {
+	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "state.json"))
 	require.NoError(t, err)
 	env := &testEnv{
@@ -178,6 +184,9 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 	if withTorrent {
 		env.torrent = &fakeTorrent{log: record}
 		deps.Torrent = env.torrent
+	}
+	if mod != nil {
+		mod(&deps)
 	}
 	h := New(deps)
 	env.mux = http.NewServeMux()

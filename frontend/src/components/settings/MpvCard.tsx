@@ -16,6 +16,7 @@ const SOURCE_LABEL: Record<MpvSource, string> = {
   bundled: '内置（随 nagare 附带）',
   path: 'PATH 环境变量',
   known: '常见安装位置',
+  embedded: '内置在 nagare 的窗口里',
 }
 
 type CopyState = 'idle' | 'copied' | 'failed'
@@ -67,7 +68,14 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
         播放器 mpv
       </h2>
 
-      {mpv.found ? (
+      {mpv.embedded === true ? (
+        <dl className="kv-list">
+          <dt>状态</dt>
+          <dd className="result--ok">已就绪 ✓</dd>
+          <dt>来源</dt>
+          <dd>{SOURCE_LABEL.embedded}（不需要另装 mpv）</dd>
+        </dl>
+      ) : mpv.found ? (
         <dl className="kv-list">
           <dt>状态</dt>
           <dd className="result--ok">已找到 ✓</dd>
@@ -91,21 +99,24 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
         </>
       )}
 
-      <div className="form-actions">
-        <button
-          type="button"
-          className="btn btn--sm"
-          onClick={() => void handleDetect()}
-          disabled={busy}
-        >
-          {busy ? '检测中 …' : '重新检测'}
-        </button>
-        {!mpv.found && (
-          <span className="result result--dim mpv-detect-hint">
-            安装完成后点「重新检测」即可，无需重启 nagare
-          </span>
-        )}
-      </div>
+      {/* 桌面窗口里的 mpv 随 nagare 一起，没有可检测、可安装的东西 */}
+      {mpv.embedded !== true && (
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn btn--sm"
+            onClick={() => void handleDetect()}
+            disabled={busy}
+          >
+            {busy ? '检测中 …' : '重新检测'}
+          </button>
+          {!mpv.found && (
+            <span className="result result--dim mpv-detect-hint">
+              安装完成后点「重新检测」即可，无需重启 nagare
+            </span>
+          )}
+        </div>
+      )}
       <p
         className={view === null ? 'result' : `result result--${view.tone}`}
         style={mono}

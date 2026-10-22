@@ -122,6 +122,15 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
   （命令行 mpv 下鼠标分区有同样的延迟）。
 - **缩略图的尺寸**：thumbfast 按 `display-hidpi-scale` 定缩略图大小，render API 下读不到；宿主要经 `script-opts` 传按
   缩放算好的 `thumbfast-max_width` / `thumbfast-max_height`（thumbfast 本身不改）。
+- **「全部松开」写成 `keyup ""`**：mpv 0.41 的 `keyup` 不带参数时键名是 NULL、直接解引用，mpv 段错误退出（进程内就是整个
+  nagare；命令行 mpv 经 IPC 发 `["keyup"]` 也一样崩，实测）。
+- **会话结束看 IPC 断开**：mpv 的 IPC 从不把 `shutdown` 发给客户端（`input/ipc-unix.c` 收到就断开）。命令行 mpv 靠进程退出码判
+  正常；进程内没有进程，`mpv.AttachEndpoint` 把报过 `end-file` 之后的干净断开判为正常结束。
+
+macOS 的宿主在 `internal/desktop`（构建标签 `libmpv`，开发期 libmpv 见 `scripts/macos/libmpv-dev.md`）：一个窗口两层，
+网页（WKWebView）与画面（libmpv render API 画进 CAOpenGLLayer）。播放时画面盖满窗口，会话结束（q、返回、Esc、最后一集
+播完、关窗）换回网页。嵌入时不加载 thumbfast（它在 macOS 上会把 nagare 本身当 mpv 拉起来），等我们自己的 libmpv 构建
+带上命令行 mpv 再加回来。
 
 **命令行 mpv 下一切照旧**：这些属性一个都没设时（Linux、浏览器模式、今天的所有平台），界面的行为与以前一字不差，
 `capture` / `shown` 也只在嵌入时才发布。0.36 之前的 mpv 没有 `user-data`：观察不存在的属性只会一直是空，不报错。

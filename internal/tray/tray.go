@@ -59,6 +59,15 @@ type Options struct {
 	Done <-chan struct{}
 	// Notice 非 nil 时在托盘就绪后弹一次系统通知；主进程只在首次启动时传。
 	Notice *Notice
+
+	// Desktop：这次运行有桌面窗口（internal/desktop）。macOS 上即使不在 .app 里也升成常规应用
+	// （窗口要有 Dock 图标、应用菜单与 ⌘W / ⌘Q），菜单另加「编辑」「窗口」；「打开 nagare」开窗口。
+	Desktop bool
+	// OnOpenBrowser 非 nil 时菜单多一项「在浏览器中打开」（桌面模式下 OnOpen 开的是窗口）。
+	OnOpenBrowser func()
+	// OnReady 在托盘（以及 macOS 的 Cocoa 事件循环）就绪后调一次，在托盘自己的 goroutine 上。
+	// 桌面窗口要等 NSApplication 跑起来、Dock 应用升好之后再建，从这里开始。
+	OnReady func()
 }
 
 // terminateGrace 是 macOS 终止路径上等收尾的上限：用户已经明确要退出，

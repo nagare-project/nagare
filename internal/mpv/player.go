@@ -61,6 +61,11 @@ type Player struct {
 	closeErr  error       // 仅 Close 兜底失败时非 nil，termMu 保护
 	closeReq  atomic.Bool // Close() 已请求：随后的退出/断开一律视为正常
 	sawQuit   atomic.Bool // 收到 mpv shutdown 事件：随后的断开是正常退出
+	// inProcess：进程内 libmpv（AttachEndpoint）。mpv 的 IPC 从不把 shutdown 发给客户端
+	// （input/ipc-unix.c 收到就直接断开），命令行 mpv 靠进程的退出码判正常；进程内没有进程可看，
+	// 改看 sawEnd：报过 end-file（quit、播完、打不开都会先报）之后的干净断开就是会话正常结束。
+	inProcess atomic.Bool
+	sawEnd    atomic.Bool
 	endedOnce atomic.Bool // 每个文件只发一次 Ended（eof-reached 与 end-file 会重复报告）；start-file 时复位
 	eofSeen   atomic.Bool // eof-reached 当前为真：EOF 只在它由假变真时发；start-file 时复位
 
@@ -143,6 +148,10 @@ func (p *Player) onDisconnect(readErr error) {
 				return
 			case <-time.After(disconnectGrace):
 			}
+		}
+		if p.inProcess.Load() && p.sawEnd.Load() {
+			p.terminate(nil)
+			return
 		}
 		p.terminate(fmt.Errorf("mpv IPC 连接意外断开（进程可能被强制结束）；最后进度已保留，可重新发起播放"))
 	}
