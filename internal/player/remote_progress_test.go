@@ -39,6 +39,7 @@ func TestRemoteStalledMPVClosesAndPublishesFailure(t *testing.T) {
 	require.NoError(t, err)
 	m := New(Options{Store: st, RuntimeDir: dir, RemoteStallTimeout: 500 * time.Millisecond,
 		MPV: mpv.NewRuntimeWith(func(string) (mpv.Info, error) { return info, nil }, "")})
+	waitResolving(t, m)
 	defer m.Stop()
 	result, err := m.Play(context.Background(), NewRemoteSource(RemoteSourceOptions{
 		SourceID: "fixture", CandidateID: "stalled", Title: "停滞测试", Episode: 1, URL: server.URL + "/stalled.mp4",

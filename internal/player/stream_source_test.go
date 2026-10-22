@@ -248,6 +248,7 @@ func TestTorrentTruncatedStreamIsNotCompletion(t *testing.T) {
 	st, err := store.Open(filepath.Join(dir, "state.json"))
 	require.NoError(t, err)
 	m := New(Options{Store: st, Client: client, RuntimeDir: dir, MPV: mpv.NewRuntimeWith(func(string) (mpv.Info, error) { return info, nil }, "")})
+	waitResolving(t, m)
 	defer m.Stop()
 	src := torrentLike(3, "Sousou no Frieren", 154587, []string{"葬送的芙莉莲"})
 	src.url = server.URL + "/ep.mp4"

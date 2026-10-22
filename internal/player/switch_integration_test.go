@@ -66,6 +66,7 @@ func TestNextEpisodeSameWindowRealMPV(t *testing.T) {
 		Navigator:    &fakeNav{eps: items, subs: map[string]string{}},
 		OnSessionEnd: func() { ends.Add(1) },
 	})
+	waitResolving(t, m)
 	t.Cleanup(m.Stop)
 
 	_, err = m.Play(context.Background(), NewLocalSource(items[0]), "")
