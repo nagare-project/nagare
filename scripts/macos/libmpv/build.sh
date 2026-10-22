@@ -63,7 +63,7 @@ closure() {
 # 工具链指纹与脚本哈希先算好，避免在子 shell 里反复调用 xcodebuild。
 # 键里带 lib/env.sh（编译助手）但不带本文件：改了 build_dep 装出来的内容（stage 的布局、
 # 许可证的位置……）时，把下面的 KEY_FORMAT 加一，强制全部重编。
-KEY_FORMAT=1
+KEY_FORMAT=2
 compute_keys() {
   local fp helpers dep key s d p
   fp=$(toolchain_fingerprint)
