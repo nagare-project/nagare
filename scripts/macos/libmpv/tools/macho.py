@@ -238,7 +238,8 @@ def manifest(args: argparse.Namespace) -> int:
             continue
         entry = {"path": rel, "size": os.path.getsize(path), "sha256": sha256(path)}
         if rel in machs:
-            entry["lipo_info"] = run("lipo", "-info", path).strip()
+            # 清单里只留相对路径，不带构建机的目录
+            entry["lipo_info"] = run("lipo", "-info", path).strip().replace(root.rstrip("/") + "/", "")
             entry["archs"] = run("lipo", "-archs", path).split()
             entry["slices"] = {a: load_commands(path, a) for a in entry["archs"]}
         data["files"].append(entry)

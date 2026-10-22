@@ -254,9 +254,12 @@ thumb swscale "lavfi-crop=w=120:h=72:x=0:y=0,scale=w=64:h=40,pad=w=64:h=40:x=-1:
   "$MEDIA/h264-aac-ass.mkv"
 thumb zimg "lavfi=[zscale=w=64:h=40],format=bgra" "$MEDIA/hevc10-flac.mkv"
 
-# nagare 自己的界面脚本（internal/mpv/ui）在这个 LuaJIT 上能加载、不报错
+# nagare 自己的界面脚本（internal/mpv/ui）在这个 LuaJIT 上能加载、不报错。
+# 加载成功的标志：脚本起来后会把 mpv 自带的控制条设成 never。源码包里没有 internal/，那里跳过
 logf="$TMP/nagare-ui.log"
-if mpv_run "$arch" "$logf" --config-dir="$REPO_ROOT/internal/mpv/ui" --vo=null --ao=null --frames=48 \
+if [ ! -d "$REPO_ROOT/internal/mpv/ui" ]; then
+  soft "没有 internal/mpv/ui（源码包里不带），跳过界面脚本检查"
+elif mpv_run "$arch" "$logf" --config-dir="$REPO_ROOT/internal/mpv/ui" --vo=null --ao=null --frames=48 \
   --msg-level=all=v "$MEDIA/h264-aac-ass.mkv" && grep -q 'user-data/osc/visibility="never"' "$logf" \
   && ! grep -q -i -e 'lua error' -e 'stack traceback' "$logf"; then
   pass "nagare 界面脚本在 LuaJIT 下加载无错"
@@ -338,7 +341,7 @@ for arch in $arches; do
   loaded=$(grep -c "$bundle/Frameworks/" "$logf" || true)
   if [ -n "$stray" ]; then fail "embed_test（${arch}）装载了包外的库：$stray"
   elif [ "$loaded" -lt 5 ]; then fail "embed_test（${arch}）：DYLD_PRINT_LIBRARIES 里只看到 $loaded 个包内库"; show_log "$logf"
-  else pass "embed_test（${arch}）：$(grep -o 'mpv-version=[^ ]*' "$logf")，$loaded 个库全部来自 Frameworks/"; fi
+  else pass "embed_test（${arch}）：$(grep -o 'ffmpeg-version=[^ ]*' "$logf")，$loaded 个库全部来自 Frameworks/"; fi
 done
 
 arch=$HOST_ARCH
@@ -354,7 +357,9 @@ for hw in no videotoolbox; do
   else soft "render API（hwdec=${hw}，退出码 ${rc}）"; show_log "$logf" 10; fi
 done
 
-# 命令行 mpv 自己开窗口（cocoa-cb）：浏览器模式靠它。需要图形会话，runner 上没有就只警告
+# 命令行 mpv 自己开窗口（cocoa-cb）：浏览器模式靠它。需要图形会话，没有就只警告。
+# 本地跑 verify.sh 时屏幕上会闪过一个 2 秒的 mpv 窗口，这是这一项在测
+
 logf="$TMP/window.log"
 if mpv_run "$arch" "$logf" --no-config --vo=libmpv --ao=null --hwdec=no --frames=48 -v "$MEDIA/h264-aac-ass.mkv" \
   && grep -q 'VO: \[libmpv\]' "$logf"; then

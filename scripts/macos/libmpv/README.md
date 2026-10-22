@@ -14,7 +14,7 @@ media-kit 没有 Lua；IINA 的 deps 构建脚本仓库没有许可证，我们�
 
 | 路径 | 内容 |
 | --- | --- |
-| `Frameworks/` | `libmpv.2.dylib` 与它的全部非系统依赖（约 20 个），**都是真实文件、没有符号链接**（自更新拒绝符号链接）；装载名一律 `@rpath/<文件名>`，没有 `LC_RPATH` |
+| `Frameworks/` | `libmpv.2.dylib` 与它的全部非系统依赖，共 23 个（mbedTLS 自带的 `libeverest` / `libp256m` 两个小库也在内），**都是真实文件、没有符号链接**（自更新拒绝符号链接）；装载名一律 `@rpath/<文件名>`，没有 `LC_RPATH` |
 | `MacOS/mpv` | 命令行 mpv（thumbfast 与浏览器模式用），链接同一批库，唯一的 `LC_RPATH` 是 `@executable_path/../Frameworks` |
 | `include/mpv/` | `client.h` `render.h` `render_gl.h` `stream_cb.h` |
 | `licenses/` | 各组件的许可证原文 |
@@ -24,7 +24,11 @@ media-kit 没有 Lua；IINA 的 deps 构建脚本仓库没有许可证，我们�
 
 全部 Mach-O 都是 universal（arm64 + x86_64）、`minos 13.0`（= `LSMinimumSystemVersion`）、ad-hoc 签名。
 命令行 mpv 把 mpv 自身的代码直接编了进去（meson 的做法），所以它不依赖 `libmpv.2.dylib`，
-只共享其余的库；这比 libmpv 多出约 10 MB（universal）。
+只共享其余的库。
+
+体积（0.41.0 这一版）：`Frameworks/` 42 MB（其中 libavcodec 13 MB、libmpv 8 MB），`MacOS/mpv` 7.7 MB，
+整个 tar.gz 约 24 MB；源码包约 65 MB。CI 冷构建每个架构 6–8 分钟（两个架构并行），组件全部命中缓存时
+整条流水线约 4 分钟（大头是验证）。
 
 第二个 tar.gz 是完整对应源码（见下文「GPL 义务」）。
 
@@ -114,3 +118,11 @@ scripts/macos/libmpv/verify.sh out
 `tests/media/` 是 verify.sh 用的几秒钟的小文件（H.264 + AAC + ASS/SRT/WebVTT、HEVC 10bit + FLAC、
 AV1 + Opus、VP9 + Vorbis、MPEG-2 + AC-3、MPEG-4 + MP3、mp4 的 E-AC-3 + mov_text、DTS / TrueHD / PCM 音轨、
 HLS）。由 [`tests/make-media.sh`](tests/make-media.sh) 用一个全功能的 ffmpeg 生成后入库。
+
+## 验证过的环境
+
+- CI：macos-15（Apple Silicon 虚拟机，macOS 15）上 arm64 切片跑全套，x86_64 切片在 Rosetta 下跑主要几项；
+  render API（OpenGL，软解与 VideoToolbox）、cocoa-cb 窗口、VideoToolbox 硬解都通过。
+- 本地：Intel Mac，macOS 14.5，真显卡，x86_64 切片原生跑全套，全部通过。
+- **没验证过：macOS 13**（GitHub 已经没有 macOS 13 的 runner）。minos 是 13.0，链接的系统库与框架
+  （含 /usr/lib/swift 下的 Swift 运行库）在 13 上都有，但没有真机跑过。
