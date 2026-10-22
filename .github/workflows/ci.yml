@@ -6,6 +6,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # 手动在某个分支上跑一遍（还没开 PR 的分支要看 Windows 冒烟截图时用：gh workflow run ci.yml --ref <分支>）
+  workflow_dispatch:
 
 # 最小权限：CI 只读代码，不发布任何东西。显式声明而非依赖仓库默认设置
 # —— 以后有人往这里加写操作时，会先撞到这一行而不是悄悄拿到写权限。
