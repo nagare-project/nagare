@@ -129,6 +129,13 @@ func (w *webLayer) configure() error {
 			log.Printf("desktop: WebView2 的「%s」设不上：%v", name, err)
 		}
 	}
+	// User-Agent 末尾追加 NagareDesktop：网页据此说「关闭窗口」而不是「关闭标签页」（docs/player-ui.md「宿主与网页」）。
+	// 保留 WebView2 默认的那段（发现页的 YouTube 预告片会看它）；只管措辞，不参与鉴权。
+	if ua, err := s.UserAgentString(); err != nil || ua == "" {
+		log.Printf("desktop: 读不到 WebView2 的 User-Agent（网页会按浏览器标签页措辞）：%v", err)
+	} else if err := s.PutUserAgent(withDesktopMarker(ua)); err != nil {
+		log.Printf("desktop: 设不上 User-Agent（网页会按浏览器标签页措辞）：%v", err)
+	}
 	w.navHandler = edge.NewNavigationStartingHandler(w.events)
 	if err := core.AddNavigationStarting(w.navHandler); err != nil {
 		return fmt.Errorf("挂不上导航规则：%w", err)

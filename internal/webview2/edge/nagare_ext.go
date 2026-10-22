@@ -210,6 +210,12 @@ func (i *ICoreWebView2) RunScript(js string, done func(result string, err error)
 	return nil
 }
 
+// UserAgentString 是当前的 User-Agent（ICoreWebView2Settings2::get_UserAgent）。上游的 GetUserAgent 把出参写到
+// 空指针上（传的是指针的值而不是它的地址），一调就崩，这里另写一份。
+func (i *ICoreWebViewSettings) UserAgentString() (string, error) {
+	return getString(i.vtbl.GetUserAgent, unsafe.Pointer(i))
+}
+
 // Reload 重新载入当前页面。
 func (i *ICoreWebView2) Reload() error {
 	hr, _, _ := i.vtbl.Reload.Call(uintptr(unsafe.Pointer(i)))

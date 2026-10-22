@@ -253,6 +253,11 @@ Step '启动' {
     $s = State
     $shot = Snap 'startup'
     Add-Step '启动：窗口显示、网页层（WebView2）就绪' ($ok -and $s.active) ("WebView2 $($s.runtime)；窗口 $($s.client[0])x$($s.client[1])，DPI $($s.dpi)；fallback=$($s.fallback)") $shot $s
+    $ua = (Ctl '/js' @{ code = 'navigator.userAgent' }).Trim()
+    Add-Step '网页层的 User-Agent 末尾带 NagareDesktop（网页据此说「关闭窗口」）' ($ua -match ' NagareDesktop"?$') $ua ''
+    $hint = (Ctl '/js' @{ code = "(document.querySelector('.background-hint-text') || {}).textContent || ''" }).Trim()
+    $settings = (Api 'GET' '/api/settings').data
+    Add-Step '后台形态是 window，提示条说「关闭窗口」' (($settings.background.mode -eq 'window') -and ($hint -match '关闭窗口')) ("mode=$($settings.background.mode)；提示条：$hint") ''
 }
 
 Step '媒体库' {
@@ -439,9 +444,11 @@ Step '第二次启动' {
     $s = State
     $shot = Snap 'second-launch' -Full
     Add-Step '第二次启动：新进程自己退出' $exited ("退出码 $(if ($exited) { $second.ExitCode } else { '没退出' })") $shot
-    Add-Step '第二次启动：已有的窗口到前面（依赖「第二次启动」那项改动，未合入前会是浏览器被打开）' $null ("visible=$($s.visible) minimized=$($s.minimized) foreground=$($s.foreground)") ''
+    $edge = @(Get-Process -Name msedge -ErrorAction SilentlyContinue).Count
+    Add-Step '第二次启动：已有的窗口从最小化恢复、到前面（不开浏览器）' ($s.visible -and -not $s.minimized) ("visible=$($s.visible) minimized=$($s.minimized) foreground=$($s.foreground)，Edge 进程 $edge 个") ''
+    Add-Step '第二次启动：窗口拿到了前台（AllowSetForegroundWindow 让出前台）' $null ("foreground=$($s.foreground)") ''
     if (-not $exited) { try { $second.Kill() } catch { } }
-    # 还没合入「第二次启动叫出窗口」时，第二个进程会打开默认浏览器；CI 上把它关掉，免得挡住后面的截图
+    # 万一退回了开浏览器（旧行为），CI 上把它关掉，免得挡住后面的截图
     if ($CI) { Get-Process -Name msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
 }
 

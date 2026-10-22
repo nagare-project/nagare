@@ -71,6 +71,8 @@ func TestWindowShower(t *testing.T) {
 	show := windowShower(true)
 	require.NotNil(t, show)
 	if !desktop.Available() {
-		assert.True(t, show(), "桩里的 Show 什么都不做，仍报已显示（这个构建本来就不会走到 window=true）")
+		// 桩里没有窗口（State 不 Active）：报「没有窗口」，新进程开浏览器（这个构建本来就不会走到 window=true）。
+		// 有窗口的构建里，窗口中途用不了（Windows 的 WebView2 起不来）时同样报没有窗口
+		assert.False(t, show())
 	}
 }

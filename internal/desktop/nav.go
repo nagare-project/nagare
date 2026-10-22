@@ -47,6 +47,19 @@ func decideNav(raw string, newWindow, subframe bool, origin string) navAction {
 	return actCancel
 }
 
+// desktopUAMarker 是桌面窗口追加在 User-Agent 末尾的记号（frontend/src/lib/desktopWindow.ts 认它）。
+const desktopUAMarker = "NagareDesktop"
+
+// withDesktopMarker 在 User-Agent 末尾追加记号；已经有了就不再加（网页层重建时会再设一次）。
+func withDesktopMarker(ua string) string {
+	for _, tok := range strings.Fields(ua) {
+		if tok == desktopUAMarker || strings.HasPrefix(tok, desktopUAMarker+"/") {
+			return ua
+		}
+	}
+	return strings.TrimSpace(ua) + " " + desktopUAMarker
+}
+
 // isOurOrigin：协议、主机（不分大小写）与端口都与 origin 一致，且两边都写明了端口。
 func isOurOrigin(u *url.URL, origin string) bool {
 	o, err := url.Parse(origin)

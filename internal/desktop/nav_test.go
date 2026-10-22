@@ -6,6 +6,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// User-Agent 的记号：追加在末尾、保留默认的那段，已经有了不重复加。
+func TestWithDesktopMarker(t *testing.T) {
+	const edgeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0"
+	assert.Equal(t, edgeUA+" NagareDesktop", withDesktopMarker(edgeUA))
+	assert.Equal(t, edgeUA+" NagareDesktop", withDesktopMarker(withDesktopMarker(edgeUA)))
+	assert.Equal(t, "x NagareDesktop/0.7.0", withDesktopMarker("x NagareDesktop/0.7.0"))
+	assert.Equal(t, "x NagareDesktopX NagareDesktop", withDesktopMarker("x NagareDesktopX"), "前缀撞车不算")
+}
+
 // 网页层的导航规则（Windows 的 Go 实现）：用例与 nav_darwin_test.go 相同，两边的规则必须一致。
 func TestDecideNav(t *testing.T) {
 	const origin = "http://127.0.0.1:8591"
