@@ -181,7 +181,7 @@ func start(f flags) error {
 	if apiOnly {
 		log.Print("未找到内嵌 web 产物，进入 API-only 模式（先 cd frontend && bun run build 再重新编译）")
 	}
-	alreadyRunning, err := ensureSingleInstance(cfg, configDir, f.noBrowser || apiOnly)
+	alreadyRunning, err := ensureSingleInstance(cfg, configDir, secondLaunchSurface(f, apiOnly))
 	if err != nil {
 		return err
 	}
@@ -261,52 +261,6 @@ func runCLIUpdate(configDir string) error {
 		return err
 	}
 	fmt.Printf("已更新到 %s。重新启动 nagare 即可生效。\n", v.Latest)
-	return nil
-}
-
-// 这三个变量是单实例判定的注入点：测试替换它们即可覆盖四种分支组合，
-// 不需要真的监听端口或写标记文件。
-var (
-	hasInstance   = httpserver.HasInstance
-	portOccupied  = httpserver.PortOccupied
-	probePort     = httpserver.Probe
-	openBrowserFn = openBrowser
-)
-
-// ensureSingleInstance 处理「双击两次」：已在运行 → 把浏览器指过去并返回 true（调用方退出）。
-//
-// 先用实例标记文件把门（它在 0700 的配置目录里，别的 OS 用户伪造不了），再做带 token 的
-// 探测：没有标记就说明我方实例没起过，此时端口上的任何人都不是我们，直接按外来处理
-// —— 绝不把 token 发给它。冒充者能照抄 /api/health 的公开信封，「响应对得上」证明不了身份。
-func ensureSingleInstance(cfg *config.Config, configDir string, skipBrowser bool) (alreadyRunning bool, err error) {
-	if !hasInstance(configDir) {
-		if portOccupied(cfg.Port) {
-			return false, rotateToken(cfg, "端口 %d 上有其他程序（本机没有我方实例在跑），已轮换鉴权 token")
-		}
-		return false, nil
-	}
-	switch probePort(cfg.Port, cfg.Token) {
-	case httpserver.ProbeRunning:
-		log.Printf("nagare 已在运行（端口 %d），本实例退出", cfg.Port)
-		if !skipBrowser {
-			openBrowserLogged(launchURL(cfg.Port, cfg.Token))
-		}
-		return true, nil
-	case httpserver.ProbeForeign:
-		// 探测已把 token 交给了对端（它没能证明自己是我们）—— 视为已泄露，立即轮换。
-		return false, rotateToken(cfg, "端口 %d 被其他程序占用，已轮换鉴权 token")
-	}
-	return false, nil
-}
-
-// rotateToken 换一个新 token 并落盘；存不下去就没法安全启动（旧 token 可能已泄露
-// 给端口上那个程序），返回错误让调用方终止。
-func rotateToken(cfg *config.Config, format string) error {
-	log.Printf(format, cfg.Port)
-	cfg.Token = config.NewToken()
-	if err := cfg.Save(); err != nil {
-		return fmt.Errorf("保存轮换后的配置失败：%w", err)
-	}
 	return nil
 }
 
@@ -527,14 +481,21 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mode := backgroundMode(f.noTray, apiOnly, desktopEnabled(f, apiOnly))
+	window := desktopEnabled(f, apiOnly)
+	mode := backgroundMode(f.noTray, apiOnly, window)
 	apiHandler, updater := buildHandlers(configDir, svc, cancel, mode)
 
-	srv, ln, port, err := listenAndBuild(cfg, configDir, webFS, apiHandler, updater)
+	srv, ln, port, err := listenAndBuild(cfg, configDir, webFS, apiHandler, updater, windowShower(window))
 	if err != nil {
 		return err
 	}
 	defer httpserver.ClearInstance(configDir)
+	// 带 token 的首启 URL 只交给浏览器、窗口与托盘；日志（会落盘）里只打端口，token 到配置文件里取。
+	url := launchURL(port, cfg.Token)
+	// 窗口的地址要在服务开始接请求之前交给它：第二次启动的「显示窗口」一来就要建窗口，那时得知道载入哪里。
+	if window {
+		desktop.Init(desktop.Options{URL: url, Origin: fmt.Sprintf("http://127.0.0.1:%d", port)})
+	}
 
 	// 流端点接上磁力引擎，并把地址前缀回填给它（能力段与端口到这一步才确定）。
 	// 能力段等同凭证：只交给引擎用于拼给 mpv 的地址，不进日志。
@@ -573,14 +534,10 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	}()
 	stopped := teardownOnCancel(ctx, srv, svc.player, svc.torrent, svc.downloads, svc.sourcePlugin)
 
-	// 带 token 的首启 URL 只交给浏览器与托盘；日志（会落盘）里只打端口，token 到配置文件里取。
-	url := launchURL(port, cfg.Token)
 	configPath, _ := config.Path()
 	log.Printf("nagare %s 已启动：http://127.0.0.1:%d/（token 见 %s）", version, port, configPath)
-	window := desktopEnabled(f, apiOnly)
 	if window {
 		log.Print("桌面窗口：播放在 nagare 自己的窗口里")
-		desktop.Init(desktop.Options{URL: url, Origin: fmt.Sprintf("http://127.0.0.1:%d", port)})
 	} else if !f.noBrowser && !apiOnly {
 		openBrowserLogged(url)
 	}
@@ -699,6 +656,7 @@ func listenAndBuild(
 	webFS fs.FS,
 	apiHandler *api.Handler,
 	updater *update.Checker,
+	showWindow httpserver.ShowWindowFunc,
 ) (*httpserver.Server, net.Listener, int, error) {
 	registerAPI := func(mux *http.ServeMux) {
 		apiHandler.Register(mux)
@@ -732,6 +690,7 @@ func listenAndBuild(
 		WebFS:       webFS,
 		Version:     version,
 		RegisterAPI: registerAPI,
+		ShowWindow:  showWindow,
 	}), ln, port, nil
 }
 

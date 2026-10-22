@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/nagare-project/nagare/internal/desktop"
+	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/tray"
 )
 
@@ -33,4 +34,17 @@ func withDesktop(opts tray.Options, url, about string, showAtStart bool) tray.Op
 		opts.OnReady = desktop.Show
 	}
 	return opts
+}
+
+// windowShower 是第二次启动（POST /api/window/show，见 internal/httpserver/window.go）在这个实例上做的事：
+// 用桌面窗口时把它提到前面（藏起来的、最小化的、还没建过的都算），否则为 nil —— 新进程收到「没有窗口」
+// 就照旧开浏览器。desktop.Show 自己切到界面线程，不阻塞 HTTP 处理器。
+func windowShower(window bool) httpserver.ShowWindowFunc {
+	if !window {
+		return nil
+	}
+	return func() bool {
+		desktop.Show()
+		return true
+	}
 }
