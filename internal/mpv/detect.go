@@ -2,7 +2,8 @@
 // JSON IPC 双向通信（属性观察 + 命令），以及进程死亡后的状态收敛。
 //
 // 决议 A5：mpv 按平台分发 —— Windows 安装包内置（放在 nagare 同目录的 mpv/ 下）；
-// macOS/Linux 检测系统安装，缺失或过旧时给出可操作的引导。
+// macOS 的 Nagare.app 内置命令行 mpv（Contents/MacOS/mpv，与 nagare 同目录，随自建 libmpv 一起出）；
+// Linux 与 macOS 的裸二进制检测系统安装，缺失或过旧时给出可操作的引导。
 package mpv
 
 import (
@@ -25,7 +26,7 @@ const MinVersion = "0.32.0"
 // Info.Source 的取值：说明 mpv 是从哪条候选路径找到的（设置页展示、日志诊断）。
 const (
 	SourceExplicit = "explicit" // 调用方显式指定的路径
-	SourceBundled  = "bundled"  // nagare 可执行文件同目录下的 mpv/（Windows 安装包内置）
+	SourceBundled  = "bundled"  // 随 nagare 附带：Windows 是同目录的 mpv/mpv.exe，Nagare.app 是同目录的 mpv
 	SourcePath     = "path"     // PATH 环境变量
 	SourceKnown    = "known"    // 平台已知安装位置（Homebrew / MacPorts / 发行版包）
 )
@@ -135,9 +136,10 @@ func Detect(explicitPath string) (Info, error) {
 // locate 按 内置 → PATH → 已知位置 的顺序返回第一个存在的候选。
 func locate() (candidate, bool) {
 	if dir, err := executableDir(); err == nil {
-		bundled := filepath.Join(dir, "mpv", binaryName(detectGOOS))
-		if fileExists(bundled) {
-			return candidate{path: bundled, source: SourceBundled}, true
+		for _, bundled := range bundledLocations(detectGOOS, dir) {
+			if fileExists(bundled) {
+				return candidate{path: bundled, source: SourceBundled}, true
+			}
 		}
 	}
 	if found, err := lookMPVPath("mpv"); err == nil {
@@ -149,6 +151,20 @@ func locate() (candidate, bool) {
 		}
 	}
 	return candidate{}, false
+}
+
+// bundledLocations 返回随 nagare 附带的 mpv 可能在的位置（dir 是 nagare 可执行文件所在目录）。
+//
+//   - 各平台：dir/mpv/<mpv 可执行文件名> —— Windows 安装包与便携 zip 的布局（mpv\mpv.exe）。
+//   - macOS 另有 dir/mpv（一个文件）排在前面：Nagare.app 把命令行 mpv 放在 Contents/MacOS/mpv，
+//     与 Contents/MacOS/nagare 同目录，链接 Contents/Frameworks 里的同一套自建库
+//     （scripts/macos/build-app.sh）。桌面窗口里的缩略图（thumbfast）与浏览器模式（--no-window）用它。
+func bundledLocations(goos, dir string) []string {
+	nested := filepath.Join(dir, "mpv", binaryName(goos))
+	if goos == "darwin" {
+		return []string{filepath.Join(dir, "mpv"), nested}
+	}
+	return []string{nested}
 }
 
 // binaryName 返回平台上的 mpv 可执行文件名。
