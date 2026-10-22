@@ -99,7 +99,9 @@ static void *get_proc_address(void *ctx, const char *name) {
     return gl ? dlsym(gl, name) : NULL;
 }
 
-static CGLContextObj make_gl_context(void) {
+// software 置 1 = 拿到的是苹果的软件渲染器（没有显卡的虚拟机，GitHub 的 macOS runner 有时就是）。
+// EMBED_TEST_FORCE_SOFTWARE_GL=1 时跳过硬件那一档，在有显卡的机器上复现这条路。
+static CGLContextObj make_gl_context(int *software) {
     CGLPixelFormatAttribute attempts[2][8] = {
         {kCGLPFAOpenGLProfile, (CGLPixelFormatAttribute)kCGLOGLPVersion_3_2_Core,
          kCGLPFAColorSize, (CGLPixelFormatAttribute)24, kCGLPFAAccelerated,
@@ -109,7 +111,8 @@ static CGLContextObj make_gl_context(void) {
          kCGLPFARendererID, (CGLPixelFormatAttribute)kCGLRendererGenericFloatID,
          (CGLPixelFormatAttribute)0},
     };
-    for (int i = 0; i < 2; i++) {
+    const char *force = getenv("EMBED_TEST_FORCE_SOFTWARE_GL");
+    for (int i = (force && strcmp(force, "1") == 0) ? 1 : 0; i < 2; i++) {
         CGLPixelFormatObj pix = NULL;
         GLint npix = 0;
         if (CGLChoosePixelFormat(attempts[i], &pix, &npix) != kCGLNoError || !pix) {
@@ -120,6 +123,7 @@ static CGLContextObj make_gl_context(void) {
         CGLDestroyPixelFormat(pix);
         if (e == kCGLNoError && ctx) {
             printf("GL context: %s\n", i == 0 ? "accelerated" : "software (GenericFloat)");
+            *software = i == 1;
             return ctx;
         }
     }
@@ -127,7 +131,8 @@ static CGLContextObj make_gl_context(void) {
 }
 
 static int render(const char *file, const char *hwdec) {
-    CGLContextObj ctx = make_gl_context();
+    int software = 0;
+    CGLContextObj ctx = make_gl_context(&software);
     if (!ctx) {
         fprintf(stderr, "embed_test: no usable OpenGL context, skipping render test\n");
         return SKIPPED;
@@ -155,6 +160,11 @@ static int render(const char *file, const char *hwdec) {
         set_opt(h, "ao", "null") < 0 || set_opt(h, "hwdec", hwdec) < 0 ||
         set_opt(h, "keep-open", "yes") < 0 || set_opt(h, "terminal", "yes") < 0 ||
         set_opt(h, "msg-level", "all=warn,vo=info,vd=info") < 0) {
+        return 1;
+    }
+    // mpv 认出软件渲染器时默认不画（gpu-sw=no），这里是明知没有显卡才退到软件上下文的，放行它：
+    // 否则这一项在没有 GPU 的 runner 上必挂，验的就不是 libmpv 而是 runner 的硬件了
+    if (software && set_opt(h, "gpu-sw", "yes") < 0) {
         return 1;
     }
     int err = mpv_initialize(h);
