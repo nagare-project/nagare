@@ -103,6 +103,26 @@ apply_patches() {
   done
 }
 
+# 有的构建系统在 make install DESTDIR=… 时重新链接，把暂存区的路径写进了装载名
+# （FFmpeg 就是：SHLIBDIR 里带着 $(DESTDIR)）。统一把这个前缀去掉，库才指向真正的 prefix。
+scrub_destdir() {
+  local inst=$1 f id dep args
+  find "$inst" -type f | while read -r f; do
+    case "$(head -c 4 "$f" | xxd -p)" in cffaedfe | cafebabe) ;; *) continue ;; esac
+    args=()
+    id=$(otool -D "$f" | sed -n 2p)
+    case "$id" in "$DEST"/*) args+=(-id "${id#"$DEST"}") ;; esac
+    for dep in $(otool -L "$f" | tail -n +2 | awk '{print $1}'); do
+      case "$dep" in "$DEST"/*) args+=(-change "$dep" "${dep#"$DEST"}") ;; esac
+    done
+    [ ${#args[@]} -gt 0 ] || continue
+    log "$(basename "$f")：去掉装载名里的 DESTDIR"
+    install_name_tool "${args[@]}" "$f" 2>/dev/null
+    # arm64 上签名失效的代码不能加载，后面的组件构建时可能要用到它
+    codesign --force --sign - "$f" 2>/dev/null
+  done
+}
+
 build_dep() {
   local dep=$1 key=$2 stage
   stage="$(stage_root "$ARCH")/$dep"
@@ -124,6 +144,7 @@ build_dep() {
 
   local inst="$DEST$PREFIX"
   [ -d "$inst" ] || die "$dep 没有装出任何文件（期望在 ${inst}）"
+  scrub_destdir "$inst"
   # libtool 的 .la、文档与 man 都用不上；.la 里还写着构建机路径
   find "$inst" -name '*.la' -delete
   rm -rf "$inst/share/man" "$inst/share/doc" "$inst/share/info" "$inst/share/gtk-doc"

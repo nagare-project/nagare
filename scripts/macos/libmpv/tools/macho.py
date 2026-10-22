@@ -122,6 +122,7 @@ def check(args: argparse.Namespace) -> int:
             fail(f"缺少头文件 include/mpv/{h}")
 
     for rel in files:
+        errors_before = len(errors)
         path = os.path.join(root, rel)
         name = os.path.basename(rel)
         is_dylib = rel.startswith("Frameworks/")
@@ -151,7 +152,8 @@ def check(args: argparse.Namespace) -> int:
         sig = subprocess.run(["codesign", "--verify", "--strict", path], capture_output=True, text=True)
         if sig.returncode != 0:
             fail(f"{rel}：签名无效：{sig.stderr.strip()}")
-        print(f"  ✓ {rel}（{' '.join(archs)}）")
+        if len(errors) == errors_before:
+            print(f"  ✓ {rel}（{' '.join(archs)}）")
 
     if errors:
         print(f"静态检查失败：{len(errors)} 项", file=sys.stderr)

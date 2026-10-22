@@ -223,6 +223,7 @@ recipe_ffmpeg() {
     "$SRC/configure" "${args[@]}" > configure.out || { tail -80 ffbuild/config.log; exit 1; }
     cat configure.out
     make -j "$JOBS"
+    # 注意：FFmpeg 的 install 会带着 DESTDIR 重新链接，装载名里的暂存区路径由 build.sh 的 scrub_destdir 去掉
     make install DESTDIR="$DEST"
   )
   # 记下实际开出来的组件，进清单（manifest）

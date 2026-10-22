@@ -198,7 +198,7 @@ fi
 
 logf="$TMP/protocols.log"
 mpv_run "$arch" "$logf" --no-config --list-protocols || true
-grep -qx '[[:space:]]*https' "$logf" && pass "协议含 https" || { fail "--list-protocols 里没有 https"; show_log "$logf"; }
+grep -qx '[[:space:]]*https://' "$logf" && pass "协议含 https" || { fail "--list-protocols 里没有 https"; show_log "$logf"; }
 
 logf="$TMP/hwdec.log"
 mpv_run "$arch" "$logf" --no-config --hwdec=help || true
@@ -207,22 +207,23 @@ grep -q 'videotoolbox-copy' "$logf" && grep -q '^ *videotoolbox' "$logf" \
 
 # 字幕确实画上去了：同一帧，带字幕与不带字幕的截图必须不同（vo=image 会把字幕画进输出图像）
 sub_drawn() {
-  local label=$1 file=$2 sid=$3 a="$TMP/sub-$label-on" b="$TMP/sub-$label-off"
+  local id=$1 label=$2 file=$3 sid=$4
+  local a="$TMP/sub-$id-on" b="$TMP/sub-$id-off"
   mkdir -p "$a" "$b"
-  mpv_run "$arch" "$TMP/sub-$label-on.log" --no-config --vo=image --vo-image-format=png --vo-image-outdir="$a" \
+  mpv_run "$arch" "$a.log" --no-config --vo=image --vo-image-format=png --vo-image-outdir="$a" \
     --ao=null --hwdec=no --start=1 --frames=1 --sid="$sid" "$file" || true
-  mpv_run "$arch" "$TMP/sub-$label-off.log" --no-config --vo=image --vo-image-format=png --vo-image-outdir="$b" \
+  mpv_run "$arch" "$b.log" --no-config --vo=image --vo-image-format=png --vo-image-outdir="$b" \
     --ao=null --hwdec=no --start=1 --frames=1 --sid=no "$file" || true
   if [ -s "$a/00000001.png" ] && [ -s "$b/00000001.png" ] && ! cmp -s "$a/00000001.png" "$b/00000001.png"; then
     pass "字幕渲染：$label"
   else
-    fail "字幕渲染：${label}（带字幕与不带字幕的画面相同，或没有输出）"; show_log "$TMP/sub-$label-on.log" 10
+    fail "字幕渲染：${label}（带字幕与不带字幕的画面相同，或没有输出）"; show_log "$a.log" 10
   fi
 }
-sub_drawn "ASS（libass + CoreText 字体回退）" "$MEDIA/h264-aac-ass.mkv" 1
-sub_drawn "SubRip" "$MEDIA/h264-aac-ass.mkv" 2
-sub_drawn "WebVTT" "$MEDIA/h264-aac-ass.mkv" 3
-sub_drawn "mov_text（mp4）" "$MEDIA/h264-eac3-movtext.mp4" 1
+sub_drawn ass "ASS（libass + CoreText 字体回退）" "$MEDIA/h264-aac-ass.mkv" 1
+sub_drawn srt "SubRip" "$MEDIA/h264-aac-ass.mkv" 2
+sub_drawn vtt "WebVTT" "$MEDIA/h264-aac-ass.mkv" 3
+sub_drawn movtext "mov_text（mp4）" "$MEDIA/h264-eac3-movtext.mp4" 1
 
 # 截图格式：mpv 默认 jpg（libjpeg），也测 png
 for fmt in jpg png; do
@@ -256,7 +257,7 @@ thumb zimg "lavfi=[zscale=w=64:h=40],format=bgra" "$MEDIA/hevc10-flac.mkv"
 # nagare 自己的界面脚本（internal/mpv/ui）在这个 LuaJIT 上能加载、不报错
 logf="$TMP/nagare-ui.log"
 if mpv_run "$arch" "$logf" --config-dir="$REPO_ROOT/internal/mpv/ui" --vo=null --ao=null --frames=48 \
-  --msg-level=all=v "$MEDIA/h264-aac-ass.mkv" && grep -q 'scripts/nagare' "$logf" \
+  --msg-level=all=v "$MEDIA/h264-aac-ass.mkv" && grep -q 'user-data/osc/visibility="never"' "$logf" \
   && ! grep -q -i -e 'lua error' -e 'stack traceback' "$logf"; then
   pass "nagare 界面脚本在 LuaJIT 下加载无错"
 else
@@ -313,7 +314,7 @@ echo "== 嵌入（C 程序链接 libmpv）=="
 bundle="$TMP/Fake.app/Contents"
 mkdir -p "$bundle/MacOS"
 cp -R "$OUT/Frameworks" "$bundle/Frameworks"
-clang -arch arm64 -arch x86_64 -mmacosx-version-min="$DEPLOYMENT_TARGET" -Wall -Werror -O1 \
+clang -arch arm64 -arch x86_64 -mmacosx-version-min="$DEPLOYMENT_TARGET" -Wall -Werror -Wno-deprecated-declarations -O1 \
   -I"$OUT/include" "$here/tests/embed_test.c" -o "$bundle/MacOS/embed_test" \
   -L"$OUT/Frameworks" -lmpv.2 -framework OpenGL -Wl,-rpath,@executable_path/../Frameworks
 for arch in $arches; do

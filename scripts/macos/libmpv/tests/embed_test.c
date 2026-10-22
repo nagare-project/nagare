@@ -133,7 +133,7 @@ static int render(const char *file, const char *hwdec) {
         return SKIPPED;
     }
     CGLSetCurrentContext(ctx);
-    printf("GL_RENDERER=%s GL_VERSION=%s\n", glGetString(GL_RENDERER), glGetString(GL_VERSION));
+    printf("GL_RENDERER=%s GL_VERSION=%s\n", (const char *)glGetString(GL_RENDERER), (const char *)glGetString(GL_VERSION));
 
     GLuint tex, fbo;
     glGenTextures(1, &tex);
