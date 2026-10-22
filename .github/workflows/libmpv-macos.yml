@@ -1,0 +1,236 @@
+# macOS 的 libmpv：nagare 自己从源码构建（scripts/macos/libmpv/），不用第三方预编译包。
+# 产物是 universal（arm64 + x86_64）、minos 13.0 的一套动态库 + 命令行 mpv，以及 GPL 要求随附的
+# 完整对应源码包。两个架构都在 arm64 的 runner 上编（x86_64 交叉编译）；Intel runner 2027 年下线。
+#
+# 每个组件单独缓存（build.sh 按组件的键判断要不要重编），所以只改 mpv 的参数时不会重编 FFmpeg。
+# 这条流水线只产出 artifact，不发布任何东西；接进 goreleaser / build-app.sh 是后面的事。
+name: libmpv (macOS)
+
+on:
+  workflow_dispatch:
+  # 只在构建脚本或这条流水线本身改了时跑（冷编约 13 分钟、全命中缓存约 4 分钟），别的改动不触发
+  push:
+    branches: [main, ci/libmpv-macos]
+    paths:
+      - "scripts/macos/libmpv/**"
+      - ".github/workflows/libmpv-macos.yml"
+  pull_request:
+    paths:
+      - "scripts/macos/libmpv/**"
+      - ".github/workflows/libmpv-macos.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: libmpv-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 钉死 Xcode：换版本 = 换编译器与 SDK，缓存键会跟着变、全部重编。runner 镜像删掉这一版时这里会直接报错
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  MESON_VERSION: "1.12.1"
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+
+jobs:
+  build:
+    name: 构建（${{ matrix.arch }}）
+    runs-on: macos-15
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # 后面会跑上游的 configure 脚本，不把 token 留在 .git/config 里
+
+      - name: 构建工具
+        run: |
+          brew install nasm autoconf automake libtool
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet "meson==$MESON_VERSION"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          # 工作目录必须每次是同一个绝对路径：.pc 与装载名里写的是它，换了路径缓存就不能复用
+          echo "LIBMPV_WORK=$RUNNER_TEMP/libmpv" >> "$GITHUB_ENV"
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
+
+      - name: 恢复源码缓存
+        id: src-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/sources
+          key: libmpv-src-${{ hashFiles('scripts/macos/libmpv/versions.lock') }}
+          restore-keys: libmpv-src-
+
+      - name: 下载并校验源码
+        run: scripts/macos/libmpv/fetch.sh
+
+      - name: 保存源码缓存
+        if: steps.src-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/sources
+          key: libmpv-src-${{ hashFiles('scripts/macos/libmpv/versions.lock') }}
+
+      # 取最近一次的组件缓存；哪些组件能复用由 build.sh 按键逐个判断
+      - name: 恢复组件缓存
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/stage/${{ matrix.arch }}
+          key: libmpv-stage-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: libmpv-stage-${{ matrix.arch }}-
+
+      - name: 构建
+        id: build
+        run: scripts/macos/libmpv/build.sh --arch ${{ matrix.arch }}
+
+      # 失败了也存：已经编好的组件下次直接用
+      - name: 保存组件缓存
+        if: always() && steps.build.outputs.changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/stage/${{ matrix.arch }}
+          key: libmpv-stage-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: 收集单架构产物
+        run: |
+          scripts/macos/libmpv/package.sh thin --arch ${{ matrix.arch }}
+          # 打成 tar 再上传：artifact 不保留文件权限
+          tar -czf "$RUNNER_TEMP/libmpv-thin-${{ matrix.arch }}.tar.gz" -C "$LIBMPV_WORK/thin" ${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-thin-${{ matrix.arch }}
+          path: ${{ runner.temp }}/libmpv-thin-${{ matrix.arch }}.tar.gz
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: 上传构建日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-build-logs-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/libmpv/obj/${{ matrix.arch }}/**/meson-logs/meson-log.txt
+            ${{ runner.temp }}/libmpv/obj/${{ matrix.arch }}/**/ffbuild/config.log
+            ${{ runner.temp }}/libmpv/obj/${{ matrix.arch }}/**/config.log
+            ${{ runner.temp }}/libmpv/obj/${{ matrix.arch }}/**/CMakeFiles/CMakeConfigureLog.yaml
+            ${{ runner.temp }}/libmpv/obj/${{ matrix.arch }}/*.ini
+          retention-days: 7
+          if-no-files-found: ignore
+
+  package:
+    name: universal + 验证
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # 后面会跑上游的 configure 脚本，不把 token 留在 .git/config 里
+
+      - name: 准备
+        run: |
+          echo "LIBMPV_WORK=$RUNNER_TEMP/libmpv" >> "$GITHUB_ENV"
+          # x86_64 切片要在 Rosetta 下跑一遍
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true && echo "Rosetta 可用"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: libmpv-thin-*
+          path: ${{ runner.temp }}/thin-dl
+          merge-multiple: true
+
+      - name: 合成 universal
+        run: |
+          mkdir -p "$LIBMPV_WORK/thin"
+          for a in arm64 x86_64; do tar -xzf "$RUNNER_TEMP/thin-dl/libmpv-thin-$a.tar.gz" -C "$LIBMPV_WORK/thin"; done
+          scripts/macos/libmpv/package.sh universal "$LIBMPV_WORK/thin/arm64" "$LIBMPV_WORK/thin/x86_64" \
+            "$LIBMPV_WORK/out/libmpv-macos-universal"
+
+      - name: 验证
+        env:
+          LIBMPV_VERIFY_DIR: ${{ runner.temp }}/verify
+        run: |
+          set -o pipefail
+          scripts/macos/libmpv/verify.sh "$LIBMPV_WORK/out/libmpv-macos-universal" 2>&1 | tee "$RUNNER_TEMP/verify.log"
+
+      - name: 清单与打包
+        id: pack
+        run: |
+          out="$LIBMPV_WORK/out/libmpv-macos-universal"
+          cp "$RUNNER_TEMP/verify.log" "$out/VERIFY.txt"
+          "$out/MacOS/mpv" --no-config --version > "$RUNNER_TEMP/mpv-version.txt"
+          python3 -I -B scripts/macos/libmpv/tools/macho.py manifest "$out" \
+            --lock scripts/macos/libmpv/versions.lock --patches scripts/macos/libmpv/patches \
+            --mpv-version "$RUNNER_TEMP/mpv-version.txt"
+          mpv_ver=$(awk -F'|' '$1 ~ /^mpv[[:space:]]/ {gsub(/[[:space:]]/, "", $2); print $2}' scripts/macos/libmpv/versions.lock)
+          id="${mpv_ver}-$(git rev-parse --short=10 HEAD)"
+          bin="$LIBMPV_WORK/out/libmpv-macos-universal-$id.tar.gz"
+          COPYFILE_DISABLE=1 tar --no-xattrs -czf "$bin" -C "$LIBMPV_WORK/out" libmpv-macos-universal
+          echo "bin=$bin" >> "$GITHUB_OUTPUT"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: 恢复源码缓存
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/sources
+          key: libmpv-src-${{ hashFiles('scripts/macos/libmpv/versions.lock') }}
+          restore-keys: libmpv-src-
+
+      - name: 完整对应源码包
+        id: src
+        run: |
+          src="$LIBMPV_WORK/out/libmpv-macos-source-${{ steps.pack.outputs.id }}.tar.gz"
+          scripts/macos/libmpv/source-bundle.sh "$src"
+          echo "src=$src" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-macos-universal
+          path: ${{ steps.pack.outputs.bin }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-macos-source
+          path: ${{ steps.src.outputs.src }}
+          if-no-files-found: error
+
+      - name: 摘要
+        run: |
+          out="$LIBMPV_WORK/out/libmpv-macos-universal"
+          {
+            echo "### libmpv (macOS universal) ${{ steps.pack.outputs.id }}"
+            echo
+            echo "| 产物 | 大小 |"
+            echo "| --- | --- |"
+            echo "| 二进制 tar.gz | $(du -h "${{ steps.pack.outputs.bin }}" | awk '{print $1}') |"
+            echo "| 源码 tar.gz | $(du -h "${{ steps.src.outputs.src }}" | awk '{print $1}') |"
+            echo "| 解开后 Frameworks/ | $(du -sh "$out/Frameworks" | awk '{print $1}')（$(ls "$out/Frameworks" | wc -l | tr -d ' ') 个库） |"
+            echo "| 解开后 MacOS/mpv | $(du -h "$out/MacOS/mpv" | awk '{print $1}') |"
+            echo
+            echo '```'
+            tail -n 3 "$RUNNER_TEMP/verify.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传验证现场（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-verify-debug
+          path: |
+            ${{ runner.temp }}/verify
+            ${{ runner.temp }}/verify.log
+            ${{ runner.temp }}/libmpv/out/libmpv-macos-universal
+          retention-days: 7
+          if-no-files-found: ignore

@@ -1,0 +1,31 @@
+From 50f71a823c8144b40d57a85b0ba51ffc6c48143f Mon Sep 17 00:00:00 2001
+From: arch1t3cht <arch1t3cht@gmail.com>
+Date: Sun, 7 Jun 2026 23:33:12 +0200
+Subject: [PATCH] lcms: avoid NaN when building BT.1886 transfer curves
+
+After
+https://github.com/mm2/Little-CMS/commit/bb60a46e9c50e9d3d18cf6dd81869240e4ebe618
+cmsDetectBlackPoint can output nonzero X and Z values, which can end up
+slightly negative due to rounding errors.
+Bound the resulting src_black values by 0 below to ensure that raising
+them to the power of 1 / gamma does not result in NaN, which would
+result in a broken video profile.
+
+Fixes #17439.
+---
+ video/out/gpu/lcms.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/video/out/gpu/lcms.c b/video/out/gpu/lcms.c
+index 8f54876c948b4..4792cba432cb9 100644
+--- a/video/out/gpu/lcms.c
++++ b/video/out/gpu/lcms.c
+@@ -279,7 +279,7 @@ static cmsHPROFILE get_vid_profile(struct gl_lcms *p, cmsContext cms,
+         // Build the parametric BT.1886 transfer curve, one per channel
+         for (int i = 0; i < 3; i++) {
+             const double gamma = 2.40;
+-            double binv = pow(src_black[i], 1.0/gamma);
++            double binv = pow(MPMAX(0, src_black[i]), 1.0/gamma);
+             tonecurve[i] = cmsBuildParametricToneCurve(cms, 6,
+                     (double[4]){gamma, 1.0 - binv, binv, 0.0});
+         }
