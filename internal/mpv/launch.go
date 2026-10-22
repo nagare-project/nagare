@@ -37,7 +37,7 @@ type LaunchOptions struct {
 	// 被 mpv 原样回显后进入 API 错误或日志。
 	RedactMediaDiagnostics bool
 	// NetworkStream 表示 MediaPath 是一条边下边播 / 在线的 HTTP 流，而不是本地文件：
-	// 给 mpv 加上流式播放的缓存参数（见 streamCacheArgs）。
+	// 给 mpv 加上流式播放的缓存参数（见 streamCacheOptions）。
 	NetworkStream bool
 	// Shaders 是按顺序加载的 GLSL 着色器（Anime4K，见 Anime4KShaders）。逐个用 --glsl-shaders-append 传：
 	// 整条列表要按系统用 : 或 ; 分隔，路径里带这两个字符就会被拆错。
@@ -54,7 +54,7 @@ type LaunchOptions struct {
 	Volume *int
 }
 
-// streamCacheArgs 是网络流专用的 mpv 缓存参数。
+// streamCacheOptions 是网络流专用的 mpv 缓存参数。
 //
 // mpv 打开 HTTP 流的默认行为是「只预读 1 秒、不等缓冲直接起播」，对磁力这种
 // 供给速度先慢后快的源正好踩坑：本地已经到齐的起播缓冲一读完就追上下载前沿，
@@ -67,12 +67,12 @@ type LaunchOptions struct {
 //	--cache-pause-initial=yes   起播前先攒够 cache-pause-wait 秒再放，攒不够时
 //	                            mpv 自己显示「缓冲中」，而不是放两秒停一秒
 //	--cache-pause-wait=5        起播 / 断流恢复都以 5 秒内容为门槛
-var streamCacheArgs = []string{
-	"--cache=yes",
-	"--demuxer-readahead-secs=60",
-	"--demuxer-max-bytes=256MiB",
-	"--cache-pause-initial=yes",
-	"--cache-pause-wait=5",
+var streamCacheOptions = []Option{
+	stringOption("cache", "yes"),
+	stringOption("demuxer-readahead-secs", "60"),
+	stringOption("demuxer-max-bytes", "256MiB"),
+	stringOption("cache-pause-initial", "yes"),
+	stringOption("cache-pause-wait", "5"),
 }
 
 // Launch 启动 mpv 进程并建立 IPC 连接。ctx 只约束启动阶段（等 socket 就绪），
@@ -138,41 +138,47 @@ func isRemoteURL(p string) bool {
 	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
 }
 
-// buildArgs 组装 mpv 启动参数。
+// buildArgs 组装命令行 mpv 的启动参数。
 func buildArgs(opts LaunchOptions, endpoint string) []string {
-	args := []string{
-		"--input-ipc-server=" + endpoint,
-		"--no-terminal",
-		"--force-window",
-		"--keep-open=no",
+	return NewLaunchSpec(opts, endpoint).Argv()
+}
+
+// NewLaunchSpec 把 LaunchOptions 翻成选项清单（见 LaunchSpec）。endpoint 是 IPC 的 socket / 命名管道。
+// 顺序就是 argv 的顺序，改了会让命令行 mpv 的启动参数变样（options_golden_test.go 会拦下）。
+func NewLaunchSpec(opts LaunchOptions, endpoint string) LaunchSpec {
+	o := []Option{
+		stringOption("input-ipc-server", endpoint),
+		flagOption("terminal", false),
+		flagOption("force-window", true).afterRenderContext(),
+		stringOption("keep-open", "no"),
 	}
 	if opts.ConfigDir != "" {
-		args = append(args, "--config-dir="+opts.ConfigDir)
+		o = append(o, stringOption("config-dir", opts.ConfigDir))
 	} else if opts.NoConfig {
-		args = append(args, "--no-config")
+		o = append(o, flagOption("config", false))
 	}
-	for _, kv := range opts.ScriptOpts {
-		args = append(args, "--script-opts-append="+kv)
+	if len(opts.ScriptOpts) > 0 {
+		o = append(o, mapOption("script-opts", "script-opts-append", opts.ScriptOpts))
 	}
 	if opts.Volume != nil {
-		args = append(args, fmt.Sprintf("--volume=%d", *opts.Volume))
+		o = append(o, stringOption("volume", fmt.Sprintf("%d", *opts.Volume)))
 	}
 	if opts.NetworkStream {
-		args = append(args, streamCacheArgs...)
+		o = append(o, streamCacheOptions...)
 	}
 	if opts.Title != "" {
-		args = append(args, "--title="+opts.Title)
+		o = append(o, stringOption("title", opts.Title).perFile())
 		// 窗口标题之外，界面顶栏读的是 media-title：不强制的话那里显示的是文件名
-		args = append(args, "--force-media-title="+opts.Title)
+		o = append(o, stringOption("force-media-title", opts.Title).perFile())
 	}
 	if opts.SubPath != "" {
-		args = append(args, "--sub-file="+opts.SubPath)
+		o = append(o, listOption("sub-files", "sub-file", []string{opts.SubPath}).perFile())
 	}
 	if opts.StartAt > 0 {
-		args = append(args, fmt.Sprintf("--start=+%.3f", opts.StartAt))
+		o = append(o, stringOption("start", fmt.Sprintf("+%.3f", opts.StartAt)).perFile())
 	}
-	for _, shader := range opts.Shaders {
-		args = append(args, "--glsl-shaders-append="+shader)
+	if len(opts.Shaders) > 0 {
+		o = append(o, listOption("glsl-shaders", "glsl-shaders-append", opts.Shaders))
 	}
 	if len(opts.HTTPHeaders) > 0 {
 		names := make([]string, 0, len(opts.HTTPHeaders))
@@ -180,16 +186,15 @@ func buildArgs(opts LaunchOptions, endpoint string) []string {
 			names = append(names, name)
 		}
 		sort.Strings(names)
+		headers := make([]string, 0, len(names))
 		for _, name := range names {
-			args = append(args, "--http-header-fields-add="+name+": "+opts.HTTPHeaders[name])
+			headers = append(headers, name+": "+opts.HTTPHeaders[name])
 		}
+		// argv 这边保持改造前的 -add：它按 -set 的语法解析，值里的逗号会把一条请求头拆成两条
+		// （mpv 0.41 实测「(KHTML, like Gecko)」被拆开）。libmpv 整表设不受影响。
+		o = append(o, listOption("http-header-fields", "http-header-fields-add", headers).perFile())
 	}
-	if opts.MediaPath != "" {
-		args = append(args, "--", opts.MediaPath) // "--" 防御以 "-" 开头的文件名
-	} else {
-		args = append(args, "--idle=yes")
-	}
-	return args
+	return LaunchSpec{Options: o, Media: opts.MediaPath}
 }
 
 // connectWithRetry 轮询连接 mpv 的 IPC 端点，同时监听「进程秒退」与 ctx 取消。

@@ -62,8 +62,8 @@ func TestBuildArgsPassesURLAfterSeparator(t *testing.T) {
 // cache-pause-initial 反而会让本地播放多等一拍）。
 func TestBuildArgsStreamCacheOnlyForNetworkStreams(t *testing.T) {
 	stream := buildArgs(LaunchOptions{MediaPath: "http://127.0.0.1:8823/stream/cap/t/hash/0", NetworkStream: true}, "/tmp/nagare.sock")
-	for _, want := range streamCacheArgs {
-		assert.Contains(t, stream, want)
+	for _, o := range streamCacheOptions {
+		assert.Contains(t, stream, "--"+o.Name+"="+o.Value)
 	}
 	assert.Contains(t, stream, "--cache-pause-initial=yes")
 
