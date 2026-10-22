@@ -291,8 +291,12 @@ openssl x509 -req -in "$TMP/srv.csr" -CA "$TMP/ca.pem" -CAkey "$TMP/ca.key" -CAc
 python3 -I -B "$here/tests/https_server.py" "$MEDIA" "$TMP/srv.pem" "$TMP/srv.key" "$TMP/port" \
   > "$TMP/https-server.log" 2>&1 &
 SERVER_PID=$!
-for _ in $(seq 1 50); do [ -s "$TMP/port" ] && break; sleep 0.1; done
-[ -s "$TMP/port" ] || die "HTTPS 测试服务端没起来：$(cat "$TMP/https-server.log")"
+# runner 上第一次启动 python 时系统的安全扫描可能要好几秒，多等一会
+for _ in $(seq 1 600); do [ -s "$TMP/port" ] && break; sleep 0.1; done
+if [ ! -s "$TMP/port" ]; then
+  kill -0 "$SERVER_PID" 2>/dev/null && echo "（服务端进程仍在运行）"
+  die "HTTPS 测试服务端 60 秒内没起来：$(cat "$TMP/https-server.log")"
+fi
 base="https://localhost:$(cat "$TMP/port")"
 
 https_case() {
