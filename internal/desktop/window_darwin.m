@@ -529,6 +529,10 @@ static void ensureWindow(void) {
   if ([cfg.preferences respondsToSelector:NSSelectorFromString(@"setElementFullscreenEnabled:")]) {
     [cfg.preferences setValue:@YES forKey:@"elementFullscreenEnabled"];
   }
+  // 网页据此知道自己在 nagare 的窗口里（提示条说「关闭窗口」而不是「关闭标签页」）。只在 WebKit 默认的那段后面
+  // 追加一个记号、不替换它：发现页的 YouTube 预告片会看它。约定见 docs/player-ui.md「宿主与网页」。
+  NSString *appName = cfg.applicationNameForUserAgent;
+  cfg.applicationNameForUserAgent = appName.length ? [appName stringByAppendingString:@" NagareDesktop"] : @"NagareDesktop";
   gWeb = [[WKWebView alloc] initWithFrame:root.bounds configuration:cfg];
   gWeb.navigationDelegate = gController;
   gWeb.UIDelegate = gController;
@@ -557,10 +561,17 @@ WKWebView *nagareWebView(void) {
   return gWeb;
 }
 
+// 把窗口提到前面：关掉的（红钮 / ⌘W 只是藏起来）、最小化的、⌘H 隐藏的都算。点 Dock、托盘「打开 nagare」、
+// 访达里再开一次 .app、终端里再启动一次（POST /api/window/show）都走这里。
 static void bringToFront(void) {
+  gHideAfterFullscreen = NO;  // 全屏时关了窗、正在退全屏：用户又要它了，退完别再藏
+  if (NSApp.isHidden) [NSApp unhide:nil];
   if (gWin.isMiniaturized) [gWin deminiaturize:nil];
   [gWin makeKeyAndOrderFront:nil];
   [NSApp activateIgnoringOtherApps:YES];
+  // 终端里再启动一次时前台是终端：macOS 14 起激活要「协商」，系统可以不让我们抢前台（用新 SDK 链接时）。
+  // 那样窗口至少要浮到别的应用前面让人看见，键盘焦点留在原处。已经激活了的话这一句什么都不改。
+  [gWin orderFrontRegardless];
 }
 
 // ───────────────────────── C 接口 ─────────────────────────

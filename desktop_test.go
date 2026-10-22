@@ -63,3 +63,14 @@ func TestWithDesktopRewiresTray(t *testing.T) {
 	assert.Nil(t, quiet.OnReady, "--no-browser：启动后不弹窗口")
 	assert.True(t, quiet.Desktop)
 }
+
+// 第二次启动在这个实例上做的事：用桌面窗口时有 ShowWindow（提到前面、报 shown），浏览器模式下为 nil
+// —— httpserver 据此回 shown=false，新进程开浏览器。
+func TestWindowShower(t *testing.T) {
+	assert.Nil(t, windowShower(false))
+	show := windowShower(true)
+	require.NotNil(t, show)
+	if !desktop.Available() {
+		assert.True(t, show(), "桩里的 Show 什么都不做，仍报已显示（这个构建本来就不会走到 window=true）")
+	}
+}

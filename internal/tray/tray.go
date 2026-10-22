@@ -27,6 +27,10 @@ const (
 	ModeDock Mode = "dock"
 	// ModeTray Windows / Linux 系统托盘图标。
 	ModeTray Mode = "tray"
+	// ModeWindow 有 nagare 自己的桌面窗口（internal/desktop）：关窗口不退出，从 Dock / 菜单栏 / 托盘图标
+	// 重新打开。界面在窗口里时措辞是「关闭窗口」，在外部浏览器里（托盘「在浏览器中打开」）仍是「关闭标签页」。
+	// 托盘不据此改行为（桌面模式看 Options.Desktop），这个值只给提示文案用。
+	ModeWindow Mode = "window"
 )
 
 // Notice 是托盘就绪后弹一次的系统通知（首次启动告诉用户「关浏览器不等于退出」）。

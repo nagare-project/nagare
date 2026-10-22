@@ -96,7 +96,7 @@ func (h *Handler) shutdown(w http.ResponseWriter, _ *http.Request) {
 	time.AfterFunc(shutdownDelay, h.deps.Shutdown)
 }
 
-// backgroundModeView 把空值（旧调用方没填）归一成 "none"，界面只认四个枚举。
+// backgroundModeView 把空值（旧调用方没填）归一成 "none"；其余原样（含桌面窗口的 "window"）。
 func backgroundModeView(mode string) string {
 	if mode == "" {
 		return "none"

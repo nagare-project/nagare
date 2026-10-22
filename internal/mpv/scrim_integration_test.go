@@ -3,6 +3,7 @@
 package mpv
 
 import (
+	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -33,7 +34,27 @@ func TestIntegration_UIScrimHasNoStripes(t *testing.T) {
 	}
 	time.Sleep(400 * time.Millisecond)
 
-	shot := filepath.Join(t.TempDir(), "scrim.png")
+	// 稳态才是用户看到的：窗口刚按视频大小调整过、界面还没按新尺寸重画（30ms 去抖，机器忙时更久）的那一帧，
+	// 画布被拉伸、条的边界落回半个像素，相邻两条之间会透出一道浅线。看到拼缝就隔 0.5 秒再截，四次都有才算失败。
+	var row int
+	var step float64
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			time.Sleep(500 * time.Millisecond)
+		}
+		lum := topScrimLuma(t, p, s, h)
+		require.Less(t, lum[0]+20, lum[len(lum)-1], "顶部遮罩应该从上往下明显变亮（截图里没有遮罩？）")
+		if row, step = firstDarkerStep(lum); row < 0 {
+			return
+		}
+	}
+	t.Fatalf("第 %d 行比上一行暗 %.1f：遮罩的拼缝出现横纹（隔 0.5 秒连截四次都有）", row, step)
+}
+
+// topScrimLuma 截下整个窗口，返回顶部遮罩里每一行（中间那一段：标题在左、窗口按钮在右）的平均亮度。
+func topScrimLuma(t *testing.T, p *Player, s, osdH float64) []float64 {
+	t.Helper()
+	shot := filepath.Join(t.TempDir(), fmt.Sprintf("scrim-%d.png", time.Now().UnixNano()))
 	if _, err := p.Command("screenshot-to-file", shot, "window"); err != nil {
 		t.Skipf("这台机器上截不了窗口（%v）", err)
 	}
@@ -45,8 +66,8 @@ func TestIntegration_UIScrimHasNoStripes(t *testing.T) {
 
 	b := img.Bounds()
 	// 截图与 OSD 尺寸不一定相同（缩放）：按比例换算顶部遮罩的高度（main.lua draw_top：140 × 缩放）
-	rows := int(140 * s * float64(b.Dy()) / h)
-	x0, x1 := b.Min.X+b.Dx()*42/100, b.Min.X+b.Dx()*58/100 // 标题在左、窗口按钮在右，中间只有遮罩
+	rows := int(140 * s * float64(b.Dy()) / osdH)
+	x0, x1 := b.Min.X+b.Dx()*42/100, b.Min.X+b.Dx()*58/100
 	lum := make([]float64, rows)
 	for y := 0; y < rows; y++ {
 		var sum float64
@@ -56,12 +77,18 @@ func TestIntegration_UIScrimHasNoStripes(t *testing.T) {
 		}
 		lum[y] = sum / float64(x1-x0)
 	}
-	require.Less(t, lum[0]+20, lum[rows-1], "顶部遮罩应该从上往下明显变亮（截图里没有遮罩？）")
-	for y := 1; y < rows; y++ {
-		// 0.5 个亮度级以内是量化噪声；拼缝重叠的横纹是 10 级以上
-		require.GreaterOrEqualf(t, lum[y]-lum[y-1], -0.5,
-			"第 %d 行比上一行暗 %.1f：遮罩的拼缝出现横纹", y, lum[y-1]-lum[y])
+	return lum
+}
+
+// firstDarkerStep 找第一行比上一行暗 0.5 级以上的地方（0.5 以内是量化噪声；拼缝重叠的横纹是 10 级以上）。
+// 没有返回 -1。
+func firstDarkerStep(lum []float64) (row int, step float64) {
+	for y := 1; y < len(lum); y++ {
+		if d := lum[y-1] - lum[y]; d > 0.5 {
+			return y, d
+		}
 	}
+	return -1, 0
 }
 
 // waitStableOSD 等窗口尺寸稳定下来（连续 0.5 秒不变）：加载画面后窗口会按视频大小重新调整，

@@ -107,9 +107,19 @@ func Probe(port int, token string) ProbeResult {
 	return ProbeForeign
 }
 
+// loopbackClient 是向本机已有实例发带 token 请求用的客户端：不跟随重定向。端口上的程序回一个 3xx，
+// 默认的客户端会带着 token 头跟到它指的任何主机去，「只和 127.0.0.1 说话」就不成立了；我方实例的
+// /api/* 从不重定向，3xx 一律当作对不上。
+func loopbackClient() *http.Client {
+	return &http.Client{
+		Timeout:       probeTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+}
+
 // healthOK 带 token 请求 /api/health，只认成功信封里的 status=="ok"。
 func healthOK(addr, token string) bool {
-	client := &http.Client{Timeout: probeTimeout}
+	client := loopbackClient()
 	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/api/health", nil)
 	if err != nil {
 		return false

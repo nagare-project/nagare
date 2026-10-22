@@ -72,10 +72,21 @@ func TestSettings(t *testing.T) {
 	assert.Equal(t, "dock", s.Background.Mode, "界面按后台形态写「去哪里找它」的提示")
 }
 
-// 旧调用方没填 BackgroundMode 时归一成 none，界面只认四个枚举。
+// 旧调用方没填 BackgroundMode 时归一成 none，界面只认五个枚举。
 func TestBackgroundModeViewDefaultsToNone(t *testing.T) {
 	assert.Equal(t, "none", backgroundModeView(""))
 	assert.Equal(t, "tray", backgroundModeView("tray"))
+}
+
+// 桌面窗口：background.mode 是 window（界面在窗口里说「关闭窗口」），其余字段与以前一样。
+func TestSettingsBackgroundModeForDesktopWindow(t *testing.T) {
+	env := newEnvDeps(t, false, func(d *Deps) {
+		d.BackgroundMode = "window"
+		d.EmbeddedMPV = true
+	})
+	s := getSettings(t, env)
+	assert.Equal(t, "window", s.Background.Mode)
+	assert.True(t, s.MPV.Embedded)
 }
 
 // mpv 缺失：settings 带 hint + install；用户装好后 POST /api/mpv/detect 翻转共享状态，

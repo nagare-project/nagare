@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -229,4 +230,21 @@ func TestSquatterNeverReceivesToken(t *testing.T) {
 	// —— 所以那道门必须留在调用方（main.go 的 ensureSingleInstance）。
 	assert.Equal(t, ProbeRunning, Probe(port, "secret-token"))
 	assert.True(t, sawToken)
+}
+
+// 探测同样不跟随重定向：回 307 的对端不是我方实例，token 也不会被带去别的主机。
+func TestProbeDoesNotFollowRedirects(t *testing.T) {
+	var elsewhere atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		elsewhere.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"status":"ok"}}`))
+	}))
+	t.Cleanup(target.Close)
+	port := startForeign(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+
+	assert.Equal(t, ProbeForeign, Probe(port, config.NewToken()))
+	assert.Zero(t, elsewhere.Load(), "重定向不能把带 token 的探测带到别的主机")
 }

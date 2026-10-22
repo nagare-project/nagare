@@ -42,13 +42,34 @@ func TestNoticeBodyMentionsWhereToFindIt(t *testing.T) {
 		tray.ModeNone:    "设置页",
 	}
 	for mode, want := range cases {
-		assert.Contains(t, noticeBody(mode), want, "mode=%s", mode)
-		assert.Contains(t, noticeBody(mode), "不会退出", "mode=%s", mode)
+		assert.Contains(t, noticeBody(mode, "darwin"), want, "mode=%s", mode)
+		assert.Contains(t, noticeBody(mode, "darwin"), "不会退出", "mode=%s", mode)
 	}
 }
 
+// 桌面窗口：说的是「关闭窗口」不是「关闭浏览器」，并且讲清后台下载不停（不说做种：关窗口会停播，种子跟着停）；
+// macOS 指 Dock 与菜单栏的「流」、⌘Q，Windows 指托盘（没有 Dock、没有 ⌘Q）。
+func TestNoticeBodyForDesktopWindow(t *testing.T) {
+	mac := noticeBody(tray.ModeWindow, "darwin")
+	assert.Contains(t, mac, "关闭窗口不会退出")
+	assert.Contains(t, mac, "下载会继续")
+	assert.NotContains(t, mac, "做种")
+	assert.Contains(t, mac, "Dock")
+	assert.Contains(t, mac, "「流」")
+	assert.Contains(t, mac, "⌘Q")
+	assert.NotContains(t, mac, "浏览器")
+
+	win := noticeBody(tray.ModeWindow, "windows")
+	assert.Contains(t, win, "关闭窗口不会退出")
+	assert.Contains(t, win, "托盘")
+	assert.NotContains(t, win, "Dock")
+	assert.NotContains(t, win, "⌘")
+}
+
 func TestBackgroundModeFlags(t *testing.T) {
-	assert.Equal(t, tray.ModeNone, backgroundMode(true, false), "--no-tray")
-	assert.Equal(t, tray.ModeNone, backgroundMode(false, true), "API-only 没有界面可开")
-	assert.Equal(t, tray.CurrentMode(), backgroundMode(false, false))
+	assert.Equal(t, tray.ModeNone, backgroundMode(true, false, false), "--no-tray")
+	assert.Equal(t, tray.ModeNone, backgroundMode(false, true, false), "API-only 没有界面可开")
+	assert.Equal(t, tray.CurrentMode(), backgroundMode(false, false, false))
+	assert.Equal(t, tray.ModeWindow, backgroundMode(false, false, true), "桌面窗口")
+	assert.Equal(t, tray.ModeNone, backgroundMode(true, false, true), "没有托盘就没有窗口可言，按无图标算")
 }

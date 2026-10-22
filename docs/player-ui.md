@@ -145,6 +145,23 @@ macOS 的宿主在 `internal/desktop`（构建标签 `libmpv`，开发期 libmpv
 
 **优先级与命令行相反**：libmpv 下 `mpv.conf` 在 `mpv_initialize` 里才解析，会盖过启动前设的 Init 选项；命令行 mpv 则是 argv 盖过 `mpv.conf`。所以 `ui/mpv.conf` 里不能写与启动选项同名而取值不同的选项，否则那一项只在 macOS 上变样（`TestUIConfigDoesNotOverrideLaunchOptions` 守着）。
 
+### 宿主与网页、第二次启动
+
+两件与 mpv 无关、但每个平台的宿主（macOS 的 `internal/desktop`、Windows 的同一个包）都要做到的事：
+
+- **User-Agent 末尾追加 ` NagareDesktop`**（可以带 `/<版本>`，按空白分词整词比较；不要替换 WebKit / WebView2 默认的那段，发现页的
+  YouTube 预告片会看它）。网页据此知道自己开在 nagare 的窗口里（`frontend/src/lib/desktopWindow.ts`）：后台提示条与设置页
+  「退出 nagare」说「关闭窗口」而不是「关闭标签页」。同一个界面开在外部浏览器里（托盘「在浏览器中打开」）时没有这个记号，
+  照旧说标签页。它只决定措辞，不参与任何鉴权。`/api/settings` 的 `background.mode` 在用桌面窗口时是 `window`（另外四个值
+  `dock` / `menubar` / `tray` / `none` 含义不变）。
+- **第二次启动把已有窗口提到前面**：nagare 已在运行时再启动一次（终端里再敲一遍、双击另一份二进制），新进程探到已有实例后
+  `POST /api/window/show`（`internal/httpserver/window.go`，在 `/api/*` 的鉴权链之内：Host 白名单 + `X-Nagare-Token`，
+  token 从同一个配置目录读），已有实例调 `desktop.Show()` 并回 `{"shown": true}`；没有桌面窗口（浏览器模式、旧版本 404、
+  请求失败）时新进程照旧开浏览器。`desktop.Show()` 要能把关掉（⌘W / 红钮只是藏起来）、最小化、隐藏的窗口都提到前面，
+  第一次调用时建窗口，且不能阻塞调用方（HTTP 处理器）。`--no-window` 的第二次启动只开浏览器，`--no-browser` 什么都不弹。
+  macOS 上从访达 / 启动台再开一次 .app 不会起第二个进程：系统把「重新打开」交给已有实例（`applicationShouldHandleReopen`），
+  走的是与点 Dock 图标同一条路。
+
 ## 同一个窗口里切集
 
 - 上一集 / 下一集在同一个 mpv 进程、同一个窗口里切（`loadfile … replace`），全屏、窗口大小、音量、画质增强、倍速都保住。nagare 在 `state` 的 `nav` 里告诉界面有没有上一集 / 下一集，有才画 ⏮ ⏭、右键菜单才列「上一集 · Shift+P」「下一集 · Shift+N」（小字带上是第几集，例如「第 5 集 · Shift+N」）。

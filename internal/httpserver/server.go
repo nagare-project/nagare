@@ -43,6 +43,8 @@ type Options struct {
 	// RegisterAPI 在 /api/* 的鉴权链【之内】注册业务端点（internal/api 挂载点）。
 	// 注册的所有路由自动获得 Host 白名单 + token + CSRF 三层防护。
 	RegisterAPI func(mux *http.ServeMux)
+	// ShowWindow 是第二次启动时 POST /api/window/show 要做的事（见 window.go）；nil 表示没有桌面窗口。
+	ShowWindow ShowWindowFunc
 }
 
 // Server 承载路由、鉴权中间件与流端点能力注册表。
@@ -76,6 +78,7 @@ func New(opts Options) *Server {
 
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/health", s.handleHealth)
+	api.HandleFunc("POST "+ShowWindowPath, s.handleShowWindow)
 	if opts.RegisterAPI != nil {
 		opts.RegisterAPI(api)
 	}

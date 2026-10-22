@@ -6,7 +6,7 @@ import { mount } from '../../test/harness'
 const endpoints = vi.hoisted(() => ({ shutdownNagare: vi.fn() }))
 vi.mock('../../lib/endpoints', () => endpoints)
 
-import { QuitCard, QuitNotice } from './QuitCard'
+import { QuitCard, QuitNotice, quitNote } from './QuitCard'
 
 function button(container: HTMLElement, text: string): HTMLButtonElement | undefined {
   return Array.from(container.querySelectorAll('button')).find((b) => b.textContent === text)
@@ -74,6 +74,30 @@ describe('QuitCard', () => {
     const status = m.container.querySelector('.result--err[role="status"]')?.textContent ?? ''
     expect(status).toContain('无法连接到 nagare 后端')
     expect(status).toContain('直接关闭此页')
+  })
+})
+
+describe('QuitCard 在桌面窗口里', () => {
+  it('说「关闭窗口」不说「浏览器标签页」；macOS 指 ⌘Q 与菜单栏「流」；确认里不提 mpv', async () => {
+    const m = await mount(<QuitCard platform="darwin" inWindow onQuit={vi.fn()} />)
+    mounted.push(m.unmount)
+    const text = m.container.textContent ?? ''
+    expect(text).toContain('关闭窗口不会结束 nagare 的后台进程。')
+    expect(text).toContain('⌘Q')
+    expect(text).toContain('「流」')
+    expect(text).not.toContain('浏览器标签页')
+    await act(async () => {
+      button(m.container, '退出 nagare')?.click()
+    })
+    expect(m.container.querySelector('.quit-confirm-copy')?.textContent).toBe('确定退出 nagare 吗？正在播放的视频也会停止。')
+  })
+
+  it('Windows 的桌面窗口：指托盘，不提 ⌘Q', () => {
+    expect(quitNote('windows', true)).toBe('关闭窗口不会结束 nagare 的后台进程。Windows 也可以从托盘图标退出。')
+  })
+
+  it('外部浏览器里照旧说标签页', () => {
+    expect(quitNote('darwin', false)).toBe('关闭浏览器标签页不会结束 nagare 的后台进程。macOS 也可以从菜单栏图标退出。')
   })
 })
 

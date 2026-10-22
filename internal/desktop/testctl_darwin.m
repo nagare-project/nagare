@@ -145,6 +145,9 @@ char *nagare_test_state(void) {
         @"webHidden" : @(nagareWebView().hidden),
         @"screens" : screens,
         @"activationPolicy" : @(NSApp.activationPolicy),
+        @"appActive" : @(NSApp.isActive),
+        @"appHidden" : @(NSApp.isHidden),
+        @"uaAppName" : nagareWebView().configuration.applicationNameForUserAgent ?: @"",
         @"mainMenu" : [[NSApp.mainMenu.itemArray valueForKey:@"title"] componentsJoinedByString:@"|"] ?: @"",
       }];
     }
