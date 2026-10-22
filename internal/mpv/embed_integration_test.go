@@ -60,6 +60,27 @@ func launchUI(t *testing.T) *Player {
 	return p
 }
 
+// uiGeometry 是界面画在多大的窗口里、按几倍缩放画（与 main.lua 的 scale() 同一个取法：mpv 自己读得到
+// display-hidpi-scale 就用它，读不到用宿主给的）。没有窗口（无显示环境、--vo=null）时界面什么都不画、
+// 也不发布 capture，测试跳过而不是失败。
+func uiGeometry(t *testing.T, p *Player, hostScale float64) (w, h, s float64) {
+	t.Helper()
+	var dims struct {
+		W float64 `json:"w"`
+		H float64 `json:"h"`
+	}
+	require.NoError(t, p.GetProperty("osd-dimensions", &dims))
+	if dims.W <= 0 || dims.H <= 0 {
+		t.Skip("没有窗口（无显示环境），界面不画、不发布 capture")
+	}
+	s = hostScale
+	var scale float64
+	if err := p.GetProperty("display-hidpi-scale", &scale); err == nil && scale > 0 {
+		s = scale
+	}
+	return dims.W, dims.H, s
+}
+
 func boolProperty(p *Player, name string) (value, ok bool) {
 	if err := p.GetProperty(name, &value); err != nil {
 		return false, false
@@ -93,6 +114,7 @@ func TestIntegration_UICommandLineModeUnchanged(t *testing.T) {
 // 不全屏时 Esc 就是返回（mpv 以 quit 正常退出，终态无错误，与用户关窗同一条路）。
 func TestIntegration_UIEmbeddedMode(t *testing.T) {
 	p := launchUI(t)
+	uiGeometry(t, p, 2) // 没有窗口就跳过：界面不画，capture / shown 不会发布，Esc 也不接管
 
 	require.NoError(t, p.SetProperty("user-data/nagare/embedded", true))
 	require.NoError(t, p.SetProperty("user-data/nagare/titlebar-inset", 72))
@@ -123,4 +145,47 @@ func TestIntegration_UIEmbeddedMode(t *testing.T) {
 	_, _ = p.Command("keypress", "ESC") // mpv 收到就退出，应答常常赶不上
 	requireDoneWithin(t, p, 5*time.Second)
 	require.NoError(t, p.Err(), "返回是用户主动结束，终态不能算异常")
+}
+
+// 验收：capture 的取值 —— 宿主就靠它决定一次按下是交给界面还是拖动窗口。播放键上是真、空白画面上
+// 是假；右键菜单开着时哪里都是真，Esc 关掉菜单之后空白处又是假（而且 mpv 没有因为这下 Esc 退出）。
+func TestIntegration_UIEmbeddedCaptureFollowsControls(t *testing.T) {
+	p := launchUI(t)
+	require.NoError(t, p.SetProperty("user-data/nagare/embedded", true))
+	require.NoError(t, p.SetProperty("user-data/nagare/hidpi", 1))
+	w, h, s := uiGeometry(t, p, 1)
+
+	// 每次读之前都把模拟光标移过去：真实光标不在窗口上时系统随后会报「鼠标离开」，模拟的位置撑不了多久；
+	// capture 在 30ms 的去抖重绘里才更新，等一下再读
+	captureAt := func(x, y float64, want bool) func() bool {
+		return func() bool {
+			if _, err := p.Command("mouse", int(x), int(y)); err != nil {
+				return false
+			}
+			time.Sleep(80 * time.Millisecond)
+			got, ok := boolProperty(p, "user-data/nagare/capture")
+			return ok && got == want
+		}
+	}
+	playX, playY := w/2, h-44*s // main.lua draw_bottom / draw_transport：大播放键的圆心
+	blankX, blankY := w/2, h/2
+	require.Eventually(t, captureAt(playX, playY, true), 5*time.Second, 20*time.Millisecond,
+		"光标在播放键上时 capture 要是真：这一下按下归界面")
+	require.Eventually(t, captureAt(blankX, blankY, false), 5*time.Second, 20*time.Millisecond,
+		"光标在空白画面上时 capture 要是假：宿主在这里开始拖动窗口")
+
+	_, err := p.Command("script-binding", "nagare/menu")
+	require.NoError(t, err)
+	require.Eventually(t, captureAt(blankX, blankY, true), 5*time.Second, 20*time.Millisecond,
+		"右键菜单开着时哪里都归界面（点菜单外面是关菜单，不能拖窗）")
+
+	_, err = p.Command("keypress", "ESC")
+	require.NoError(t, err)
+	require.Eventually(t, captureAt(blankX, blankY, false), 5*time.Second, 20*time.Millisecond,
+		"Esc 关掉菜单之后，空白处又归宿主")
+	select {
+	case <-p.Done():
+		t.Fatal("菜单开着时的 Esc 只关菜单，不能接着返回")
+	default:
+	}
 }

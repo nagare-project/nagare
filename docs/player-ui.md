@@ -112,6 +112,17 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
   （关窗本来就是 `quit`）：结束原因 `quit`、最后一次进度落盘、看完回写、`OnSessionEnd`（磁力停做种删分片），
   不需要新的事件。嵌入的 libmpv 没有子进程，会话结束靠 IPC 上的 `shutdown` 事件（`mpv.Attach` 那条路）。
 
+宿主要做到的（界面这边做不了）：
+
+- **Esc 用 `keydown` / `keyup` 发**，系统的按住重复丢掉：mpv 对已经按下的键会丢掉重复的按下，`keypress` 却没有这层保护，
+  按住 Esc 会在退出全屏之后接着连成返回。
+- **媒体键由宿主转发**：libmpv 的默认配置里 `input-media-keys=no`，mpv 不接管系统的上一曲 / 下一曲，宿主收到后发
+  `keypress PREV` / `keypress NEXT`（`input.conf` 绑的就是这两个键）。
+- **`capture` 是提示，不是同步结果**：它在 30ms 去抖的重绘里更新，光标刚移到控件上就立刻按下，读到的可能还是上一次的值
+  （命令行 mpv 下鼠标分区有同样的延迟）。
+- **缩略图的尺寸**：thumbfast 按 `display-hidpi-scale` 定缩略图大小，render API 下读不到；宿主要经 `script-opts` 传按
+  缩放算好的 `thumbfast-max_width` / `thumbfast-max_height`（thumbfast 本身不改）。
+
 **命令行 mpv 下一切照旧**：这些属性一个都没设时（Linux、浏览器模式、今天的所有平台），界面的行为与以前一字不差，
 `capture` / `shown` 也只在嵌入时才发布。0.36 之前的 mpv 没有 `user-data`：观察不存在的属性只会一直是空，不报错。
 
@@ -122,6 +133,8 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 `config=yes`、`input-default-bindings=yes`、`osc=yes`；带文件时 `idle=once`，播完即退出，与命令行播完关窗一致）；
 `BeforeLoad` 在渲染上下文建好之后、第一个 `loadfile` 之前以属性设（只属于这一个文件的 `start`、`title` /
 `force-media-title`、`sub-files`、`http-header-fields`，以及要等渲染上下文的 `force-window`）。
+
+**优先级与命令行相反**：libmpv 下 `mpv.conf` 在 `mpv_initialize` 里才解析，会盖过启动前设的 Init 选项；命令行 mpv 则是 argv 盖过 `mpv.conf`。所以 `ui/mpv.conf` 里不能写与启动选项同名而取值不同的选项，否则那一项只在 macOS 上变样（`TestUIConfigDoesNotOverrideLaunchOptions` 守着）。
 
 ## 同一个窗口里切集
 

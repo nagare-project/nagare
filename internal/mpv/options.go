@@ -158,6 +158,10 @@ func (o LibmpvOption) Value() any {
 type LibmpvSpec struct {
 	// Init 在 mpv_initialize 之前设：全局选项，外加让 libmpv 与命令行 mpv 行为一致的几条
 	// （libmpvProfile）。
+	//
+	// 优先级与命令行相反：mpv.conf 在 mpv_initialize 里才解析，会盖过这里先设的值；命令行 mpv 则是
+	// argv 盖过 mpv.conf。所以界面配置（ui/mpv.conf）里不能出现与 Init 同名而取值不同的选项，
+	// 否则那一项只在 macOS 上悄悄变样（TestUIConfigDoesNotOverrideLaunchOptions 守着）。
 	Init []LibmpvOption
 	// BeforeLoad 在渲染上下文建好之后、第一个 loadfile 之前以属性设：PerFile 的那几条，以及
 	// force-window —— 它在渲染上下文建好之前设会让 VO 线程抢先初始化，而 vo_libmpv 没有渲染
