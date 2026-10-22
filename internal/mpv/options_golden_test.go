@@ -8,6 +8,8 @@ import (
 
 // 选项清单改造之前 buildArgs 的输出，逐字节钉死：命令行 mpv（Linux、浏览器模式、今天的所有平台）
 // 的启动参数不能因为多了 libmpv 那一种渲染而变。这张表是改造前的代码跑出来的，改造后必须一字不差。
+// 唯一有意改过的一处：请求头从 --http-header-fields-add 改成 -append（-add 会在逗号处把一条请求头拆开，
+// 见 TestIntegration_HTTPHeadersArriveWhole）。
 func TestBuildArgsGolden(t *testing.T) {
 	const sock = "/tmp/nagare.sock"
 	volume := 70
@@ -104,9 +106,9 @@ func TestBuildArgsGolden(t *testing.T) {
 			want: join(head, cache, []string{
 				"--title=第 2 集",
 				"--force-media-title=第 2 集",
-				"--http-header-fields-add=Cookie: k=v; t=x:y",
-				"--http-header-fields-add=Referer: https://source.example/?a=1&b=2",
-				"--http-header-fields-add=User-Agent: Mozilla/5.0 (KHTML, like Gecko)",
+				"--http-header-fields-append=Cookie: k=v; t=x:y",
+				"--http-header-fields-append=Referer: https://source.example/?a=1&b=2",
+				"--http-header-fields-append=User-Agent: Mozilla/5.0 (KHTML, like Gecko)",
 				"--", "https://media.example/ep.m3u8?sig=a,b",
 			}),
 		},
@@ -126,8 +128,8 @@ func TestBuildArgsGolden(t *testing.T) {
 				"--start=+12.500",
 				"--glsl-shaders-append=/s/a;b/1.glsl",
 				"--glsl-shaders-append=/s/c:d,e=f/2.glsl",
-				"--http-header-fields-add=Referer: https://x.test/a?b=c,d",
-				"--http-header-fields-add=User-Agent: UA (KHTML, like Gecko)",
+				"--http-header-fields-append=Referer: https://x.test/a?b=c,d",
+				"--http-header-fields-append=User-Agent: UA (KHTML, like Gecko)",
 				"--", "https://media.example/ep.m3u8",
 			}),
 		},

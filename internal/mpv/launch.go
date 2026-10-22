@@ -190,9 +190,9 @@ func NewLaunchSpec(opts LaunchOptions, endpoint string) LaunchSpec {
 		for _, name := range names {
 			headers = append(headers, name+": "+opts.HTTPHeaders[name])
 		}
-		// argv 这边保持改造前的 -add：它按 -set 的语法解析，值里的逗号会把一条请求头拆成两条
-		// （mpv 0.41 实测「(KHTML, like Gecko)」被拆开）。libmpv 整表设不受影响。
-		o = append(o, listOption("http-header-fields", "http-header-fields-add", headers).perFile())
+		// 逐条用 -append（一次追加一项、不解析）：-add 按 -set 的语法在逗号处拆项，「(KHTML, like Gecko)」
+		// 那种 User-Agent 到对端会变成两行（mpv 0.41 实测，第二行以空格开头被当成续行折回去，逗号丢了）
+		o = append(o, listOption("http-header-fields", "http-header-fields-append", headers).perFile())
 	}
 	return LaunchSpec{Options: o, Media: opts.MediaPath}
 }

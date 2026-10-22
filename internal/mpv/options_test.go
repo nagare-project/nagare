@@ -51,7 +51,7 @@ func TestLibmpvKitchenSink(t *testing.T) {
 		libStr("force-media-title", "标题, 带逗号: 和冒号"),
 		{Name: "sub-files", Kind: OptionList, List: []string{"/sub/a,b:c=d.ass"}},
 		libStr("start", "+12.500"),
-		// 整表设时一条请求头就是一项：argv 的 -add 会在逗号处拆开，这里不会
+		// 整表设时一条请求头就是一项，值里的逗号原样保留（argv 那边逐条 -append，同样不拆）
 		{Name: "http-header-fields", Kind: OptionList, List: []string{
 			"Referer: https://x.test/a?b=c,d",
 			"User-Agent: UA (KHTML, like Gecko)",

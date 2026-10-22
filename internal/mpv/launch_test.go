@@ -78,14 +78,14 @@ func TestBuildArgsPassesRemoteHeadersInStableOrder(t *testing.T) {
 		MediaPath:   "https://media.example/ep.m3u8",
 		HTTPHeaders: map[string]string{"User-Agent": "Nagare Test", "Referer": "https://source.example/"},
 	}, "/tmp/nagare.sock")
-	assert.Contains(t, args, "--http-header-fields-add=Referer: https://source.example/")
-	assert.Contains(t, args, "--http-header-fields-add=User-Agent: Nagare Test")
+	assert.Contains(t, args, "--http-header-fields-append=Referer: https://source.example/")
+	assert.Contains(t, args, "--http-header-fields-append=User-Agent: Nagare Test")
 	referer, userAgent := -1, -1
 	for index, arg := range args {
-		if arg == "--http-header-fields-add=Referer: https://source.example/" {
+		if arg == "--http-header-fields-append=Referer: https://source.example/" {
 			referer = index
 		}
-		if arg == "--http-header-fields-add=User-Agent: Nagare Test" {
+		if arg == "--http-header-fields-append=User-Agent: Nagare Test" {
 			userAgent = index
 		}
 	}
