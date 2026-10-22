@@ -66,6 +66,21 @@ func TestReleaseAppZip(t *testing.T) {
 	nagareOut, err := exec.Command(filepath.Join(contents, "MacOS", "nagare"), "-version").CombinedOutput()
 	require.NoError(t, err, "nagare 起不来（%s，桌面窗口版链接了 libmpv）：\n%s", runtime.GOARCH, nagareOut)
 	t.Logf("nagare（%s）：%s", runtime.GOARCH, firstLine(string(nagareOut)))
+
+	// 用包里的命令行 mpv 真解一段：H.264 + AAC + ASS（解码、字幕、音频都走一遍），再像 thumbfast 那样
+	// 缩放出一张图 —— 只能证明这台机器的架构上 Frameworks 里那套库能干活，不经过 render API（那一段在
+	// libmpv-macos.yml 的 verify.sh 里测）。
+	media := filepath.Join("..", "..", "scripts", "macos", "libmpv", "tests", "media", "h264-aac-ass.mkv")
+	require.FileExists(t, media)
+	mpvBin := filepath.Join(contents, "MacOS", "mpv")
+	out, err = exec.Command(mpvBin, "--no-config", "--vo=null", "--ao=null", "--frames=24", "--msg-level=all=error", media).CombinedOutput()
+	require.NoError(t, err, "包里的 mpv 解不了测试片段（%s）：\n%s", runtime.GOARCH, out)
+	imgDir := t.TempDir()
+	out, err = exec.Command(mpvBin, "--no-config", "--ao=null", "--frames=1", "--vf=scale=w=384:h=216",
+		"--vo=image", "--vo-image-format=jpg", "--vo-image-outdir="+imgDir, "--msg-level=all=error", media).CombinedOutput()
+	require.NoError(t, err, "包里的 mpv 出不了缩略图（%s）：\n%s", runtime.GOARCH, out)
+	shots, _ := filepath.Glob(filepath.Join(imgDir, "*.jpg"))
+	assert.Len(t, shots, 1, "应当恰好出一张 jpg")
 }
 
 func firstLine(s string) string {
