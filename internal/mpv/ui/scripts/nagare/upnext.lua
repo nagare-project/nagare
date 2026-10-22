@@ -205,6 +205,7 @@ local function layout(inner)
 end
 
 -- 按钮：倒计时是「立即播放」+「取消」，准备中只有一整条「取消」，出错是「重试」+「关闭窗口」
+-- （嵌进 nagare 窗口时叫「返回」：关掉的是这次播放，窗口回到媒体库）
 local function draw_buttons(c, bx1, by1, bx2)
 	local s = core.scale()
 	local by2 = by1 + BUTTON_H * s
@@ -217,7 +218,7 @@ local function draw_buttons(c, bx1, by1, bx2)
 		button(c, "upnext-cancel", split, by1, bx2, by2, "取消", nil, send("upnext-cancel"))
 	elseif card.phase == "error" then
 		button(c, "upnext-retry", bx1, by1, split - 10 * s, by2, "重试", "retry", send("upnext-retry"))
-		button(c, "upnext-close", split, by1, bx2, by2, "关闭窗口", nil, send("upnext-close"))
+		button(c, "upnext-close", split, by1, bx2, by2, S.embedded and "返回" or "关闭窗口", nil, send("upnext-close"))
 	else
 		button(c, "upnext-cancel", bx1, by1, bx2, by2, "取消", nil, send("upnext-cancel"))
 	end

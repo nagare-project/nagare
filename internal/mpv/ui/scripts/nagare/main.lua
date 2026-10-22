@@ -9,9 +9,10 @@
 --                  （ready / anime4k / danmaku / volume / screenshot / prev / next /
 --                   upnext-now / upnext-cancel / upnext-retry / upnext-close）
 -- nagare 经 JSON IPC 收到的是 client-message 事件（internal/mpv/events.go）。
+-- 嵌进 nagare 桌面窗口时，宿主与界面之间另有几个 user-data/nagare/* 属性（见 embed.lua）。
 --
 -- 模块：core（共用状态、重绘调度、屏幕提示）、draw（ASS 绘图）、menu（菜单）、tracks（字幕与弹幕轨）、
--- seekbar（进度条与缩略图）、upnext（切集与「下一集」卡片）。
+-- seekbar（进度条与缩略图）、upnext（切集与「下一集」卡片）、embed（嵌进桌面窗口时与宿主的约定）。
 
 local mp = require 'mp'
 local utils = require 'mp.utils'
@@ -21,6 +22,7 @@ local core = require 'core'
 local tracks = require 'tracks'
 local seekbar = require 'seekbar'
 local upnext = require 'upnext'
+local embed = require 'embed'
 
 local S, P, FONT = core.S, core.P, core.FONT
 local send, toast, request_render, scale = core.send, core.toast, core.request_render, core.scale
@@ -168,7 +170,11 @@ local function context_items()
 	items[#items + 1] = { label = "窗口置顶", checked = S.ontop, action = function() mp.commandv("cycle", "ontop") end }
 	items[#items + 1] = { label = S.fullscreen and "退出全屏" or "全屏", hint = "Enter", action = function() mp.commandv("cycle", "fullscreen") end }
 	items[#items + 1] = { separator = true }
-	items[#items + 1] = { label = "关闭", hint = "Q", action = function() mp.commandv("quit") end }
+	if S.embedded then
+		items[#items + 1] = { label = "返回", hint = "Esc", action = embed.back }
+	else
+		items[#items + 1] = { label = "关闭", hint = "Q", action = function() mp.commandv("quit") end }
+	end
 	return items
 end
 
@@ -197,16 +203,36 @@ end
 ------------------------------------------------------------------------
 -- 绘制各部分
 
+-- 嵌进 nagare 窗口时左上角的「返回」（回到媒体库）：x 是左边缘，cy 与标题行对齐。返回右边缘
+local function draw_back(c, x, cy)
+	local s = scale()
+	local size = 15 * s
+	local w = 34 * s + draw.text_width("返回", size) + 12 * s
+	if S.hover_id == "library" then
+		c:rect(x, cy - 18 * s, x + w, cy + 18 * s, { color = "#FFFFFF", opacity = 0.1, radius = 8 * s })
+	end
+	c:icon("chevron_left", x + 8 * s, cy - 10 * s, 20 * s, P.strong, 1)
+	c:text(x + 32 * s, cy, "返回", { align = 4, size = size, color = P.strong, font = FONT, outline = 0.8 * s, outline_opacity = 0.7 })
+	add_element("library", x, cy - 18 * s, x + w, cy + 18 * s, embed.back)
+	return x + w
+end
+
 local function draw_top(c)
 	local s = scale()
 	c:scrim(0, 0, S.w, 140 * s, 0.75, 0, 20)
+	local x = 32 * s
+	if S.embedded then
+		-- 宿主的窗口按钮（macOS 左上角的红绿灯）占着左边：「返回」与标题从让出的宽度后面开始
+		x = draw_back(c, (S.titlebar_inset + 16) * s, 33 * s) + 12 * s
+	end
 	local title = S.nagare_title or (S.title ~= "" and S.title) or "nagare"
-	c:text(32 * s, 22 * s, title, { size = 22 * s, bold = true, color = P.strong, font = FONT, outline = 1 * s, outline_opacity = 0.7 })
+	c:text(x, 22 * s, title, { size = 22 * s, bold = true, color = P.strong, font = FONT, outline = 1 * s, outline_opacity = 0.7 })
 	if S.info ~= "" then
 		-- 弹幕密的时候顶部全是字：副标题也要描边，否则会被弹幕盖得看不清
-		c:text(32 * s, 54 * s, S.info, { size = 14 * s, color = P.fg, opacity = 0.85, font = FONT, outline = 0.8 * s, outline_opacity = 0.7 })
+		c:text(x, 54 * s, S.info, { size = 14 * s, color = P.fg, opacity = 0.85, font = FONT, outline = 0.8 * s, outline_opacity = 0.7 })
 	end
-	if not S.fullscreen then
+	-- 最小化 / 最大化 / 关闭：全屏时不画；嵌进 nagare 窗口时也不画，窗口按钮是宿主的（同一个窗口不要两套）
+	if not S.fullscreen and not S.embedded then
 		local cy = 20 * s + 22 * s
 		local x = S.w - 16 * s - 22 * s
 		icon_button(c, "close", x, cy, 44 * s, "close", 18 * s, function() mp.commandv("quit") end)
@@ -364,8 +390,8 @@ end
 
 -- 只在鼠标落在按钮、进度条上（或菜单开着、正在拖）时接管左键；其余时候左键交还 mpv，
 -- 拖动窗口与双击全屏才照常可用。「下一集」卡片显示时接管 Esc（取消）与 Enter（立即播放 / 重试），
--- 菜单开着时让给菜单。
-local bound = { mouse = false, menu = false, upnext_esc = false, upnext_enter = false }
+-- 菜单开着时让给菜单。嵌进 nagare 窗口时，菜单与卡片都不要 Esc 的时候由界面接管 Esc（见 embedded_esc）。
+local bound = { mouse = false, menu = false, upnext_esc = false, upnext_enter = false, embedded_esc = false }
 
 local function set_section(key, section, on)
 	if bound[key] == on then
@@ -381,11 +407,15 @@ end
 
 local function update_bindings()
 	local over = S.shown and S.hover and element_at(S.mx, S.my) ~= nil
-	set_section("mouse", "nagare-mouse", menu.is_open() or S.drag ~= nil or over)
+	local capture = menu.is_open() or S.drag ~= nil or over
+	set_section("mouse", "nagare-mouse", capture)
 	set_section("menu", "nagare-menu-keys", menu.is_open())
 	local card_keys = upnext.visible() and not menu.is_open()
 	set_section("upnext_esc", "nagare-upnext-esc", card_keys)
 	set_section("upnext_enter", "nagare-upnext-enter", card_keys and upnext.takes_enter())
+	set_section("embedded_esc", "nagare-embedded-esc", S.embedded and not menu.is_open() and not card_keys)
+	-- 宿主据 capture 决定这一下按下是交给界面还是拖动窗口（mpv 自己的拖窗在宿主模式下不生效）
+	embed.publish(capture)
 end
 
 local function render()
@@ -519,6 +549,19 @@ mp.set_key_bindings({
 	{ "kp_enter", function() upnext.key("enter") end },
 }, "nagare-upnext-enter", "force")
 
+-- 嵌进 nagare 窗口时的 Esc：全屏时照旧退出全屏（同 input.conf），不全屏时 = 返回媒体库。
+-- 全屏与否当场读属性，不用观察来的 S.fullscreen（那个可能晚一拍）。按住不放的重复不触发，
+-- 退出全屏的那一下不会接着连成返回。
+mp.set_key_bindings({
+	{ "esc", function()
+		if mp.get_property_bool("fullscreen") then
+			mp.set_property_bool("fullscreen", false)
+		else
+			embed.back()
+		end
+	end },
+}, "nagare-embedded-esc", "force")
+
 mp.observe_property("mouse-pos", "native", function(_, pos)
 	if not pos then
 		return
@@ -553,7 +596,7 @@ observe("osd-dimensions", "native", function(v)
 		S.w, S.h = v.w or 0, v.h or 0
 	end
 end)
-observe("display-hidpi-scale", "native", function(v) S.hidpi = (v and v > 0) and v or 1 end)
+-- 屏幕缩放（display-hidpi-scale，嵌入时还有宿主给的）在 embed.lua 里观察
 observe("pause", "bool", function(v) S.pause = v or false end)
 observe("duration", "number", function(v) S.duration = v or 0 end)
 observe("volume", "number", function(v) S.volume = v or 100 end)
@@ -688,9 +731,10 @@ mp.add_key_binding(nil, "screenshot", screenshot)
 mp.add_key_binding(nil, "next", function() upnext.go("next") end)
 mp.add_key_binding(nil, "prev", function() upnext.go("prev") end)
 
--- 无边框窗口由界面自己画标题栏与窗口按钮；mpv 自带的控制条也由这里关掉。都放在脚本里做而不是
--- 写进 mpv.conf：万一脚本没加载起来，窗口还有系统边框，手上还有自带的控制条
-mp.set_property_bool("border", false)
+-- 无边框窗口由界面自己画标题栏与窗口按钮（embed.start 关掉 border；窗口归宿主时不碰）；mpv 自带的
+-- 控制条也由这里关掉。都放在脚本里做而不是写进 mpv.conf：万一脚本没加载起来，窗口还有系统边框，
+-- 手上还有自带的控制条
+embed.start(request_render)
 mp.commandv("script-message", "osc-visibility", "never", "no_osd")
 
 send("ready")
