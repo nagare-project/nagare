@@ -355,15 +355,28 @@ function Canvas:circle(cx, cy, r, o)
 	self:shape(circle_path(cx, cy, r), o.color, o.opacity)
 end
 
--- 竖直方向的渐变遮罩：ASS 画不了渐变，切成若干条叠出来
+-- 竖直方向的渐变遮罩：ASS 画不了渐变，切成若干条叠出来。
+-- 条与条的边界一律落在整像素上、首尾相接不重叠：overlay 的分辨率就是 OSD 像素，整数坐标正好是像素边，
+-- 不会被抗锯齿。哪怕重叠一点（以前每条多盖 0.6 像素防缝），重叠处的透明度叠两次，每道拼缝就是一条
+-- 看得见的深色横纹。条数至少每 4 像素一条，渐变的台阶小到看不出来。
 function Canvas:scrim(x1, y1, x2, y2, top_opacity, bottom_opacity, bands)
-	bands = bands or 24
-	local h = (y2 - y1) / bands
-	for i = 0, bands - 1 do
-		local t = (i + 0.5) / bands
-		local op = top_opacity + (bottom_opacity - top_opacity) * t
-		if op > 0.004 then
-			self:shape(rrect_path(x1, y1 + i * h, x2, y1 + (i + 1) * h + 0.6, 0), "#000000", op)
+	local top, bottom = math.floor(y1 + 0.5), math.floor(y2 + 0.5)
+	local height = bottom - top
+	if height <= 0 then
+		return
+	end
+	bands = math.min(height, math.max(bands or 24, math.ceil(height / 4)))
+	local left, right = math.floor(x1 + 0.5), math.floor(x2 + 0.5)
+	local prev = top
+	for i = 1, bands do
+		local edge = top + math.floor(height * i / bands + 0.5)
+		if edge > prev then
+			local t = ((prev + edge) / 2 - top) / height
+			local op = top_opacity + (bottom_opacity - top_opacity) * t
+			if op > 0.004 then
+				self:shape(rrect_path(left, prev, right, edge, 0), "#000000", op)
+			end
+			prev = edge
 		end
 	end
 end
