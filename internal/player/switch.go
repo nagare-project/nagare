@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
@@ -39,9 +40,10 @@ type navState struct {
 	// 「下一集」倒计时；countdownC 为 nil 表示没在倒计时（select 里 nil 通道永远阻塞）。
 	countdown  *time.Timer
 	countdownC <-chan time.Time
-	// 准备中：取消函数、结果通道（缓冲 1：窗口没了也不会把准备的 goroutine 卡住）、要切去的邻居。
+	// 准备中：取消函数、结果通道（缓冲 1：窗口没了也不会把准备的 goroutine 卡住）与它的交接处、要切去的邻居。
 	prepCancel context.CancelFunc
 	prepared   chan prepResult
+	prepSlot   *prepSlot
 	target     *Neighbor
 	// 准备得慢时出「正在准备」卡片的定时器。
 	slow  *time.Timer
@@ -63,6 +65,46 @@ type prepResult struct {
 	dir    Direction
 	opened Opened
 	err    error
+}
+
+// prepSlot 是准备结果的交接处。准备的 goroutine 交结果、事件循环放弃这次准备，两者在同一把锁下：
+// 结果要么被事件循环取走，要么由放弃的一方拿去 Discard，不会落进一个没人读的通道 —— 磁力那边
+// 已经换到了下一集的文件，没人告诉它窗口没跟上，它就一直在下那一集。
+type prepSlot struct {
+	mu        sync.Mutex
+	abandoned bool
+	ch        chan prepResult // 缓冲 1，每个交接处只交一次
+}
+
+// deliver 交出结果；这次准备已经被放弃时返回 false（结果归调用方处理）。
+func (p *prepSlot) deliver(res prepResult) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.abandoned {
+		return false
+	}
+	p.ch <- res
+	return true
+}
+
+// abandon 放弃这次准备；结果已经交了、事件循环还没取走时把它交给调用方。
+func (p *prepSlot) abandon() (prepResult, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.abandoned = true
+	select {
+	case res := <-p.ch:
+		return res, true
+	default:
+		return prepResult{}, false
+	}
+}
+
+// discardOpened 告诉来源：准备好的这一集没换上去。在后台调（磁力要等引擎的锁）。
+func discardOpened(res prepResult) {
+	if res.err == nil && res.opened.Discard != nil {
+		go res.opened.Discard()
+	}
 }
 
 // requestSwitch 开始往 dir 方向换集。auto 为 true 是「下一集」那一套发起的（倒计时到点、卡片上的
@@ -94,7 +136,9 @@ func (m *Manager) requestSwitch(w *windowLoop, dir Direction, auto bool) {
 
 	ctx, cancel := context.WithCancel(w.pb.ctx)
 	ch := make(chan prepResult, 1)
+	slot := &prepSlot{ch: ch}
 	w.nav.phase, w.nav.prepCancel, w.nav.prepared, w.nav.target = switchPreparing, cancel, ch, target
+	w.nav.prepSlot = slot
 	w.nav.auto = auto
 	w.nav.slow = time.NewTimer(preparingCardDelay)
 	w.nav.slowC = w.nav.slow.C
@@ -103,7 +147,10 @@ func (m *Manager) requestSwitch(w *windowLoop, dir Direction, auto bool) {
 	// 事件循环不能停下来（界面消息、取消、窗口关闭都要照常处理）。
 	go func() {
 		opened, err := nav.Open(ctx, src, dir)
-		ch <- prepResult{dir: dir, opened: opened, err: err}
+		res := prepResult{dir: dir, opened: opened, err: err}
+		if !slot.deliver(res) {
+			discardOpened(res) // 准备好的时候这次换集已经被放弃了
+		}
 	}()
 }
 
@@ -117,12 +164,17 @@ func (m *Manager) preparingSlow(w *windowLoop) {
 }
 
 // cancelPrep 放弃正在准备的换集（用户在卡片上点了取消、窗口没了、准备的结果已经取回）。
-// 迟到的结果落进一个已经没人读的缓冲通道，直接丢掉。
+// 已经交出、还没取走的结果，或者之后才准备好的结果，都交给 Discard（见 prepSlot）。
 func (m *Manager) cancelPrep(w *windowLoop) {
 	if w.nav.prepCancel != nil {
 		w.nav.prepCancel()
 	}
-	w.nav.prepCancel, w.nav.prepared, w.nav.target, w.nav.auto = nil, nil, nil, false
+	if w.nav.prepSlot != nil {
+		if res, ok := w.nav.prepSlot.abandon(); ok {
+			discardOpened(res)
+		}
+	}
+	w.nav.prepCancel, w.nav.prepared, w.nav.prepSlot, w.nav.target, w.nav.auto = nil, nil, nil, nil, false
 	if w.nav.slow != nil {
 		w.nav.slow.Stop()
 	}
@@ -163,6 +215,7 @@ func (m *Manager) commitSwitch(w *windowLoop, res prepResult) {
 	premature := w.loop.premature || prematureEOF(old.src, st, w.loop.sawEOF)
 	if err := pb.player.LoadNext(mpv.NextFile{Path: src.MPVPath(), Title: title, StartAt: startAt}); err != nil {
 		w.nav.phase = switchIdle
+		discardOpened(res) // 留在这一集：磁力要把种子换回来
 		failed := loadFailedMsg(res.dir)
 		log.Printf("player: %s：%v", failed, err)
 		_, sub := switchFailureText(err, "")

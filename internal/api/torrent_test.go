@@ -136,7 +136,7 @@ func TestTorrentPlayAbsentFileIndexMeansUnselected(t *testing.T) {
 func TestTorrentPlayCarriesCatalogIdentity(t *testing.T) {
 	env := newEnv(t)
 	env.torrent.prepareRes = torrentstream.PrepareResult{Source: &torrentstream.Source{}}
-	env.player.playRes = player.PlayResult{FileID: "t:abc/2", Title: "葬送的芙莉莲 第3集"}
+	env.player.playRes = player.PlayResult{FileID: "t:abc/2", Title: "葬送的芙莉莲 第3集", PlaybackID: "0123abcd"}
 
 	rec := env.do(t, http.MethodPost, "/api/torrent/play",
 		`{"magnet":"magnet:?xt=urn:btih:abc","title":"[G] 合集 [01-28]","episodeHint":3,"altEpisodeHint":15,"suggestedFileIndex":4,"anilistId":154587,"titles":["葬送的芙莉莲"," Frieren ","","FRIEREN"]}`)
@@ -150,10 +150,12 @@ func TestTorrentPlayCarriesCatalogIdentity(t *testing.T) {
 	assert.Equal(t, 154587, env.player.lastAnilist)
 	assert.Equal(t, []string{"葬送的芙莉莲", "Frieren"}, env.player.lastAlts, "去空白、不分大小写去重、保序")
 	var got struct {
-		FileID string `json:"fileId"`
+		FileID     string `json:"fileId"`
+		PlaybackID string `json:"playbackId"`
 	}
 	require.NoError(t, json.Unmarshal(decode(t, rec).Data, &got))
 	assert.Equal(t, "t:abc/2", got.FileID)
+	assert.Equal(t, "0123abcd", got.PlaybackID, "窗口里换到合集的另一集之后，界面靠它认领失败")
 }
 
 // 搜索页播放没有作品身份：来源不挂任何身份，弹幕照旧按文件名匹配。

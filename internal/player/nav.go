@@ -41,6 +41,10 @@ func (n Neighbors) toward(dir Direction) *Neighbor {
 type Opened struct {
 	Source  MediaSource
 	SubPath string
+	// Discard 在准备好的这一集最终没换上去时调用（换集被取消了、loadfile 没发出去），可为 nil。
+	// 磁力要把种子换回原来那一集：不然窗口还在播旧的一集，种子却在下新的一集。
+	// 播放层在后台 goroutine 里调它，它可以阻塞。
+	Discard func()
 }
 
 // Navigator 为一个正在播的媒体源找邻居集并把它准备好。

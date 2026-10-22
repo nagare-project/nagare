@@ -255,7 +255,8 @@ func TestSwitchCancelWhilePreparing(t *testing.T) {
 	eventually(t, func() bool { return len(upNextCards(t, h.fake)) == 1 }, "准备得慢要出卡片")
 	uiMessage(t, h.fake, "upnext-cancel")
 	eventually(t, func() bool { return errors.Is(h.nav.ctxErr(), context.Canceled) }, "取消要传到准备里")
-	assert.Equal(t, 1, count(h.fake, "script-message-to", "nagare", "upnext-clear"))
+	// 先取消准备、再收卡片：准备那边看到取消的时候，收卡片的消息可能还没发出去
+	eventually(t, func() bool { return count(h.fake, "script-message-to", "nagare", "upnext-clear") == 1 }, "取消要收起卡片")
 	assert.Zero(t, count(h.fake, "loadfile"))
 	assert.Equal(t, h.eps[0].FileID, h.m.Status().FileID)
 
@@ -263,4 +264,30 @@ func TestSwitchCancelWhilePreparing(t *testing.T) {
 	h.nav.setGate(nil)
 	uiMessage(t, h.fake, "next")
 	h.awaitEpisode(t, h.eps[1].FileID)
+	assert.Zero(t, h.nav.discardCount(), "换上去了的不 Discard")
+}
+
+// 取消之后来源才准备好（磁力缓冲刚好到齐）：不切，准备好的来源交回去 Discard，恰好一次。
+func TestSwitchPreparedAfterCancelIsDiscarded(t *testing.T) {
+	h := newNavHarness(t, nil, 2)
+	gate := make(chan struct{})
+	h.nav.setGate(gate)
+	h.nav.mu.Lock()
+	h.nav.ignoreCancel = true
+	h.nav.mu.Unlock()
+	replyLoadfile(h.fake, switchEvents()...)
+	_, pb := h.startPlaying(t, 0)
+
+	uiMessage(t, h.fake, "next")
+	eventually(t, func() bool { return len(upNextCards(t, h.fake)) == 1 }, "准备得慢要出卡片")
+	uiMessage(t, h.fake, "upnext-cancel")
+	eventually(t, func() bool { return count(h.fake, "script-message-to", "nagare", "upnext-clear") == 1 }, "取消要收起卡片")
+	close(gate)
+
+	eventually(t, func() bool { return h.nav.discardCount() == 1 }, "取消之后才准备好的来源要 Discard")
+	awaitProcessed(t, h, 61)
+	assert.Zero(t, count(h.fake, "loadfile"))
+	assert.Equal(t, h.eps[0].FileID, h.m.Status().FileID)
+	assert.Same(t, pb, h.m.currentPlayback())
+	assert.Equal(t, 1, h.nav.discardCount())
 }

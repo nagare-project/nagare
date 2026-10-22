@@ -157,6 +157,7 @@ func TestSwitchLoadNextFailureMidEpisodeStays(t *testing.T) {
 	eventually(t, func() bool { return toast() == 1 }, "要提示没切过去")
 	assert.Zero(t, count(h.fake, "loadfile"))
 	assert.Equal(t, h.eps[0].FileID, h.m.Status().FileID)
+	eventually(t, func() bool { return h.nav.discardCount() == 1 }, "准备好的下一集没换上去：要告诉来源（磁力换回原来那一集）")
 	uiMessage(t, h.fake, "next")
 	eventually(t, func() bool { return toast() == 2 }, "失败之后还能再试")
 	assert.Empty(t, upNextCards(t, h.fake), "还在播这一集：不挂错误卡片")

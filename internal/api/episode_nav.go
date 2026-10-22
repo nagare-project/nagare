@@ -2,7 +2,8 @@
 //
 // 本地文件：媒体库里同一个作品分组（clusterKey，跨库目录合并）里的正片，按 episodenav.Pick 挑。
 // 作品关联不影响导航 —— 关联管的是「这组文件是目录里哪部作品」，不改变组里有哪些集。
-// 磁力：同一个种子里的另一个视频文件，下一步接上（现在没有邻居）。在线候选：没有。
+// 磁力：同一个种子里的另一个视频文件（torrentstream.Source.Siblings / OpenSibling，挑法同上）；
+// 单集种子没有邻居。在线候选：没有。
 package api
 
 import (
@@ -96,9 +97,9 @@ func NewEpisodeNavigator(lib *LibraryService) *EpisodeNavigator {
 
 // Neighbors 报告 src 前后有没有可切的集。
 func (n *EpisodeNavigator) Neighbors(src player.MediaSource) player.Neighbors {
-	if _, torrent := src.(*torrentstream.Source); torrent {
-		// 同一个种子里的另一个视频文件：下一步接上，现在不出按钮
-		return player.Neighbors{}
+	if t, ok := src.(*torrentstream.Source); ok {
+		prev, next := t.Siblings()
+		return player.Neighbors{Prev: choiceNeighbor(prev), Next: choiceNeighbor(next)}
 	}
 	item, ok := player.LocalItem(src)
 	if !ok {
@@ -111,9 +112,14 @@ func (n *EpisodeNavigator) Neighbors(src player.MediaSource) player.Neighbors {
 // Open 把 dir 方向的邻居准备成可播放的源：重新在媒体库里找一次（播放期间可能重扫过），
 // 再确认文件还在原位置。网络盘上 os.Stat 可能卡住，所以 ctx 取消时不等它。
 func (n *EpisodeNavigator) Open(ctx context.Context, src player.MediaSource, dir player.Direction) (player.Opened, error) {
-	if _, torrent := src.(*torrentstream.Source); torrent {
-		return player.Opened{}, errs.New(errs.CategoryPlayback, "player.nav",
-			"磁力里的"+dirLabel(dir)+"还不能在播放器里直接切", "回到网页上选这一集播放")
+	if t, ok := src.(*torrentstream.Source); ok {
+		// 缓冲到能起播才返回（慢了窗口上出「正在准备」卡片）；失败的错误已分类，原样交给屏幕提示 / 错误卡片
+		next, err := t.OpenSibling(ctx, int(dir))
+		if err != nil {
+			return player.Opened{}, err
+		}
+		// 窗口最终没换上这一集（取消了、mpv 没切过去）时，种子换回原来那一集
+		return player.Opened{Source: next, Discard: next.Discard}, nil
 	}
 	item, ok := player.LocalItem(src)
 	if !ok {
@@ -155,7 +161,19 @@ func navNeighbor(it *library.Item) *player.Neighbor {
 	if it == nil || it.Episode == nil {
 		return nil
 	}
-	return &player.Neighbor{Episode: *it.Episode, Label: fmt.Sprintf("第 %d 集", *it.Episode)}
+	return episodeNeighbor(*it.Episode)
+}
+
+// choiceNeighbor 把种子里的候选文件翻成界面上的邻居（Siblings 只挑认出集号的正片，Episode 不会为空）。
+func choiceNeighbor(c *torrentstream.FileChoice) *player.Neighbor {
+	if c == nil || c.Episode == nil {
+		return nil
+	}
+	return episodeNeighbor(*c.Episode)
+}
+
+func episodeNeighbor(ep int) *player.Neighbor {
+	return &player.Neighbor{Episode: ep, Label: fmt.Sprintf("第 %d 集", ep)}
 }
 
 func dirLabel(dir player.Direction) string {

@@ -104,9 +104,11 @@ func (h *Handler) torrentPlay(w http.ResponseWriter, r *http.Request) {
 		"needSelection": false,
 		// fileId 让界面在播放会话结束时认出 /api/player/status 里属于这一次的失败
 		// （磁力流中途断了 → 这一集没记为看完）。
-		"fileId":  pr.FileID,
-		"title":   pr.Title,
-		"danmaku": pr.Danmaku,
+		"fileId": pr.FileID,
+		// playbackId 标识 mpv 窗口：窗口里切到合集的另一集之后再出事，失败里的 fileId 已经不是起播的这一个了
+		"playbackId": pr.PlaybackID,
+		"title":      pr.Title,
+		"danmaku":    pr.Danmaku,
 	})
 }
 

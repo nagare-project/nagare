@@ -206,7 +206,7 @@ func TestEpisodeNavigatorOpenHonoursCancel(t *testing.T) {
 	}
 }
 
-// 不在媒体库里的本地文件、在线候选、磁力：没有邻居，Open 给分类错误。
+// 不在媒体库里的本地文件、在线候选：没有邻居，Open 给分类错误。
 func TestEpisodeNavigatorOtherSources(t *testing.T) {
 	lib := navLibrary(t, writeVideos(t, filepath.Join(t.TempDir(), "show"), "[Sub] Frieren - 01 [1080p].mkv"))
 	nav := NewEpisodeNavigator(lib)
@@ -214,7 +214,6 @@ func TestEpisodeNavigatorOtherSources(t *testing.T) {
 	sources := map[string]player.MediaSource{
 		"不在媒体库里的本地文件": player.NewLocalSource(library.Item{FileID: "x|1|1", FileName: "x.mkv", Episode: &ep, ParsedKind: "main"}),
 		"在线候选":        player.NewRemoteSource(player.RemoteSourceOptions{SourceID: "s", CandidateID: "c", URL: "https://example.test/a.m3u8", Title: "t", Episode: 1}),
-		"磁力":          &torrentstream.Source{},
 	}
 	for name, src := range sources {
 		t.Run(name, func(t *testing.T) {
@@ -227,4 +226,30 @@ func TestEpisodeNavigatorOtherSources(t *testing.T) {
 			assert.NotEmpty(t, ce.Recovery)
 		})
 	}
+}
+
+// 磁力来源交给引擎：会话已经不在（零值 Source）时没有邻居，Open 原样交出引擎的分类错误，
+// 屏幕提示与错误卡片直接用它的说法与恢复动作。有会话时的邻居与换集见 torrentstream 的集成测试。
+func TestEpisodeNavigatorTorrentDelegatesToEngine(t *testing.T) {
+	nav := NewEpisodeNavigator(navLibrary(t))
+	src := &torrentstream.Source{}
+	assert.Equal(t, player.Neighbors{}, nav.Neighbors(src))
+	for dir, word := range map[player.Direction]string{player.DirectionNext: "下一集", player.DirectionPrev: "上一集"} {
+		opened, err := nav.Open(context.Background(), src, dir)
+		assert.Nil(t, opened.Source)
+		var ce *errs.E
+		require.ErrorAs(t, err, &ce)
+		assert.Equal(t, "torrentstream.switch", ce.Op)
+		assert.Equal(t, errs.CategoryTorrent, ce.Category)
+		assert.Contains(t, ce.UserMsg, word)
+		assert.NotEmpty(t, ce.Recovery)
+	}
+}
+
+// 种子里的候选翻成界面上的邻居：「第 N 集」；没有集号的不出按钮。
+func TestChoiceNeighbor(t *testing.T) {
+	ep := 7
+	assert.Equal(t, &player.Neighbor{Episode: 7, Label: "第 7 集"}, choiceNeighbor(&torrentstream.FileChoice{Index: 3, Episode: &ep}))
+	assert.Nil(t, choiceNeighbor(&torrentstream.FileChoice{Index: 3}))
+	assert.Nil(t, choiceNeighbor(nil))
 }
