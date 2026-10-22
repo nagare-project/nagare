@@ -22,6 +22,7 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 `border=no` 与关掉 mpv 自带的控制条（`script-message osc-visibility never`）都由界面脚本在加载时做，
 不写进 `mpv.conf`：万一脚本没加载起来，窗口还有系统边框，手上还有 mpv 自带的控制条。界面配置本身
 没准备好时（写不出文件），nagare 带 `--no-config` 起 mpv：退回自带的控制条，但也不读用户自己的配置。
+窗口归 nagare 的桌面窗口时界面不碰 `border`，见「嵌进 nagare 的桌面窗口」。
 
 ## 文件
 
@@ -34,6 +35,7 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 | `internal/mpv/ui/scripts/nagare/tracks.lua` | 认出弹幕轨、弹幕开关、字幕与音轨菜单 |
 | `internal/mpv/ui/scripts/nagare/seekbar.lua` | 进度条：缓冲范围、章节缝、悬停时间与缩略图、拖动跳转 |
 | `internal/mpv/ui/scripts/nagare/upnext.lua` | 上一集 / 下一集的请求，播完时的「下一集」卡片与下一集没能打开时的出错卡片（见「同一个窗口里切集」） |
+| `internal/mpv/ui/scripts/nagare/embed.lua` | 嵌进 nagare 桌面窗口时与宿主之间的 `user-data` 约定、边框、屏幕缩放（见「嵌进 nagare 的桌面窗口」） |
 | `internal/mpv/ui/scripts/nagare/menu.lua` | 右键菜单与控制条按钮弹出的菜单（子菜单、悬停展开、键盘上下选择） |
 | `internal/mpv/ui/scripts/nagare/draw.lua` | 圆角矩形、渐变遮罩、文字、矢量图标 → ASS 绘图指令 |
 | `internal/mpv/ui/scripts/thumbfast.lua` | 进度条缩略图的生成（[po5/thumbfast](https://github.com/po5/thumbfast)，MPL-2.0，原样未改） |
@@ -54,7 +56,7 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
   一个 mpv 去解码：它默认找 PATH 里的 mpv，Windows 包里的 mpv 是内置的、不在 PATH 里，所以 nagare 起播时用
   `--script-opts-append=thumbfast-mpv_path=<这次用的 mpv>` 把路径给它。网络流（磁力、在线）上它是关的：
   生成缩略图要读流里别的位置，磁力下等于多一个读位置和播放抢带宽。
-- 坐标是 OSD 像素（`osd-dimensions`），尺寸乘 `display-hidpi-scale`。窗口逻辑宽度不到 760 时进入窄窗口模式，收起音量条、快退快进、倍速与 ⏮ ⏭。宽一些的窗口里 ⏮ ⏭ 放不下（会压到右边那一组按钮）时也不画；右键菜单与 Shift+N / Shift+P、PgDn / PgUp 照样能用。
+- 坐标是 OSD 像素（`osd-dimensions`），尺寸乘 `display-hidpi-scale`（读不到时用宿主给的 `user-data/nagare/hidpi`，都没有按 1）。窗口逻辑宽度不到 760 时进入窄窗口模式，收起音量条、快退快进、倍速与 ⏮ ⏭。宽一些的窗口里 ⏮ ⏭ 放不下（会压到右边那一组按钮）时也不画；右键菜单与 Shift+N / Shift+P、PgDn / PgUp 照样能用。
 - 模块之间共用的状态都在 `core.lua` 的 `S` 里：各模块 `require 'core'` 拿到的是同一张表。可点区域每次重绘重新登记，后登记的在上层（「下一集」卡片的按钮压在控制条之上）。
 
 ## 和 nagare 之间的消息
@@ -70,7 +72,7 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 | 界面 → nagare | `upnext-now` | 「下一集」卡片上点了「立即播放」，或卡片倒计时中按了 Enter |
 | 界面 → nagare | `upnext-cancel` | 卡片上点了「取消」，或卡片显示时按了 Esc（倒计时、准备中、出错时都会发） |
 | 界面 → nagare | `upnext-retry` | 出错卡片上点了「重试」，或出错卡片显示时按了 Enter |
-| 界面 → nagare | `upnext-close` | 出错卡片上点了「关闭窗口」 |
+| 界面 → nagare | `upnext-close` | 出错卡片上点了「关闭窗口」（嵌进桌面窗口时这个按钮叫「返回」） |
 | nagare → 界面 | `state <json>` | `title`、`info`（第几集 · 来源）、`anime4k`、`nav`；起播、切集、弹幕编排完、网页上改了画质增强时各推一次。`nav` 每次都带：`{"prev": true, "next": true, "prevLabel": "第 3 集", "nextLabel": "第 5 集"}`，没有的那一边是 `false` 且不带 label |
 | nagare → 界面 | `toast <文字> <小字>` | 屏幕提示（截图的结果、切集失败的原因） |
 | nagare → 界面 | `upnext <json>` | 显示「下一集」卡片：`{"phase":"countdown","label":"第 5 集","seconds":5}` 是倒计时，`{"phase":"preparing","label":"第 5 集"}` 是正在准备，`{"phase":"error","label":"第 5 集","title":"下一集没能打开","reason":"原因与恢复办法"}` 是下一集没能打开 |
@@ -81,6 +83,45 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 
 弹幕轨按标题 `nagare-danmaku` 认：有对白字幕时它挂在第二字幕轨（开关是 `secondary-sub-visibility`），
 没有对白字幕时直接占主字幕轨（开关是 `sub-visibility`）。字幕菜单里不列弹幕轨。
+
+## 嵌进 nagare 的桌面窗口
+
+桌面程序里 mpv 的画面画在 nagare 自己的窗口里：macOS 是进程内的 libmpv（render API），Windows 是外部
+`mpv.exe --wid=<子窗口>`。两种情况下窗口都归 nagare（宿主），不归 mpv。界面还是这一套 Lua，宿主与界面
+之间多了几个 `user-data/nagare/*` 属性（`embed.lua`）：
+
+| 方向 | 属性 | 类型 | 含义 |
+|---|---|---|---|
+| 宿主 → 界面 | `user-data/nagare/embedded` | 布尔（也认字符串 `yes`） | 嵌在 nagare 的窗口里 |
+| 宿主 → 界面 | `user-data/nagare/titlebar-inset` | 数字，逻辑像素 | 顶栏左边让出的宽度：macOS 全尺寸内容的窗口里红绿灯在左上角，「返回」与标题从它后面开始。全屏时要不要让由宿主决定（改成 0 即可） |
+| 宿主 → 界面 | `user-data/nagare/hidpi` | 数字 | 屏幕缩放。render API 下 `display-hidpi-scale` 读不到，不补的话 Retina 上界面只有一半大。mpv 自己读得到时（命令行 mpv、Windows 的 `--wid`）以 mpv 的为准 |
+| 界面 → 宿主 | `user-data/nagare/capture` | 布尔 | 光标落在界面上能点的东西上（按钮、进度条、「返回」、卡片按钮），或菜单开着、正在拖：这一下按下归界面。为假时宿主可以开始拖动窗口（render API 下 mpv 自己的拖窗不生效） |
+| 界面 → 宿主 | `user-data/nagare/shown` | 布尔 | 控制条露着没有：宿主据此让系统的窗口按钮跟着一起淡入淡出 |
+
+嵌入时界面的变化：
+
+- 不画自己的最小化 / 最大化 / 关闭（同全屏时），窗口按钮是宿主的，同一个窗口里不要两套。
+- 不设 `border=no`：Windows 的 `--wid` 下它会让 mpv 子窗口的边缘变成拖动改大小的把手。`--wid` 在脚本加载时
+  就看得到（`wid > 0` 时一开始就不碰）；`embedded` 是宿主连上之后才设的，到那时把加载时关掉的边框还回去
+  （render API 下 `border` 只是个没人读的选项）。
+- 顶栏左上角多一个「返回」（回到媒体库），全屏时也在。右键菜单最后一项「关闭 · Q」换成「返回 · Esc」，
+  出错卡片上的「关闭窗口」叫「返回」。
+- Esc：右键菜单开着时关菜单、「下一集」卡片显示时是取消（与以前一样）；都没有时，全屏下退出全屏，不全屏 = 返回。
+  按住不放的重复不算，退出全屏的那一下不会接着连成返回。
+- 「返回」就是 `quit`：mpv 的这次会话结束，宿主据此换回网页。nagare 这边与命令行下关掉 mpv 窗口完全是同一条路
+  （关窗本来就是 `quit`）：结束原因 `quit`、最后一次进度落盘、看完回写、`OnSessionEnd`（磁力停做种删分片），
+  不需要新的事件。嵌入的 libmpv 没有子进程，会话结束靠 IPC 上的 `shutdown` 事件（`mpv.Attach` 那条路）。
+
+**命令行 mpv 下一切照旧**：这些属性一个都没设时（Linux、浏览器模式、今天的所有平台），界面的行为与以前一字不差，
+`capture` / `shown` 也只在嵌入时才发布。0.36 之前的 mpv 没有 `user-data`：观察不存在的属性只会一直是空，不报错。
+
+起播参数同一份清单两种渲染（`internal/mpv/options.go`）：命令行 mpv 是 argv，与以前逐字节一致；libmpv 不认
+`script-opts-append` / `glsl-shaders-append` / `http-header-fields-add` 这类后缀，改成整表设（`script-opts` 是
+`MPV_FORMAT_NODE_MAP`，`glsl-shaders` / `sub-files` / `http-header-fields` 是 `MPV_FORMAT_NODE_ARRAY`），值里的逗号、
+冒号、等号原样保留。分两段：`Init` 在 `mpv_initialize` 之前设（全局选项，外加抵消 libmpv 默认值的
+`config=yes`、`input-default-bindings=yes`、`osc=yes`；带文件时 `idle=once`，播完即退出，与命令行播完关窗一致）；
+`BeforeLoad` 在渲染上下文建好之后、第一个 `loadfile` 之前以属性设（只属于这一个文件的 `start`、`title` /
+`force-media-title`、`sub-files`、`http-header-fields`，以及要等渲染上下文的 `force-window`）。
 
 ## 同一个窗口里切集
 
@@ -105,7 +146,7 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 | 静音 | M |
 | 弹幕开关 | D |
 | 全屏 | Enter · 双击画面 |
-| 退出全屏 | Esc |
+| 退出全屏 | Esc（嵌进桌面窗口、不全屏时 Esc 是返回媒体库） |
 | 上一集 / 下一集 | Shift+P / Shift+N · PgUp / PgDn · 媒体键（上一曲 / 下一曲）。小写 p 仍是暂停，小写 n 不切集 |
 | 「下一集」卡片：立即播放 / 取消 | Enter / Esc（只在卡片显示时；平时 Enter 是全屏、Esc 是退出全屏） |
 | 出错卡片：重试 / 收起卡片 | Enter / Esc（收起后停在最后一帧） |
@@ -113,11 +154,17 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 | 窗口置顶 | T |
 | 倍速 −0.25 / +0.25 / 复位 | [ / ] / Backspace |
 | 右键菜单 | 右键 · Tab |
-| 关闭 | Q |
+| 关闭（嵌进桌面窗口时 = 返回媒体库） | Q |
 
 ## 测试
 
 - `internal/mpv/ui_test.go`：同步、清理旧文件、改回被改过的文件、启动参数。
+- `internal/mpv/options_golden_test.go`：命令行 mpv 的启动参数逐字节钉死；`options_test.go`：libmpv 的渲染；
+  `options_integration_test.go`：整表的值交给真 mpv 后原样读回（经 JSON IPC 设，与 `MPV_FORMAT_NODE` 同一条转换）。
+- 看嵌入模式：照下面「看样子」起一个 mpv，经 IPC 设 `user-data/nagare/embedded`、`titlebar-inset`、`hidpi`，
+  截图看顶栏；把光标移到播放键上与空白画面上，分别读 `user-data/nagare/capture`；Esc 在不全屏时 mpv 应以
+  `quit` 退出，全屏时只退出全屏。命令行 mpv 下 `display-hidpi-scale` 读得到，宿主给的 `hidpi` 不生效 ——
+  要看 2 倍，得在配置副本里让 `embed.lua` 观察一个不存在的属性来代替 `display-hidpi-scale`。
 - `internal/mpv/integration_test.go` 的 `TestIntegration_RealMPVLoadsNagareUI`：真 mpv 用内置配置目录启动，
   触发截图快捷键，界面脚本要把消息发回来——脚本没加载起来或 Lua 报错就收不到。没装 mpv 时跳过。
 - `internal/player/ui_test.go`：标题与副标题、界面消息改设置、截图文件名。

@@ -38,6 +38,8 @@ M.S = {
 	mx = -1, my = -1, hover = false, last_move = 0,
 	pause = false, time = 0, duration = 0, volume = 100, mute = false, speed = 1,
 	fullscreen = false, maximized = false, ontop = false,
+	-- 嵌进 nagare 桌面窗口时由宿主设（见 embed.lua）
+	embedded = false, titlebar_inset = 0,
 	title = "", info = "", anime4k = "off", nav = {},
 	network = false, buffering = false, cache_speed = 0, ranges = {}, chapters = {},
 	tracks = {}, sid = false, aid = false, secondary_sid = false, secondary_visible = true, sub_visible = true,
