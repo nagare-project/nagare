@@ -8,8 +8,16 @@ name: libmpv (macOS)
 
 on:
   workflow_dispatch:
+  # 只在构建脚本或这条流水线本身改了时跑（冷编约 13 分钟、全命中缓存约 4 分钟），别的改动不触发
   push:
-    branches: [ci/libmpv-macos]
+    branches: [main, ci/libmpv-macos]
+    paths:
+      - "scripts/macos/libmpv/**"
+      - ".github/workflows/libmpv-macos.yml"
+  pull_request:
+    paths:
+      - "scripts/macos/libmpv/**"
+      - ".github/workflows/libmpv-macos.yml"
 
 permissions:
   contents: read
