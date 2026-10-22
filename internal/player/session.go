@@ -57,6 +57,21 @@ type session struct {
 	binding store.Binding
 	assPath string
 	danmaku DanmakuInfo
+	// nav 是这一集的前后邻居（开播时问一次 Navigator；切集失败时重问）。界面状态从网页那边
+	// （RefreshShaders）也会推，所以同样走 mu。
+	nav Neighbors
+}
+
+func (s *session) navSnapshot() Neighbors {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.nav
+}
+
+func (s *session) setNav(n Neighbors) {
+	s.mu.Lock()
+	s.nav = n
+	s.mu.Unlock()
 }
 
 func (s *session) danmakuInfo() DanmakuInfo {
@@ -280,7 +295,7 @@ func (m *Manager) syncWatched(sess *session) {
 		if place.Retry {
 			recovery = "重看这一集看完时会再试"
 		}
-		m.reportSync(b, place.Reason, recovery)
+		m.reportSync(sess.item.FileID, b, place.Reason, recovery)
 		log.Printf("player: 集号无法换算成作品集号，不回写（anilistId=%d 文件里第%d集）", b.AnilistID, b.Episode)
 		return
 	}
@@ -294,14 +309,15 @@ func (m *Manager) syncWatched(sess *session) {
 		// 什么都不会变 —— 他以为这一集记上了，下次打开网站才发现没有，
 		// 而那时已经不知道是哪一集丢的。挂进 Status 让界面说出来。
 		reason, recovery := classifySyncErr(err)
-		m.reportSync(b, reason, recovery)
+		m.reportSync(sess.item.FileID, b, reason, recovery)
 		// 措辞不再写「下次退出时重试」——那是过度承诺。重试只发生在
 		// 重看【这一集】并再次看完时（上面那个 p.Synced 判断只在那一集的会话里跑）。
 		log.Printf("player: 回写看完标记失败（重看这一集看完时会再试）：%v", err)
 		return
 	}
-	// 成功就把上一次的失败留痕清掉，横幅跟着消失，不用用户手动关。
-	m.setSyncFailure(nil)
+	// 成功就把这一集上一次的失败留痕清掉，横幅跟着消失，不用用户手动关。留痕说的是别的集
+	// （同一个窗口里连着看，上一集没记上）就留着：那件事仍然成立，不能被这一集的成功盖掉。
+	m.clearSyncFailure(sess.item.FileID)
 	// 回写途中关联被改了：这一集已经写到了旧作品上，但不能标成「已回写」——
 	// 否则重看这一集看完时也不会再按新关联写一次。
 	if !m.bindingStillCurrent(sess.item.FileID, b) {
@@ -326,9 +342,10 @@ func (m *Manager) markWatched(ctx context.Context, anilistID, episode int) error
 
 // reportSync 把「这一集没记到账号」挂进 Status，媒体库页据此出横幅。
 // Episode 是文件里的集号 —— 用户在界面上看到的是它。
-func (m *Manager) reportSync(b store.Binding, reason, recovery string) {
+func (m *Manager) reportSync(fileID string, b store.Binding, reason, recovery string) {
 	m.setSyncFailure(&SyncInfo{
 		State:    "failed",
+		FileID:   fileID,
 		Title:    b.Title,
 		Episode:  b.Episode,
 		Reason:   reason,

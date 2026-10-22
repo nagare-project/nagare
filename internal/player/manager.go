@@ -86,9 +86,9 @@ type Options struct {
 	UIConfigDir func() (string, error)
 	// ScreenshotDir 是播放器里截图的存放目录，第一次截图时才创建。空串交给 mpv 的默认位置。
 	ScreenshotDir string
-	// Navigator 为同一个窗口里的上一集 / 下一集找邻居并把它准备好（见 nav.go）。
-	// 可为 nil：窗口里不切集，播完即关窗，与没有这个功能时完全一样。
-	// （目前只定义了接缝，窗口里的切集还没接上：非 nil 时行为也暂与 nil 相同。）
+	// Navigator 为同一个窗口里的上一集 / 下一集找邻居并把它准备好（见 nav.go、switch.go）。
+	// 可为 nil：窗口里不切集，播完即关窗，与没有这个功能时完全一样（不设 keep-open，
+	// 界面状态里的 nav 恒为两个 false）。
 	Navigator Navigator
 }
 
@@ -109,6 +109,9 @@ type DanmakuInfo struct {
 // 而噪音会让人学会忽略这块区域，真出事时也就跟着被忽略了。
 type SyncInfo struct {
 	State string `json:"state"` // failed
+	// FileID 是没记上的那个文件。只有它自己后来回写成功才清掉这条留痕：同一个窗口里连着看，
+	// 上一集失败、这一集成功时，横幅说的那件事仍然成立。
+	FileID string `json:"fileId,omitempty"`
 	// Title / Episode 说清是哪一集没上去 —— 只说「同步失败」用户无从下手。
 	Title    string `json:"title,omitempty"`
 	Episode  int    `json:"episode,omitempty"`
@@ -206,14 +209,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	// 窗口标题先用文件名派生的本地标题，匹配到官方标题后由后台升级。
 	title := pickTitle(store.Binding{}, item)
 
-	startAt := 0.0
-	if p, ok := m.opts.Store.Progress(item.FileID); ok {
-		resumable := p.PositionSec > resumeMinSec &&
-			(p.DurationSec <= 0 || p.PositionSec < completionRatio*p.DurationSec)
-		if resumable {
-			startAt = p.PositionSec
-		}
-	}
+	startAt := m.resumeAt(item.FileID)
 
 	mpvPath, err := m.mpvPath()
 	if err != nil {
@@ -243,6 +239,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 
 	pb := newPlayback(pl)
 	sess := m.newSession(pb, src, item, title)
+	sess.setNav(m.neighbors(src))
 	pb.setEpisode(sess)
 	// 在后台解析开始之前取：之后读到的可能已经是解析结果，与「立即返回、弹幕后台解析」的约定不符
 	loading := sess.danmakuInfo()
@@ -254,6 +251,19 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	go m.resolveDanmaku(sess)
 
 	return PlayResult{FileID: item.FileID, Title: title, Danmaku: loading, PlaybackID: pb.id}, nil
+}
+
+// resumeAt 是这个文件的续播位置：上次看到一半（超过 resumeMinSec、还没到看完的比例）就从那里接着播，
+// 否则从头播（0）。起播与窗口里切到下一集都按这一条。
+func (m *Manager) resumeAt(fileID string) float64 {
+	p, ok := m.opts.Store.Progress(fileID)
+	if !ok {
+		return 0
+	}
+	if p.PositionSec > resumeMinSec && (p.DurationSec <= 0 || p.PositionSec < completionRatio*p.DurationSec) {
+		return p.PositionSec
+	}
+	return 0
 }
 
 // isNetworkStream 判断交给 mpv 的是不是一条 HTTP 流（磁力边下边播、在线候选），
@@ -430,7 +440,12 @@ func (m *Manager) Status() Status {
 		return Status{Playing: false, Sync: syncFailure, PlaybackFailure: playbackFailure}
 	}
 	sess := pb.episode()
+	// 先看栅栏再读位置：栅栏落下时新文件已经开始，播放器的位置已经清零重来
+	fenced := pb.fenced.Load()
 	st := pb.player.State()
+	if fenced {
+		st.TimePos, st.Duration = 0, 0
+	}
 	dan := sess.danmakuInfo()
 	return Status{
 		Playing:         true,
@@ -451,10 +466,19 @@ func (m *Manager) setPlaybackFailure(info *PlaybackFailure) {
 	m.mu.Unlock()
 }
 
-// setSyncFailure 记下一次回写失败；nil 表示清掉（成功了，或不再适用）。
+// setSyncFailure 记下一次回写失败（盖掉之前的那条：只留最近一次）。
 func (m *Manager) setSyncFailure(info *SyncInfo) {
 	m.mu.Lock()
 	m.lastSync = info
+	m.mu.Unlock()
+}
+
+// clearSyncFailure 在 fileID 回写成功后调：留痕说的正是这个文件才清掉，别的文件的失败照旧挂着。
+func (m *Manager) clearSyncFailure(fileID string) {
+	m.mu.Lock()
+	if m.lastSync != nil && m.lastSync.FileID == fileID {
+		m.lastSync = nil
+	}
 	m.mu.Unlock()
 }
 

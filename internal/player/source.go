@@ -34,6 +34,13 @@ func NewLocalSource(item library.Item) MediaSource { return localFileSource{item
 
 func (s localFileSource) Item() library.Item { return s.item }
 
+// LocalItem 返回本地文件源（NewLocalSource 造的）的库条目；别的源返回 false。
+// 装配层的上一集 / 下一集据此认出「这是媒体库里的文件」，去同一个作品分组里找邻居。
+func LocalItem(src MediaSource) (library.Item, bool) {
+	s, ok := src.(localFileSource)
+	return s.item, ok
+}
+
 func (s localFileSource) MPVPath() string { return s.item.AbsPath }
 
 // Probe 确认文件仍在原位置。「文件被移走/改名」是本地库最常见的失效方式，

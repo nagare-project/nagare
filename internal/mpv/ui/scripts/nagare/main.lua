@@ -1,47 +1,32 @@
 -- nagare 播放器界面（方案 B「影院」：底部大区域、居中的大播放键、两端带时间的粗进度条）。
 --
 -- 和 nagare 之间的消息：
---   nagare → 界面：script-message-to nagare state <json>（标题、副标题、画质增强档位，见 apply_state）
+--   nagare → 界面：script-message-to nagare state <json>（标题、副标题、画质增强档位、上一集 / 下一集，
+--                  见 apply_state）
 --                  script-message-to nagare toast <文字> <小字>（截图结果等屏幕提示）
+--                  script-message-to nagare upnext <json> / upnext-clear（「下一集」卡片，见 upnext.lua）
 --   界面 → nagare：script-message nagare-event <名字> [参数]
---                  （ready / anime4k / danmaku / volume / screenshot / prev / next）
+--                  （ready / anime4k / danmaku / volume / screenshot / prev / next /
+--                   upnext-now / upnext-cancel / upnext-retry / upnext-close）
 -- nagare 经 JSON IPC 收到的是 client-message 事件（internal/mpv/events.go）。
+--
+-- 模块：core（共用状态、重绘调度、屏幕提示）、draw（ASS 绘图）、menu（菜单）、tracks（字幕与弹幕轨）、
+-- seekbar（进度条与缩略图）、upnext（切集与「下一集」卡片）。
 
 local mp = require 'mp'
 local utils = require 'mp.utils'
 local draw = require 'draw'
 local menu = require 'menu'
+local core = require 'core'
+local tracks = require 'tracks'
+local seekbar = require 'seekbar'
+local upnext = require 'upnext'
 
--- 弹幕轨的标题，与 internal/player/session.go 的 danmakuTrackTitle 一致。有对白字幕时它挂在
--- 第二字幕轨（secondary-sid），没有对白字幕时直接占主字幕轨（sid）。
-local DANMAKU_TITLE = "nagare-danmaku"
-
--- 配色照 nagare 网页（frontend/src/styles/global.css）：近黑表面 + 靛紫品牌色
-local P = {
-	fg = "#E6E6E6",
-	strong = "#F2F2F2",
-	panel = "#101010",
-	card = "#0B0B0B",
-	accent = "#6152DF",
-	accent_text = "#C7C2FF",
-}
-
-local function detect_font()
-	local platform = mp.get_property("platform")
-	if platform == nil then
-		platform = package.config:sub(1, 1) == "\\" and "windows" or "unix"
-	end
-	if platform == "windows" then
-		return "Microsoft YaHei UI"
-	elseif platform == "darwin" then
-		return "PingFang SC"
-	end
-	return "Noto Sans CJK SC"
-end
-local FONT = detect_font()
+local S, P, FONT = core.S, core.P, core.FONT
+local send, toast, request_render, scale = core.send, core.toast, core.request_render, core.scale
+local add_element, element_at, find_element = core.add_element, core.element_at, core.find_element
 
 local HIDE_AFTER = 2.0 -- 鼠标不动多少秒后收起
-local TOAST_SECONDS = 2.2
 local SPEEDS = { 0.5, 0.75, 1.0, 1.25, 1.5, 2.0 }
 local ANIME4K = {
 	{ value = "off", label = "关" },
@@ -49,73 +34,7 @@ local ANIME4K = {
 	{ value = "hq", label = "高质量", hint = "显卡吃力会掉帧，可换回「标准」" },
 }
 
-local S = {
-	w = 0, h = 0, hidpi = 1,
-	mx = -1, my = -1, hover = false, last_move = 0,
-	pause = false, time = 0, duration = 0, volume = 100, mute = false, speed = 1,
-	fullscreen = false, maximized = false, ontop = false,
-	title = "", info = "", anime4k = "off", nav = {},
-	network = false, buffering = false, cache_speed = 0, ranges = {}, chapters = {},
-	tracks = {}, sid = false, aid = false, secondary_sid = false, secondary_visible = true, sub_visible = true,
-	elements = {}, hover_id = nil, pressed = nil, drag = nil, drag_time = nil, last_drag_seek = 0,
-	toast = nil, spin = 0, shown = false, flash_until = 0,
-}
-
 local overlay = mp.create_osd_overlay("ass-events")
-
--- 进度条缩略图由 thumbfast（scripts/thumbfast.lua，MPL-2.0）生成，它广播 thumbfast-info 告诉我们
--- 尺寸与能不能用（网络流上它是关的）；我们只负责告诉它画在哪、画哪一秒。
-local thumbfast = { width = 0, height = 0, disabled = true, available = false }
-local thumb_wanted, thumb_shown = false, false
-
-------------------------------------------------------------------------
--- 小工具
-
-local function send(...)
-	mp.commandv("script-message", "nagare-event", ...)
-end
-
-local function fmt_time(t, long)
-	t = math.max(0, math.floor(t or 0))
-	local hh, mm, ss = math.floor(t / 3600), math.floor(t % 3600 / 60), t % 60
-	if long or hh > 0 then
-		return string.format("%d:%02d:%02d", hh, mm, ss)
-	end
-	return string.format("%02d:%02d", mm, ss)
-end
-
-local function fmt_speed(v)
-	if math.abs(v * 10 - math.floor(v * 10 + 0.5)) < 0.001 then
-		return string.format("%.1f×", v)
-	end
-	return string.format("%.2f×", v)
-end
-
-local function fmt_rate(bps)
-	if not bps or bps <= 0 then
-		return nil
-	end
-	if bps >= 1024 * 1024 then
-		return string.format("%.1f MB/s", bps / 1024 / 1024)
-	end
-	return string.format("%d KB/s", math.floor(bps / 1024))
-end
-
-local LANGS = {
-	chi = "中文", zho = "中文", chs = "简体中文", cht = "繁体中文", zh = "中文",
-	jpn = "日语", ja = "日语", eng = "英语", en = "英语", kor = "韩语", ko = "韩语",
-}
-
-local function track_label(t)
-	local name = t.title
-	if not name or name == "" then
-		name = LANGS[t.lang or ""] or t.lang
-	end
-	if not name or name == "" then
-		name = (t.type == "audio" and "音轨 " or "字幕 ") .. t.id
-	end
-	return name .. " · " .. (t.external and "外挂" or "内嵌")
-end
 
 local function anime4k_label(value)
 	for _, a in ipairs(ANIME4K) do
@@ -127,36 +46,11 @@ local function anime4k_label(value)
 end
 
 ------------------------------------------------------------------------
--- 显示与重绘
-
-local render_pending = false
-local render
-
-local function request_render()
-	if render_pending then
-		return
-	end
-	render_pending = true
-	mp.add_timeout(0.03, function()
-		render_pending = false
-		render()
-	end)
-end
-
-local function toast(text, sub)
-	S.toast = { text = text, sub = sub, ["until"] = mp.get_time() + TOAST_SECONDS }
-	request_render()
-	mp.add_timeout(TOAST_SECONDS + 0.05, request_render)
-end
-
-local function scale()
-	return S.hidpi
-end
-
-local element_at -- 下面定义
+-- 显示
 
 local function ui_visible()
-	if menu.is_open() or S.drag then
+	-- 「下一集」卡片在的时候控制条也留着：卡片贴在进度条上方，往回拖进度条就是取消
+	if menu.is_open() or S.drag or upnext.visible() then
 		return true
 	end
 	if S.pause then
@@ -174,32 +68,6 @@ local function ui_visible()
 		return true
 	end
 	return mp.get_time() - S.last_move < HIDE_AFTER
-end
-
-------------------------------------------------------------------------
--- 元素：每次重绘重新登记一遍可点的区域，鼠标事件按上一次的登记命中
-
-local function add_element(id, x1, y1, x2, y2, on_click)
-	S.elements[#S.elements + 1] = { id = id, x1 = x1, y1 = y1, x2 = x2, y2 = y2, click = on_click }
-end
-
-element_at = function(x, y)
-	for i = #S.elements, 1, -1 do
-		local e = S.elements[i]
-		if x >= e.x1 and x <= e.x2 and y >= e.y1 and y <= e.y2 then
-			return e
-		end
-	end
-	return nil
-end
-
-local function find_element(id)
-	for _, e in ipairs(S.elements) do
-		if e.id == id then
-			return e
-		end
-	end
-	return nil
 end
 
 -- 图标按钮：size 是点击区（正方形），icon_size 是图标本身
@@ -235,55 +103,6 @@ local function toggle_pause()
 	mp.commandv("cycle", "pause")
 end
 
-local function danmaku_track_id()
-	for _, t in ipairs(S.tracks) do
-		if t.type == "sub" and t.external and t.title == DANMAKU_TITLE then
-			return t.id
-		end
-	end
-	return nil
-end
-
--- 弹幕挂在哪条轨上："secondary" / "primary" / nil（这一集没有弹幕，或还没编排好）
-local function danmaku_mode()
-	local id = danmaku_track_id()
-	if not id then
-		return nil
-	end
-	if S.secondary_sid == id then
-		return "secondary"
-	elseif S.sid == id then
-		return "primary"
-	end
-	return nil
-end
-
-local function has_danmaku()
-	return danmaku_mode() ~= nil
-end
-
-local function danmaku_visible()
-	local mode = danmaku_mode()
-	if mode == "secondary" then
-		return S.secondary_visible
-	elseif mode == "primary" then
-		return S.sub_visible
-	end
-	return false
-end
-
-local function toggle_danmaku()
-	local mode = danmaku_mode()
-	if not mode then
-		toast("这一集没有弹幕")
-		return
-	end
-	local visible = not danmaku_visible()
-	mp.set_property_bool(mode == "secondary" and "secondary-sub-visibility" or "sub-visibility", visible)
-	send("danmaku", visible and "shown" or "hidden")
-	toast(visible and "弹幕：已显示" or "弹幕：已隐藏")
-end
-
 local function set_anime4k(value)
 	S.anime4k = value
 	send("anime4k", value)
@@ -308,56 +127,6 @@ end
 ------------------------------------------------------------------------
 -- 菜单内容
 
-local function subtitle_items()
-	local items = {}
-	local dm = danmaku_track_id()
-	-- 弹幕占着主轨时，对白字幕本来就是关着的；这时再点「关闭字幕」会把弹幕一起关掉
-	local none = S.sid == false or S.sid == nil or S.sid == "no" or S.sid == dm
-	items[#items + 1] = {
-		label = "关闭字幕", checked = none,
-		action = function()
-			if S.sid ~= dm then
-				mp.set_property("sid", "no")
-			end
-		end,
-	}
-	for _, t in ipairs(S.tracks) do
-		-- 弹幕不出现在字幕列表里
-		if t.type == "sub" and t.id ~= dm then
-			items[#items + 1] = {
-				label = track_label(t),
-				checked = (not none) and t.id == S.sid,
-				action = function() mp.set_property_number("sid", t.id) end,
-			}
-		end
-	end
-	return items
-end
-
-local function audio_items()
-	local items = {}
-	for _, t in ipairs(S.tracks) do
-		if t.type == "audio" then
-			items[#items + 1] = {
-				label = track_label(t),
-				checked = t.id == S.aid,
-				action = function() mp.set_property_number("aid", t.id) end,
-			}
-		end
-	end
-	return items
-end
-
-local function audio_count()
-	local n = 0
-	for _, t in ipairs(S.tracks) do
-		if t.type == "audio" then
-			n = n + 1
-		end
-	end
-	return n
-end
-
 local function anime4k_items()
 	local items = {}
 	for _, a in ipairs(ANIME4K) do
@@ -370,7 +139,7 @@ local function speed_items()
 	local items = {}
 	for i = #SPEEDS, 1, -1 do
 		local v = SPEEDS[i]
-		items[#items + 1] = { label = fmt_speed(v), checked = math.abs(S.speed - v) < 0.001, action = function() set_speed(v) end }
+		items[#items + 1] = { label = core.fmt_speed(v), checked = math.abs(S.speed - v) < 0.001, action = function() set_speed(v) end }
 	end
 	return items
 end
@@ -378,17 +147,19 @@ end
 local function context_items()
 	local items = {
 		{ label = S.pause and "播放" or "暂停", hint = "空格", action = toggle_pause },
-		{ separator = true },
-		{ label = "字幕", items = subtitle_items },
 	}
-	if audio_count() > 1 then
-		items[#items + 1] = { label = "音轨", items = audio_items }
+	-- 上一集 / 下一集：nagare 说有才列
+	for _, it in ipairs(upnext.menu_items()) do
+		items[#items + 1] = it
 	end
-	if has_danmaku() then
-		items[#items + 1] = {
-			label = "弹幕", hint = (danmaku_visible() and "开" or "关") .. " · D", hint_accent = danmaku_visible(),
-			action = toggle_danmaku,
-		}
+	items[#items + 1] = { separator = true }
+	items[#items + 1] = { label = "字幕", items = tracks.subtitle_items }
+	if tracks.audio_count() > 1 then
+		items[#items + 1] = { label = "音轨", items = tracks.audio_items }
+	end
+	if tracks.has_danmaku() then
+		local on = tracks.danmaku_visible()
+		items[#items + 1] = { label = "弹幕", hint = (on and "开" or "关") .. " · D", hint_accent = on, action = tracks.toggle_danmaku }
 	end
 	items[#items + 1] = { label = "画质增强", items = anime4k_items }
 	items[#items + 1] = { label = "倍速", items = speed_items }
@@ -426,22 +197,6 @@ end
 ------------------------------------------------------------------------
 -- 绘制各部分
 
-local function seek_geometry()
-	local s = scale()
-	local x1, x2 = 32 * s, S.w - 32 * s
-	local cy = S.h - 112 * s
-	return x1, x2, cy
-end
-
-local function time_at(x)
-	if (S.duration or 0) <= 0 then
-		return nil
-	end
-	local x1, x2 = seek_geometry()
-	local frac = math.max(0, math.min(1, (x - x1) / math.max(1, x2 - x1)))
-	return frac * (S.duration or 0)
-end
-
 local function draw_top(c)
 	local s = scale()
 	c:scrim(0, 0, S.w, 140 * s, 0.75, 0, 20)
@@ -462,89 +217,14 @@ local function draw_top(c)
 	end
 end
 
-local function draw_seekbar(c)
-	local s = scale()
-	local x1, x2, cy = seek_geometry()
-	local dur = S.duration or 0
-	local hovering = S.drag == "seek" or (S.hover_id == "seek")
-	local th = (hovering and 8 or 6) * s
-	local y1, y2 = cy - th / 2, cy + th / 2
-	local width = x2 - x1
-	c:rect(x1, y1, x2, y2, { color = "#FFFFFF", opacity = 0.16, radius = th / 2 })
-	-- 已经可以直接拖过去的部分：本地文件是整条，网络流按 mpv 的缓存范围
-	if dur > 0 then
-		if not S.network then
-			c:rect(x1, y1, x2, y2, { color = "#FFFFFF", opacity = 0.16, radius = th / 2 })
-		else
-			for _, r in ipairs(S.ranges) do
-				local a = x1 + width * math.max(0, math.min(1, (r.start or 0) / dur))
-				local b = x1 + width * math.max(0, math.min(1, (r["end"] or 0) / dur))
-				if b - a > 1 then
-					c:rect(a, y1, b, y2, { color = "#FFFFFF", opacity = 0.18, radius = th / 2 })
-				end
-			end
-		end
-	end
-	local t = S.drag == "seek" and S.drag_time or S.time
-	local frac = dur > 0 and math.max(0, math.min(1, t / dur)) or 0
-	local px = x1 + width * frac
-	if px - x1 > 0.5 then
-		c:rect(x1, y1, px, y2, { color = P.accent, opacity = 1, radius = th / 2 })
-	end
-	-- 章节（片头、片尾）在进度条上留一道缝
-	if dur > 0 then
-		for _, ch in ipairs(S.chapters) do
-			local tx = ch.time or 0
-			if tx > 0.5 and tx < dur - 0.5 then
-				local cx = x1 + width * tx / dur
-				c:rect(cx - 1 * s, y1 - 0.5, cx + 1 * s, y2 + 0.5, { color = "#000000", opacity = 0.85 })
-			end
-		end
-	end
-	c:circle(px, cy, 8 * s, { color = "#FFFFFF", opacity = 1 })
-	add_element("seek", x1 - 8 * s, cy - 14 * s, x2 + 8 * s, cy + 14 * s, nil)
-
-	-- 悬停：竖线 + 时间
-	if hovering and dur > 0 then
-		local hx = S.drag == "seek" and px or math.max(x1, math.min(x2, S.mx))
-		local ht = S.drag == "seek" and t or (time_at(hx) or 0)
-		if S.drag ~= "seek" then
-			c:rect(hx - 1 * s, cy - 9 * s, hx + 1 * s, cy + 9 * s, { color = "#FFFFFF", opacity = 0.85 })
-		end
-		local label = fmt_time(ht, dur >= 3600)
-		local lw = draw.text_width(label, 13 * s) + 16 * s
-		local lx = math.max(lw / 2 + 4 * s, math.min(S.w - lw / 2 - 4 * s, hx))
-		c:rect(lx - lw / 2, cy - 44 * s, lx + lw / 2, cy - 20 * s, { color = "#000000", opacity = 0.75, radius = 5 * s })
-		c:text(lx, cy - 32 * s, label, { align = 5, size = 13 * s, color = P.fg, font = FONT })
-		-- 缩略图：时间提示正上方，左右不出窗口
-		if thumbfast.available and not thumbfast.disabled and thumbfast.width > 0 then
-			local tw, th = thumbfast.width, thumbfast.height
-			local margin = 8 * s
-			local tx = math.floor(math.min(S.w - tw - margin, math.max(margin, lx - tw / 2)))
-			local ty = math.floor(cy - 52 * s - th)
-			local b = math.max(1, 2 * s)
-			c:rect(tx - b, ty - b, tx + tw + b, ty + th + b, { color = "#FFFFFF", opacity = 0.85, radius = 4 * s })
-			mp.commandv("script-message-to", "thumbfast", "thumb", tostring(ht), tostring(tx), tostring(ty))
-			thumb_wanted, thumb_shown = true, true
-		end
-	end
-
-	-- 两端的时间
-	local long = dur >= 3600
-	local ty = S.h - 86 * s
-	c:text(x1, ty, fmt_time(t, long), { align = 4, size = 14 * s, color = P.fg, opacity = 0.85, font = FONT })
-	if dur > 0 then
-		c:text(x2, ty, fmt_time(dur, long), { align = 6, size = 14 * s, color = P.fg, opacity = 0.85, font = FONT })
-	end
-end
-
+-- 返回音量这一组的右边缘
 local function draw_volume(c, cy, compact)
 	local s = scale()
 	local icon = (S.mute or S.volume <= 0) and "mute" or (S.volume < 50 and "volume_low" or "volume")
 	local bx = 20 * s + 22 * s
 	icon_button(c, "mute", bx, cy, 44 * s, icon, 22 * s, function() mp.commandv("cycle", "mute") end)
 	if compact then
-		return
+		return bx + 22 * s
 	end
 	local x1, x2 = bx + 28 * s, bx + 28 * s + 96 * s
 	local th = (S.hover_id == "volume" or S.drag == "volume") and 6 * s or 4 * s
@@ -557,6 +237,7 @@ local function draw_volume(c, cy, compact)
 		c:circle(x1 + (x2 - x1) * frac, cy, 6 * s, { color = "#FFFFFF", opacity = 1 })
 	end
 	add_element("volume", x1 - 6 * s, cy - 14 * s, x2 + 6 * s, cy + 14 * s, nil)
+	return x2 + 6 * s
 end
 
 local function draw_transport(c, cy, compact)
@@ -574,15 +255,26 @@ local function draw_transport(c, cy, compact)
 	c:text(cx - 68 * s, cy + 1.2 * s, "10", { align = 5, size = 9 * s, bold = true, color = P.fg, font = FONT })
 	icon_button(c, "forward", cx + 68 * s, cy, 48 * s, "forward", 28 * s, function() mp.commandv("seek", 10) end)
 	c:text(cx + 68 * s, cy + 1.2 * s, "10", { align = 5, size = 9 * s, bold = true, color = P.fg, font = FONT })
-	-- 上一集 / 下一集：nagare 告诉界面有才画（磁力合集、本地媒体库里的相邻集）
+end
+
+-- 上一集 / 下一集：nagare 告诉界面有才画；两边放不下（窄窗口、右边按钮多）就不画，
+-- 右键菜单与 Shift+N / Shift+P 照样能用
+local function draw_nav(c, cy, left_limit, right_limit)
+	local s = scale()
+	local cx = S.w / 2
+	local reach = (130 + 24 + 8) * s
+	if cx - reach < left_limit or cx + reach > right_limit then
+		return
+	end
 	if S.nav.prev then
-		icon_button(c, "prev", cx - 130 * s, cy, 48 * s, "prev", 24 * s, function() send("prev") end)
+		icon_button(c, "prev", cx - 130 * s, cy, 48 * s, "prev", 24 * s, function() upnext.go("prev") end)
 	end
 	if S.nav.next then
-		icon_button(c, "next", cx + 130 * s, cy, 48 * s, "next", 24 * s, function() send("next") end)
+		icon_button(c, "next", cx + 130 * s, cy, 48 * s, "next", 24 * s, function() upnext.go("next") end)
 	end
 end
 
+-- 返回右边这一组的左边缘
 local function draw_right(c, cy, compact)
 	local s = scale()
 	local x = S.w - 20 * s
@@ -592,40 +284,46 @@ local function draw_right(c, cy, compact)
 	icon_button(c, "more", x - 22 * s, cy, 44 * s, "more", 20 * s, function() open_menu_above("more", context_items) end)
 	x = x - 46 * s
 	if not compact then
-		x = x - text_button(c, "speed", x, cy, fmt_speed(S.speed), function() open_menu_above("speed", speed_items) end) - 2 * s
+		x = x - text_button(c, "speed", x, cy, core.fmt_speed(S.speed), function() open_menu_above("speed", speed_items) end) - 2 * s
 	end
 	icon_button(c, "anime4k", x - 22 * s, cy, 44 * s, "sparkle", 22 * s, function() open_menu_above("anime4k", anime4k_items) end,
 		{ color = S.anime4k ~= "off" and P.accent_text or P.fg })
 	x = x - 46 * s
-	icon_button(c, "subtitles", x - 22 * s, cy, 44 * s, "subtitles", 22 * s, function() open_menu_above("subtitles", subtitle_items) end)
+	icon_button(c, "subtitles", x - 22 * s, cy, 44 * s, "subtitles", 22 * s, function() open_menu_above("subtitles", tracks.subtitle_items) end)
+	local left = x - 44 * s
 	x = x - 46 * s
-	if has_danmaku() then
+	if tracks.has_danmaku() then
 		local id = "danmaku"
 		local bx1, bx2 = x - 44 * s, x
 		if S.hover_id == id then
 			c:rect(bx1, cy - 22 * s, bx2, cy + 22 * s, { color = "#FFFFFF", opacity = 0.1, radius = 8 * s })
 		end
 		local px1, px2 = bx1 + 9 * s, bx2 - 9 * s
-		if danmaku_visible() then
+		if tracks.danmaku_visible() then
 			c:rect(px1, cy - 11 * s, px2, cy + 11 * s, { color = P.accent, opacity = 1, radius = 5 * s })
 			c:text((px1 + px2) / 2, cy, "弹", { align = 5, size = 13 * s, bold = true, color = "#FFFFFF", font = FONT })
 		else
 			c:stroke_rect(px1, cy - 11 * s, px2, cy + 11 * s, { width = 1.5 * s, color = "#FFFFFF", opacity = 0.6, radius = 5 * s })
 			c:text((px1 + px2) / 2, cy, "弹", { align = 5, size = 13 * s, bold = true, color = P.fg, opacity = 0.7, font = FONT })
 		end
-		add_element(id, bx1, cy - 22 * s, bx2, cy + 22 * s, toggle_danmaku)
+		add_element(id, bx1, cy - 22 * s, bx2, cy + 22 * s, tracks.toggle_danmaku)
+		left = bx1
 	end
+	return left
 end
 
 local function draw_bottom(c)
 	local s = scale()
 	c:scrim(0, S.h - 240 * s, S.w, S.h, 0, 0.85, 24)
-	draw_seekbar(c)
+	seekbar.draw(c)
 	local cy = S.h - 44 * s
 	local compact = S.w < 760 * s
-	draw_volume(c, cy, compact)
+	local volume_right = draw_volume(c, cy, compact)
 	draw_transport(c, cy, compact)
-	draw_right(c, cy, compact)
+	local right_left = draw_right(c, cy, compact)
+	if not compact then
+		draw_nav(c, cy, volume_right, right_left)
+	end
 end
 
 local function draw_buffering(c)
@@ -635,7 +333,7 @@ local function draw_buffering(c)
 	local a = (S.spin * 360) % 360
 	c:shape(draw.arc_path(cx, cy, 18 * s, 15 * s, a, a + 90, 16), P.strong, 1)
 	c:text(cx, cy + 36 * s, "正在缓冲", { align = 5, size = 15 * s, color = P.fg, font = FONT, outline = 0.8 * s })
-	local rate = fmt_rate(S.cache_speed)
+	local rate = core.fmt_rate(S.cache_speed)
 	if rate then
 		c:text(cx, cy + 60 * s, rate, { align = 5, size = 13 * s, color = P.fg, opacity = 0.7, font = FONT, outline = 0.8 * s })
 	end
@@ -662,11 +360,12 @@ local function draw_toast(c, visible)
 end
 
 ------------------------------------------------------------------------
--- 鼠标
+-- 鼠标与按键分区
 
 -- 只在鼠标落在按钮、进度条上（或菜单开着、正在拖）时接管左键；其余时候左键交还 mpv，
--- 拖动窗口与双击全屏才照常可用
-local bound = { mouse = false, menu = false }
+-- 拖动窗口与双击全屏才照常可用。「下一集」卡片显示时接管 Esc（取消）与 Enter（立即播放 / 重试），
+-- 菜单开着时让给菜单。
+local bound = { mouse = false, menu = false, upnext_esc = false, upnext_enter = false }
 
 local function set_section(key, section, on)
 	if bound[key] == on then
@@ -684,9 +383,12 @@ local function update_bindings()
 	local over = S.shown and S.hover and element_at(S.mx, S.my) ~= nil
 	set_section("mouse", "nagare-mouse", menu.is_open() or S.drag ~= nil or over)
 	set_section("menu", "nagare-menu-keys", menu.is_open())
+	local card_keys = upnext.visible() and not menu.is_open()
+	set_section("upnext_esc", "nagare-upnext-esc", card_keys)
+	set_section("upnext_enter", "nagare-upnext-enter", card_keys and upnext.takes_enter())
 end
 
-render = function()
+local function render()
 	if S.w <= 0 or S.h <= 0 then
 		return
 	end
@@ -694,7 +396,7 @@ render = function()
 	local visible = ui_visible()
 	S.shown = visible
 	S.elements = {}
-	thumb_wanted = false
+	seekbar.begin_frame()
 	if visible then
 		draw_top(c)
 		draw_bottom(c)
@@ -703,37 +405,20 @@ render = function()
 		draw_buffering(c)
 	end
 	draw_toast(c, visible)
+	upnext.draw(c)
 	if menu.is_open() then
 		menu.render(c)
 	end
 	overlay.res_x, overlay.res_y = S.w, S.h
 	overlay.data = c:result()
 	overlay:update()
-	-- 离开进度条（或界面收起）：缩略图要单独清掉，它不在我们的 overlay 里
-	if thumb_shown and not thumb_wanted then
-		mp.commandv("script-message-to", "thumbfast", "clear")
-		thumb_shown = false
-	end
+	seekbar.end_frame()
 	if not visible then
 		S.hover_id = nil
 	end
 	update_bindings()
 end
-
-local function drag_seek(final)
-	local t = time_at(S.mx)
-	if not t then
-		return -- 片长还不知道（直播流、刚打开）：拖了也不知道该跳到哪
-	end
-	S.drag_time = t
-	local now = mp.get_time()
-	if final then
-		mp.commandv("seek", t, "absolute+exact")
-	elseif now - S.last_drag_seek > 0.08 then
-		S.last_drag_seek = now
-		mp.commandv("seek", t, "absolute+keyframes")
-	end
-end
+core.set_renderer(render)
 
 local function drag_volume()
 	local e = find_element("volume")
@@ -762,7 +447,7 @@ local function on_mouse_down()
 			return
 		end
 		S.drag = "seek"
-		drag_seek(false)
+		seekbar.drag(false)
 	elseif e.id == "volume" then
 		S.drag = "volume"
 		drag_volume()
@@ -777,7 +462,7 @@ local function on_mouse_up()
 		return
 	end
 	if S.drag == "seek" then
-		drag_seek(true)
+		seekbar.drag(true)
 	end
 	local was_drag = S.drag ~= nil
 	S.drag = nil
@@ -789,7 +474,7 @@ local function on_mouse_up()
 	if not was_drag and not pressed and e then
 		pressed = e.id
 		if e.id == "seek" then
-			local t = time_at(S.mx)
+			local t = seekbar.time_at(S.mx)
 			if t then
 				mp.commandv("seek", t, "absolute+exact")
 			end
@@ -825,6 +510,15 @@ mp.set_key_bindings({
 	{ "kp_enter", menu_key("enter") },
 }, "nagare-menu-keys", "force")
 
+-- 卡片的 Esc 与 Enter 分开两区：准备中只有「取消」，Enter 照旧是全屏（倒计时与出错时 Enter 归卡片）
+mp.set_key_bindings({
+	{ "esc", function() upnext.key("esc") end },
+}, "nagare-upnext-esc", "force")
+mp.set_key_bindings({
+	{ "enter", function() upnext.key("enter") end },
+	{ "kp_enter", function() upnext.key("enter") end },
+}, "nagare-upnext-enter", "force")
+
 mp.observe_property("mouse-pos", "native", function(_, pos)
 	if not pos then
 		return
@@ -835,7 +529,7 @@ mp.observe_property("mouse-pos", "native", function(_, pos)
 		menu.mouse_move(S.mx, S.my)
 	end
 	if S.drag == "seek" then
-		drag_seek(false)
+		seekbar.drag(false)
 	elseif S.drag == "volume" then
 		drag_volume()
 	end
@@ -910,12 +604,12 @@ mp.observe_property("seeking", "bool", function(_, v)
 	end
 end)
 
--- 缓冲转圈、界面到点收起：都靠这一个定时器推
+-- 缓冲转圈、「下一集」卡片的倒数圈、界面到点收起：都靠这一个定时器推
 mp.add_periodic_timer(0.05, function()
 	if S.buffering then
 		S.spin = S.spin + 0.05
 		request_render()
-	elseif S.shown ~= ui_visible() then
+	elseif upnext.animating() or S.shown ~= ui_visible() then
 		request_render()
 	end
 end)
@@ -930,7 +624,7 @@ mp.observe_property("volume", "number", function(_, v)
 end)
 mp.observe_property("speed", "number", function(_, v)
 	if v and last_speed and math.abs(v - last_speed) > 0.001 then
-		toast("倍速 " .. fmt_speed(v))
+		toast("倍速 " .. core.fmt_speed(v))
 	end
 	last_speed = v
 end)
@@ -956,6 +650,7 @@ end)
 ------------------------------------------------------------------------
 -- nagare 发来的状态
 
+-- nav：{"prev": bool, "next": bool, "prevLabel": "第 3 集", "nextLabel": "第 5 集"}，没有的那一边不带 label
 local function apply_state(json)
 	local st = utils.parse_json(json or "")
 	if type(st) ~= "table" then
@@ -977,22 +672,21 @@ local function apply_state(json)
 end
 
 mp.register_script_message("state", apply_state)
-mp.register_script_message("thumbfast-info", function(json)
-	local data = utils.parse_json(json or "")
-	if type(data) == "table" and data.width and data.height then
-		thumbfast = data
-		request_render()
-	end
-end)
 mp.register_script_message("toast", function(text, sub)
 	if text and text ~= "" then
 		toast(text, (sub and sub ~= "") and sub or nil)
 	end
 end)
+mp.register_script_message("upnext", upnext.show)
+mp.register_script_message("upnext-clear", upnext.clear)
+-- 同一个窗口里换到了别的文件：上一集的卡片一定过时了
+mp.register_event("start-file", function() upnext.clear() end)
 
 mp.add_key_binding(nil, "menu", open_context_menu)
-mp.add_key_binding(nil, "toggle-danmaku", toggle_danmaku)
+mp.add_key_binding(nil, "toggle-danmaku", tracks.toggle_danmaku)
 mp.add_key_binding(nil, "screenshot", screenshot)
+mp.add_key_binding(nil, "next", function() upnext.go("next") end)
+mp.add_key_binding(nil, "prev", function() upnext.go("prev") end)
 
 -- 无边框窗口由界面自己画标题栏与窗口按钮；mpv 自带的控制条也由这里关掉。都放在脚本里做而不是
 -- 写进 mpv.conf：万一脚本没加载起来，窗口还有系统边框，手上还有自带的控制条

@@ -29,6 +29,14 @@ type Neighbors struct {
 	Prev, Next *Neighbor
 }
 
+// toward 返回 dir 方向的邻居（没有为 nil）。
+func (n Neighbors) toward(dir Direction) *Neighbor {
+	if dir == DirectionPrev {
+		return n.Prev
+	}
+	return n.Next
+}
+
 // Opened 是切过去之前准备好的下一集：可以交给 mpv 的媒体源，以及配对的外挂对白字幕（可空）。
 type Opened struct {
 	Source  MediaSource
@@ -42,4 +50,16 @@ type Navigator interface {
 	// Open 把 dir 方向的邻居准备成可播放的源（磁力要先把那个文件缓冲到能起播）。
 	// ctx 取消时要尽快返回。邻居已经不在了（重新扫描、种子没了）返回错误。
 	Open(ctx context.Context, src MediaSource, dir Direction) (Opened, error)
+}
+
+// neighbors 问 Navigator 这个源前后有没有可切的集。没有 Navigator、在线来源一律没有：
+// 在线候选是用户挑的一条短期地址，不存在「同一个窗口里的下一集」。
+func (m *Manager) neighbors(src MediaSource) Neighbors {
+	if m.opts.Navigator == nil {
+		return Neighbors{}
+	}
+	if _, online := src.(*remoteSource); online {
+		return Neighbors{}
+	}
+	return m.opts.Navigator.Neighbors(src)
 }

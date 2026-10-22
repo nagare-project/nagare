@@ -384,6 +384,8 @@ func buildServices(configDir string) (*services, error) {
 		Association:   lib.AssociationFor,
 		GroupEpisodes: lib.GroupEpisodes,
 		EpisodeSpace:  spaces.Lookup,
+		// 同一个窗口里的上一集 / 下一集：本地文件在媒体库同一个作品分组里找邻居
+		Navigator: api.NewEpisodeNavigator(lib),
 		// 画质增强（Anime4K）：着色器写在运行时目录，每次起播按当前设置现取；准备失败就照常播放、不加载
 		Shaders: func() []string {
 			paths, err := mpv.Anime4KShaders(runtimeDir, st.PlayerConfig().Anime4K)

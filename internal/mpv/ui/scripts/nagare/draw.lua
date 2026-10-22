@@ -27,8 +27,8 @@ function M.escape(s)
 	return s
 end
 
--- 逐个取出 UTF-8 码点。不用 utf8 库：mpv 常配 LuaJIT（Lua 5.1），没有它。
-local function codepoints(s)
+-- 逐个取出 UTF-8 字符：原样的字节串与码点。不用 utf8 库：mpv 常配 LuaJIT（Lua 5.1），没有它。
+local function chars(s)
 	local i, n = 1, #s
 	return function()
 		if i > n then
@@ -43,24 +43,140 @@ local function codepoints(s)
 				cp = cp * 64 + ((s:byte(i + j) or 0x80) % 64)
 			end
 		end
+		local ch = s:sub(i, i + len - 1)
 		i = i + len
-		return cp
+		return ch, cp
 	end
 end
 
--- 按字符估算文字宽度：ASS 没有量字宽的接口。CJK 与全角记 1em，其余记 0.58em。
+-- 一个字符估算多宽（em）：ASS 没有量字宽的接口。CJK 与全角记 1em，空格 0.3em，其余记 0.58em。
+local function char_em(cp)
+	if cp >= 0x2E80 then
+		return 1
+	elseif cp == 0x20 then
+		return 0.3
+	end
+	return 0.58
+end
+
 function M.text_width(s, size)
 	local w = 0
-	for cp in codepoints(tostring(s or "")) do
-		if cp >= 0x2E80 then
-			w = w + 1
-		elseif cp == 0x20 then
-			w = w + 0.3
-		else
-			w = w + 0.58
-		end
+	for _, cp in chars(tostring(s or "")) do
+		w = w + char_em(cp)
 	end
 	return w * size
+end
+
+------------------------------------------------------------------------
+-- 折行（宽度同样是估算的）
+
+local SPACE, NEWLINE = 0x20, 0x0A
+-- 不能放在行首的标点：折行时连同前一个词一起挪到下一行
+local NO_LINE_START = {}
+for _, cp in ipairs({ 0x3001, 0x3002, 0xFF0C, 0xFF0E, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F, 0xFF09, 0x300D, 0x300F,
+	0x3011, 0x3009, 0x300B, 0x2026, 0x201D, 0x2019, 0x2C, 0x2E, 0x3A, 0x3B, 0x21, 0x3F, 0x29 }) do
+	NO_LINE_START[cp] = true
+end
+
+-- 拆成折行用的词：CJK 一字一词，空格、换行各自一个（single），连在一起的其余字符（拉丁字母、数字、
+-- 路径）算一个词
+local function words(s)
+	local out, word = {}, nil
+	for ch, cp in chars(s) do
+		if cp >= 0x2E80 or cp == SPACE or cp == NEWLINE then
+			if word then
+				out[#out + 1] = word
+				word = nil
+			end
+			out[#out + 1] = { text = ch, em = char_em(cp), cp = cp, single = true }
+		elseif word then
+			word = { text = word.text .. ch, em = word.em + char_em(cp), cp = word.cp }
+		else
+			word = { text = ch, em = char_em(cp), cp = cp }
+		end
+	end
+	if word then
+		out[#out + 1] = word
+	end
+	return out
+end
+
+-- 去掉行尾空格后拼成一行
+local function join(line)
+	local last = #line
+	while last > 0 and line[last].cp == SPACE do
+		last = last - 1
+	end
+	local parts = {}
+	for i = 1, last do
+		parts[i] = line[i].text
+	end
+	return table.concat(parts)
+end
+
+-- 去掉最后一个 UTF-8 字符
+local function drop_last_char(s)
+	local i = #s
+	while i > 1 and s:byte(i) >= 0x80 and s:byte(i) < 0xC0 do
+		i = i - 1
+	end
+	return s:sub(1, i - 1)
+end
+
+-- 按 max_w 折行，最多 max_lines 行：放不下的，最后一行以「…」结尾。
+-- 一整行都放不下的词（路径、网址）按字切开；文字里的换行照样换行。
+function M.wrap(s, size, max_w, max_lines)
+	local limit = max_w / size
+	local lines, line, em = {}, {}, 0
+	local function newline()
+		lines[#lines + 1] = join(line)
+		line, em = {}, 0
+	end
+	local add
+	add = function(w)
+		if w.cp == NEWLINE then
+			newline()
+		elseif w.cp == SPACE and #line == 0 then
+			return -- 行首不留空格
+		elseif em + w.em <= limit or (#line == 0 and w.single) then
+			-- 窄到一个字都放不下时照样放：宁可出界也不丢字
+			line[#line + 1] = w
+			em = em + w.em
+		elseif w.cp == SPACE then
+			newline()
+		elseif w.em > limit and not w.single then
+			for ch, cp in chars(w.text) do
+				add({ text = ch, em = char_em(cp), cp = cp, single = true })
+			end
+		else
+			local carry = (NO_LINE_START[w.cp] and #line > 1) and table.remove(line) or nil
+			newline()
+			if carry then
+				add(carry)
+			end
+			add(w)
+		end
+	end
+	for _, w in ipairs(words(tostring(s or ""))) do
+		add(w)
+	end
+	if #line > 0 then
+		newline()
+	end
+	if #lines <= max_lines then
+		return lines
+	end
+	local out = {}
+	for i = 1, max_lines do
+		out[i] = lines[i]
+	end
+	-- 「…」按 1em 留位置：多数中文字体里它是全角宽
+	local last = out[max_lines]
+	while last ~= "" and M.text_width(last, size) + size > max_w do
+		last = drop_last_char(last)
+	end
+	out[max_lines] = last .. "…"
+	return out
 end
 
 ------------------------------------------------------------------------
@@ -161,6 +277,8 @@ local icons = {
 	-- 快退 / 快进 10 秒：一圈缺个角的环 + 箭头，「10」另用文字画
 	back = arc_path(12, 12.5, 8.6, 7, -90, 180, 28) .. " m 12 1.9 l 12 6 l 8.6 4",
 	forward = arc_path(12, 12.5, 8.6, 7, 0, 270, 28) .. " m 12 1.9 l 12 6 l 15.4 4",
+	-- 重试：顺时针一圈、左上留个口，口上一个朝右上的箭头
+	retry = arc_path(12, 12.5, 8.2, 6.2, -50, 220, 28) .. " m 3.7 5.6 l 9.4 4.4 l 9.2 10.2",
 }
 
 -- 把 24×24 格子里的路径缩放平移到 (x, y) 起、边长 size 的方块
