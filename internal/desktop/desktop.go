@@ -12,8 +12,10 @@
 package desktop
 
 import (
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/nagare-project/nagare/internal/mpv"
 )
@@ -30,20 +32,21 @@ type Options struct {
 // embeddedOptions 是进程内 libmpv 在 LaunchSpec 之外要多带的几条。
 //
 //   - vo=libmpv：画面经 render API 交给窗口画（macOS 0.37 起不再认 --wid，原型实测 mpv 会另开窗口）。
-//   - 不加载 thumbfast：它要另起一个命令行 mpv 生成缩略图，而嵌入时根本没有那个可执行文件；它在
-//     macOS 上的兜底是用 `ps -o comm=` 找「自己这个进程」的可执行文件 —— 那就是 nagare 本身，
-//     会把 nagare 当 mpv 拉起来。所以关掉配置目录里脚本的自动加载，只点名加载 nagare 的界面。
-//     TODO(desktop): 我们自己构建 libmpv 时（分支 ci/libmpv-macos）用 -Dcplayer=true 顺带出一个
-//     命令行 mpv 放进 .app，再把 thumbfast 加回来、把 thumbfast-mpv_path 指过去。缩略图尺寸也要那时
-//     一起处理：thumbfast 按 display-hidpi-scale 放大缩略图，render API 下读不到它 —— 经 script-opts
-//     传按宿主缩放算好的 thumbfast-max_width / thumbfast-max_height，不改 thumbfast.lua。
+//   - 不自动加载配置目录里的脚本，只点名加载 nagare 的界面，以及 thumbfast（thumbfast 为真时）。
+//     thumbfast 要另起一个命令行 mpv 生成缩略图；它在 macOS 上找不到 mpv 时的兜底是用 `ps -o comm=`
+//     找「自己这个进程」的可执行文件 —— 那就是 nagare 本身，会把 nagare 当 mpv 拉起来。所以只有确实
+//     有一个命令行 mpv 交给它（thumbnailMPV）时才加载它，否则整个不加载。
 //   - NAGARE_DESKTOP_MPV_LOG：开发时排查用的 mpv 日志（日志里会有媒体地址，只在显式设置时写）。
-func embeddedOptions(configDir string) []mpv.Option {
+func embeddedOptions(configDir string, thumbfast bool) []mpv.Option {
 	o := []mpv.Option{{Name: "vo", Kind: mpv.OptionString, Value: "libmpv"}}
 	if configDir != "" {
+		scripts := []string{filepath.Join(configDir, "scripts", "nagare")}
+		if thumbfast {
+			scripts = append(scripts, filepath.Join(configDir, filepath.FromSlash(mpv.ThumbfastScript)))
+		}
 		o = append(o,
 			mpv.Option{Name: "load-scripts", Kind: mpv.OptionFlag, Value: "no"},
-			mpv.Option{Name: "scripts", Kind: mpv.OptionList, Items: []string{filepath.Join(configDir, "scripts", "nagare")}},
+			mpv.Option{Name: "scripts", Kind: mpv.OptionList, Items: scripts},
 		)
 	}
 	if path := os.Getenv("NAGARE_DESKTOP_MPV_LOG"); path != "" {
@@ -52,9 +55,73 @@ func embeddedOptions(configDir string) []mpv.Option {
 	return o
 }
 
+// selfExecutable 返回 nagare 自己的可执行文件（解析过符号链接）。测试替换它。
+var selfExecutable = func() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(exe)
+}
+
+// thumbnailMPV 从起播参数里取出交给 thumbfast 的命令行 mpv（player 在探测到命令行 mpv 时给
+// thumbfast-mpv_path），确认它能用：绝对路径、是个普通文件、而且不是 nagare 自己。不能用就返回空串
+// 和原因 —— 嵌入时就不加载 thumbfast。
+func thumbnailMPV(scriptOpts []string) (string, string) {
+	path := mpv.ThumbfastMPVPath(scriptOpts)
+	if path == "" {
+		return "", "没有命令行 mpv"
+	}
+	if !filepath.IsAbs(path) {
+		return "", "命令行 mpv 的路径不是绝对路径"
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", "命令行 mpv 不存在"
+	}
+	st, err := os.Stat(resolved)
+	if err != nil || !st.Mode().IsRegular() {
+		return "", "命令行 mpv 不是普通文件"
+	}
+	self, err := selfExecutable()
+	if err != nil {
+		return "", "取不到 nagare 自己的路径，没法确认 thumbfast 不会把 nagare 当 mpv 拉起来"
+	}
+	if selfSt, err := os.Stat(self); err != nil || resolved == self || os.SameFile(st, selfSt) {
+		return "", "交给 thumbfast 的 mpv 就是 nagare 自己"
+	}
+	return path, ""
+}
+
+// thumbnailScriptOpts 按 thumbnailMPV 的结论改写 script-opts（返回新切片，不动传进来的）：
+// 能用就追加按屏幕缩放放大的缩略图尺寸（render API 下 thumbfast 读不到 display-hidpi-scale）；
+// 不能用就去掉 thumbfast-mpv_path（thumbfast 不加载，这一项没人读）。
+func thumbnailScriptOpts(scriptOpts []string, usable bool, hidpi float64) []string {
+	out := make([]string, 0, len(scriptOpts)+2)
+	for _, kv := range scriptOpts {
+		if !usable && strings.HasPrefix(kv, "thumbfast-mpv_path=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	if usable {
+		out = append(out, mpv.ThumbfastScaledSize(hidpi)...)
+	}
+	return out
+}
+
 // libmpvSpec 把一次起播翻成进程内 libmpv 的选项（命令行那份 + embeddedOptions）。
-func libmpvSpec(opts mpv.LaunchOptions, endpoint string) (mpv.LibmpvSpec, error) {
+// hidpi 是窗口所在屏幕的缩放（backingScaleFactor），只用来算缩略图尺寸。
+func libmpvSpec(opts mpv.LaunchOptions, endpoint string, hidpi float64) (mpv.LibmpvSpec, error) {
+	thumb := ""
+	if opts.ConfigDir != "" {
+		var why string
+		if thumb, why = thumbnailMPV(opts.ScriptOpts); thumb == "" {
+			log.Printf("desktop: 进度条不出缩略图：%s", why)
+		}
+	}
+	opts.ScriptOpts = thumbnailScriptOpts(opts.ScriptOpts, thumb != "", hidpi)
 	spec := mpv.NewLaunchSpec(opts, endpoint)
-	spec.Options = append(spec.Options, embeddedOptions(opts.ConfigDir)...)
+	spec.Options = append(spec.Options, embeddedOptions(opts.ConfigDir, thumb != "")...)
 	return spec.Libmpv()
 }

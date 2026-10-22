@@ -28,6 +28,9 @@ void nagare_desktop_show(void);
 // 在窗口的网页层载入 url 并把窗口提到前面。
 void nagare_desktop_open(const char *url);
 
+// 窗口所在屏幕的缩放（backingScaleFactor；还没有窗口就先建好）。阻塞到主线程做完（有上限）。
+// 返回 0 成功；失败时 *scale 为 1，*err 是 malloc 出来的中文说明（调用方 free）。
+int nagare_desktop_backing_scale(double *scale, char **err);
 // 起一个 mpv 会话：建句柄、设 opts（mpv_initialize 之前的选项）、初始化、发布 user-data、建渲染上下文、
 // 换到画面层。阻塞到主线程做完（有上限）。返回 0 成功；失败时 *err 是 malloc 出来的中文说明（调用方 free）。
 int nagare_desktop_start(const nagare_mpv_opt *opts, int n, char **err);

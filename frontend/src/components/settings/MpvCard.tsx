@@ -74,6 +74,12 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
           <dd className="result--ok">已就绪 ✓</dd>
           <dt>来源</dt>
           <dd>{SOURCE_LABEL.embedded}（不需要另装 mpv）</dd>
+          <dt>进度条缩略图</dt>
+          <dd>
+            {mpv.cli === undefined
+              ? '不可用（没有找到命令行 mpv，播放不受影响）'
+              : `可用 · mpv ${mpv.cli.version} · ${SOURCE_LABEL[mpv.cli.source]}`}
+          </dd>
         </dl>
       ) : mpv.found ? (
         <dl className="kv-list">

@@ -62,7 +62,8 @@ type Options struct {
 	RuntimeDir string        // 弹幕 ASS、IPC socket 等运行时文件目录
 	Launch     Launcher      // 为 nil 时用 mpv.Launch
 	// EmbeddedMPV：Launch 跑的是进程内 libmpv（macOS 桌面窗口，internal/desktop），不要 mpv 可执行文件
-	// —— 探测不到也照样起播，也不把命令行 mpv 的路径交给 thumbfast（桌面窗口里先不出缩略图）。
+	// —— 探测不到也照样起播。探测到了（Nagare.app 内置的 Contents/MacOS/mpv，开发时也可能是 Homebrew 的）
+	// 就把它交给 thumbfast 生成进度条缩略图；探测不到就不给，桌面窗口那边据此不加载 thumbfast。
 	EmbeddedMPV bool
 	// RemoteStallTimeout 控制在线媒体无进度的最长等待，非正值使用 45 秒。
 	RemoteStallTimeout time.Duration
@@ -218,13 +219,14 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 
 	startAt := m.resumeAt(item.FileID)
 
-	mpvPath := ""
+	// mpvPath 是要起的命令行 mpv（桌面窗口里为空）；thumbMPV 是交给 thumbfast 另起的那个
+	mpvPath, thumbMPV := "", m.thumbnailMPV()
 	if !m.opts.EmbeddedMPV {
 		path, err := m.mpvPath()
 		if err != nil {
 			return PlayResult{}, err
 		}
-		mpvPath = path
+		mpvPath, thumbMPV = path, path
 	}
 	configDir, noConfig, volume := m.uiLaunchOptions()
 	pl, err := m.opts.Launch(ctx, mpv.LaunchOptions{
@@ -240,7 +242,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 		Shaders:                m.shaders(),
 		ConfigDir:              configDir,
 		NoConfig:               noConfig,
-		ScriptOpts:             uiScriptOpts(configDir, mpvPath),
+		ScriptOpts:             uiScriptOpts(configDir, thumbMPV),
 		Volume:                 volume,
 	})
 	if err != nil {
@@ -387,6 +389,19 @@ func (m *Manager) mpvPath() (string, error) {
 			"mpv 不可用，无法播放", "按设置页的指引安装 mpv 后点「重新检测」", err)
 	}
 	return info.Path, nil
+}
+
+// thumbnailMPV 是桌面窗口里交给 thumbfast 的命令行 mpv：探测到了就用，探测不到是空串（不出缩略图，
+// 不算错误 —— 播放本身用的是进程内 libmpv）。命令行 mpv 的老路不走这里。
+func (m *Manager) thumbnailMPV() string {
+	if !m.opts.EmbeddedMPV || m.opts.MPV == nil {
+		return ""
+	}
+	info, err := m.opts.MPV.Get()
+	if err != nil {
+		return ""
+	}
+	return info.Path
 }
 
 // Stop 停止当前会话（若有）并等待进度落盘。

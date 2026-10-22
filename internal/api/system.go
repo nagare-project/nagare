@@ -40,18 +40,18 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 //
 // 桌面窗口（embedded）：播放用的是进程内 libmpv，命令行 mpv 有没有都不影响 ——
 // found 恒为真并带 embedded:true、source:"embedded"，不给安装指引。只认 found 的旧界面照样不再提示安装。
+// 探测到的命令行 mpv（Nagare.app 内置的 Contents/MacOS/mpv）另放在 cli 里：进度条缩略图靠它，
+// 没有它时缩略图不出（播放照常）。
 func mpvView(rt *mpv.Runtime, embedded bool) map[string]any {
-	if embedded {
-		return map[string]any{"found": true, "embedded": true, "source": "embedded"}
-	}
-	var (
-		info mpv.Info
-		err  error
-	)
-	if rt != nil {
-		info, err = rt.Get()
-	}
+	info, err := runtimeInfo(rt)
 	found := err == nil && info.Path != ""
+	if embedded {
+		view := map[string]any{"found": true, "embedded": true, "source": "embedded"}
+		if found {
+			view["cli"] = map[string]any{"path": info.Path, "version": info.Version, "source": info.Source}
+		}
+		return view
+	}
 	view := map[string]any{"found": found}
 	if found {
 		view["path"] = info.Path
@@ -66,6 +66,14 @@ func mpvView(rt *mpv.Runtime, embedded bool) map[string]any {
 	view["hint"] = hint
 	view["install"] = mpv.InstallGuide()
 	return view
+}
+
+// runtimeInfo 读共享探测状态；rt 为 nil（测试里的 Handler）时当作还没探测。
+func runtimeInfo(rt *mpv.Runtime) (mpv.Info, error) {
+	if rt == nil {
+		return mpv.Info{}, nil
+	}
+	return rt.Get()
 }
 
 // mpvDetect 重新探测 mpv（用户按指引装好后点「重新检测」），更新共享状态并返回新视图。

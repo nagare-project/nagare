@@ -661,6 +661,17 @@ void nagare_desktop_open(const char *url) {
   });
 }
 
+int nagare_desktop_backing_scale(double *scale, char **err) {
+  __block double v = 1;
+  int r = runOnMainAndWait(^NSString * {
+    ensureWindow();
+    v = gWin.backingScaleFactor;
+    return nil;
+  }, err);
+  *scale = v;
+  return r;
+}
+
 int nagare_desktop_start(const nagare_mpv_opt *opts, int n, char **err) {
   NSArray *arr = toArray(opts, n);
   if (!arr) {
