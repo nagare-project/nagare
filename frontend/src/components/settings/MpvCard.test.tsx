@@ -213,3 +213,29 @@ describe('MpvCard · 已找到', () => {
     expect(m.container.textContent).toContain(expected)
   })
 })
+
+describe('MpvCard · 播放窗口', () => {
+  it('在 nagare 自己的窗口里播：显示一行，不报警', async () => {
+    const m = await mount(<MpvCard mpv={FOUND} desktop={{ window: true }} onReload={vi.fn()} />)
+    mounted.push(m.unmount)
+    expect(m.container.textContent).toContain('nagare 自己的窗口')
+    expect(m.container.querySelector('[role="note"]')).toBeNull()
+  })
+
+  it('退回浏览器模式：照原文显示原因（里面写着怎么装 WebView2）', async () => {
+    const reason = '这台电脑上没有可用的 WebView2 运行时。从 https://developer.microsoft.com/microsoft-edge/webview2/ 装上'
+    const m = await mount(<MpvCard mpv={FOUND} desktop={{ window: false, fallback: reason }} onReload={vi.fn()} />)
+    mounted.push(m.unmount)
+    expect(m.container.textContent).toContain('浏览器 + 单独的 mpv 窗口')
+    expect(m.container.querySelector('[role="note"]')?.textContent).toBe(reason)
+  })
+
+  it('没有桌面窗口可谈（Linux、旧后端）：什么都不画', async () => {
+    const m = await mount(<MpvCard mpv={FOUND} desktop={{ window: false }} onReload={vi.fn()} />)
+    mounted.push(m.unmount)
+    expect(m.container.textContent).not.toContain('播放窗口')
+    const old = await mount(<MpvCard mpv={FOUND} onReload={vi.fn()} />)
+    mounted.push(old.unmount)
+    expect(old.container.textContent).not.toContain('播放窗口')
+  })
+})

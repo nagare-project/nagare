@@ -166,6 +166,24 @@ zlib、bzip2、iconv 用的是 macOS 系统自带的，不随包分发。组件�
 
 仅用于测试、不进入二进制：github.com/stretchr/testify（MIT）。
 
+## Windows 桌面窗口的 WebView2 绑定
+
+Windows 版 nagare 自己的窗口用 WebView2 显示界面。绑定代码拷进了本仓库
+（[`internal/webview2/`](internal/webview2/)，导入路径改成了本仓库的，改动都标着 `nagare patch`，清单见
+[`internal/webview2/doc.go`](internal/webview2/doc.go)），编译进 nagare.exe：
+
+| | |
+| --- | --- |
+| 来源 | [wailsapp/go-webview2](https://github.com/wailsapp/go-webview2) v1.0.23（commit `e08e939`），原作 [jchv/go-webview2](https://github.com/jchv/go-webview2) |
+| `edge/`、`combridge/`、`w32/` | MIT，Copyright (c) 2020 John Chadwick，部分 Copyright (c) 2017 Serge Zaitsev（[`internal/webview2/LICENSE`](internal/webview2/LICENSE)） |
+| `webviewloader/`（OpenWebView2Loader 的 Go 移植） | ISC，Copyright (c) 2020 John Chadwick、(c) 2022 Wails Project Developers（[`internal/webview2/webviewloader/LICENSE`](internal/webview2/webviewloader/LICENSE)） |
+
+WebView2 运行时本身不随 nagare 分发：它是系统组件（Windows 11 自带，绝大多数 Windows 10 已装），由
+Windows 自己更新。没有时，`nagare-<版本>_Windows_x86_64-setup.exe` 安装过程中会运行内嵌的
+**Microsoft Edge WebView2 Runtime Evergreen Bootstrapper**（`MicrosoftEdgeWebview2Setup.exe`，微软签名，
+按微软的 WebView2 分发条款随应用再分发；钉死记录见 [`scripts/windows/webview2.lock`](scripts/windows/webview2.lock)），
+由它下载安装运行时。便携 zip 不带它：没有运行时就改在浏览器里打开界面。
+
 ## 内置的 Anime4K 着色器
 
 设置页「画质增强」用的 GLSL 着色器内嵌在 nagare 二进制里（[`internal/mpv/anime4k/`](internal/mpv/anime4k/)），

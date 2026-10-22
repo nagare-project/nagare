@@ -271,6 +271,16 @@ export interface BackgroundInfo {
   mode: BackgroundMode
 }
 
+/**
+ * 桌面窗口（播放在 nagare 自己的窗口里）此刻的状态。
+ * fallback 非空：本来要用窗口、但用不了（Windows 上没有 WebView2 运行时，或者它起不来），退回了浏览器模式 ——
+ * 界面在浏览器里、mpv 单独开窗口。内容是后端给的中文原因（含怎么装运行时）。
+ */
+export interface DesktopInfo {
+  window: boolean
+  fallback?: string
+}
+
 export interface SettingsData {
   version: string
   platform: Platform
@@ -287,6 +297,8 @@ export interface SettingsData {
   player: PlayerSettings
   /** 后台形态（界面顶部「关掉标签页不会退出」提示条据此措辞） */
   background: BackgroundInfo
+  /** 桌面窗口的状态；旧后端没有这个字段 */
+  desktop?: DesktopInfo
 }
 
 // ---------- 播放器设置 ----------
