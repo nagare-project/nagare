@@ -82,7 +82,8 @@ tag 推上去会触发 `release.yml`，产出一个 **draft** Release。人工�
 - [ ] `mpv-sources/` 两个都在（GPL 合规，流水线的「校验 mpv 的对应源码都在」一步会查）：
       `mpv-winbuild-cmake-<提交>.tar.gz`（Windows 包内置 mpv 的构建脚本快照）与
       `libmpv-macos-source-<构建号>.tar.gz`（Nagare.app 里 libmpv 的完整对应源码，约 65 MB）
-- [ ] dmg 约 65–70 MB、`.app.zip` 约 60 MB（v0.6.1 是 41.8 / 36.6 MB；差的那部分是 libmpv 与命令行 mpv）
+- [ ] dmg 约 68 MB、`.app.zip` 约 61 MB（2026-10-23 snapshot 实测 67.8 / 61.3 MB；v0.6.1 是 41.8 / 36.6 MB，
+      多出来的是 `Contents/Frameworks` 的 42 MB 库与 7.7 MB 的命令行 mpv）
 - [ ] **点了 Publish release 之后**，`nagare-project/scoop-nagare` 的 `bucket/nagare.json`
       版本号是新的（draft 期间它指向的地址还是 404，见「可选渠道：Scoop bucket」）
 - [ ] **点了 Publish release 之后**，`release.yml` 的 `homebrew` job 自动跑起来了，

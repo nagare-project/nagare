@@ -79,12 +79,12 @@ mbedTLS 不读系统钥匙串。mpv 默认 `tls-verify=no`（与其他平台的 
 mpv 的 GPL 专属代码（X11、OSS、JACK、DVD、CDDA、DVB、caca、direct3d）在 macOS 上一个都不编，
 所以以后真需要 LGPL 版，把 `-Dgpl=false` 即可得到 LGPL-3.0-or-later 的一套。
 整套合起来按 GPL-3.0-or-later 分发；nagare 是 AGPL-3.0，同进程链接是兼容的（GPLv3 / AGPLv3 §13）。
-`THIRD_PARTY_NOTICES.md` 里「mpv 是独立进程、没有链接」那段在 macOS 接进来时要改写。
+`THIRD_PARTY_NOTICES.md` 的「macOS 包内置的 libmpv 与命令行 mpv」一节写的就是这件事。
 
 **随二进制要提供的对应源码：** CI 的第二个 artifact（`libmpv-macos-source-*.tar.gz`），
 由 [`source-bundle.sh`](source-bundle.sh) 生成：`versions.lock` 里的全部上游源码归档（逐个校验过
 sha256）+ 本目录全部脚本、补丁、测试 + CI 工作流 + 重新构建的说明。发版时它和二进制一起挂在
-同一个 Release 上。
+同一个 Release 上（`build-app.sh` 放进 `dist/mpv-sources/`，`scripts/release/check-gpl-sources.sh` 查它在不在）。
 
 ## 本地构建
 

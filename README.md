@@ -66,7 +66,7 @@ nagare 没有购买代码签名证书（原因见下方「为什么会有警告�
 系统要求：**macOS 13 或更新**（Intel 与 Apple Silicon 通用）。
 
 `Nagare.app` **自带 mpv**（libmpv 与命令行 mpv，nagare 自己从源码构建），视频就在 nagare 自己的窗口里播放，
-不用另装 mpv。dmg 约 65 MB（以前约 42 MB，多出来的是 mpv 与它的解码库）。
+不用另装 mpv。dmg 约 68 MB（以前约 42 MB，多出来的是 mpv 与它的解码库）。
 
 用 [Homebrew](https://brew.sh) 装：
 
