@@ -10,7 +10,7 @@
 
 static NSMutableArray *gTargets;  // [命令, 目标] 成对存，撤销时用
 
-static void bind(MPRemoteCommand *cmd, NSString *key) {
+static void bindMediaKey(MPRemoteCommand *cmd, NSString *key) {
   id target = [cmd addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
     nagareOnMain(^{
       nagareCommand(@[ @"keypress", key ]);
@@ -25,11 +25,11 @@ void nagareMediaKeysStart(void) {
   if (gTargets) return;
   gTargets = [NSMutableArray array];
   MPRemoteCommandCenter *c = [MPRemoteCommandCenter sharedCommandCenter];
-  bind(c.nextTrackCommand, @"NEXT");
-  bind(c.previousTrackCommand, @"PREV");
-  bind(c.togglePlayPauseCommand, @"PLAYPAUSE");
-  bind(c.playCommand, @"PLAY");
-  bind(c.pauseCommand, @"PAUSE");
+  bindMediaKey(c.nextTrackCommand, @"NEXT");
+  bindMediaKey(c.previousTrackCommand, @"PREV");
+  bindMediaKey(c.togglePlayPauseCommand, @"PLAYPAUSE");
+  bindMediaKey(c.playCommand, @"PLAY");
+  bindMediaKey(c.pauseCommand, @"PAUSE");
   [MPNowPlayingInfoCenter defaultCenter].playbackState = MPNowPlayingPlaybackStatePlaying;
 }
 
