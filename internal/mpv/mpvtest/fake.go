@@ -29,6 +29,8 @@ type Reply struct {
 	Events []map[string]any
 	// Close 在应答（与 Events）之后断开连接，不发 shutdown，模拟 mpv 被强杀。
 	Close bool
+	// Hang：这条命令不应答（模拟卡住的 mpv），其余字段不起作用。
+	Hang bool
 }
 
 // Hook 决定一条命令怎么应答；返回 nil 走默认应答。在 server 的读循环里同步调用，不得阻塞。
@@ -151,6 +153,9 @@ func runHooks(hooks []Hook, cmd []any) *Reply {
 
 // answer 写出钩子给的应答与随后的事件；返回 false 表示连接已按钩子要求断开。
 func (f *Fake) answer(conn net.Conn, requestID json.RawMessage, r Reply) bool {
+	if r.Hang {
+		return true
+	}
 	status := r.Error
 	if status == "" {
 		status = "success"

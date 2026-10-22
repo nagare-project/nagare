@@ -244,6 +244,8 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	pb := newPlayback(pl)
 	sess := m.newSession(pb, src, item, title)
 	pb.setEpisode(sess)
+	// 在后台解析开始之前取：之后读到的可能已经是解析结果，与「立即返回、弹幕后台解析」的约定不符
+	loading := sess.danmakuInfo()
 	m.mu.Lock()
 	m.current = pb
 	m.mu.Unlock()
@@ -251,7 +253,7 @@ func (m *Manager) Play(ctx context.Context, src MediaSource, subPath string) (Pl
 	go m.watchRemoteProgress(pb)
 	go m.resolveDanmaku(sess)
 
-	return PlayResult{FileID: item.FileID, Title: title, Danmaku: sess.danmakuInfo(), PlaybackID: pb.id}, nil
+	return PlayResult{FileID: item.FileID, Title: title, Danmaku: loading, PlaybackID: pb.id}, nil
 }
 
 // isNetworkStream 判断交给 mpv 的是不是一条 HTTP 流（磁力边下边播、在线候选），
@@ -292,7 +294,8 @@ const danmakuResolveTimeout = 120 * time.Second
 
 // resolveDanmaku 在后台完成 懒哈希 → 匹配 → 弹幕 ASS，把结果落回 session，
 // 最后关闭 danmakuReady 通知事件循环可以编排字幕轨了。用这一集的 ctx 而不是 Play 的请求 ctx：
-// 后者随响应返回就取消了；这一集收尾（关窗、换集）时它跟着收手，不再为没人看的一集等磁力头部。
+// 后者随响应返回就取消了。关窗时这一集的 ctx 不取消，解析照样做完、把绑定与指纹落盘；
+// 窗口里换到别的集时才取消（见 newSession）。
 func (m *Manager) resolveDanmaku(sess *session) {
 	defer close(sess.danmakuReady)
 	ctx, cancel := context.WithTimeout(sess.ctx, danmakuResolveTimeout)

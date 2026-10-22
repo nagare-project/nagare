@@ -167,8 +167,10 @@ func TestIntegration_RealMPVLoadsNagareUI(t *testing.T) {
 
 // itTrack 是 track-list 里这里关心的字段。
 type itTrack struct {
+	ID       int    `json:"id"`
 	Type     string `json:"type"`
 	External bool   `json:"external"`
+	Selected bool   `json:"selected"`
 }
 
 func hasExternalSub(tracks []itTrack) bool {
@@ -180,11 +182,14 @@ func hasExternalSub(tracks []itTrack) bool {
 	return false
 }
 
-// 验收：同一个 mpv 进程里 LoadNext 换文件，上一个文件的「全局选项」不能带过去 ——
-// 起播位置（--start）、外挂字幕（--sub-file）、强制标题、轨道编排关掉的可见性。
-// 同时钉住 mpv 换文件时的事件顺序：上一个文件 end-file(stop) → start-file → file-loaded，
-// 播放层靠这个顺序分清新旧文件的事件。没装 mpv 或 ffmpeg 就跳过。
-func TestIntegration_LoadNextResetsPerFileOptions(t *testing.T) {
+// nextFileFixture 是两集测试片：第一集 30 秒、配一个外挂字幕；第二集 30 秒、内嵌一条默认字幕轨
+// （没被上一集的 sid=no 带歪的话，mpv 会自动选中它）。
+type nextFileFixture struct {
+	mpvPath, dir, first, second, sub string
+}
+
+func newNextFileFixture(t *testing.T) nextFileFixture {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("-short 模式跳过真 mpv 集成测试")
 	}
@@ -202,20 +207,30 @@ func TestIntegration_LoadNextResetsPerFileOptions(t *testing.T) {
 	dir, err := os.MkdirTemp("", "nagnx")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	first, second := filepath.Join(dir, "a.mkv"), filepath.Join(dir, "b.mkv")
-	for _, media := range []string{first, second} {
-		out, err := exec.Command(ffmpeg, "-y", "-f", "lavfi", "-i", "testsrc2=duration=20:size=160x90:rate=5",
-			"-c:v", "libx264", "-preset", "ultrafast", media).CombinedOutput()
-		require.NoError(t, err, "ffmpeg 生成测试视频失败：%s", out)
-	}
-	sub := filepath.Join(dir, "a.srt")
-	require.NoError(t, os.WriteFile(sub, []byte("1\n00:00:00,000 --> 00:00:20,000\n第一集的对白\n"), 0o600))
+	fx := nextFileFixture{mpvPath: info.Path, dir: dir,
+		first: filepath.Join(dir, "a.mkv"), second: filepath.Join(dir, "b.mkv"), sub: filepath.Join(dir, "a.srt")}
+	require.NoError(t, os.WriteFile(fx.sub, []byte("1\n00:00:00,000 --> 00:00:30,000\n第一集的对白\n"), 0o600))
+	// 不能叫 b.srt：mpv 默认按同名自动加载外挂字幕（sub-auto=exact），会把它当成第二集的外挂轨
+	embedded := filepath.Join(dir, "embed-src.srt")
+	require.NoError(t, os.WriteFile(embedded, []byte("1\n00:00:00,000 --> 00:00:30,000\n第二集的对白\n"), 0o600))
+	video := []string{"-y", "-f", "lavfi", "-i", "testsrc2=duration=30:size=160x90:rate=5"}
+	out, err := exec.Command(ffmpeg, append(video, "-c:v", "libx264", "-preset", "ultrafast", fx.first)...).CombinedOutput()
+	require.NoError(t, err, "ffmpeg 生成测试视频失败：%s", out)
+	out, err = exec.Command(ffmpeg, append(video, "-i", embedded, "-map", "0", "-map", "1",
+		"-c:v", "libx264", "-preset", "ultrafast", "-c:s", "srt", "-disposition:s:0", "default", fx.second)...).CombinedOutput()
+	require.NoError(t, err, "ffmpeg 生成测试视频失败：%s", out)
+	return fx
+}
 
+// launchFirst 起第一集（--start=+8、--sub-file、--title），等它真的在播，再模拟上一集运行时留下的
+// 状态：用户关掉了字幕（sid=no），轨道编排关掉了弹幕可见性。
+func (fx nextFileFixture) launchFirst(t *testing.T) *Player {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	p, err := Launch(ctx, LaunchOptions{
-		MPVPath: info.Path, MediaPath: first, SubPath: sub, Title: "第一集", StartAt: 8,
-		SocketDir: dir, NoConfig: true,
+		MPVPath: fx.mpvPath, MediaPath: fx.first, SubPath: fx.sub, Title: "第一集", StartAt: 8,
+		SocketDir: fx.dir, NoConfig: true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = p.Close() })
@@ -228,53 +243,103 @@ func TestIntegration_LoadNextResetsPerFileOptions(t *testing.T) {
 	var tracks []itTrack
 	require.NoError(t, p.GetProperty("track-list", &tracks))
 	require.True(t, hasExternalSub(tracks), "第一个文件应挂着 --sub-file 的外挂字幕")
-	// 模拟上一集的轨道编排关掉了弹幕可见性
+	require.NoError(t, p.SetProperty("sid", "no"))
 	require.NoError(t, p.SetProperty("sub-visibility", false))
 	require.NoError(t, p.SetProperty("secondary-sub-visibility", false))
 	drainEvents(p)
+	return p
+}
 
-	require.NoError(t, p.LoadNext(NextFile{Path: second, Title: "第二集"}))
-
+// awaitNextLoaded 等第二个文件加载好，返回途中收到的生命周期事件。
+func awaitNextLoaded(t *testing.T, p *Player) []string {
+	t.Helper()
 	var seen []string
 	deadline := time.After(10 * time.Second)
-	for loaded := false; !loaded; {
+	for {
 		select {
 		case ev := <-p.Events():
 			switch ev.Kind {
 			case EventEnded:
 				seen = append(seen, "Ended:"+ev.Reason)
-			case EventFileStarted, EventFileLoaded:
+			case EventFileStarted:
 				seen = append(seen, ev.Kind.String())
-				loaded = ev.Kind == EventFileLoaded
+			case EventFileLoaded:
+				return append(seen, ev.Kind.String())
 			}
 		case <-deadline:
 			t.Fatalf("10 秒内没等到第二个文件加载好，收到的事件：%v", seen)
+			return nil
 		}
 	}
-	assert.Equal(t, []string{"Ended:stop", "FileStarted", "FileLoaded"}, seen)
+}
 
+func timePos(t *testing.T, p *Player) float64 {
+	t.Helper()
 	var pos float64
 	require.NoError(t, p.GetProperty("time-pos", &pos))
-	assert.Less(t, pos, 4.0, "第二个文件要从头播，不能沿用第一个文件的 --start=+8")
-	var path, mediaTitle, start string
-	require.NoError(t, p.GetProperty("path", &path))
-	assert.Equal(t, second, path)
-	require.NoError(t, p.GetProperty("media-title", &mediaTitle))
-	assert.Equal(t, "第二集", mediaTitle)
-	require.NoError(t, p.GetProperty("start", &start))
-	assert.Equal(t, "none", start)
-	var subFiles []string
-	require.NoError(t, p.GetProperty("sub-files", &subFiles))
-	assert.Empty(t, subFiles)
-	tracks = nil
-	require.NoError(t, p.GetProperty("track-list", &tracks))
-	assert.False(t, hasExternalSub(tracks), "第一个文件的外挂字幕不能挂到第二个文件上")
-	for _, name := range []string{"sub-visibility", "secondary-sub-visibility"} {
-		var visible bool
-		require.NoError(t, p.GetProperty(name, &visible))
-		assert.True(t, visible, "%s 要复位", name)
-	}
+	return pos
+}
 
-	require.NoError(t, p.Close())
-	require.NoError(t, p.Err())
+// 验收：同一个 mpv 进程里 LoadNext 换文件，上一个文件的「全局选项」不能带过去 ——
+// 起播位置（--start）、外挂字幕（--sub-file）、强制标题、字幕轨选择、轨道编排关掉的可见性。
+// 同时钉住 mpv 换文件时的事件顺序：上一个文件 end-file(stop) → start-file → file-loaded，
+// 播放层靠这个顺序分清新旧文件的事件。没装 mpv 或 ffmpeg 就跳过。
+func TestIntegration_LoadNextResetsPerFileOptions(t *testing.T) {
+	fx := newNextFileFixture(t)
+
+	t.Run("从头播并复位全部选项", func(t *testing.T) {
+		p := fx.launchFirst(t)
+		require.NoError(t, p.LoadNext(NextFile{Path: fx.second, Title: "第二集"}))
+		assert.Equal(t, []string{"Ended:stop", "FileStarted", "FileLoaded"}, awaitNextLoaded(t, p))
+
+		assert.Less(t, timePos(t, p), 4.0, "第二个文件要从头播，不能沿用第一个文件的 --start=+8")
+		var path, mediaTitle, start string
+		require.NoError(t, p.GetProperty("path", &path))
+		assert.Equal(t, fx.second, path)
+		require.NoError(t, p.GetProperty("media-title", &mediaTitle))
+		assert.Equal(t, "第二集", mediaTitle)
+		require.NoError(t, p.GetProperty("start", &start))
+		assert.Equal(t, "none", start)
+		var subFiles []string
+		require.NoError(t, p.GetProperty("sub-files", &subFiles))
+		assert.Empty(t, subFiles)
+		var tracks []itTrack
+		require.NoError(t, p.GetProperty("track-list", &tracks))
+		assert.False(t, hasExternalSub(tracks), "第一个文件的外挂字幕不能挂到第二个文件上")
+		var sid any
+		require.NoError(t, p.GetProperty("sid", &sid))
+		assert.Equal(t, float64(1), sid, "上一集的 sid=no 不能带过来：第二集的默认字幕轨要被选中")
+		for _, name := range []string{"sub-visibility", "secondary-sub-visibility"} {
+			var visible bool
+			require.NoError(t, p.GetProperty(name, &visible))
+			assert.True(t, visible, "%s 要复位", name)
+		}
+		require.NoError(t, p.Close())
+		require.NoError(t, p.Err())
+	})
+
+	t.Run("续播位置落在新文件上", func(t *testing.T) {
+		p := fx.launchFirst(t)
+		require.NoError(t, p.LoadNext(NextFile{Path: fx.second, Title: "第二集", StartAt: 17}))
+		awaitNextLoaded(t, p)
+		pos := timePos(t, p)
+		assert.GreaterOrEqual(t, pos, 16.5)
+		assert.Less(t, pos, 20.0, "要从 17 秒起播，而不是第一个文件的 8 秒或片头")
+	})
+
+	// 反证：不复位直接 loadfile，上一个文件的 --start=+8 就会带到下一个文件上 ——
+	// 证明上面两条测的不是一个本来就不会发生的问题。
+	t.Run("对照：裸 loadfile 会沿用上一集的起播位置", func(t *testing.T) {
+		p := fx.launchFirst(t)
+		_, err := p.Command("loadfile", fx.second, "replace")
+		require.NoError(t, err)
+		awaitNextLoaded(t, p)
+		assert.GreaterOrEqual(t, timePos(t, p), 8.0)
+		var subFiles []string
+		require.NoError(t, p.GetProperty("sub-files", &subFiles))
+		assert.NotEmpty(t, subFiles, "不复位时 --sub-file 也会留着")
+		var sid any
+		require.NoError(t, p.GetProperty("sid", &sid))
+		assert.Equal(t, false, sid, "不复位时上一集的 sid=no 会让第二集的默认字幕轨不被选中")
+	})
 }

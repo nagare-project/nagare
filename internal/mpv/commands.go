@@ -178,59 +178,107 @@ type NextFile struct {
 	StartAt float64
 }
 
-// propReset 是换文件前要设的一个属性。
+// propReset 是换文件时要设的一个属性。
 type propReset struct {
 	name  string
 	value any
 }
 
-// nextFileResets 是换文件前要复位、但失败也不至于播错的选项（失败只记日志）。
+// 换文件时要复位的选项，分两批（真 mpv 0.41 上逐条验过，见 integration_test.go）。
 //
 // 这些都是全局选项：启动参数或上一集运行时设的属性（轨道编排设过 sid / secondary-sid /
-// 可见性）会原样带到下一个文件。复位不了的后果是字幕选错、弹幕开关沿用，播放本身不受影响。
-// speed（倍速）刻意不在这里：用户调过的倍速跟着走。
-var nextFileResets = []propReset{
-	{"sid", "auto"},
-	{"aid", "auto"},
-	{"secondary-sid", "no"},
-	{"sub-visibility", true},
-	{"secondary-sub-visibility", true},
-}
+// 可见性）会原样带到下一个文件。复位不了的后果是字幕选错、弹幕开关沿用，播放本身不受影响，
+// 所以都只记日志。speed（倍速）刻意不复位：用户调过的倍速跟着走。
+var (
+	// beforeLoadResets 在 loadfile 之前设：设成 auto 只改「下一个文件怎么选轨」，正在播的文件
+	// 选中的轨道不动。必须在 loadfile 之前 —— auto 晚到（新文件已经选完轨）就不会再选一次。
+	beforeLoadResets = []propReset{
+		{"sid", "auto"},
+		{"aid", "auto"},
+	}
+	// afterLoadResets 在 loadfile 排上之后设：它们会立刻改动正在播的文件（secondary-sid=no 会
+	// 摘掉上一集的弹幕轨），loadfile 被拒时上一集得原样留着。都是明确的值，晚到也照样生效。
+	afterLoadResets = []propReset{
+		{"secondary-sid", "no"},
+		{"sub-visibility", true},
+		{"secondary-sub-visibility", true},
+	}
+)
 
 // LoadNext 在同一个 mpv 进程里换到下一个文件：窗口、全屏、音量、着色器、倍速都保住。
 //
-// 必须复位的两项先做：起播位置（--start 是全局选项，不复位的话下一集从上一集的续播点起播）
-// 与外挂字幕（--sub-file 对之后的每个文件都生效，上一集的对白字幕会挂到下一集上）。
-// 任一失败就不发 loadfile，原文件照常播。其余复位失败只记日志。
+// 顺序：起播位置与外挂字幕（必须成功：--start 是全局选项，不复位的话下一集从上一集的续播点
+// 起播；--sub-file 对之后每个文件都生效，上一集的对白字幕会挂到下一集上）→ 轨道选择回到 auto →
+// loadfile → 标题与弹幕轨 / 可见性。loadfile 之前任何一步因 mpv 已退出或不应答而失败，都不发
+// loadfile，原文件照常播；loadfile 排上之后的失败只记日志，换集照样发生。
 //
 // loadfile 只是排队：返回 nil 不代表新文件能播，打不开会以 end-file(error) 出现在事件里。
+// 返回的错误里不带命令参数（流端点地址含能力段）。
 func (p *Player) LoadNext(f NextFile) error {
 	start := "none"
 	if f.StartAt > 0 {
 		start = fmt.Sprintf("+%.3f", f.StartAt)
 	}
-	if err := p.SetProperty("start", start); err != nil {
-		return loadNextErr(err)
-	}
-	// 必须是空数组：nil 切片会序列化成 null
-	if err := p.SetProperty("sub-files", []string{}); err != nil {
-		return loadNextErr(err)
-	}
-
-	resets := []propReset{{"force-media-title", f.Title}}
-	if f.Title != "" {
-		resets = append(resets, propReset{"title", f.Title})
-	}
-	for _, r := range append(resets, nextFileResets...) {
-		if err := p.SetProperty(r.name, r.value); err != nil {
-			log.Printf("mpv: 换下一集前复位 %s 失败（照样换）：%v", r.name, err)
+	// sub-files 必须是空数组：nil 切片会序列化成 null
+	for _, r := range []propReset{{"start", start}, {"sub-files", []string{}}} {
+		if err := p.setWhileAlive(r); err != nil {
+			return loadNextErr(err)
 		}
 	}
-
-	if _, err := p.ipc.call("loadfile", f.Path, "replace"); err != nil {
+	if err := p.resetBestEffort(beforeLoadResets); err != nil {
 		return loadNextErr(err)
 	}
+	if err := p.aliveErr(); err != nil {
+		return loadNextErr(err)
+	}
+	if _, err := p.ipc.callRedacted("loadfile", f.Path, "replace"); err != nil {
+		return loadNextErr(err)
+	}
+
+	after := []propReset{{"force-media-title", f.Title}}
+	if f.Title != "" {
+		// 没给标题时窗口标题不复位：mpv 默认的窗口标题是一串属性展开式，与其照抄过来，
+		// 不如留着上一集的（调用方总会给标题，这里只是兜底）。media-title 清空即可显示文件名。
+		after = append(after, propReset{"title", f.Title})
+	}
+	if err := p.resetBestEffort(append(after, afterLoadResets...)); err != nil {
+		log.Printf("mpv: 下一集已经排上，后面的复位没做完：%v", err)
+	}
 	return nil
+}
+
+// setWhileAlive 设一个属性；mpv 已退出时不再发命令。
+func (p *Player) setWhileAlive(r propReset) error {
+	if err := p.aliveErr(); err != nil {
+		return err
+	}
+	return p.SetProperty(r.name, r.value)
+}
+
+// resetBestEffort 逐个设属性，单个失败只记日志；mpv 已退出或不应答时停下并返回错误 ——
+// 卡死的 mpv 对后面的命令也不会应答，别为每一条都等满超时。
+func (p *Player) resetBestEffort(resets []propReset) error {
+	for _, r := range resets {
+		err := p.setWhileAlive(r)
+		if err == nil {
+			continue
+		}
+		if p.aliveErr() != nil || isNoResponse(err) {
+			return err
+		}
+		log.Printf("mpv: 换下一集时复位 %s 失败（照样换）：%v", r.name, err)
+	}
+	return nil
+}
+
+// aliveErr 在 mpv 已经退出（或连接已断）时返回错误。
+func (p *Player) aliveErr() error {
+	select {
+	case <-p.done:
+		return errors.New("mpv 已经退出")
+	default:
+		return nil
+	}
 }
 
 // loadNextErr 是换集失败给用户看的说法：原文件还在播，恢复动作是从网页上重新开始。

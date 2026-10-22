@@ -42,7 +42,8 @@ type session struct {
 	// assTarget 是这一集弹幕 ASS 的落点，每集唯一 —— 快速切集时两个后台
 	// 解析不会撞同一个文件。这一集收尾时删除。
 	assTarget string
-	// ctx 跟着这一集：收尾（播完、关窗、换到别的集）时取消，后台弹幕解析随之收手。
+	// ctx 跟着这一集，后台弹幕解析用它。关窗时不取消（解析照样做完、落盘，见 newSession）；
+	// 只有在同一个窗口里换到别的集时，才由换集那边调 cancel 让被换走那一集的解析收手。
 	ctx    context.Context
 	cancel context.CancelFunc
 	// endOnce：收尾（最后一次进度、删弹幕文件、回写账号）每集恰好一次。

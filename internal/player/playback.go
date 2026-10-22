@@ -28,7 +28,8 @@ type playback struct {
 	player *mpv.Player
 	// finished 在窗口收尾全部做完后关闭（Stop 等的就是它）。
 	finished chan struct{}
-	// ctx 是窗口的存活期，窗口终结时取消；每一集的 ctx 都从它派生。
+	// ctx 是窗口的存活期，窗口终结时取消。给窗口里的准备工作用（切集时准备下一集）；
+	// 每一集自己的 ctx 刻意不从它派生，见 newSession。
 	ctx    context.Context
 	cancel context.CancelFunc
 	// bg 是窗口里的后台工作（「看完」回写）。窗口收尾时有限期地等它们做完。
@@ -65,8 +66,12 @@ func (pb *playback) setEpisode(sess *session) {
 }
 
 // newSession 为窗口 pb 造一集。弹幕先标「正在匹配」，后台解析完再落定。
+//
+// 这一集的 ctx 不从窗口的 ctx 派生：关掉窗口时后台匹配要照样做完，把绑定与文件指纹落盘，
+// 下次播放直接用（关窗之前就是这样）。只有在同一个窗口里换到别的集时，才取消被换走那一集
+// 的 ctx（sess.cancel）——那时它的弹幕已经没人要了，磁力头部也不必再等。
 func (m *Manager) newSession(pb *playback, src MediaSource, item library.Item, title string) *session {
-	ctx, cancel := context.WithCancel(pb.ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	return &session{
 		src:          src,
 		item:         item,
@@ -99,6 +104,20 @@ type episodeLoop struct {
 	endedReason string // mpv 报的最近一次结束原因
 }
 
+// noteEnded 记下这一集的结束原因（窗口终结时据此判断看完与否、是不是播放失败）。
+//
+// 现在跟着 Ended 走：keep-open=no，每个文件播完都有一个 Ended。开了 keep-open 之后要改跟
+// EventEOF / EventEOFCleared 的沿 —— 拖回去再播到尾不会再来 Ended，停在尾巴上换集也没有 Ended(stop)。
+func (l *episodeLoop) noteEnded(ev mpv.Event) {
+	if ev.Kind != mpv.EventEnded {
+		return
+	}
+	l.endedReason = ev.Reason
+	if ev.Reason == "eof" {
+		l.sawEOF = true
+	}
+}
+
 func newEpisodeLoop(sess *session) *episodeLoop {
 	return &episodeLoop{
 		sess:         sess,
@@ -127,7 +146,25 @@ func (m *Manager) watchWindow(pb *playback) {
 			loop.fileLoaded = true
 			m.maybeArrange(loop)
 		case <-pb.player.Done():
+			drainFinalEvents(pb, loop)
 			m.endWindow(pb, loop)
+			return
+		}
+	}
+}
+
+// drainFinalEvents 在窗口终结后把通道里剩下的事件读完，只取结束状态。
+//
+// Done 与 Events 同时可读时 select 随机挑一个：mpv 先报 eof 再断开，若先挑中 Done，
+// 那条 Ended(eof) 就丢了 —— 网络流提前断掉（下载停滞）因此记不成播放失败，在线来源的
+// 自动换源也就不会触发。事件是在 Done 关闭之前投递的，这时一定都在通道里。
+// 其余事件要对着活的播放器处理（推界面状态、编排字幕轨），窗口已经没了，不再处理。
+func drainFinalEvents(pb *playback, loop *episodeLoop) {
+	for {
+		select {
+		case ev := <-pb.player.Events():
+			loop.noteEnded(ev)
+		default:
 			return
 		}
 	}
@@ -152,10 +189,7 @@ func (m *Manager) handleEvent(pb *playback, loop *episodeLoop, ev mpv.Event) {
 			loop.lastFlush = time.Now()
 		}
 	case mpv.EventEnded:
-		loop.endedReason = ev.Reason
-		if ev.Reason == "eof" {
-			loop.sawEOF = true
-		}
+		loop.noteEnded(ev)
 	}
 }
 
@@ -173,11 +207,13 @@ func (m *Manager) maybeArrange(loop *episodeLoop) {
 // endWindow 是窗口终结（mpv 播完退出、用户关窗、被 Stop）之后的收尾，顺序有讲究：
 //
 //  1. 这一集收尾：最后一次进度落盘、删弹幕文件，「看完」回写放到后台；
-//  2. 异常终态记成 PlaybackFailure；
-//  3. 摘下 current，Status 不再误报在播；
-//  4. OnSessionEnd —— 必须在 finished 关闭之前：Stop 等的正是 finished，回调先跑完，
-//     换会话时新旧才不会重叠（磁力场景下重叠意味着新种子刚建好就被旧会话的收尾停掉）；
-//  5. 有限期地等后台回写，finished 由 watchWindow 的 defer 关闭。
+//  2. OnSessionEnd（磁力停做种删分片）—— 不必等账号回写，但必须在 finished 关闭之前：
+//     Stop 等的正是 finished，回调先跑完，换会话时新旧才不会重叠（磁力场景下重叠意味着
+//     新种子刚建好就被旧会话的收尾停掉）；
+//  3. 有限期地等后台回写；
+//  4. 同一把锁里发布 PlaybackFailure 并摘下 current。回写失败必须在「不在播了」的同时就
+//     看得见：网页一读到 playing=false 就停止轮询，横幅读的就是那最后一次的 sync；
+//  5. finished 由 watchWindow 的 defer 关闭。
 func (m *Manager) endWindow(pb *playback, loop *episodeLoop) {
 	sess := loop.sess
 	st := pb.player.State()
@@ -191,16 +227,10 @@ func (m *Manager) endWindow(pb *playback, loop *episodeLoop) {
 	if playerErr != nil {
 		log.Printf("player: 会话异常结束：%v", playerErr)
 	}
-	if failure := playbackFailureFor(sess.src, sess.item.FileID, loop.endedReason, playerErr, premature, time.Now().UnixMilli()); failure != nil {
+	failure := playbackFailureFor(sess.src, sess.item.FileID, loop.endedReason, playerErr, premature, time.Now().UnixMilli())
+	if failure != nil {
 		failure.PlaybackID = pb.id
-		m.setPlaybackFailure(failure)
 	}
-
-	m.mu.Lock()
-	if m.current == pb {
-		m.current = nil
-	}
-	m.mu.Unlock()
 
 	if m.opts.OnSessionEnd != nil {
 		m.opts.OnSessionEnd()
@@ -208,18 +238,29 @@ func (m *Manager) endWindow(pb *playback, loop *episodeLoop) {
 	if !waitTimeout(&pb.bg, markWatchedTimeout) {
 		log.Printf("player: 回写账号在 %s 内没做完，不再等它", markWatchedTimeout)
 	}
+
+	m.mu.Lock()
+	if failure != nil {
+		m.lastPlaybackFailure = failure
+	}
+	if m.current == pb {
+		m.current = nil
+	}
+	m.mu.Unlock()
 }
 
 // endEpisode 是一集的收尾，每集恰好一次：按调用方取的播放器快照 st 写最后一次进度，
-// 删掉这一集的弹幕 ASS，取消这一集的后台工作，再把「看完」回写放到后台。
+// 删掉这一集的弹幕 ASS，再把「看完」回写放到后台。
+//
+// 不取消这一集的 ctx：关窗之后后台匹配照样做完、落盘（见 newSession）。窗口里换集时，
+// 换集那边在这之后再调 sess.cancel()。
 func (m *Manager) endEpisode(pb *playback, sess *session, st mpv.State, endedByEOF bool) {
 	sess.endOnce.Do(func() {
 		m.flushProgressAt(sess, st, endedByEOF)
-		// 极少数情况下后台解析在此之后才落盘，残留由启动时的 SweepRuntimeDir 兜底清掉。
+		// 后台解析可能在此之后才落盘（关窗时它照样做完），残留由启动时的 SweepRuntimeDir 兜底清掉。
 		if sess.assTarget != "" {
 			_ = os.Remove(sess.assTarget)
 		}
-		sess.cancel()
 		m.kickSync(pb, sess)
 	})
 }

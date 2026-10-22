@@ -109,6 +109,23 @@ func TestEvents_TimePosFloodKeepsRoomForLifecycleEvents(t *testing.T) {
 	assert.Equal(t, []EventKind{EventFileStarted, EventEnded}, lifecycle, "生命周期事件一条都不能丢")
 }
 
+// 节流只在通道积压时生效：消费方缓过来、把积压读完之后，位置事件要照常再来 ——
+// 播放层靠它们触发进度落盘，卡过一次就再也不落盘是不行的。
+func TestEvents_TimePosResumesAfterFloodDrains(t *testing.T) {
+	f := newFakeMPV(t)
+	p := attachTestPlayer(t, f, "")
+
+	for i := 0; i < 300; i++ {
+		f.PushProperty(t, "time-pos", float64(i))
+	}
+	syncPoint(t, f, p)
+	require.NotEmpty(t, drainEvents(p))
+
+	f.PushProperty(t, "time-pos", 1234.5)
+	assert.Equal(t, 1234.5, waitEventKind(t, p, EventTimePos).TimePos)
+	assert.Equal(t, 1234.5, p.State().TimePos)
+}
+
 // start-file 之后的 file-loaded 照样异步刷新 path：换文件后 State().Path 是新文件（回归保护）。
 func TestEvents_FileStartedThenLoadedRefreshesPath(t *testing.T) {
 	f := newFakeMPV(t)
