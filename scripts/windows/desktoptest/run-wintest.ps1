@@ -6,6 +6,7 @@
 #     下一集 / 返回媒体库 / 关窗口回写进度 / 退出）→ 每一步截图；
 #   - 最后（可跳过）模拟「没有 WebView2」再起一次，看退回浏览器模式；
 #   - 把截图、报告（report.json + report.txt）、日志（token 已抹掉）打成 nagare-wintest-report.zip。
+# 退出码：0 = 全部通过；2 = 跑完了、报告也打好了，但有检查没过；1 = 没跑完（出错中断）。
 # 只用 Windows PowerShell 5.1 也有的写法（Win10 自带的就是 5.1）。
 [CmdletBinding()]
 param(
@@ -31,6 +32,13 @@ if (-not (Test-Path -LiteralPath $OutDir)) { New-Item -ItemType Directory -Force
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $root = Join-Path $env:TEMP "nagare-wintest-$stamp"
+# 上一次跑到一半就关掉了黑色窗口时，收尾（finally）来不及跑，临时目录会留下来：这里清掉。只认 %TEMP% 下
+# 名字正好是 nagare-wintest-<日期>-<时间>、而且比这一次早的目录，别的一概不碰。
+foreach ($old in @(Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'nagare-wintest-*' -ErrorAction SilentlyContinue)) {
+    if ($old.Name -notmatch '^nagare-wintest-\d{8}-\d{6}$' -or $old.Name -ge "nagare-wintest-$stamp") { continue }
+    try { Remove-Item -LiteralPath $old.FullName -Recurse -Force -ErrorAction Stop }
+    catch { Write-Host "上次留下的测试目录删不掉（可能还有程序开着它），先不管：$($old.FullName)" }
+}
 $cfgDir = Join-Path $root 'config'
 $mediaDir = Join-Path $root 'media'
 $shots = Join-Path $root 'report\screenshots'
@@ -46,6 +54,18 @@ $script:api = $null
 $script:ctl = $null
 
 function Note([string]$msg) { Write-Host ("[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $msg) }
+
+# 这个脚本自己的控制台窗口：nagare 抢前台时，只有前台是它自己的窗口或者这个控制台，才会按 Alt 去抢
+# （前台是别的程序时宁可这一步失败，也不往别的程序里按键）。
+function Get-ConsoleHwnd {
+    try {
+        if (-not ('NagareKitConsole' -as [type])) {
+            Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NagareKitConsole { [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow(); }' -IgnoreWarnings
+        }
+        return [NagareKitConsole]::GetConsoleWindow().ToInt64()
+    } catch { Note "读不到这个控制台窗口的句柄（抢前台时不会按 Alt）：$($_.Exception.Message)"; return 0 }
+}
+$script:consoleHwnd = Get-ConsoleHwnd
 
 function Add-Step([string]$name, $ok, [string]$detail, [string]$shot = '', $state = $null) {
     $o = [ordered]@{ name = $name; ok = $ok; detail = $detail; shot = $shot; time = (Get-Date -Format 's'); state = $state }
@@ -136,7 +156,7 @@ function Step([string]$name, [scriptblock]$body) {
 function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
     $ctlPort = Free-Port
     $secret = Join-Path $root 'testctl.secret'
-    Remove-Item -Force -ErrorAction SilentlyContinue $secret
+    Remove-Item -LiteralPath $secret -Force -ErrorAction SilentlyContinue
     $env:NAGARE_CONFIG_DIR = $cfgDir
     $env:NAGARE_DESKTOP_TEST_ADDR = "127.0.0.1:$ctlPort"
     $env:NAGARE_DESKTOP_TEST_SECRET_FILE = $secret
@@ -145,6 +165,10 @@ function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
     if ($IpcInput) { $env:NAGARE_DESKTOP_INPUT = 'ipc' }
     # 测试用不着磁力：不起 BT 引擎（它会在所有网卡上监听、向路由器要 UPnP 映射，Windows 会弹防火墙对话框抢焦点）
     $env:NAGARE_TEST_NO_TORRENT = '1'
+    $env:NAGARE_DESKTOP_TEST_CONSOLE_HWND = [string]$script:consoleHwnd
+    # 自动测试绝不打开你的默认浏览器（窗口起不来时那一步记成失败就够了）；手动检查要看「退回浏览器」，不设
+    $env:NAGARE_TEST_NO_BROWSER = '1'
+    if ($Manual) { $env:NAGARE_TEST_NO_BROWSER = '' }
     foreach ($k in $extraEnv.Keys) { Set-Item -Path "env:$k" -Value $extraEnv[$k] }
     $script:startNo++
     $sp = @{ FilePath = $Exe; PassThru = $true
@@ -189,8 +213,18 @@ public static class NagareKitJob {
             }
             $script:job = [NagareKitJob]::Create()
         }
-        if ($script:job -ne [IntPtr]::Zero) { [void][NagareKitJob]::Assign($script:job, $proc.Handle) }
+        if ($script:job -eq [IntPtr]::Zero) {
+            Note '建不了作业对象：中途关掉这个窗口时，nagare 可能留在后台（从托盘退出它即可）'
+        } elseif (-not [NagareKitJob]::Assign($script:job, $proc.Handle)) {
+            Note "没能把 nagare（PID $($proc.Id)）放进作业对象：中途关掉这个窗口时它可能留在后台（从托盘退出它即可）"
+        }
     } catch { Note "没能把 nagare 放进作业对象（中途关窗口时它可能留在后台）：$($_.Exception.Message)" }
+}
+
+# 连进程树一起结束。PS 5.1 在 $ErrorActionPreference='Stop' 下会把 taskkill 写到标准错误的一行话
+# （比如「找不到进程」）当成终止错误抛出来 —— 收尾里不能因为这个半途而废。
+function Kill-Tree([int]$id) {
+    try { & taskkill.exe /T /F /PID $id 2>&1 | Out-Null } catch { Note "taskkill 结束 PID $id 时报错（进程可能已经退出）：$($_.Exception.Message)" }
 }
 
 # 收尾：每一个还活着的 nagare 先请它退出（会停播、回写进度），15 秒还不走就连进程树一起结束。
@@ -202,7 +236,7 @@ function Stop-AllNagare {
         try { [void]$p.WaitForExit(15000) } catch { }
         if (-not $p.HasExited) {
             Note "nagare（PID $($p.Id)）15 秒内没退出，连同子进程一起结束"
-            & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
+            Kill-Tree $p.Id
         }
     }
 }
@@ -211,7 +245,7 @@ function Stop-Nagare([int]$TimeoutSec = 40) {
     if ($null -eq $script:proc) { return $true }
     try { Api 'POST' '/api/shutdown' | Out-Null } catch { }
     $exited = $script:proc.WaitForExit($TimeoutSec * 1000)
-    if (-not $exited) { & taskkill.exe /T /F /PID $script:proc.Id 2>&1 | Out-Null }
+    if (-not $exited) { Kill-Tree $script:proc.Id }
     return $exited
 }
 
@@ -223,6 +257,14 @@ function Progress([string]$fileId) {
     $p = $s.progress.PSObject.Properties | Where-Object { $_.Name -eq $fileId } | Select-Object -First 1
     if ($null -eq $p) { return $null }
     return $p.Value
+}
+
+# 把测试片目录加进媒体库，按集号记下每一集的 fileId（$ep）；返回加目录的回复（排查用）。
+function Load-Library {
+    $r = Api 'POST' '/api/library/folders' @{ path = $mediaDir }
+    $lib = (Api 'GET' '/api/library').data
+    foreach ($c in @($lib.clusters)) { foreach ($g in @($c.groups)) { foreach ($it in @($g.items)) { $ep[[int]$it.episode] = $it.fileId } } }
+    return ($r | ConvertTo-Json -Compress -Depth 8)
 }
 
 # ── 环境 ──
@@ -276,7 +318,7 @@ if (Has-Runtime $envInfo) {
 } else {
     Add-Step 'WebView2 运行时' $null '这台电脑上没有 WebView2 运行时（注册表两处都没有）' ''
     if (-not $CI -and (Test-Path $wv2)) {
-        Write-Host '这台电脑没有 WebView2 运行时（nagare 的窗口要用）。要用测试包里的微软官方安装器静默安装吗（要联网，约 1–2 分钟）？输入 y 回车安装；直接回车跳过。' -ForegroundColor Yellow
+        Write-Host '这台电脑没有 WebView2 运行时（nagare 的窗口要用）。要用测试包里的微软官方安装器静默安装吗（要联网，约 1–2 分钟）？输入 y 再回车就装；直接回车跳过（跳过的话窗口那些检查没法做）。' -ForegroundColor Yellow
         $answer = Read-Host
         if ($answer -eq 'y' -or $answer -eq 'Y') {
             $p = Start-Process -FilePath $wv2 -ArgumentList '/silent', '/install' -Wait -PassThru
@@ -284,6 +326,14 @@ if (Has-Runtime $envInfo) {
             Add-Step '用内嵌的 bootstrapper 静默安装 WebView2 运行时（/silent /install）' (($p.ExitCode -eq 0) -and (Has-Runtime $envInfo)) ("退出码 $($p.ExitCode)；" + (($envInfo.webview2Registry) -join '；')) ''
         }
     }
+}
+$hasRuntime = Has-Runtime $envInfo
+if (-not $hasRuntime -and -not $Manual) {
+    # 没有运行时，nagare 的窗口起不来：窗口那些检查一项都做不了，不去跑（更不会替你打开浏览器）。
+    Add-Step '没有 WebView2 运行时：窗口的检查都没做' $false '重新运行 run-test.cmd，提示时输入 y 再回车装上运行时' ''
+    Write-Host ''
+    Write-Host '这台电脑上没有 WebView2 运行时，nagare 的窗口起不来，窗口的检查都跳过了。' -ForegroundColor Yellow
+    Write-Host '想测窗口：重新双击 run-test.cmd，提示时输入 y 再回车装上运行时。下面只检查「没有运行时就退回浏览器模式」。' -ForegroundColor Yellow
 }
 
 $names = @('[nagare-test] Nagare Windows 测试 - 01 [1080p].mkv', '[nagare-test] Nagare Windows 测试 - 02 [1080p].mkv', '[nagare-test] Nagare Windows 测试 - 03 [1080p].mkv')
@@ -306,6 +356,7 @@ if ($Manual) {
         if (Test-Path $notes) { Copy-Item $notes (Join-Path $reportDir 'manual-notes.txt') }
     }
 } else {
+if ($hasRuntime) {
 Step '启动' {
     Start-Nagare @{} @()
     $ok = Wait-Until { $s = State; $s.visible -and $s.webReady } 40
@@ -321,13 +372,37 @@ Step '启动' {
     $hint = $script:hintText
     $settings = (Api 'GET' '/api/settings').data
     Add-Step '后台形态是 window，提示条说「关闭窗口」' (($settings.background.mode -eq 'window') -and ($hint -match '关闭窗口')) ("mode=$($settings.background.mode)；提示条：$hint") ''
+    $dl = 'unknown'
+    try { Api 'GET' '/api/downloads' | Out-Null; $dl = '200' } catch { try { $dl = [string][int]$_.Exception.Response.StatusCode } catch { $dl = $_.Exception.Message } }
+    Add-Step '测试构建不起 BT：磁力下载答 503（不开监听、不要 UPnP）' ($dl -eq '503') "GET /api/downloads → $dl" ''
+}
+
+Step '网页层的右键菜单' {
+    # 页面上临时放一个输入框和一块普通的区域（右键点它们，不点真实界面上的东西）
+    $js = "(function(){function mk(id,tag,top,h){var e=document.getElementById(id);if(!e){e=document.createElement(tag);e.id=id;var s=e.style;s.position='fixed';s.left='40px';s.top=top+'px';s.width='320px';s.height=h+'px';s.zIndex='2147483647';s.background='#333';document.body.appendChild(e);}return e.getBoundingClientRect();}" +
+          "var k=window.devicePixelRatio||1,a=mk('nagare-test-input','input',140,40),b=mk('nagare-test-plain','div',220,60);" +
+          "return {ix:Math.round((a.left+a.width/2)*k),iy:Math.round((a.top+a.height/2)*k),px:Math.round((b.left+b.width/2)*k),py:Math.round((b.top+b.height/2)*k)};})()"
+    $pos = (Ctl '/js' @{ code = $js }) | ConvertFrom-Json
+    Start-Sleep -Milliseconds 500
+    $before = (Ctl '/webmenus' | ConvertFrom-Json).visible
+    Front
+    Mouse 'click' $pos.ix $pos.iy 'right'
+    $inInput = Wait-Until { (Ctl '/webmenus' | ConvertFrom-Json).visible -gt $before } 5
+    $shot = Snap 'web-context-menu' -Full
+    Tap 0x1B # Esc 关掉菜单
+    [void](Wait-Until { (Ctl '/webmenus' | ConvertFrom-Json).visible -le $before } 5)
+    Add-Step '输入框上右键：浏览器的菜单（粘贴）照常弹出' $inInput "弹出前 $before 个窗口" $shot
+    Mouse 'click' $pos.px $pos.py 'right'
+    Start-Sleep -Milliseconds 1500
+    $after = (Ctl '/webmenus' | ConvertFrom-Json).visible
+    $shot = Snap 'web-no-context-menu' -Full
+    if ($after -gt $before) { Tap 0x1B }
+    Add-Step '页面其他地方右键：不弹浏览器的菜单（返回、刷新、打印……）' ($after -le $before) "右键后 $after 个窗口（之前 $before 个）" $shot
+    Ctl '/js' @{ code = "['nagare-test-input','nagare-test-plain'].forEach(function(id){var e=document.getElementById(id);if(e)e.remove();}); true" } | Out-Null
 }
 
 Step '媒体库' {
-    $r = Api 'POST' '/api/library/folders' @{ path = $mediaDir }
-    $addInfo = ($r | ConvertTo-Json -Compress -Depth 8)
-    $lib = (Api 'GET' '/api/library').data
-    foreach ($c in @($lib.clusters)) { foreach ($g in @($c.groups)) { foreach ($it in @($g.items)) { $ep[[int]$it.episode] = $it.fileId } } }
+    $addInfo = Load-Library
     Ctl '/js' @{ code = 'location.reload(); true' } | Out-Null
     Start-Sleep -Seconds 3
     $shot = Snap 'library'
@@ -523,9 +598,12 @@ Step '退出' {
     Add-Step '退出 nagare（收尾完成后进程结束）' ($exited -and $clean) ("进程退出=$exited，日志里有「已退出」=$clean") ''
 }
 
+} # 窗口的检查到此为止（没有运行时跳过）
+
 if (-not $SkipFallback) {
     Step '没有 WebView2' {
         Start-Nagare @{ NAGARE_DESKTOP_TEST_NO_WEBVIEW2 = '1' } @('-no-browser')
+        if (-not $ep[3]) { [void](Load-Library) }
         $st = (Api 'GET' '/api/settings').data
         $s = State
         Add-Step '模拟没有 WebView2：退回浏览器模式，设置页写着原因' ((-not $st.desktop.window) -and $st.desktop.fallback) ("fallback：$($st.desktop.fallback)") '' $s
@@ -578,15 +656,15 @@ foreach ($f in Get-ChildItem $reportDir -File -Filter 'std*-*.txt') {
     Set-Content -Encoding UTF8 -Path $f.FullName -Value $t
 }
 $zip = Join-Path $OutDir $zipName
-Remove-Item -Force -ErrorAction SilentlyContinue $zip
+Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $reportDir '*') -DestinationPath $zip
 $summary = $report.summary
 Note "报告：$zip（$summary）"
-if ($failed -eq 0) { $exitCode = 0 }
+if ($failed -eq 0) { $exitCode = 0 } else { $exitCode = 2 }
 } finally {
     # 不管跑到哪一步、出了什么错（包括 Ctrl+C），都把起过的 nagare 收掉、删掉临时目录
     Stop-AllNagare
-    if (-not $KeepTemp) { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $root }
+    if (-not $KeepTemp) { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
 }
 if (-not $CI) {
     Write-Host ''

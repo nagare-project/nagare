@@ -403,18 +403,25 @@ func buildServices(configDir string, window bool) (*services, error) {
 	}
 
 	// 磁力下载：没有没下完的任务就不起 BT client；有的话接着下。下完的进媒体库。
+	// 测试构建的 NAGARE_TEST_NO_TORRENT 同样不建它：手动检查里点「下载」也不能在用户的电脑上开 BT 监听、要 UPnP
+	// （下载端点照常答 503「磁力下载未启用」，日志写明原因）。
 	defaultDownloadDir := api.DefaultDownloadDir(configDir)
-	downloads := torrentstream.NewDownloader(torrentstream.DownloaderOptions{
-		Store: st,
-		Root:  func() string { return api.DownloadDir(st.TorrentConfig(), defaultDownloadDir) },
-		Trackers: func() []string {
-			c := st.TorrentConfig()
-			return torrentstream.EffectiveTrackers(!c.DisableDefaultTrackers, c.Trackers)
-		},
-		PortForwarding: func() bool { return st.TorrentConfig().PortForwarding },
-		OnComplete:     lib.IncludeDownloads,
-	})
-	downloads.Resume()
+	var downloads *torrentstream.Downloader
+	if torrentDisabledForTest() {
+		log.Print("（测试构建）不起磁力下载：NAGARE_TEST_NO_TORRENT=1")
+	} else {
+		downloads = torrentstream.NewDownloader(torrentstream.DownloaderOptions{
+			Store: st,
+			Root:  func() string { return api.DownloadDir(st.TorrentConfig(), defaultDownloadDir) },
+			Trackers: func() []string {
+				c := st.TorrentConfig()
+				return torrentstream.EffectiveTrackers(!c.DisableDefaultTrackers, c.Trackers)
+			},
+			PortForwarding: func() bool { return st.TorrentConfig().PortForwarding },
+			OnComplete:     lib.IncludeDownloads,
+		})
+		downloads.Resume()
+	}
 
 	// 磁力源规则：零内置，规则目录空就是空；来源由用户在设置里指定（A3 / 红线 1）。
 	sourceClient := &http.Client{Timeout: 20 * time.Second}

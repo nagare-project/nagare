@@ -112,7 +112,7 @@ jobs:
       # 刚写入的媒体文件（「being used by another process」，等 3 秒也不放，连做种方
       # 那份都被占），像是 runner 的杀软 / 索引器在扫新文件，没有 Windows 机器无法定论。
       # 那个包的 Windows 专属代码只有 EADDRINUSE 判定一处，交叉编译已经覆盖。
-      - name: go test（mpv / tray / selfupdate / 桌面窗口）
+      - name: go test（mpv / tray / selfupdate / 桌面窗口 / WebView2 绑定）
         # 用 bash（-e）：Windows 默认的 pwsh 只看最后一条命令的退出码，前一条 go test 失败了这一步照样绿
         shell: bash
         env:
@@ -120,7 +120,7 @@ jobs:
         # internal/desktop 在这里是真窗口：消息循环、两层切换、全屏、窗口位置、WebView2 运行时检测（runner 装着 Edge）。
         # 根包只跑资源那两条：nagare.exe 的 manifest 在测试二进制里同样生效（PerMonitorV2）。
         run: |
-          go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/... ./internal/desktop/...
+          go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/... ./internal/desktop/... ./internal/webview2/...
           go test -run 'TestProcessIsPerMonitorV2|TestWindowsResourcesHaveManifestAndIcon' .
 
   desktop-windows-smoke:
@@ -226,9 +226,14 @@ jobs:
           $dir = Join-Path $env:LOCALAPPDATA 'Programs/nagare'
           foreach ($f in 'nagare.exe', 'uninstall.exe', 'mpv/mpv.exe') { if (-not (Test-Path (Join-Path $dir $f))) { throw "安装后缺少 $f" } }
           if (-not (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\nagare' -ErrorAction SilentlyContinue)) { throw '没写卸载项' }
-          $u = Start-Process (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait -PassThru
-          Start-Sleep -Seconds 3 # NSIS 的卸载程序会把自己拷到临时目录再跑，等它跑完
+          # _?=<目录>：卸载程序就地跑（不先把自己拷到临时目录再起一个），-Wait 等的就是真正的卸载；
+          # 代价是它删不掉自己，卸完再手动删 uninstall.exe 与空目录
+          $u = Start-Process (Join-Path $dir 'uninstall.exe') -ArgumentList '/S', "_?=$dir" -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "静默卸载失败（$($u.ExitCode)）" }
           if (Test-Path (Join-Path $dir 'nagare.exe')) { throw '卸载后 nagare.exe 还在' }
+          if (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\nagare' -ErrorAction SilentlyContinue) { throw '卸载后卸载项还在' }
+          Remove-Item -LiteralPath (Join-Path $dir 'uninstall.exe') -Force
+          Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
           Write-Host "安装包：编译、静默安装、卸载都通过（$((Get-Item $out).Length) 字节）"
       - name: 失败时也收一张整屏截图
         if: failure()

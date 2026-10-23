@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"log"
 	"os"
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -240,7 +242,8 @@ var (
 	pGetAncestor     = user32.NewProc("GetAncestor")
 )
 
-// ownedByUs：这个窗口的顶层祖先是 nagare 进程的（mpv 的子窗口属于 mpv 进程，但它挂在我们的窗口下面）。
+// ownedByUs：这个窗口的顶层祖先是 nagare 进程的（mpv 的子窗口属于 mpv 进程，但它挂在我们的窗口下面），
+// 或者是网页层自己的弹出窗口（右键菜单、下拉框，属于 WebView2 的浏览器进程）。
 func ownedByUs(h uintptr) bool {
 	if h == 0 {
 		return false
@@ -249,7 +252,27 @@ func ownedByUs(h uintptr) bool {
 	if root == 0 {
 		root = h
 	}
-	return windowPID(root) == uint32(os.Getpid())
+	pid := windowPID(root)
+	return pid == uint32(os.Getpid()) || (pid != 0 && pid == webBrowserPID.Load())
+}
+
+// visibleTopLevelOf 数某个进程此刻显示着的顶层窗口（测试看网页层的右键菜单弹没弹出来）。
+func visibleTopLevelOf(pid uint32) int {
+	if pid == 0 {
+		return 0
+	}
+	n := 0
+	var after uintptr
+	for {
+		h, _, _ := pFindWindowExW.Call(0, after, 0, 0)
+		if h == 0 {
+			return n
+		}
+		if windowPID(h) == pid && boolCall(pIsWindowVisible, h) {
+			n++
+		}
+		after = h
+	}
 }
 
 func foregroundIsOurs() bool {
@@ -262,8 +285,12 @@ func ensureOurForeground() error {
 	if foregroundIsOurs() {
 		return nil
 	}
-	if err := onUI(func() { forceForeground(ui.top) }); err != nil {
+	var ferr error
+	if err := onUI(func() { ferr = forceForeground(ui.top) }); err != nil {
 		return err
+	}
+	if ferr != nil {
+		return ferr
 	}
 	time.Sleep(200 * time.Millisecond)
 	if foregroundIsOurs() {
@@ -278,14 +305,29 @@ func pointIsOurs(pt point) bool {
 	return ownedByUs(h)
 }
 
+// kitConsole 是测试包脚本自己的控制台窗口（脚本起 nagare 之前写进 NAGARE_DESKTOP_TEST_CONSOLE_HWND）。
+var kitConsole = func() uintptr {
+	v, err := strconv.ParseUint(os.Getenv("NAGARE_DESKTOP_TEST_CONSOLE_HWND"), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return uintptr(v)
+}()
+
+// altTrickAllowed：按 Alt 抢前台时那一下 Alt 会落到当前的前台窗口上 —— 只在前台是 nagare 自己的窗口、或者测试包
+// 自己的控制台时才这么做。测试包跑在用户的电脑上，前台是别的程序（聊天、浏览器……）就不碰它。
+func altTrickAllowed(fg uintptr) bool {
+	return fg != 0 && (ownedByUs(fg) || (kitConsole != 0 && fg == kitConsole))
+}
+
 // forceForeground 是测试用的抢前台（正式代码里不这么做）：挂到当前前台线程的输入队列上再 SetForegroundWindow；
-// 还不行才按住 Alt 再抢一次。CI 的会话里没有人点窗口，不这样 SendInput 落不到我们的窗口上。
-// Alt 不能单按一下：单按 Alt 会让窗口进「菜单模式」，接下来的一下按键（空格、t、Enter）就被吃掉了 ——
-// 所以中间夹一下 F24（mpv 里没有绑定），Alt 松开时就不是「单按」。
-func forceForeground(hwnd uintptr) {
+// 还不行、且前台是我们自己或测试包的控制台时，才按住 Alt 再抢一次（见 altTrickAllowed）。CI 的会话里没有人点窗口，
+// 不这样 SendInput 落不到我们的窗口上。Alt 不能单按一下：单按 Alt 会让窗口进「菜单模式」，接下来的一下按键
+// （空格、t、Enter）就被吃掉了 —— 所以中间夹一下 F24（mpv 里没有绑定），Alt 松开时就不是「单按」。
+func forceForeground(hwnd uintptr) error {
 	fg, _, _ := pGetForegroundWindow.Call()
 	if fg == hwnd {
-		return
+		return nil
 	}
 	self := currentThreadID()
 	var fgThread uintptr
@@ -301,9 +343,15 @@ func forceForeground(hwnd uintptr) {
 	}
 	pBringWindowToTop.Call(hwnd)
 	if boolCall(pSetForegroundWindow, hwnd) {
-		return
+		return nil
 	}
+	if !altTrickAllowed(fg) {
+		log.Printf("desktop: 拿不到前台（前台是进程 %d 的窗口），不按 Alt 去抢", windowPID(fg))
+		return fmt.Errorf("拿不到前台：前台是别的程序的窗口（进程 %d），不按 Alt 去抢，免得按到别的程序里", windowPID(fg))
+	}
+	log.Printf("desktop: 按 Alt 抢前台（前台是进程 %d 的窗口）", windowPID(fg))
 	_ = send(keyEvent(vkMenu, false))
 	pSetForegroundWindow.Call(hwnd)
 	_ = send(keyEvent(vkF24, false), keyEvent(vkF24, true), keyEvent(vkMenu, true))
+	return nil
 }

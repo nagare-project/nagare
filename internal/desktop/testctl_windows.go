@@ -10,6 +10,7 @@ package desktop
 // 另有两个开关模拟退路（启动前设好环境变量）：
 //   NAGARE_DESKTOP_TEST_NO_WEBVIEW2=1    假装没有 WebView2 运行时（启动时就退回浏览器模式）
 //   NAGARE_DESKTOP_TEST_FAIL_WEBVIEW2=1  假装 WebView2 起不来（第一次打开窗口时退回）
+// 还有一个给抢前台用：NAGARE_DESKTOP_TEST_CONSOLE_HWND 是测试包脚本自己的控制台窗口（见 testinput_windows.go）。
 
 import (
 	"encoding/json"
@@ -26,7 +27,6 @@ import (
 func init() {
 	testHooks.noRuntime = os.Getenv("NAGARE_DESKTOP_TEST_NO_WEBVIEW2") == "1"
 	testHooks.failWeb = os.Getenv("NAGARE_DESKTOP_TEST_FAIL_WEBVIEW2") == "1"
-	testHooks.testBuild = true
 	addr := os.Getenv("NAGARE_DESKTOP_TEST_ADDR")
 	if addr == "" {
 		return
@@ -48,6 +48,11 @@ func init() {
 	mux.HandleFunc("/winop", testWinOp)
 	mux.HandleFunc("/mpv", testMpv)
 	mux.HandleFunc("/js", testJS)
+	mux.HandleFunc("/webmenus", func(w http.ResponseWriter, _ *http.Request) {
+		pid := webBrowserPID.Load()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"pid": pid, "visible": visibleTopLevelOf(pid)})
+	})
 	mux.HandleFunc("/show", func(w http.ResponseWriter, _ *http.Request) {
 		Show()
 		fmt.Fprintln(w, "ok")
@@ -205,6 +210,7 @@ func testInput(w http.ResponseWriter, r *http.Request) {
 // testWinOp 是窗口上的系统操作：最小化 / 最大化 / 还原 / 关闭（WM_CLOSE，同标题栏的 ×）/ 抢前台。
 func testWinOp(w http.ResponseWriter, r *http.Request) {
 	op := r.URL.Query().Get("op")
+	var ferr error
 	err := onUI(func() {
 		a := ui
 		switch op {
@@ -217,11 +223,15 @@ func testWinOp(w http.ResponseWriter, r *http.Request) {
 		case "close":
 			postMessage(a.top, wmClose, 0, 0)
 		case "front":
-			forceForeground(a.top)
+			ferr = forceForeground(a.top)
 		}
 	})
 	if err != nil {
 		fail(w, err)
+		return
+	}
+	if ferr != nil {
+		http.Error(w, ferr.Error(), http.StatusConflict)
 		return
 	}
 	fmt.Fprintln(w, "ok")

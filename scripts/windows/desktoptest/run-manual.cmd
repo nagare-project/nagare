@@ -6,18 +6,20 @@ rem Double-clicking inside the zip only extracts this one file to a temp folder:
 if not exist "%~dp0run-wintest.ps1" goto notextracted
 if not exist "%~dp0nagare\nagare.exe" goto notextracted
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-wintest.ps1" -Manual %*
-if errorlevel 1 (
-  echo.
-  echo The manual run did not finish cleanly. See the messages above.
-  pause
-)
-exit /b %errorlevel%
+set rc=%errorlevel%
+rem 0 = all checks passed, 2 = finished but some checks failed. In both cases the script has already
+rem shown the summary and waited for Enter, so do not pause a second time.
+if "%rc%"=="0" exit /b 0
+if "%rc%"=="2" exit /b 2
+echo.
+echo The manual run did not finish (exit code %rc%). See the messages above.
+pause
+exit /b %rc%
 
 :notextracted
-chcp 65001 >nul
+rem English only: Chinese text in a .cmd file is not reliable across Windows 10 code pages (the README says it in Chinese).
 echo.
-echo 请先把整个测试包解压出来：右键 zip，选「全部解压缩」，再到解压出来的文件夹里双击 run-manual.cmd。
-echo Please extract the whole zip first (right-click it, Extract All), then run run-manual.cmd from the extracted folder.
+echo Please extract the whole zip first (right-click it, Extract All), then double-click run-manual.cmd in the extracted folder.
 echo.
 pause
 exit /b 1
