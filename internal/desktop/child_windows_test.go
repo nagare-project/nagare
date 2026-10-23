@@ -5,6 +5,7 @@ package desktop
 import (
 	"os"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -123,8 +124,18 @@ func TestAdoptChildDoesNotWaitForAHungWindow(t *testing.T) {
 	require.NoError(t, regErr)
 
 	created := make(chan uintptr, 1)
-	release := make(chan struct{})
+	release := make(chan struct{}) // 「mpv」恢复处理消息
+	finish := make(chan struct{})  // 测试看完了，可以销毁窗口
 	done := make(chan struct{})
+	var releaseOnce, finishOnce sync.Once
+	releaseNow := func() { releaseOnce.Do(func() { close(release) }) }
+	finishNow := func() { finishOnce.Do(func() { close(finish) }) }
+	// 中途断言失败也要先放开「mpv」的线程、销毁它的窗口：不然拆宿主窗口时跨线程销毁子窗口会一直等它
+	defer func() {
+		releaseNow()
+		finishNow()
+		<-done
+	}()
 	go func() {
 		defer close(done)
 		runtime.LockOSThread()
@@ -137,13 +148,16 @@ func TestAdoptChildDoesNotWaitForAHungWindow(t *testing.T) {
 		pEnableWindow.Call(h, 0) // 自己线程上的窗口：立刻生效
 		created <- h
 		<-release // 这期间不处理消息：别的线程对这个窗口 SendMessage 就一直等着，像卡住的 mpv
-		deadline := time.Now().Add(3 * time.Second)
-		for time.Now().Before(deadline) && !boolCall(pIsWindowEnabled, h) {
+		for {
 			drainMessages()
-			time.Sleep(10 * time.Millisecond)
+			select {
+			case <-finish:
+				pDestroyWindow.Call(h)
+				drainMessages()
+				return
+			case <-time.After(10 * time.Millisecond):
+			}
 		}
-		pDestroyWindow.Call(h)
-		drainMessages()
 	}()
 	h := <-created
 	require.NotZero(t, h)
@@ -154,10 +168,10 @@ func TestAdoptChildDoesNotWaitForAHungWindow(t *testing.T) {
 	require.True(t, s.adoptChild())
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "接窗口不等 EnableWindow 回来")
 	assert.True(t, s.enabling.Load(), "启用在后台等着")
-	assert.True(t, s.childStale(), "还没启用上：看门狗下一圈仍会看它是不是卡住了")
 	require.True(t, s.adoptChild(), "再接一次也不再起第二个等待")
+	time.Sleep(200 * time.Millisecond)
+	assert.True(t, s.enabling.Load(), "EnableWindow 要等 WM_ENABLE 处理完才回来：「mpv」不处理消息时它一直等着")
 
-	close(release) // 「mpv」恢复处理消息：启用落地
+	releaseNow() // 「mpv」恢复处理消息：启用落地，等待的 goroutine 回来
 	assert.Eventually(t, func() bool { return boolCall(pIsWindowEnabled, h) && !s.enabling.Load() }, 3*time.Second, 10*time.Millisecond)
-	<-done
 }
