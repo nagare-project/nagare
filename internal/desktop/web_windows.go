@@ -30,6 +30,22 @@ const webRetries = 1
 // devTools：NAGARE_DESKTOP_DEVTOOLS=1 时允许开发者工具（排查界面问题用）。
 var devTools = os.Getenv("NAGARE_DESKTOP_DEVTOOLS") == "1"
 
+// liveWebLayers 让建过的网页层（连同交给 WebView2 的回调对象）一直可达，不被 GC 收走。只在界面线程上碰。
+var liveWebLayers []*webLayer
+
+// safeWeb 跑一个 WebView2 回调：里面 panic 了不带走整个进程，这个网页层按起不来处理（退回浏览器）。
+func (a *app) safeWeb(w *webLayer, f func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("desktop: WebView2 回调出错：%v", r)
+			if a.web == w {
+				a.failWeb(fmt.Errorf("WebView2 回调出错：%v", r))
+			}
+		}
+	}()
+	f()
+}
+
 type webLayer struct {
 	c      *edge.Chromium
 	origin string
@@ -68,9 +84,15 @@ func (a *app) ensureWeb() {
 	c.SetGlobalPermission(edge.CoreWebView2PermissionStateDeny) // 摄像头、麦克风、通知……界面一样都不要
 	w := &webLayer{c: c, origin: o.Origin}
 	w.events = &webEvents{a: a, w: w}
-	c.ReadyCallback = func(err error) { a.webReady(w, err) }
-	c.ProcessFailedCallback = w.events.processFailed
-	c.ContainsFullScreenElementChangedCallback = w.events.fullscreenElement
+	c.ReadyCallback = func(err error) { a.safeWeb(w, func() { a.webReady(w, err) }) }
+	c.ProcessFailedCallback = func(sender *edge.ICoreWebView2, args *edge.ICoreWebView2ProcessFailedEventArgs) {
+		a.safeWeb(w, func() { w.events.processFailed(sender, args) })
+	}
+	c.ContainsFullScreenElementChangedCallback = func(sender *edge.ICoreWebView2, args *edge.ICoreWebView2ContainsFullScreenElementChangedEventArgs) {
+		a.safeWeb(w, func() { w.events.fullscreenElement(sender, args) })
+	}
+	// WebView2 存的是回调对象的裸指针：网页层换掉之后它们也可能还被调到，永远留一份引用（一次运行最多建两三个）
+	liveWebLayers = append(liveWebLayers, w)
 	a.web = w
 	if a.pending == "" {
 		a.pending = o.URL
@@ -146,6 +168,8 @@ func (w *webLayer) configure() error {
 	}
 	if pid, err := core.GetBrowserProcessID(); err == nil {
 		w.pid = pid
+	} else {
+		log.Printf("desktop: 读不到 WebView2 浏览器进程的 PID（退出时不能等它）：%v", err)
 	}
 	return nil
 }
@@ -188,6 +212,8 @@ func (a *app) shutdownWeb(limit time.Duration) {
 		if h, err := windows.OpenProcess(windows.SYNCHRONIZE, false, w.pid); err == nil {
 			proc = h
 			defer windows.CloseHandle(h)
+		} else {
+			log.Printf("desktop: 打不开 WebView2 的浏览器进程（不等它退出）：%v", err)
 		}
 	}
 	w.close()
@@ -248,7 +274,8 @@ type webEvents struct {
 	w *webLayer
 }
 
-func (*webEvents) QueryInterface(_, _ uintptr) uintptr { return 0 }
+// QueryInterface 一律答 E_NOINTERFACE：这两个对象只当回调用，WebView2 不该把它们当别的接口用
+func (*webEvents) QueryInterface(_, _ uintptr) uintptr { return eNoInterface }
 func (*webEvents) AddRef() uintptr                     { return 1 }
 func (*webEvents) Release() uintptr                    { return 1 }
 
@@ -262,20 +289,34 @@ func (e *webEvents) NavigationStarting(_ *edge.ICoreWebView2, args *edge.ICoreWe
 	switch decideNav(uri, false, false, e.w.origin) {
 	case actAllow:
 	case actExternal:
-		_ = args.PutCancel(true)
+		cancelNav(args)
 		openExternal(uri)
 	default:
-		_ = args.PutCancel(true)
+		cancelNav(args)
 		logBlocked(uri)
 	}
 	return 0
 }
 
+// cancelNav 取消一次导航；取消不了是安全边界上的事，要记下来。
+func cancelNav(args *edge.ICoreWebView2NavigationStartingEventArgs) {
+	if err := args.PutCancel(true); err != nil {
+		log.Printf("desktop: 取消导航失败（这次导航可能照样进行了）：%v", err)
+	}
+}
+
 // NewWindowRequested：target=_blank / window.open。永远不开第二个窗口：自己的源就在这个窗口里开。
 func (e *webEvents) NewWindowRequested(_ *edge.ICoreWebView2, args *edge.ICoreWebView2NewWindowRequestedEventArgs) uintptr {
 	uri, err := args.GetUri()
-	_ = args.PutHandled(true)
+	if herr := args.PutHandled(true); herr != nil {
+		log.Printf("desktop: 拦不住新窗口（WebView2 可能自己开了一个）：%v", herr)
+	}
 	if err != nil {
+		return 0
+	}
+	// 不是用户点出来的弹窗（脚本自己 window.open、内嵌的预告片框架）一律不开
+	if user, uerr := args.GetIsUserInitiated(); uerr == nil && !user {
+		logBlocked(uri)
 		return 0
 	}
 	switch decideNav(uri, true, false, e.w.origin) {

@@ -104,6 +104,8 @@ func Launch(ctx context.Context, opts mpv.LaunchOptions) (*mpv.Player, error) {
 	var prep sessionPrep
 	if err := ui.q.call(callTimeout, func() { prep = ui.beginSession() }); err != nil {
 		log.Printf("desktop: 窗口没响应，这次用单独的 mpv 窗口播：%v", err)
+		// 超时那一刻 beginSession 可能已经在做了：换到了画面层、开了会话号却不会有人接上。等界面线程缓过来收拾掉
+		ui.q.post(ui.dropOrphanSession)
 		return mpv.Launch(ctx, opts)
 	}
 	if !prep.ok {
@@ -150,7 +152,9 @@ type app struct {
 	topmost   bool
 	sessionID uint64 // 当前会话（0 = 没有）；会话的消息带着自己的号，对不上就是过期的
 	session   *videoSession
-	seq       uint64
+	// quitOnAttach：起播期间（会话号有了、mpv 还没接上）用户关了窗口，接上时马上停
+	quitOnAttach bool
+	seq          uint64
 }
 
 type viewMode int

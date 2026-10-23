@@ -2,6 +2,8 @@ package desktop
 
 import (
 	"errors"
+	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -77,9 +79,20 @@ func (q *uiQueue) drain() {
 			return
 		}
 		for _, f := range items {
-			f()
+			runSafely(f)
 		}
 	}
+}
+
+// runSafely 做一件排进界面线程的活。里面 panic 了只记日志：同一个进程里还有 HTTP 服务、磁力引擎与进度回写，
+// 窗口里的一个错不能把它们全带走（Windows 上这些活在 Win32 回调里跑，panic 穿过系统的回调就是整个进程退出）。
+func runSafely(f func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("desktop: 界面线程上的一件事出错了（已跳过）：%v\n%s", r, debug.Stack())
+		}
+	}()
+	f()
 }
 
 // close 之后 post 一律失败；还排着的活丢掉。

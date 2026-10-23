@@ -5,6 +5,7 @@ package desktop
 // 桌面窗口用到的 Win32 接口：全部经 golang.org/x/sys/windows 的延迟加载，CGO_ENABLED=0 照样编得出来。
 
 import (
+	"log"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -36,6 +37,7 @@ var (
 	pDispatchMessageW         = user32.NewProc("DispatchMessageW")
 	pPostMessageW             = user32.NewProc("PostMessageW")
 	pPostQuitMessage          = user32.NewProc("PostQuitMessage")
+	pPostThreadMessageW       = user32.NewProc("PostThreadMessageW")
 	pMsgWaitForMultipleObj    = user32.NewProc("MsgWaitForMultipleObjects")
 	pGetClientRect            = user32.NewProc("GetClientRect")
 	pGetWindowRect            = user32.NewProc("GetWindowRect")
@@ -164,6 +166,8 @@ const (
 	flashwTimerN = 0x0000000C // FLASHW_TIMERNOFG
 
 	tmeLeave = 0x00000002
+
+	eNoInterface = 0x80004002 // E_NOINTERFACE
 )
 
 var (
@@ -305,9 +309,13 @@ func setWindowText(hwnd uintptr, s string) {
 func openExternal(url string) {
 	p, err := windows.UTF16PtrFromString(url)
 	if err != nil {
+		log.Printf("desktop: 外链地址里有不能交给系统的字符，没打开")
 		return
 	}
-	pShellExecuteW.Call(0, uintptr(unsafe.Pointer(utf16Ptr("open"))), uintptr(unsafe.Pointer(p)), 0, 0, swShowNormal)
+	// ShellExecute 返回不大于 32 的值就是失败（地址不写进日志：里面可能有东西）
+	if r, _, err := pShellExecuteW.Call(0, uintptr(unsafe.Pointer(utf16Ptr("open"))), uintptr(unsafe.Pointer(p)), 0, 0, swShowNormal); r <= 32 {
+		log.Printf("desktop: 默认浏览器没能打开外链（%d）：%v", r, err)
+	}
 }
 
 func loword(v uintptr) int32 { return int32(int16(v & 0xFFFF)) }

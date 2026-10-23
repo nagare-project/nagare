@@ -397,7 +397,14 @@ func (e *Chromium) SetPermission(kind CoreWebView2PermissionKind, state CoreWebV
 
 func (e *Chromium) SetBackgroundColour(R, G, B, A uint8) {
 	controller := e.GetController()
+	if controller == nil {
+		return // nagare patch：控制器还没建好
+	}
 	controller2 := controller.GetICoreWebView2Controller2()
+	if controller2 == nil {
+		e.errorCallback(errors.New("WebView2 不支持 ICoreWebView2Controller2，底色设不上")) // nagare patch：上游接着解引用空指针
+		return
+	}
 
 	backgroundCol := COREWEBVIEW2_COLOR{
 		A: A,

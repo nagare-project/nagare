@@ -98,7 +98,14 @@ func (a *app) savePlacement() {
 	p := savedPlacement{Left: r.Left, Top: r.Top, Right: r.Right, Bottom: r.Bottom,
 		Maximized: wp.ShowCmd == swMaximize || boolCall(pIsZoomed, a.top)}
 	b, _ := json.Marshal(p)
-	if err := os.WriteFile(path, b, 0o600); err != nil {
+	// 先写临时文件再改名：写到一半被结束（关机）时不留半截文件
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		log.Printf("desktop: 记不下窗口位置：%v", err)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		log.Printf("desktop: 记不下窗口位置：%v", err)
+		_ = os.Remove(tmp)
 	}
 }

@@ -46,6 +46,7 @@ func (a *app) run(done <-chan struct{}) {
 	}
 	a.startQueue()
 	a.running.Store(true)
+	a.quitWhenDone()
 
 	pumpUntilQuit()
 	a.running.Store(false)
@@ -55,8 +56,41 @@ func (a *app) run(done <-chan struct{}) {
 	a.pumpUntilDone(quitPumpLimit)
 	a.shutdownWeb(browserExitLimit)
 	a.savePlacement()
+	a.q.close() // 先关队列再拆窗口：之后的投递不会落到已经销毁的消息窗口上
+	a.killStraggler()
 	a.destroyWindows()
-	a.q.close()
+}
+
+// quitWhenDone：主进程收尾完成（done 关闭）时也给这个线程投一个 WM_QUIT。平时 WM_QUIT 来自托盘（systray.Quit），
+// 但托盘起不来时（registerSystray 失败只记日志）没有人投，循环就永远不停、进程退不出去、自更新也重启不了。
+func (a *app) quitWhenDone() {
+	if a.done == nil {
+		return
+	}
+	tid := a.threadID
+	go func() {
+		<-a.done
+		if r, _, err := pPostThreadMessageW.Call(uintptr(tid), wmQuit, 0, 0); r == 0 {
+			log.Printf("desktop: 收尾完成后投不出 WM_QUIT：%v", err)
+		}
+	}()
+}
+
+// killStraggler：收尾超时、mpv 还挂在画面层上（卡死了）时先结束它 —— 销毁顶层窗口要连带销毁它的子窗口，
+// 别的进程的子窗口卡着时那一步也会卡住。
+func (a *app) killStraggler() {
+	s := a.session
+	if s == nil {
+		return
+	}
+	pid := s.pid.Load()
+	if child := s.child.Load(); child != 0 {
+		pid = windowPID(child)
+	}
+	log.Print("desktop: 退出时 mpv 还挂在窗口上，先结束它")
+	if err := killProcess(pid); err != nil {
+		log.Printf("desktop: 结束 mpv 失败：%v", err)
+	}
 }
 
 // startQueue 让 uiQueue 往这个线程上的消息窗口投递（建好 dispatch 之后、在这个线程上调）。
@@ -65,7 +99,8 @@ func (a *app) startQueue() {
 	a.q.mu.Lock()
 	a.q.onUI = func() bool { return currentThreadID() == self }
 	a.q.mu.Unlock()
-	a.q.start(func() bool { return postMessage(a.dispatch, wmAppRun, 0, 0) })
+	d := a.dispatch // 按值捕获：投递可能在任何 goroutine 上，而 a.dispatch 在拆窗口时清零
+	a.q.start(func() bool { return postMessage(d, wmAppRun, 0, 0) })
 }
 
 // pumpUntilQuit 处理消息直到 WM_QUIT（嵌套的 pumpWait 取到 WM_QUIT 会补投，这里照样收得到）。
@@ -95,13 +130,21 @@ func (a *app) pumpUntilDone(limit time.Duration) {
 		log.Printf("desktop: 建不了等待用的事件，不等收尾：%v", err)
 		return
 	}
-	defer windows.CloseHandle(ev)
 	stop := make(chan struct{})
-	defer close(stop)
+	helper := make(chan struct{})
+	// 关句柄之前等 helper 退出：否则它可能在句柄关掉（值被系统复用）之后才 SetEvent
+	defer func() {
+		close(stop)
+		<-helper
+		windows.CloseHandle(ev)
+	}()
 	go func() {
+		defer close(helper)
 		select {
 		case <-a.done:
-			windows.SetEvent(ev)
+			if err := windows.SetEvent(ev); err != nil {
+				log.Printf("desktop: 收尾完成的事件设不上（只能等到超时）：%v", err)
+			}
 		case <-stop:
 		}
 	}()

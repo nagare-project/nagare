@@ -75,10 +75,24 @@ func (a *app) beginSession() sessionPrep {
 	return sessionPrep{ok: true, id: a.seq, host: a.videoHost}
 }
 
-// attachSession（界面线程）：起播成功，记下这个会话。
+// attachSession（界面线程）：起播成功，记下这个会话。起播期间用户已经关了窗口（closeToBackground 那时还没有会话
+// 可停）就马上停掉它。
 func (a *app) attachSession(s *videoSession) {
-	if a.sessionID == s.id {
-		a.session = s
+	if a.sessionID != s.id {
+		return
+	}
+	a.session = s
+	if a.quitOnAttach {
+		a.quitOnAttach = false
+		log.Print("desktop: 起播时窗口已经关了：停止播放")
+		s.quit()
+	}
+}
+
+// dropOrphanSession（界面线程）：Launch 等界面线程超时、改用单独的 mpv 窗口之后，把做了一半的会话收掉。
+func (a *app) dropOrphanSession() {
+	if a.sessionID != 0 && a.session == nil {
+		a.endSession(a.sessionID)
 	}
 }
 
@@ -89,6 +103,7 @@ func (a *app) endSession(id uint64) {
 	}
 	a.sessionID = 0
 	a.session = nil
+	a.quitOnAttach = false
 	if a.top != 0 {
 		a.showWeb()
 	}
@@ -432,6 +447,11 @@ func (c *hostIPC) readLoop() {
 	defer c.close()
 	sc := bufio.NewScanner(c.conn)
 	sc.Buffer(make([]byte, 64*1024), 4<<20)
+	defer func() {
+		if err := sc.Err(); err != nil {
+			log.Printf("desktop: mpv 的 IPC 读不下去了（全屏、置顶不再跟着窗口）：%v", err)
+		}
+	}()
 	for sc.Scan() {
 		var m struct {
 			Event     string          `json:"event"`

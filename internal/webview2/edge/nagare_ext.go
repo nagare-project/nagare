@@ -110,6 +110,13 @@ func (i *ICoreWebView2NewWindowRequestedEventArgs) GetUri() (string, error) {
 	return getString(i.vtbl.GetUri, unsafe.Pointer(i))
 }
 
+// GetIsUserInitiated 报告这次新窗口请求是不是用户点出来的。
+func (i *ICoreWebView2NewWindowRequestedEventArgs) GetIsUserInitiated() (bool, error) {
+	var v int32
+	hr, _, _ := i.vtbl.GetIsUserInitiated.Call(uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(&v)))
+	return v != 0, hrErr(hr)
+}
+
 // PutHandled 为真且不给 NewWindow：不开任何新窗口。
 func (i *ICoreWebView2NewWindowRequestedEventArgs) PutHandled(handled bool) error {
 	return putBool(i.vtbl.PutHandled, unsafe.Pointer(i), handled)

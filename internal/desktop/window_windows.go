@@ -338,6 +338,8 @@ func (a *app) closeToBackground() {
 	if s := a.session; s != nil {
 		log.Print("desktop: 关窗口：停止播放")
 		s.quit()
+	} else if a.sessionID != 0 {
+		a.quitOnAttach = true // 正在起播、mpv 还没接上：接上时再停
 	}
 	if a.fs.on {
 		a.setFullscreen(false)

@@ -102,7 +102,7 @@ func (a *app) forwardInput(hwnd uintptr, m uint32, w, l uintptr) (uintptr, bool)
 			return 0, true
 		}
 	case wmAppCommand:
-		if name, ok := appCommands[uint32(hiword(l))&^appcmdMask]; ok {
+		if name, ok := appCommands[uint32(uint16(l>>16))&^appcmdMask]; ok { // 高位是来源（鼠标 / 键盘），不能按有符号取
 			c.send("keypress", name)
 			return 1, true
 		}
