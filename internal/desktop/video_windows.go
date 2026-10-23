@@ -172,7 +172,9 @@ type videoSession struct {
 	pid     atomic.Uint32
 	child   atomic.Uintptr
 	enabled atomic.Bool
-	killed  atomic.Bool
+	// enabling：正有一个 goroutine 在等 EnableWindow 回来（见 enableAsync），同一时间只放一个
+	enabling atomic.Bool
+	killed   atomic.Bool
 
 	sync *windowSync // 界面线程
 
@@ -290,14 +292,31 @@ func (s *videoSession) adoptChild() bool {
 	}
 	changed := s.child.Swap(h) != h
 	if !ipcInput && !boolCall(pIsWindowEnabled, h) {
-		pEnableWindow.Call(h, 1) // 在这个 goroutine 上：它要等 mpv 的窗口线程处理 WM_ENABLE
-		changed = true
+		s.enableAsync(h)
 	}
 	s.enabled.Store(boolCall(pIsWindowEnabled, h))
 	if changed {
 		ui.q.post(func() { ui.attachChild(s) })
 	}
 	return true
+}
+
+// enableAsync 重新启用 mpv 的子窗口。EnableWindow 是一次跨进程的 SendMessage（WM_ENABLE），mpv 的窗口线程卡住时
+// 它就一直不回来 —— 放在一个短命的 goroutine 里，同一时间只有一个（enabling），调它的看门狗照常每秒走一圈、
+// 照样走到 IsHungAppWindow 那一步（卡住的 mpv 由看门狗结束，这个 goroutine 随之返回）。启用之后再接一次：
+// 焦点给 disabled 的窗口给不上。
+func (s *videoSession) enableAsync(h uintptr) {
+	if !s.enabling.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer s.enabling.Store(false)
+		pEnableWindow.Call(h, 1)
+		if s.child.Load() == h {
+			s.enabled.Store(boolCall(pIsWindowEnabled, h))
+		}
+		ui.q.post(func() { ui.attachChild(s) })
+	}()
 }
 
 // childStale：接上的子窗口已经没了（mpv 重建了窗口），或者（重新启用的模式下）又是 disabled 的了。
@@ -336,8 +355,11 @@ func (s *videoSession) watchdog() {
 		}
 		if s.childStale() {
 			s.adoptChild() // mpv 重建过窗口：接上新的那个、重新启用，别盯着死句柄
-			strikes = 0
-			continue
+			if !s.enabling.Load() {
+				strikes = 0
+				continue
+			}
+			// 还在等 mpv 处理 WM_ENABLE：照样看它是不是卡住了（卡住的 mpv 正是这个等待回不来的原因）
 		}
 		child := s.child.Load()
 		if !boolCall(pIsHungAppWindow, child) {

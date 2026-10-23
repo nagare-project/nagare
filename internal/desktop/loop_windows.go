@@ -84,6 +84,13 @@ func (a *app) killStraggler() {
 	if s == nil {
 		return
 	}
+	if p := s.player; p != nil {
+		select {
+		case <-p.Done():
+			return // mpv 已经退出：它的进程号可能已经给了别的进程，不能再按这个号去结束
+		default:
+		}
+	}
 	pid := s.pid.Load() // IPC 问来的 mpv 进程号；没问到才看窗口属于谁
 	if child := s.child.Load(); pid == 0 && child != 0 {
 		pid = windowPID(child)

@@ -81,10 +81,15 @@ func TestStaleChildIsRescannedAndReenabled(t *testing.T) {
 	s := newVideoSession(999, nil, host) // 不是界面上的当前会话：attachChild 什么都不做
 	s.pid.Store(uint32(os.Getpid()))
 
+	enabledSoon := func(h uintptr, msg string) {
+		t.Helper()
+		assert.Eventually(t, func() bool { return boolCall(pIsWindowEnabled, h) && !s.enabling.Load() }, 3*time.Second, 10*time.Millisecond, msg)
+	}
+
 	first := fake()
 	require.True(t, s.adoptChild())
 	assert.Equal(t, first, s.child.Load())
-	assert.True(t, boolCall(pIsWindowEnabled, first), "接上时重新启用")
+	enabledSoon(first, "接上时重新启用")
 	assert.False(t, s.childStale())
 
 	// mpv 退到下一个 GPU 上下文：旧窗口销毁，新窗口又是 disabled 的
@@ -93,11 +98,66 @@ func TestStaleChildIsRescannedAndReenabled(t *testing.T) {
 	assert.True(t, s.childStale(), "接上的窗口没了")
 	require.True(t, s.adoptChild())
 	assert.Equal(t, second, s.child.Load())
-	assert.True(t, boolCall(pIsWindowEnabled, second))
+	enabledSoon(second, "新窗口也重新启用")
 
 	// 同一个窗口又被禁用了：也算过期，重新启用
 	l.onUI(t, func() { pEnableWindow.Call(second, 0) })
 	assert.True(t, s.childStale())
 	require.True(t, s.adoptChild())
-	assert.True(t, boolCall(pIsWindowEnabled, second))
+	enabledSoon(second, "又被禁用的窗口重新启用")
+}
+
+// mpv 的窗口线程卡住时 EnableWindow（跨进程的 SendMessage）回不来：接窗口的一方不能跟着等 —— 看门狗要照常走到
+// IsHungAppWindow 那一步。这里用一个不处理消息的线程建「mpv」窗口模拟卡住的 mpv。
+func TestAdoptChildDoesNotWaitForAHungWindow(t *testing.T) {
+	if ipcInput {
+		t.Skip("IPC 转发模式下不重新启用子窗口")
+	}
+	l := startLoop(t, true)
+	var host uintptr
+	var regErr error
+	l.onUI(t, func() {
+		regErr = registerClass("mpv", hostProcCb, 0, 0)
+		host = l.a.videoHost
+	})
+	require.NoError(t, regErr)
+
+	created := make(chan uintptr, 1)
+	release := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		h, err := createWindow(0, "mpv", "", wsChild|wsVisible, 0, 0, 100, 100, host)
+		if err != nil {
+			created <- 0
+			return
+		}
+		pEnableWindow.Call(h, 0) // 自己线程上的窗口：立刻生效
+		created <- h
+		<-release // 这期间不处理消息：别的线程对这个窗口 SendMessage 就一直等着，像卡住的 mpv
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) && !boolCall(pIsWindowEnabled, h) {
+			drainMessages()
+			time.Sleep(10 * time.Millisecond)
+		}
+		pDestroyWindow.Call(h)
+		drainMessages()
+	}()
+	h := <-created
+	require.NotZero(t, h)
+
+	s := newVideoSession(998, nil, host)
+	s.pid.Store(uint32(os.Getpid()))
+	start := time.Now()
+	require.True(t, s.adoptChild())
+	assert.Less(t, time.Since(start), 500*time.Millisecond, "接窗口不等 EnableWindow 回来")
+	assert.True(t, s.enabling.Load(), "启用在后台等着")
+	assert.True(t, s.childStale(), "还没启用上：看门狗下一圈仍会看它是不是卡住了")
+	require.True(t, s.adoptChild(), "再接一次也不再起第二个等待")
+
+	close(release) // 「mpv」恢复处理消息：启用落地
+	assert.Eventually(t, func() bool { return boolCall(pIsWindowEnabled, h) && !s.enabling.Load() }, 3*time.Second, 10*time.Millisecond)
+	<-done
 }
