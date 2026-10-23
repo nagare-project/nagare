@@ -17,7 +17,8 @@ func TestBuildAppSizeGuardBelowUpdaterLimits(t *testing.T) {
 	script, err := os.ReadFile(filepath.Join("..", "..", "scripts", "macos", "build-app.sh"))
 	require.NoError(t, err)
 	guard := func(name string) int64 {
-		m := regexp.MustCompile(`(?m)^` + name + `=(\d+)$`).FindSubmatch(script)
+		// \r?：Windows 的 checkout 可能把换行转成 CRLF
+		m := regexp.MustCompile(`(?m)^` + name + `=(\d+)\r?$`).FindSubmatch(script)
 		require.NotNil(t, m, "build-app.sh 里没有 %s", name)
 		v, err := strconv.ParseInt(string(m[1]), 10, 64)
 		require.NoError(t, err)
