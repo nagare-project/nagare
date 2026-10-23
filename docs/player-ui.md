@@ -120,8 +120,10 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
   `keypress PREV` / `keypress NEXT`（`input.conf` 绑的就是这两个键）。
 - **`capture` 是提示，不是同步结果**：它在 30ms 去抖的重绘里更新，光标刚移到控件上就立刻按下，读到的可能还是上一次的值
   （命令行 mpv 下鼠标分区有同样的延迟）。
-- **缩略图的尺寸**：thumbfast 按 `display-hidpi-scale` 定缩略图大小，render API 下读不到；宿主要经 `script-opts` 传按
-  缩放算好的 `thumbfast-max_width` / `thumbfast-max_height`（thumbfast 本身不改）。
+- **缩略图的尺寸**：thumbfast 按 `display-hidpi-scale` 定缩略图大小，render API 下读不到；宿主经 `script-opts` 传按
+  缩放算好的 `thumbfast-max_width` / `thumbfast-max_height`（`thumbfast.conf` 的 192 × 窗口所在屏幕的
+  `backingScaleFactor`，起播时取一次；thumbfast 只在加载时读设置，播放中把窗口拖到另一块屏幕上尺寸不跟着变）。
+  thumbfast 本身不改。
 - **「全部松开」写成 `keyup ""`**：mpv 0.41 的 `keyup` 不带参数时键名是 NULL、直接解引用，mpv 段错误退出（进程内就是整个
   nagare；命令行 mpv 经 IPC 发 `["keyup"]` 也一样崩，实测）。
 - **会话结束看 IPC 断开**：mpv 的 IPC 从不把 `shutdown` 发给客户端（`input/ipc-unix.c` 收到就断开）。命令行 mpv 靠进程退出码判
@@ -129,8 +131,11 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 
 macOS 的宿主在 `internal/desktop`（构建标签 `libmpv`，开发期 libmpv 见 `scripts/macos/libmpv-dev.md`）：一个窗口两层，
 网页（WKWebView）与画面（libmpv render API 画进 CAOpenGLLayer）。播放时画面盖满窗口，会话结束（q、返回、Esc、最后一集
-播完、关窗）换回网页。嵌入时不加载 thumbfast（它在 macOS 上会把 nagare 本身当 mpv 拉起来），等我们自己的 libmpv 构建
-带上命令行 mpv 再加回来。
+播完、关窗）换回网页。嵌入时配置目录里的脚本不自动加载（`load-scripts=no`），点名加载 nagare 的界面；thumbfast 只在
+有一个命令行 mpv 交给它时才点名加载 —— `Nagare.app` 里是 `Contents/MacOS/mpv`（与 libmpv 同一次构建），开发时是探测到的
+那个（比如 Homebrew 的），经 `thumbfast-mpv_path` 传过去；路径不是绝对路径、不是普通文件、或者就是 nagare 自己时一律不加载。
+没有命令行 mpv 就不出缩略图：thumbfast 在 macOS 上找不到 mpv 的兜底是用 `ps -o comm=` 找「自己这个进程」，那就是 nagare，
+会把 nagare 当 mpv 拉起来。
 
 **命令行 mpv 下一切照旧**：这些属性一个都没设时（Linux、浏览器模式、今天的所有平台），界面的行为与以前一字不差，
 `capture` / `shown` 也只在嵌入时才发布。0.36 之前的 mpv 没有 `user-data`：观察不存在的属性只会一直是空，不报错。

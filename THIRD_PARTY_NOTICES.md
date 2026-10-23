@@ -3,10 +3,65 @@
 nagare 本体以 [AGPL-3.0](LICENSE) 发布。本文件列出随 nagare 分发包一起提供、或被链接进
 nagare 二进制的第三方组件及其许可证。许可证以各上游源码树中的 LICENSE / COPYING 文件为准。
 
+## macOS 包内置的 libmpv 与命令行 mpv
+
+`nagare-<版本>_MacOS_universal.dmg` 与自更新用的 `nagare-<版本>_MacOS_universal.app.zip` 里的
+`Nagare.app` 在自己的窗口里播放视频：**nagare 进程内链接 libmpv**（`Contents/Frameworks/` 下 23 个动态库，
+render API 画进 nagare 的窗口），另带一个由同一批源码编出的命令行 mpv（`Contents/MacOS/mpv`，给进度条缩略图
+与 `--no-window` 浏览器模式用）。macOS 的裸二进制 `nagare-<版本>_MacOS_universal.tar.gz` 与 Linux 包不捆绑
+（使用系统安装的 mpv）。
+
+这套库是 nagare 自己从上游源码构建的（[`scripts/macos/libmpv/`](scripts/macos/libmpv/README.md)，
+CI 是 [`.github/workflows/libmpv-macos.yml`](.github/workflows/libmpv-macos.yml)），不是第三方预编译包。
+每个源码归档的地址与 sha256 钉在 [`versions.lock`](scripts/macos/libmpv/versions.lock) 里；
+包内 `Contents/Resources/libmpv/` 有这一版的构建清单（`MANIFEST.txt` / `manifest.json`：组件版本、源码哈希、
+补丁、工具链、每个文件的 sha256）与各组件的许可证原文（`licenses/`）。
+
+**整体许可证：GPL-3.0-or-later，与 nagare 一起构成一个合并作品。** 只有 mpv 本身带来 GPL
+（GPL-2.0-or-later，默认的 `-Dgpl=true`）；FFmpeg 没开任何 GPL 组件，因链接 mbedTLS 用
+`--enable-version3`，是 LGPL-3.0-or-later；其余依赖都是 LGPL / MIT / BSD / ISC / Apache 一类。合起来按
+GPL-3.0-or-later 分发。与 Windows 包不同，这里是**同一进程内的动态链接**，nagare（AGPL-3.0）与这套库组成
+合并作品；AGPL-3.0 与 GPL-3.0 第 13 条明确允许两者合并分发，合并作品里 nagare 的部分仍按 AGPL-3.0，
+libmpv 的部分仍按 GPL-3.0-or-later。
+
+| 组件 | 版本 | 上游 | 许可证 |
+| --- | --- | --- | --- |
+| mpv（libmpv 与命令行 mpv） | 0.41.0 + 3 个上游已合并的修复（[`patches/mpv/`](scripts/macos/libmpv/patches/mpv)） | https://github.com/mpv-player/mpv | GPL-2.0-or-later（多数源文件为 LGPL-2.1-or-later） |
+| FFmpeg | 8.0.3 | https://ffmpeg.org | LGPL-3.0-or-later（`--enable-version3`，无 GPL 组件） |
+| Mbed TLS | 3.6.7 | https://github.com/Mbed-TLS/mbedtls | Apache-2.0 OR GPL-2.0-or-later |
+| libplacebo | 7.360.1 | https://code.videolan.org/videolan/libplacebo | LGPL-2.1-or-later |
+| └ glad（生成的 OpenGL 加载器） | 73db193 | https://github.com/Dav1dde/glad | MIT |
+| └ fast_float（头文件） | 97b54ca | https://github.com/fastfloat/fast_float | Apache-2.0 OR MIT OR BSL-1.0 |
+| └ Vulkan-Headers（仅构建期头文件） | 450bd22 | https://github.com/KhronosGroup/Vulkan-Headers | Apache-2.0 OR MIT |
+| └ Jinja / MarkupSafe（仅构建期的代码生成，不进二进制） | 1520688 / 297fc8e | https://github.com/pallets | BSD-3-Clause |
+| libass | 0.17.5 | https://github.com/libass/libass | ISC |
+| FreeType | 2.14.3 | https://freetype.org | FTL OR GPL-2.0-or-later |
+| HarfBuzz | 14.6.0 | https://github.com/harfbuzz/harfbuzz | MIT（Modern Variant） |
+| FriBidi | 1.0.17 | https://github.com/fribidi/fribidi | LGPL-2.1-or-later |
+| dav1d | 1.5.4 | https://code.videolan.org/videolan/dav1d | BSD-2-Clause |
+| zimg | 3.0.6 | https://github.com/sekrit-twc/zimg | WTFPL |
+| Little-CMS（lcms2） | 2.19.1 | https://github.com/mm2/Little-CMS | MIT |
+| libjpeg-turbo | 3.1.4.1 | https://github.com/libjpeg-turbo/libjpeg-turbo | IJG AND BSD-3-Clause AND Zlib |
+| uchardet | 0.0.8 | https://gitlab.freedesktop.org/uchardet/uchardet | MPL-1.1 OR GPL-2.0-or-later OR LGPL-2.1-or-later |
+| LuaJIT | 2.1（a4c0645） | https://github.com/LuaJIT/LuaJIT | MIT |
+
+zlib、bzip2、iconv 用的是 macOS 系统自带的，不随包分发。组件或版本变了时以包内 `MANIFEST.txt` 为准。
+
+### 完整对应源码
+
+- **每个 GitHub Release 附带 `libmpv-macos-source-<构建号>.tar.gz`**（`<构建号>` = mpv 版本 + 构建提交，
+  与包内 `MANIFEST.txt` 的「源码提交」一致）：`versions.lock` 列出的全部上游源码归档（逐个校验过 sha256）、
+  我们的构建脚本、补丁、验证脚本与 CI 工作流，以及重新构建的步骤说明。发布流水线会检查它与二进制同时出现在
+  `checksums.txt` 里（`scripts/release/check-gpl-sources.sh`）。
+- **合并作品的其余部分**（nagare 本体与把它组装成 `Nagare.app` 的脚本：`.goreleaser.yaml`、
+  `scripts/macos/build-app.sh`）就是这个仓库在该版本 tag 上的源码，Release 页自带源码归档。
+- 如需任一组件的源码副本而上述途径已不可用，请在本仓库开 issue，我们会提供。
+
 ## Windows 包内置的 mpv
 
 `nagare-<版本>_Windows_x86_64-setup.exe` 与 `nagare-<版本>_Windows_x86_64.zip` 在 `mpv\` 子目录里
-捆绑了一份 mpv，macOS / Linux 包不捆绑（使用系统安装的 mpv）。
+捆绑了一份 mpv；Linux 包与 macOS 的裸二进制 tar.gz 不捆绑（使用系统安装的 mpv），macOS 的 `Nagare.app`
+见上一节。
 
 | | |
 | --- | --- |

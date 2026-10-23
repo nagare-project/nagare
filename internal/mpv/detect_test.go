@@ -137,6 +137,8 @@ func TestDetect_CandidateOrder(t *testing.T) {
 	exeDir := filepath.Join("/", "app")
 	bundledUnix := filepath.Join(exeDir, "mpv", "mpv")
 	bundledWin := filepath.Join(exeDir, "mpv", "mpv.exe")
+	appMacOS := filepath.Join("/", "Applications", "Nagare.app", "Contents", "MacOS")
+	appMPV := filepath.Join(appMacOS, "mpv")
 
 	cases := []struct {
 		name       string
@@ -154,6 +156,25 @@ func TestDetect_CandidateOrder(t *testing.T) {
 			name:       "darwin 内置目录也认（同目录 mpv/mpv）",
 			fakes:      detectFakes{goos: "darwin", exeDir: exeDir, files: map[string]bool{bundledUnix: true}, pathHit: "/elsewhere/mpv"},
 			wantPath:   bundledUnix,
+			wantSource: SourceBundled,
+		},
+		{
+			// Nagare.app：Contents/MacOS/mpv 与 nagare 同目录，排在 PATH 与 Homebrew 之前
+			name:       "darwin 的 .app 内置 mpv（同目录的 mpv 文件）优先于 PATH 与已知位置",
+			fakes:      detectFakes{goos: "darwin", exeDir: appMacOS, files: map[string]bool{appMPV: true, "/opt/homebrew/bin/mpv": true}, pathHit: "/usr/local/bin/mpv"},
+			wantPath:   appMPV,
+			wantSource: SourceBundled,
+		},
+		{
+			name:       "linux 不认同目录的 mpv 文件（只有 Windows 布局的 mpv/ 子目录）",
+			fakes:      detectFakes{goos: "linux", exeDir: exeDir, files: map[string]bool{filepath.Join(exeDir, "mpv"): true}, pathHit: "/usr/bin/mpv"},
+			wantPath:   "/usr/bin/mpv",
+			wantSource: SourcePath,
+		},
+		{
+			name:       "windows 不认同目录的 mpv 文件，内置布局不变（mpv/mpv.exe）",
+			fakes:      detectFakes{goos: "windows", exeDir: exeDir, files: map[string]bool{filepath.Join(exeDir, "mpv"): true, bundledWin: true}},
+			wantPath:   bundledWin,
 			wantSource: SourceBundled,
 		},
 		{
@@ -196,6 +217,14 @@ func TestDetect_CandidateOrder(t *testing.T) {
 			assert.Equal(t, "0.41.0", info.Version)
 		})
 	}
+}
+
+// macOS 的两种内置布局都在时，.app 的 Contents/MacOS/mpv（同目录文件）先于 mpv/mpv 子目录。
+func TestDetect_DarwinBundledOrder(t *testing.T) {
+	// 路径按跑测试的这台机器的分隔符拼（与生产一致：goos 只决定布局，分隔符是本机的）
+	assert.Equal(t, []string{filepath.Join("/app", "mpv"), filepath.Join("/app", "mpv", "mpv")}, bundledLocations("darwin", "/app"))
+	assert.Equal(t, []string{filepath.Join("/app", "mpv", "mpv.exe")}, bundledLocations("windows", "/app"))
+	assert.Equal(t, []string{filepath.Join("/app", "mpv", "mpv")}, bundledLocations("linux", "/app"))
 }
 
 // 已知位置按顺序取第一个存在的：Apple Silicon Homebrew 优先于 Intel Homebrew。

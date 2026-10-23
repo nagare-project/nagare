@@ -42,7 +42,8 @@ export interface MpvCardProps {
 
 /**
  * mpv 信息卡。找到：版本 / 路径 / 来源；未找到：提示 + 按平台的安装指引
- * （命令块 + 一键复制 + 外链）+「重新检测」—— macOS 不捆绑 mpv，用户装完不用重启。
+ * （命令块 + 一键复制 + 外链）+「重新检测」—— 用户装完不用重启。安装指引只会出现在 Linux 与 macOS 的裸二进制上：
+ * Windows 包与 Nagare.app 都自带 mpv（Nagare.app 在窗口模式下另有一行「进度条缩略图」说明用的是哪个命令行 mpv）。
  */
 export function MpvCard({ mpv, onReload }: MpvCardProps) {
   const [detect, setDetect] = useState<DetectState>({ phase: 'idle' })
@@ -74,6 +75,12 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
           <dd className="result--ok">已就绪 ✓</dd>
           <dt>来源</dt>
           <dd>{SOURCE_LABEL.embedded}（不需要另装 mpv）</dd>
+          <dt>进度条缩略图</dt>
+          <dd>
+            {mpv.cli === undefined
+              ? '不可用（没有找到命令行 mpv，播放不受影响）'
+              : `可用 · mpv ${mpv.cli.version} · ${SOURCE_LABEL[mpv.cli.source]}`}
+          </dd>
         </dl>
       ) : mpv.found ? (
         <dl className="kv-list">

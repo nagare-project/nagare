@@ -20,7 +20,7 @@ cask "nagare" do
   #      一个产物一个消费者，改动时不会互相牵连。
   url "https://github.com/nagare-project/nagare/releases/download/v#{version}/nagare-#{version}_MacOS_universal.dmg"
   name "nagare"
-  desc "Local anime playback agent that drives mpv from a browser UI"
+  desc "Local anime player with mpv built into its own window"
   homepage "https://github.com/nagare-project/nagare"
 
   livecheck do
@@ -37,12 +37,11 @@ cask "nagare" do
   # ⚠️ auto_updates 与 depends_on 属于同一个 stanza 组，中间【不能】空行
   # （brew style 的 Cask/StanzaGrouping 会报错）。
   #
-  # 走 Homebrew 这条渠道最大的好处：mpv 一起装上。
-  # macOS 上 nagare 不捆绑 mpv（决议 A5），手动装 dmg 的用户得自己 brew install mpv。
+  # 不再依赖 Homebrew 的 mpv：Nagare.app 自带 libmpv（窗口里播放）与命令行 mpv（缩略图、浏览器模式），
+  # 见主仓库 docs/releasing.md「macOS：Nagare.app 里的 libmpv」。
   # macos 下限与产物的部署目标一致：Ventura = macOS 13（见 .goreleaser.yaml 与 Info.plist）。
   # 裸符号在 cask 里就是「不低于」的意思，写 ">= :ventura" 会被 brew style 要求改回来。
-  depends_on formula: "mpv",
-             macos:   :ventura
+  depends_on macos: :ventura
 
   app "Nagare.app"
 
@@ -56,11 +55,14 @@ cask "nagare" do
   # zap 只在用户显式要求时才跑（brew uninstall --zap --cask nagare），
   # 语义就是「连数据一起清掉」，所以配置目录放在这里。
   # 注意：设了 NAGARE_CONFIG_DIR 的用户，配置不在下面这些路径里，zap 清不到。
+  # 桌面窗口里的 WKWebView 用持久的数据存储（本机存储、缓存），WebKit 按 bundle id 放在下面两处。
   zap trash: [
     "~/Library/Application Support/nagare",
     "~/Library/Caches/io.github.nagare-project.Nagare",
+    "~/Library/HTTPStorages/io.github.nagare-project.Nagare",
     "~/Library/Preferences/io.github.nagare-project.Nagare.plist",
     "~/Library/Saved Application State/io.github.nagare-project.Nagare.savedState",
+    "~/Library/WebKit/io.github.nagare-project.Nagare",
   ]
 
   caveats <<~EOS
@@ -74,7 +76,7 @@ cask "nagare" do
 
       xattr -c "#{appdir}/Nagare.app"
 
-    mpv 已作为依赖一起装好，不用再单独装。
-    nagare 是菜单栏应用（不占 Dock），启动后浏览器会自动打开界面。
+    mpv 已内置在 Nagare.app 里，不用另装。
+    启动后 Dock 里有 nagare 的图标，界面在 nagare 自己的窗口里打开。
   EOS
 end

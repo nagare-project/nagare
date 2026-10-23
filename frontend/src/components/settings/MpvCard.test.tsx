@@ -21,6 +21,11 @@ const MISSING: MpvInfo = {
 
 const EMBEDDED: MpvInfo = { found: true, embedded: true, source: 'embedded' }
 
+const EMBEDDED_WITH_CLI: MpvInfo = {
+  ...EMBEDDED,
+  cli: { path: '/Applications/Nagare.app/Contents/MacOS/mpv', version: '0.41.0', source: 'bundled' },
+}
+
 const FOUND: MpvInfo = {
   found: true,
   path: '/opt/homebrew/bin/mpv',
@@ -62,6 +67,13 @@ describe('MpvCard · 桌面窗口内置', () => {
     expect(container.querySelector('.alert-warn')).toBeNull()
     expect(container.querySelector('.mpv-command-text')).toBeNull()
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '重新检测')).toBe(false)
+    expect(container.textContent).toContain('进度条缩略图不可用')
+  })
+
+  it('有内置的命令行 mpv 时说明缩略图可用，以及用的是哪个', async () => {
+    const m = await mount(<MpvCard mpv={EMBEDDED_WITH_CLI} onReload={vi.fn()} />)
+    mounted.push(m.unmount)
+    expect(m.container.textContent).toContain('可用 · mpv 0.41.0 · 内置（随 nagare 附带）')
   })
 })
 

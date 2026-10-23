@@ -90,7 +90,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
             mpv?.embedded === true
               ? '已就绪 · 内置在 nagare 的窗口里，不需要另装'
               : mpv?.found === true
-                ? `已就绪${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
+                ? `已就绪${mpv.source === 'bundled' ? ' · 随 nagare 附带' : ''}${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
                 : 'nagare 自己不解码，播放全部交给 mpv。没有它两条路都播不了。'
           }
         >

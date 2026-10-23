@@ -46,7 +46,16 @@ func init() {
 		log.Printf("desktop: 测试遥控不开：%v", err)
 		return
 	}
-	C.nagare_test_init()
+	// NAGARE_DESKTOP_TEST_SOFTWARE_GL：1 = 没有硬件 OpenGL 时退到软件渲染器并给 mpv 设 gpu-sw=yes（CI 的 runner
+	// 有时没有 GPU），force = 直接用软件渲染器。只有测试构建认它。
+	softwareGL := 0
+	switch os.Getenv("NAGARE_DESKTOP_TEST_SOFTWARE_GL") {
+	case "1":
+		softwareGL = 1
+	case "force":
+		softwareGL = 2
+	}
+	C.nagare_test_init(C.int(softwareGL))
 	mux := http.NewServeMux()
 	str := func(r *http.Request, k string) (*C.char, func()) {
 		c := C.CString(r.URL.Query().Get(k))

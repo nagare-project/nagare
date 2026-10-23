@@ -55,7 +55,7 @@ for arch in "${archs[@]}"; do
     got=$(sha256_of "$part")
     if [ "$got" != "$want" ]; then
       rm -f "$part"
-      echo "sha256 校验失败：$asset（期望 $want，实际 $got）" >&2
+      echo "sha256 校验失败：${asset}（期望 ${want}，实际 ${got}）" >&2
       exit 1
     fi
     mv "$part" "$file"

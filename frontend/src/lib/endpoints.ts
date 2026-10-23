@@ -227,10 +227,19 @@ export interface MpvInstallGuide {
   note: string
 }
 
+/** 桌面窗口里另外探测到的命令行 mpv（Nagare.app 内置的那个）：进度条缩略图靠它 */
+export interface MpvCli {
+  path: string
+  version: string
+  source: MpvSource
+}
+
 export interface MpvInfo {
   found: boolean
   /** 播放在 nagare 桌面窗口里的进程内 libmpv 上：恒为已就绪，没有路径、版本与安装指引 */
   embedded?: boolean
+  /** 仅 embedded 时可能出现：缩略图用的命令行 mpv；没有它时进度条不出缩略图（播放照常） */
+  cli?: MpvCli
   path?: string
   version?: string
   source?: MpvSource

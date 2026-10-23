@@ -55,7 +55,7 @@ func Launch(ctx context.Context, opts mpv.LaunchOptions) (*mpv.Player, error) {
 	if err != nil {
 		return nil, err
 	}
-	spec, err := libmpvSpec(opts, endpoint)
+	spec, err := libmpvSpec(opts, endpoint, backingScale())
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +78,21 @@ func Launch(ctx context.Context, opts mpv.LaunchOptions) (*mpv.Player, error) {
 		return nil, fmt.Errorf("桌面窗口里的 mpv 没能打开这个文件：%w", err)
 	}
 	return p, nil
+}
+
+// backingScale 是窗口所在屏幕的缩放（Retina 为 2），只用来算缩略图尺寸；取不到按 1 算（缩略图小一半，
+// 不影响播放）。thumbfast 只在起播时读一次设置，播放中把窗口拖到另一块屏幕上，缩略图尺寸不跟着变。
+func backingScale() float64 {
+	var scale C.double
+	var cerr *C.char
+	if C.nagare_desktop_backing_scale(&scale, &cerr) != 0 {
+		if cerr != nil {
+			log.Printf("desktop: 取不到屏幕缩放（缩略图按 1 倍）：%s", C.GoString(cerr))
+			C.free(unsafe.Pointer(cerr))
+		}
+		return 1
+	}
+	return float64(scale)
 }
 
 // call 把选项交给 C（marshal 出来的内存在 fn 返回后释放；C 那边先拷进自己的对象再切主线程）。

@@ -65,7 +65,10 @@ nagare 没有购买代码签名证书（原因见下方「为什么会有警告�
 
 系统要求：**macOS 13 或更新**（Intel 与 Apple Silicon 通用）。
 
-用 [Homebrew](https://brew.sh) 装最省事，**mpv 会作为依赖一起装上**：
+`Nagare.app` **自带 mpv**（libmpv 与命令行 mpv，nagare 自己从源码构建），视频就在 nagare 自己的窗口里播放，
+不用另装 mpv。dmg 约 68 MB（以前约 42 MB，多出来的是 mpv 与它的解码库）。
+
+用 [Homebrew](https://brew.sh) 装：
 
 ```bash
 brew tap nagare-project/nagare
@@ -83,9 +86,10 @@ tap 仓库与更多说明见 [`packaging/homebrew/`](packaging/homebrew/README.m
    然后打开 **系统设置 › 隐私与安全性**，滚到「安全性」一栏，点 **「仍要打开」**，再确认一次。
    macOS 15 起右键「打开」已不能绕过这一步；如果没看到「仍要打开」，在终端执行
    `xattr -c /Applications/Nagare.app` 后再双击。
-3. Dock 与菜单栏都会出现 nagare 图标，浏览器自动打开界面。**关掉浏览器不会退出 nagare**：点 Dock 图标可重新打开界面，⌘Q 或菜单栏图标的菜单可退出（会先回写观看进度）。
-4. **mpv 需要自行安装**：`brew install mpv`（界面里也有一键复制；用上面的 cask 装的话已经一起装好了）。
-   没有 mpv 时媒体库照常可用，只是不能播放。
+3. Dock 与菜单栏都会出现 nagare 图标，nagare 的窗口自动打开。**关掉窗口不会退出 nagare**：点 Dock 图标可重新打开，
+   ⌘Q 或菜单栏图标的菜单可退出（会先回写观看进度）。菜单栏菜单里也能「在浏览器中打开」界面。
+4. 终端里直接跑的裸二进制 `nagare-<版本>_MacOS_universal.tar.gz` **不带 mpv**、也没有 nagare 自己的窗口
+   （界面在浏览器里、播放是独立的 mpv 窗口）：要先 `brew install mpv`。
 
 ### Windows
 

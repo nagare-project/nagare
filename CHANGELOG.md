@@ -5,6 +5,14 @@
 
 ## [未发布]
 
+### macOS：nagare 有了自己的窗口，mpv 就在窗口里
+
+- macOS 的 Nagare.app 现在在自己的窗口里放视频：网页界面和播放画面在同一个窗口，点播放就在这个窗口里播，播完（或按返回、Esc）回到网页，不再另开一个 mpv 窗口。控制条、右键菜单、快捷键与以前的 mpv 窗口一样。关掉窗口不退出 nagare，点 Dock 图标重新打开；⌘Q 退出前照旧回写观看进度。
+- **不用再装 Homebrew 的 mpv**：Nagare.app 自带 mpv（nagare 自己从源码构建的 libmpv 与命令行 mpv）。装着 Homebrew mpv 也没关系，nagare 优先用自带的；Homebrew 的 cask 也不再依赖 mpv。终端里直接跑的 macOS 裸二进制（`MacOS_universal.tar.gz`）不变，仍然用系统装的 mpv。
+- 自带的 mpv 能放的格式与媒体库认的扩展名一一对上：mkv / mp4 / avi / webm / mov / m4v / flv / wmv / ts / rmvb，包括老的 RealMedia（RMVB）、WMV、Sorenson / VP6 的 FLV。
+- 窗口里的进度条缩略图也有了，Retina 屏上是全分辨率。
+- 安装包变大：dmg 约 42 MB → 约 69 MB，自更新下载的 `.app.zip` 约 37 MB → 约 61 MB（多出来的是 mpv 与它的解码库）。每个版本另附 mpv 的完整对应源码（`libmpv-macos-source-*.tar.gz`），许可证说明见 `THIRD_PARTY_NOTICES.md`。
+
 ### 播放器里上一集 / 下一集
 
 - 播放器里可以直接切到上一集 / 下一集：控制条上的 ⏮ ⏭、Shift+N / Shift+P、PgDn / PgUp、键盘上的媒体键（上一曲 / 下一曲）、右键菜单。小写 p 仍是暂停。就在同一个窗口里切，全屏、音量、画质增强、倍速都保住，不用关掉播放器回网页重新点。

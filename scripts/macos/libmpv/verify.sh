@@ -93,7 +93,14 @@ h264_videotoolbox_hwaccel hevc_videotoolbox_hwaccel vp9_videotoolbox_hwaccel av1
 mjpeg_encoder png_encoder rawvideo_encoder image2_muxer
 file_protocol http_protocol https_protocol tls_protocol tcp_protocol crypto_protocol
 scale_filter crop_filter pad_filter format_filter hflip_filter vflip_filter zscale_filter tonemap_filter
+avi_demuxer flv_demuxer asf_demuxer rm_demuxer m4v_demuxer
+mpeg4_decoder msmpeg4v1_decoder msmpeg4v2_decoder msmpeg4v3_decoder h263_decoder alac_decoder
+wmv1_decoder wmv2_decoder wmv3_decoder vc1_decoder wmav1_decoder wmav2_decoder wmapro_decoder
+rv10_decoder rv20_decoder rv30_decoder rv40_decoder ra_144_decoder ra_288_decoder cook_decoder sipr_decoder atrac3_decoder
+flv_decoder vp6_decoder vp6f_decoder vp6a_decoder adpcm_swf_decoder nellymoser_decoder adpcm_ms_decoder
 "
+# ↑ 后三行是媒体库扫描器认的老格式（.avi / .flv / .wmv / .rmvb / .m4v）要用的：ffmpeg 编不出 RV30/40、cook、
+#   WMV 9、VP6 的测试片段，只能在这里查它们编进来了。
 # 需求里点名要丢掉的
 FORBIDDEN_FF="libx264_encoder libx265_encoder h264_videotoolbox_encoder aac_encoder bluray_protocol"
 for arch in arm64 x86_64; do
@@ -184,6 +191,31 @@ for arch in $arches; do
   else
     fail "Lua 检查（${arch}）"; show_log "$logf"
   fi
+done
+
+# 媒体库扫描器认的每个扩展名各解一段（Nagare.app 里的 mpv 探测时排第一：这里少一个格式，用户以前用
+# Homebrew mpv 能放的文件就放不了）。扩展名表以 internal/library/scan.go 的 scanVideoExts 为准 ——
+# 那边加了扩展名而这里没有对应片段，直接失败。只拿到对应源码包、没有 nagare 仓库时只解这张表。
+EXT_MEDIA="mkv:h264-aac-ass.mkv mp4:h264-eac3-movtext.mp4 avi:mpeg4-mp3.avi webm:vp9-vorbis.webm mov:h264-alac.mov
+m4v:mpeg4-aac.m4v flv:flv1-adpcm.flv wmv:wmv2-wmav2.wmv ts:mpeg2-ac3.ts rmvb:rv20-ra144.rmvb"
+scan_go="$REPO_ROOT/internal/library/scan.go"
+if [ -f "$scan_go" ]; then
+  scanner_exts=$(awk '/^var scanVideoExts/{f=1; next} f&&/^}/{exit} f' "$scan_go" | grep -oE '"[a-z0-9]+"' | tr -d '"')
+  [ -n "$scanner_exts" ] || fail "读不出 internal/library/scan.go 的 scanVideoExts"
+  for e in $scanner_exts; do
+    case " $(echo $EXT_MEDIA) " in *" $e:"*) ;; *) fail "媒体库扫描器认 .${e}，但 verify.sh 没有它的测试片段（EXT_MEDIA）" ;; esac
+  done
+else
+  warn "没有 internal/library/scan.go（只有对应源码包？）：扩展名表没法与扫描器核对"
+fi
+for arch in $arches; do
+  echo "== 媒体库扩展名（${arch}）=="
+  for pair in $EXT_MEDIA; do
+    e=${pair%%:*} f=${pair#*:}
+    play_ok "$arch" "ext-$e" --frames=60 "$MEDIA/$f"
+    grep -q 'VO: \[null\]' "$TMP/play-$arch-ext-$e.log" || fail ".${e}（${f}，${arch}）：视频没有输出"
+    grep -q 'AO: \[null\]' "$TMP/play-$arch-ext-$e.log" || fail ".${e}（${f}，${arch}）：音频没有输出"
+  done
 done
 
 arch=$HOST_ARCH

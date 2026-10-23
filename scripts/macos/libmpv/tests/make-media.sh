@@ -4,7 +4,7 @@
 #
 # 需要一个带全套编码器的 ffmpeg（≥ 6：libx264 / libx265 / libsvtav1 / libvpx / libopus /
 # libmp3lame），例如 Homebrew 的 ffmpeg。我们自己构建的 FFmpeg 只留了截图用的编码器，生成不了这些。
-# 用法：tests/make-media.sh [ffmpeg 路径]
+# 用法：tests/make-media.sh [ffmpeg 路径] [ext]（ext：只重新生成按扩展名补的那几段，见 ext_media）
 set -euo pipefail
 
 ff=${1:-ffmpeg}
@@ -50,6 +50,27 @@ EOF
 
 x264=(-c:v libx264 -preset veryfast -crf 40 -pix_fmt yuv420p -g 24)
 
+# 媒体库扫描器认的其余扩展名（internal/library/scan.go 的 scanVideoExts），每个一段：老格式挑 ffmpeg 编得出的
+# 那一种（RV30/40、cook、WMV 9、VP6 编不出来，verify.sh 只能查组件在不在）。
+# 只重新生成这几个：tests/make-media.sh <ffmpeg> ext
+ext_media() {
+  "$ff" "${common[@]}" "${video[@]}" "${audio[@]}" \
+    "${x264[@]}" -c:a alac -ac 2 "$out/h264-alac.mov"
+  "$ff" "${common[@]}" "${video[@]}" "${audio[@]}" \
+    -f mp4 -c:v mpeg4 -q:v 31 -c:a aac -b:a 48k -ac 2 "$out/mpeg4-aac.m4v"
+  "$ff" "${common[@]}" "${video[@]}" -f lavfi -i "sine=f=440:r=22050:d=5" \
+    -c:v flv -q:v 31 -c:a adpcm_swf -ac 1 "$out/flv1-adpcm.flv"
+  "$ff" "${common[@]}" "${video[@]}" "${audio[@]}" \
+    -c:v wmv2 -q:v 31 -c:a wmav2 -b:a 64k -ac 2 "$out/wmv2-wmav2.wmv"
+  "$ff" "${common[@]}" "${video[@]}" -f lavfi -i "sine=f=440:r=8000:d=5" \
+    -f rm -c:v rv20 -q:v 31 -c:a real_144 -ac 1 -ar 8000 "$out/rv20-ra144.rmvb"
+}
+if [ "${2:-}" = ext ]; then
+  ext_media
+  ls -l "$out"
+  exit 0
+fi
+
 "$ff" "${common[@]}" "${video[@]}" "${audio[@]}" \
   -i "$work/sub.ass" -i "$work/sub.srt" -i "$work/sub.vtt" \
   -map 0:v -map 1:a -map 2 -map 3 -map 4 \
@@ -77,6 +98,8 @@ x264=(-c:v libx264 -preset veryfast -crf 40 -pix_fmt yuv420p -g 24)
 
 "$ff" "${common[@]}" "${video[@]}" "${audio[@]}" \
   -c:v mpeg4 -vtag xvid -q:v 31 -c:a libmp3lame -b:a 32k "$out/mpeg4-mp3.avi"
+
+ext_media
 
 # 音频轨：DTS / TrueHD / PCM 24bit 各一条（mpv 用 --aid 逐条解）
 a2=(-f lavfi -i "sine=f=330:r=48000:d=1")

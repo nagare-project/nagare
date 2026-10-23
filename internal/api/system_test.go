@@ -28,7 +28,12 @@ type settingsView struct {
 		Version  string `json:"version"`
 		Source   string `json:"source"`
 		Hint     string `json:"hint"`
-		Install  *struct {
+		CLI      *struct {
+			Path    string `json:"path"`
+			Version string `json:"version"`
+			Source  string `json:"source"`
+		} `json:"cli"`
+		Install *struct {
 			Command string `json:"command"`
 			URL     string `json:"url"`
 			Note    string `json:"note"`
@@ -158,6 +163,7 @@ func TestSettingsEmbeddedMPV(t *testing.T) {
 	assert.Equal(t, "embedded", s.MPV.Source)
 	assert.Nil(t, s.MPV.Install, "桌面窗口里没有要装的 mpv")
 	assert.Empty(t, s.MPV.Hint)
+	assert.Nil(t, s.MPV.CLI, "没有命令行 mpv：缩略图不出，但不算没就绪")
 
 	var detected struct {
 		Found    bool `json:"found"`
@@ -167,6 +173,25 @@ func TestSettingsEmbeddedMPV(t *testing.T) {
 	assert.True(t, detected.Found && detected.Embedded, "重新检测也按桌面窗口报")
 }
 
+// 桌面窗口 + 探测到 .app 内置的命令行 mpv：照旧报 embedded，另在 cli 里给出缩略图用的那个 mpv。
+func TestSettingsEmbeddedMPVWithBundledCLI(t *testing.T) {
+	env := newEnvDeps(t, true, func(d *Deps) { d.EmbeddedMPV = true })
+	env.mpvDetect = func(string) (mpv.Info, error) {
+		return mpv.Info{Path: "/Applications/Nagare.app/Contents/MacOS/mpv", Version: "0.41.0", Source: mpv.SourceBundled}, nil
+	}
+	require.Equal(t, http.StatusOK, env.do(t, http.MethodPost, "/api/mpv/detect", "").Code)
+
+	s := getSettings(t, env)
+	assert.True(t, s.MPV.Found)
+	assert.True(t, s.MPV.Embedded)
+	assert.Equal(t, "embedded", s.MPV.Source)
+	assert.Empty(t, s.MPV.Path, "播放用的不是这个路径上的 mpv")
+	require.NotNil(t, s.MPV.CLI)
+	assert.Equal(t, "/Applications/Nagare.app/Contents/MacOS/mpv", s.MPV.CLI.Path)
+	assert.Equal(t, "0.41.0", s.MPV.CLI.Version)
+	assert.Equal(t, "bundled", s.MPV.CLI.Source)
+}
+
 // 不是桌面窗口时照旧：没有 embedded 字段，找不到就给安装指引。
 func TestSettingsCommandLineMPVUnchanged(t *testing.T) {
 	env := newEnv(t)
@@ -174,6 +199,7 @@ func TestSettingsCommandLineMPVUnchanged(t *testing.T) {
 	assert.True(t, s.MPV.Found)
 	assert.False(t, s.MPV.Embedded)
 	assert.Equal(t, "path", s.MPV.Source)
+	assert.Nil(t, s.MPV.CLI, "cli 只在桌面窗口里出现")
 }
 
 // shutdown：先回 200 空信封，再（异步、约 100ms 后）触发退出回调。

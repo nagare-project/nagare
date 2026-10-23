@@ -64,7 +64,7 @@ mkdir -p "$dest"
 # 去掉与 nagare 无关的东西：文件关联安装器、自更新脚本。nagare 只需要能被拉起的 mpv。
 rm -rf "$dest/installer" "$dest/updater.bat" "$dest/mpv-register.bat" "$dest/mpv-unregister.bat"
 for need in mpv.exe mpv.com d3dcompiler_43.dll mpv/fonts.conf; do
-  [ -e "$dest/$need" ] || { echo "解压后缺少 $need，上游布局变了？" >&2; exit 1; }
+  [ -e "$dest/$need" ] || { echo "解压后缺少 ${need}，上游布局变了？" >&2; exit 1; }
 done
 
 sources_file="$sources_dir/mpv-winbuild-cmake-$commit.tar.gz"

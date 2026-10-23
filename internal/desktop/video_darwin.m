@@ -20,6 +20,11 @@
 BOOL gTestSyntheticDrag;
 // 测试构建读的计数
 long gFramesRendered, gWindowDrags;
+// 测试构建（desktoptest，NAGARE_DESKTOP_TEST_SOFTWARE_GL）才会置的：1 = 没有可用的硬件 OpenGL 时退到苹果的
+// 软件渲染器（GitHub 的 macOS runner 有时没有 GPU），2 = 直接用软件渲染器（在有显卡的机器上复现那条路）。
+// 正式构建里恒为 0：用户的 Mac 都有显卡，软件渲染器只会让画面慢到不能看。
+int gTestSoftwareGL;
+BOOL gSoftwareGL; // 实际拿到的是软件渲染器
 
 static mpv_render_context *gRender;
 static CGLContextObj gCGL;
@@ -45,8 +50,19 @@ static BOOL ensureGL(NSString **err) {
   CGLPixelFormatAttribute attrs[] = {
       kCGLPFAOpenGLProfile, (CGLPixelFormatAttribute)kCGLOGLPVersion_3_2_Core,
       kCGLPFAAccelerated,   kCGLPFADoubleBuffer, kCGLPFAAllowOfflineRenderers, 0};
+  // 只有测试构建会用到：苹果的软件渲染器（同 scripts/macos/libmpv/tests/embed_test.c 的退路）
+  CGLPixelFormatAttribute software[] = {
+      kCGLPFAOpenGLProfile, (CGLPixelFormatAttribute)kCGLOGLPVersion_3_2_Core,
+      kCGLPFARendererID,    (CGLPixelFormatAttribute)kCGLRendererGenericFloatID, kCGLPFADoubleBuffer, 0};
   GLint n = 0;
-  CGLError e = CGLChoosePixelFormat(attrs, &gPF, &n);
+  CGLError e = kCGLBadPixelFormat;
+  if (gTestSoftwareGL != 2) e = CGLChoosePixelFormat(attrs, &gPF, &n);
+  if ((e != kCGLNoError || !gPF) && gTestSoftwareGL) {
+    gPF = NULL;
+    e = CGLChoosePixelFormat(software, &gPF, &n);
+    gSoftwareGL = e == kCGLNoError && gPF;
+    if (gSoftwareGL) nagareLog(@"测试构建：没有可用的硬件 OpenGL，用软件渲染器");
+  }
   if (e != kCGLNoError || !gPF) {
     if (err) *err = [NSString stringWithFormat:@"选不到 OpenGL 像素格式（%d）", e];
     return NO;
@@ -106,6 +122,11 @@ static void onRenderUpdate(void *ctx) {
   dispatch_async(dispatch_get_main_queue(), ^{
     [gVideo.layer setNeedsDisplay];
   });
+}
+
+BOOL nagareUsesSoftwareGL(void) {
+  ensureGL(NULL);
+  return gSoftwareGL;
 }
 
 BOOL nagareCreateRenderContext(mpv_handle *h, NSString **err) {

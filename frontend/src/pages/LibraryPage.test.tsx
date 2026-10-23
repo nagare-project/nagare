@@ -90,6 +90,10 @@ const MPV_MISSING: SettingsData = {
 
 /** 桌面窗口（进程内 libmpv）：命令行 mpv 有没有都无所谓，后端恒报已就绪 + embedded */
 const MPV_EMBEDDED: SettingsData = { ...SETTINGS, mpv: { found: true, embedded: true, source: 'embedded' } }
+const MPV_BUNDLED: SettingsData = {
+  ...SETTINGS,
+  mpv: { found: true, path: '/Applications/Nagare.app/Contents/MacOS/mpv', version: '0.41.0', source: 'bundled' },
+}
 
 const PLAYER: PlayerStatus = { playing: false }
 
@@ -380,6 +384,16 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(step.textContent).toContain('内置')
     expect(step.textContent).not.toContain('brew install mpv')
     expect(step.querySelector('button')).toBeNull()
+    await unmount()
+  })
+
+  it('浏览器模式用 Nagare.app 内置的 mpv：引导屏说明是随 nagare 附带的', async () => {
+    stubFirstRun(MPV_BUNDLED)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const step = container.querySelector('.onboard-step')!
+    expect(step.querySelector('.onboard-dot--done')).not.toBeNull()
+    expect(step.textContent).toContain('已就绪 · 随 nagare 附带 · 0.41.0')
+    expect(step.textContent).not.toContain('brew install mpv')
     await unmount()
   })
 
