@@ -315,6 +315,9 @@ static NSString *startSession(NSArray<NSDictionary *> *opts) {
   // 窗口当前的状态先交给 mpv：否则它的初值（不全屏、不最大化）一被观察到，就会把窗口改回去
   mpv_set_option_string(h, "fullscreen", isFullscreen() ? "yes" : "no");
   mpv_set_option_string(h, "window-maximized", gWin.isZoomed ? "yes" : "no");
+  // 测试构建在没有 GPU 的 runner 上退到了软件渲染器：mpv 认出软件渲染器时默认不画（gpu-sw=no），放行它。
+  // 正式构建里 gTestSoftwareGL 恒为 0，这里什么都不做。
+  if (gTestSoftwareGL && nagareUsesSoftwareGL()) mpv_set_option_string(h, "gpu-sw", "yes");
   for (NSDictionary *o in opts) {
     int r = applyOption(h, o, NO);
     if (r < 0) {

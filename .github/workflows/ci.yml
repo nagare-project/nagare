@@ -105,36 +105,77 @@ jobs:
           CGO_ENABLED: "0"
         run: go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/...
 
+  # macOS 的 libmpv：与发布同一套（libmpv-macos.yml 以 workflow_call 调用，组件命中缓存时约 4 分钟），
+  # 构建 + verify.sh 全套验证过了才出 artifact，下面的桌面窗口 job 用它。
+  libmpv:
+    name: libmpv（macOS）
+    uses: ./.github/workflows/libmpv-macos.yml
+    permissions:
+      contents: read
+
   desktop-mac:
     # macOS 桌面窗口（internal/desktop，构建标签 libmpv）的 Objective-C 只有带这个标签的 cgo 构建才编得到，
-    # 其余 job 都不带它 —— 这个 job 让它在每个 PR 上至少能编、能过 vet、测试能跑，不会悄悄烂掉。
-    # （发布流水线也带它，链接的是同一次运行里现编的自建 libmpv，见 release.yml；这里为了快，用开发期那份。）
-    # libmpv 用的是开发期的那份（IINA 的预编译 dylib，脚本里钉了 sha256）：只下载、只拿来链接，
-    # 不打包、不上传任何东西（这份 dylib 不能随发布出去，见 scripts/macos/libmpv-dev.md）。
-    name: macOS 桌面窗口（-tags libmpv）
-    runs-on: macos-latest
-    timeout-minutes: 20
+    # 其余 job 都不带它。这里链接的是【发布用的那套】自建 libmpv（上面的 libmpv job），不是开发期的 IINA 库：
+    # 5002c52 修掉的起播死锁只在我们自己的 libmpv 上出现过。除了 vet / 测试，还在 arm64 runner 上跑一遍
+    # 冒烟（scripts/macos/desktop-smoke.py）：开窗口、经 /api/play 起播、IPC 看 current-vo=libmpv 与
+    # time-pos 在走、拖进度条、⌘Q 收尾、进度已回写。起播卡死会在 /api/play 那一步超时失败。
+    # runner 有没有 GPU 是随机的（同 #54）：测试构建在 NAGARE_DESKTOP_TEST_SOFTWARE_GL=1 时退到苹果的软件渲染器，
+    # 并给 mpv 设 gpu-sw=yes —— 只有测试构建认这个变量，正式构建只用硬件 OpenGL。
+    name: macOS 桌面窗口（自建 libmpv + 冒烟）
+    needs: [frontend, libmpv]
+    runs-on: macos-15 # arm64；与 libmpv-macos.yml 同一种 runner
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
-      - name: 缓存开发期 libmpv 的下载
-        uses: actions/cache@v4
+      - uses: actions/download-artifact@v4
         with:
-          path: .libmpv-dev/download
-          key: libmpv-dev-${{ hashFiles('scripts/macos/fetch-libmpv-dev.sh') }}
-      - name: 下载开发期 libmpv（只用来编译检查，绝不发布）
-        run: scripts/macos/fetch-libmpv-dev.sh
-      - name: go vet / 测试 / 编译
+          name: web-dist
+          path: web
+      - uses: actions/download-artifact@v4
+        with:
+          name: libmpv-macos-universal
+          path: ${{ runner.temp }}/libmpv-dl/bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: libmpv-macos-source
+          path: ${{ runner.temp }}/libmpv-dl/src
+      - name: 解开并核对 libmpv
         run: |
-          eval "$(scripts/macos/fetch-libmpv-dev.sh --print-env)"
-          export CGO_ENABLED=1 CGO_CFLAGS CGO_LDFLAGS MACOSX_DEPLOYMENT_TARGET=13.0
+          scripts/macos/libmpv/unpack.sh "$RUNNER_TEMP/libmpv-dl/bin" "$RUNNER_TEMP/libmpv-dl/src" "$RUNNER_TEMP/libmpv" > "$RUNNER_TEMP/libmpv.env"
+          cat "$RUNNER_TEMP/libmpv.env" >> "$GITHUB_ENV"
+      - name: go vet / 测试（-tags libmpv）
+        run: |
+          export CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=13.0
+          export CGO_CFLAGS="-I$LIBMPV_DIR/include -mmacosx-version-min=13.0"
+          # 测试二进制在构建目录里跑：rpath 直接指向解开的 Frameworks
+          export CGO_LDFLAGS="-L$LIBMPV_DIR/Frameworks -Wl,-rpath,$LIBMPV_DIR/Frameworks -mmacosx-version-min=13.0"
           go vet -tags libmpv ./internal/desktop/...
           go vet -tags "libmpv desktoptest" ./internal/desktop/...
           go test -tags libmpv ./internal/desktop/...
-          go build -tags libmpv -o /dev/null .
+      - name: 编测试构建（按 Nagare.app 的布局）
+        run: scripts/macos/build-desktop-smoke.sh "$LIBMPV_DIR" "$RUNNER_TEMP/smoke-app"
+      - name: 冒烟：窗口 + render API + 自建 libmpv（arm64）
+        env:
+          NAGARE_DESKTOP_TEST_SOFTWARE_GL: "1"
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
+          python3 -I -B scripts/macos/desktop-smoke.py --app "$RUNNER_TEMP/smoke-app" \
+            --media internal/desktop/testdata/smoke-40s.mp4 --work "$RUNNER_TEMP/smoke" --timeout 240
+      - name: 上传冒烟现场
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-smoke
+          path: |
+            ${{ runner.temp }}/smoke/shots
+            ${{ runner.temp }}/smoke/nagare.log
+            ${{ runner.temp }}/smoke/mpv.log
+          retention-days: 7
+          if-no-files-found: ignore
 
   build:
     name: 交叉编译 ${{ matrix.goos }}/${{ matrix.goarch }}

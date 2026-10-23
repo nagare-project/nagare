@@ -42,3 +42,14 @@ scripts/macos/build-desktop-dev.sh       # 输出 ./nagare-desktop-dev，运行�
 ```sh
 scripts/macos/build-desktop-dev.sh ./nagare-desktop-test -tags "libmpv desktoptest"
 ```
+
+CI 的冒烟测试（`desktop-mac` job）用的是自建 libmpv，本机也能照跑：先把 `libmpv-macos.yml` 的两个 artifact 用
+`scripts/macos/libmpv/unpack.sh` 解开，再
+
+```sh
+SMOKE_EXTLDFLAGS=-Wl,-U,_SecTrustCopyCertificateChain scripts/macos/build-desktop-smoke.sh <libmpv 目录> /tmp/smoke-app
+python3 -I -B scripts/macos/desktop-smoke.py --app /tmp/smoke-app --media internal/desktop/testdata/smoke-40s.mp4 --work <空目录>
+```
+
+`NAGARE_DESKTOP_TEST_SOFTWARE_GL=force` 让测试构建直接用软件渲染器（复现没有 GPU 的 runner），`=1` 是没有硬件
+OpenGL 时才退过去（CI 用这个）。冒烟会弹出窗口、起播、⌘Q 退出，跑的时候别动鼠标。

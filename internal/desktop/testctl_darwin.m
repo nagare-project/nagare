@@ -20,8 +20,9 @@ static void waitMain(dispatch_block_t b) {
   dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
 }
 
-void nagare_test_init(void) {
+void nagare_test_init(int softwareGL) {
   gTestSyntheticDrag = YES;
+  gTestSoftwareGL = softwareGL;
 }
 
 int nagare_test_snap(const char *path) {

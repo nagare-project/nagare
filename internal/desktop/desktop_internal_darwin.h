@@ -26,6 +26,10 @@ void nagareCommand(NSArray<NSString *> *args);
 // ── video_darwin.m ──
 // 画面层：CAOpenGLLayer 渲染 + 把鼠标键盘转成 mpv 的 mouse / keydown / keyup / keypress 命令。
 NSView *nagareMakeVideoView(NSRect frame);
+// 测试构建：0 只用硬件 OpenGL（正式构建恒为 0）、1 没有就退到软件渲染器、2 只用软件渲染器。
+extern int gTestSoftwareGL;
+// 渲染用的是不是软件渲染器（只在 gTestSoftwareGL 非 0 时可能为真；会先把 GL 建好）。
+BOOL nagareUsesSoftwareGL(void);
 // 给 h 建 OpenGL 渲染上下文；失败返回 NO 并写 *err。
 BOOL nagareCreateRenderContext(mpv_handle *h, NSString **err);
 // 释放渲染上下文（必须在 mpv_destroy 之前）。没有就什么都不做。
