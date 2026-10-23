@@ -74,3 +74,11 @@ func isOurOrigin(u *url.URL, origin string) bool {
 func keepContextMenu(editable, hasSelection, all bool) bool {
 	return all || editable || hasSelection
 }
+
+// dropMenuItem：留下来的浏览器菜单里要去掉的项（按不随语言变的 Name 认）。密码管理那几项（「导入密码」……：
+// nagare 不让 WebView2 记密码）和「更多工具」（开发者工具那一类）。认不出的名字一律留着 —— 宁可多一项，
+// 不能误删了「粘贴」。
+func dropMenuItem(name string) bool {
+	n := strings.ToLower(name)
+	return strings.Contains(n, "password") || n == "moretools" || strings.Contains(n, "inspect")
+}

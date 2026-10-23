@@ -116,6 +116,16 @@ func (i *ICoreWebView2ContextMenuRequestedEventArgs) GetContextMenuTarget() (*IC
 	return t, nil
 }
 
+// GetMenuItems 是这一次要弹的菜单项（可以删掉其中几项）；拿到的要 Release。
+func (i *ICoreWebView2ContextMenuRequestedEventArgs) GetMenuItems() (*ICoreWebView2ContextMenuItemCollection, error) {
+	var c *ICoreWebView2ContextMenuItemCollection
+	hr, _, _ := i.vtbl.GetMenuItems.Call(uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(&c)))
+	if err := hrErr(hr); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 // PutHandled 为真且宿主不自己画菜单：这一次什么菜单都不弹。
 func (i *ICoreWebView2ContextMenuRequestedEventArgs) PutHandled(handled bool) error {
 	return putBool(i.vtbl.PutHandled, unsafe.Pointer(i), handled)
@@ -159,6 +169,83 @@ func (i *ICoreWebView2ContextMenuTarget) IsEditable() (bool, error) {
 // HasSelection 报告点的时候有没有选中的文字。
 func (i *ICoreWebView2ContextMenuTarget) HasSelection() (bool, error) {
 	return getBool(i.vtbl.GetHasSelection, unsafe.Pointer(i))
+}
+
+// ── ICoreWebView2ContextMenuItemCollection / ICoreWebView2ContextMenuItem ──
+
+type _ICoreWebView2ContextMenuItemCollectionVtbl struct {
+	_IUnknownVtbl
+	GetCount           ComProc
+	GetValueAtIndex    ComProc
+	RemoveValueAtIndex ComProc
+	InsertValueAtIndex ComProc
+}
+
+// ICoreWebView2ContextMenuItemCollection 是一组菜单项。
+type ICoreWebView2ContextMenuItemCollection struct {
+	vtbl *_ICoreWebView2ContextMenuItemCollectionVtbl
+}
+
+// Release 放掉 GetMenuItems 给的那一份引用。
+func (i *ICoreWebView2ContextMenuItemCollection) Release() uint32 {
+	ret, _, _ := i.vtbl.Release.Call(uintptr(unsafe.Pointer(i)))
+	return uint32(ret)
+}
+
+// Count 是菜单项的个数。
+func (i *ICoreWebView2ContextMenuItemCollection) Count() (uint32, error) {
+	var n uint32
+	hr, _, _ := i.vtbl.GetCount.Call(uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(&n)))
+	return n, hrErr(hr)
+}
+
+// ItemAt 是第 index 项；拿到的要 Release。
+func (i *ICoreWebView2ContextMenuItemCollection) ItemAt(index uint32) (*ICoreWebView2ContextMenuItem, error) {
+	var it *ICoreWebView2ContextMenuItem
+	hr, _, _ := i.vtbl.GetValueAtIndex.Call(uintptr(unsafe.Pointer(i)), uintptr(index), uintptr(unsafe.Pointer(&it)))
+	if err := hrErr(hr); err != nil {
+		return nil, err
+	}
+	return it, nil
+}
+
+// RemoveAt 删掉第 index 项（上游把 index 的地址传了进去，这里按值传）。
+func (i *ICoreWebView2ContextMenuItemCollection) RemoveAt(index uint32) error {
+	hr, _, _ := i.vtbl.RemoveValueAtIndex.Call(uintptr(unsafe.Pointer(i)), uintptr(index))
+	return hrErr(hr)
+}
+
+type _ICoreWebView2ContextMenuItemVtbl struct {
+	_IUnknownVtbl
+	GetName                   ComProc
+	GetLabel                  ComProc
+	GetCommandId              ComProc
+	GetShortcutKeyDescription ComProc
+	GetIcon                   ComProc
+	GetKind                   ComProc
+	PutIsEnabled              ComProc
+	GetIsEnabled              ComProc
+	PutIsChecked              ComProc
+	GetIsChecked              ComProc
+	GetChildren               ComProc
+	AddCustomItemSelected     ComProc
+	RemoveCustomItemSelected  ComProc
+}
+
+// ICoreWebView2ContextMenuItem 是一个菜单项。
+type ICoreWebView2ContextMenuItem struct {
+	vtbl *_ICoreWebView2ContextMenuItemVtbl
+}
+
+// Release 放掉 ItemAt 给的那一份引用。
+func (i *ICoreWebView2ContextMenuItem) Release() uint32 {
+	ret, _, _ := i.vtbl.Release.Call(uintptr(unsafe.Pointer(i)))
+	return uint32(ret)
+}
+
+// Name 是不随界面语言变的名字（英文标签的小驼峰，例如 saveAs、copy、paste）。
+func (i *ICoreWebView2ContextMenuItem) Name() (string, error) {
+	return getString(i.vtbl.GetName, unsafe.Pointer(i))
 }
 
 // ── 回调对象 ──

@@ -398,8 +398,47 @@ func (e *webEvents) ContextMenuRequested(_ *edge.ICoreWebView2, args *edge.ICore
 		if err := args.PutHandled(true); err != nil {
 			log.Printf("desktop: 压不住右键菜单（浏览器的菜单照样弹）：%v", err)
 		}
+		return 0
+	}
+	if !devTools {
+		pruneMenuItems(args)
 	}
 	return 0
+}
+
+// pruneMenuItems 从留下来的菜单里去掉应用里不该有的项（见 dropMenuItem）。按 Name 认，认不出的照留。
+func pruneMenuItems(args *edge.ICoreWebView2ContextMenuRequestedEventArgs) {
+	items, err := args.GetMenuItems()
+	if err != nil || items == nil {
+		return
+	}
+	defer items.Release()
+	count, err := items.Count()
+	if err != nil {
+		return
+	}
+	var kept, dropped []string
+	for i := int(count) - 1; i >= 0; i-- { // 倒着删，前面的下标不变
+		it, err := items.ItemAt(uint32(i))
+		if err != nil || it == nil {
+			continue
+		}
+		name, _ := it.Name()
+		it.Release()
+		if !dropMenuItem(name) {
+			kept = append([]string{name}, kept...)
+			continue
+		}
+		if err := items.RemoveAt(uint32(i)); err != nil {
+			log.Printf("desktop: 删不掉右键菜单的「%s」：%v", name, err)
+			kept = append([]string{name}, kept...)
+			continue
+		}
+		dropped = append([]string{name}, dropped...)
+	}
+	if testHooks.logMenus {
+		log.Printf("desktop: 右键菜单：留 %v，去掉 %v", kept, dropped)
+	}
 }
 
 // cancelNav 取消一次导航；取消不了是安全边界上的事，要记下来。

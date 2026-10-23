@@ -392,6 +392,12 @@ Step '网页层的右键菜单' {
     Tap 0x1B # Esc 关掉菜单
     [void](Wait-Until { (Ctl '/webmenus' | ConvertFrom-Json).visible -le $before } 5)
     Add-Step '输入框上右键：浏览器的菜单（粘贴）照常弹出' $inInput "弹出前 $before 个窗口" $shot
+    # 测试构建把每次右键菜单留下、去掉了哪些项记进日志：粘贴要在，密码管理那几项要被去掉
+    $nlog = Join-Path $cfgDir 'logs\nagare.log'
+    $script:menuLine = ''
+    [void](Wait-Until { $script:menuLine = [string](Select-String -LiteralPath $nlog -Pattern '右键菜单：留' -Encoding UTF8 | Select-Object -Last 1).Line; $script:menuLine -ne '' } 3)
+    $kept = [regex]::Match($script:menuLine, '留 \[([^\]]*)\]').Groups[1].Value
+    Add-Step '输入框的菜单里有「粘贴」，没有密码管理那几项' (($kept -match '(^| )paste( |$)') -and ($kept -notmatch '(?i)password')) $script:menuLine ''
     Mouse 'click' $pos.px $pos.py 'right'
     Start-Sleep -Milliseconds 1500
     $after = (Ctl '/webmenus' | ConvertFrom-Json).visible

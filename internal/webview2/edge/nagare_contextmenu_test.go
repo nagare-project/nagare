@@ -34,6 +34,14 @@ func TestCoreWebView2VtableSlots(t *testing.T) {
 	if got := slot(unsafe.Offsetof(a.PutHandled)); got != 8 {
 		t.Errorf("ContextMenuRequestedEventArgs.PutHandled 在第 %d 个槽，应为 8", got)
 	}
+	var coll _ICoreWebView2ContextMenuItemCollectionVtbl
+	if got := slot(unsafe.Offsetof(coll.RemoveValueAtIndex)); got != 5 {
+		t.Errorf("ContextMenuItemCollection.RemoveValueAtIndex 在第 %d 个槽，应为 5", got)
+	}
+	var item _ICoreWebView2ContextMenuItemVtbl
+	if got := slot(unsafe.Offsetof(item.GetName)); got != 3 {
+		t.Errorf("ContextMenuItem.Name 在第 %d 个槽，应为 3", got)
+	}
 	var tg _ICoreWebView2ContextMenuTargetVtbl
 	if got := slot(unsafe.Offsetof(tg.GetIsEditable)); got != 4 {
 		t.Errorf("ContextMenuTarget.IsEditable 在第 %d 个槽，应为 4", got)

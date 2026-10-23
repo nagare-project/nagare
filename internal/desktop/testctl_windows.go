@@ -27,6 +27,7 @@ import (
 func init() {
 	testHooks.noRuntime = os.Getenv("NAGARE_DESKTOP_TEST_NO_WEBVIEW2") == "1"
 	testHooks.failWeb = os.Getenv("NAGARE_DESKTOP_TEST_FAIL_WEBVIEW2") == "1"
+	testHooks.logMenus = true
 	addr := os.Getenv("NAGARE_DESKTOP_TEST_ADDR")
 	if addr == "" {
 		return

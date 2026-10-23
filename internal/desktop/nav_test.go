@@ -71,3 +71,13 @@ func TestKeepContextMenu(t *testing.T) {
 		})
 	}
 }
+
+// 留下来的菜单里只去掉密码管理与开发者工具那几项；剪切、复制、粘贴、全选这些照留。
+func TestDropMenuItem(t *testing.T) {
+	for _, name := range []string{"importPasswords", "managePasswords", "moreTools", "inspectElement"} {
+		assert.True(t, dropMenuItem(name), name)
+	}
+	for _, name := range []string{"cut", "copy", "paste", "pasteAndMatchStyle", "selectAll", "undo", "redo", "emoji", "spellCheck", ""} {
+		assert.False(t, dropMenuItem(name), name)
+	}
+}
