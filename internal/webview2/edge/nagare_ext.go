@@ -230,6 +230,16 @@ func (i *ICoreWebViewSettings) UserAgentString() (string, error) {
 	return getString(i.vtbl.GetUserAgent, unsafe.Pointer(i))
 }
 
+// PutIsPasswordAutosaveEnabled（ICoreWebView2Settings4）：要不要提示「保存密码」。
+func (i *ICoreWebViewSettings) PutIsPasswordAutosaveEnabled(enabled bool) error {
+	return putBool(i.vtbl.PutIsPasswordAutosaveEnabled, unsafe.Pointer(i), enabled)
+}
+
+// PutIsGeneralAutofillEnabled（ICoreWebView2Settings4）：表单的自动填充（填过的内容、地址）。
+func (i *ICoreWebViewSettings) PutIsGeneralAutofillEnabled(enabled bool) error {
+	return putBool(i.vtbl.PutIsGeneralAutofillEnabled, unsafe.Pointer(i), enabled)
+}
+
 // Reload 重新载入当前页面。
 func (i *ICoreWebView2) Reload() error {
 	hr, _, _ := i.vtbl.Reload.Call(uintptr(unsafe.Pointer(i)))

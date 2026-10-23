@@ -174,6 +174,10 @@ func (w *webLayer) configure() error {
 		"浏览器快捷键": func() error { return s.PutAreBrowserAcceleratorKeysEnabled(devTools) },
 		// Ctrl+滚轮 / Ctrl+加减号的缩放：缩放比例会记在用户数据目录里，下次打开整个界面还是歪的
 		"缩放": func() error { return s.PutIsZoomControlEnabled(false) },
+		// 不替网页记密码、不记表单填过的内容：账号的密码不该落进 WebView2 的用户数据目录（nagare 自己只存登录会话），
+		// 输入框的右键菜单里也就没有「导入密码」这种项
+		"保存密码": func() error { return s.PutIsPasswordAutosaveEnabled(false) },
+		"自动填充": func() error { return s.PutIsGeneralAutofillEnabled(false) },
 		// 浏览器自己的右键菜单开着，由 ContextMenuRequested 筛：只在输入框与选中的文字上弹（见 keepContextMenu）
 		"右键菜单": func() error { return s.PutAreDefaultContextMenusEnabled(true) },
 	} {
