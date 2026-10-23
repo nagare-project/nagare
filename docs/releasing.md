@@ -167,8 +167,10 @@ Windows 版的界面在 nagare 自己的窗口里（WebView2），播放时 mpv.
 - 微软换了 bootstrapper 之后旧直链通常还在；要更新就按 `webview2.lock` 顶部的步骤重新钉。
   **不要换成 Fixed Version 运行时**：250MB 以上，没有自动安全更新。
 
-**用户数据目录与自更新。** WebView2 的用户数据目录在配置目录下（`%AppData%\nagare\webview2`），不在安装目录里，
-自更新换 exe 时碰不到它。但一个目录同时只能有一个 WebView2 会话：退出时（含自更新之后的重启）nagare 先关掉
+**用户数据目录与自更新。** WebView2 的用户数据目录在本机缓存目录（`os.UserCacheDir()`，即
+`%LOCALAPPDATA%\nagare\webview2`）：浏览器缓存不该进会漫游的 `%AppData%`，也不在安装目录里，自更新换 exe 时碰不到它。
+指定了 `NAGARE_CONFIG_DIR`（测试包、便携用法）时跟着配置目录走（`<配置目录>\cache\webview2`），不与用户自己的 nagare
+共用。窗口位置仍记在配置目录（`desktop-window.json`）。但一个目录同时只能有一个 WebView2 会话：退出时（含自更新之后的重启）nagare 先关掉
 WebView2、等它的浏览器进程退出（最多 5 秒，期间照常处理消息），再拆窗口、再 exec 新版本。新旧版本给 WebView2
 的启动参数要保持一致（现在是空的）。
 

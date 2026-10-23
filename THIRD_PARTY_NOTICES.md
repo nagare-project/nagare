@@ -180,9 +180,14 @@ Windows 版 nagare 自己的窗口用 WebView2 显示界面。绑定代码拷进
 
 WebView2 运行时本身不随 nagare 分发：它是系统组件（Windows 11 自带，绝大多数 Windows 10 已装），由
 Windows 自己更新。没有时，`nagare-<版本>_Windows_x86_64-setup.exe` 安装过程中会运行内嵌的
-**Microsoft Edge WebView2 Runtime Evergreen Bootstrapper**（`MicrosoftEdgeWebview2Setup.exe`，微软签名，
-按微软的 WebView2 分发条款随应用再分发；钉死记录见 [`scripts/windows/webview2.lock`](scripts/windows/webview2.lock)），
-由它下载安装运行时。便携 zip 不带它：没有运行时就改在浏览器里打开界面。
+**Microsoft Edge WebView2 Runtime Evergreen Bootstrapper**（`MicrosoftEdgeWebview2Setup.exe`，微软签名，未作改动；
+钉死记录见 [`scripts/windows/webview2.lock`](scripts/windows/webview2.lock)），由它下载安装运行时。便携 zip 不带它：
+没有运行时就改在浏览器里打开界面。
+
+- 再分发依据：微软的 [WebView2 运行时分发说明（Distribute your app and the WebView2 Runtime）](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution)
+  允许应用的安装程序随附并运行 Evergreen Bootstrapper。
+- 运行时与 bootstrapper 受微软的 **Microsoft Edge WebView2 Runtime 软件许可条款** 约束（[下载页](https://developer.microsoft.com/microsoft-edge/webview2/)
+  上的「Microsoft Software License Terms」），不属于 nagare 的 AGPL-3.0 授权范围。
 
 ## 内置的 Anime4K 着色器
 

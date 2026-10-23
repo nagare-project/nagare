@@ -118,7 +118,10 @@ VIAddVersionKey /LANG=${LANG_SIMPCHINESE} "LegalCopyright" "AGPL-3.0"
 !macroend
 
 Function EnsureWebView2
+  ; 安装程序是 32 位进程：显式读 64 位视图，WOW6432Node 那条路径才是它在注册表里的真实位置（不再被重定向一次）
+  SetRegView 64
   !insertmacro WebView2Installed HKLM "${WEBVIEW2_MACHINE_KEY}" $0
+  SetRegView default
   !insertmacro WebView2Installed HKCU "${WEBVIEW2_USER_KEY}" $1
   ${If} $0 != ""
   ${OrIf} $1 != ""
@@ -152,7 +155,6 @@ Section "nagare" SecMain
   File /r "${SRCDIR}/nagare-source"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
-  Call EnsureWebView2
 
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\nagare.exe"
@@ -173,6 +175,8 @@ Section "nagare" SecMain
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" "$0"
+  ; 放在最后：快捷方式与卸载项先写好，bootstrapper 卡住或装不上也不影响 nagare 本身装好
+  Call EnsureWebView2
 SectionEnd
 
 ; ---- 卸载 ----
