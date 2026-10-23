@@ -175,20 +175,15 @@ jobs:
           scripts/release/check-update-assets.sh dist/checksums.txt
 
       # GPL：macOS 包里的 libmpv、Windows 包里的 mpv，对应源码都要和二进制挂在同一个 Release 上。
+      # 两个源码包在构建阶段就已放进 dist/mpv-sources/（缺了 fetch-mpv.sh / build-app.sh 当场失败，
+      # 早于上传草稿）；这一步核对的是它们确实进了 checksums.txt（= 进了 Release），而且 macOS 那份
+      # 就是 Nagare.app 里那套 libmpv 的。
+      # （.app.zip 的自更新解包往返与 arm64 启动检查在 goreleaser 的 hook 里跑：scripts/release/check-app-zip.sh。）
       - name: 校验 mpv 的对应源码都在
         if: always()
         run: |
           test -f dist/checksums.txt || { echo "没有 dist/checksums.txt，跳过"; exit 0; }
           scripts/release/check-gpl-sources.sh dist/checksums.txt dist/Nagare.app
-
-      # build-app.sh 用 ditto / unzip 验过 .app.zip 的往返；这一步用客户端自更新【同一套】Go 解包代码
-      # （internal/selfupdate 的 extractArchive）解开它，验签名、整包检查，再在这台 runner（arm64）上
-      # 跑一遍解出来的 nagare 与 mpv —— 我们没有 Apple Silicon 的 Mac，arm64 切片能不能把 Frameworks 里
-      # 的库全部加载起来，只在这里看得到。
-      - name: 自更新解包往返（Go archive/zip）+ arm64 启动检查
-        run: |
-          appzip=$(ls dist/*_MacOS_universal.app.zip)
-          NAGARE_RELEASE_APPZIP="$PWD/$appzip" go test ./internal/selfupdate -run TestReleaseAppZip -count=1 -v
 
       # 密钥文件在同一个 job 里用完即删；runner 是一次性的，这一步是纵深防御。
       - name: 清理签名密钥

@@ -121,10 +121,11 @@ macOS 的 `Nagare.app` 在自己的窗口里放视频：进程内链接 libmpv�
    命令行 mpv 复制成 `Contents/MacOS/mpv`、许可证与构建清单放进 `Contents/Resources/libmpv/`，由里到外 ad-hoc 签名，
    再用 `macho.py bundle` 查包里每个 Mach-O（universal、minos ≤ 13.0、装载名与依赖都在包里、只有一条 rpath、签名有效），
    最后把源码包放进 `dist/mpv-sources/` —— checksums 与 Release 都收它。
-4. goreleaser 之后：`check-gpl-sources.sh` 确认两份对应源码都进了 `checksums.txt`、macOS 那份就是包里那套 libmpv 的；
-   `TestReleaseAppZip`（`internal/selfupdate`）用客户端自更新**同一套** Go 解包代码解开 `.app.zip`、验签名，
-   并在 runner（arm64）上跑一次解出来的 `nagare -version` 与 `mpv --version` —— Apple Silicon 上能不能把 Frameworks
-   里的库全部加载起来，我们手上没有那种 Mac，只在这里看得到。
+4. 同一个 hook 接着跑 `scripts/release/check-app-zip.sh`：`TestReleaseAppZip`（`internal/selfupdate`）用客户端自更新
+   **同一套** Go 解包代码解开 `.app.zip`、验签名，并在 runner（arm64）上跑解出来的 `nagare -version`、`mpv --version`，
+   再用包里的 mpv 解一段测试片、出一张 jpg —— Apple Silicon 上能不能把 Frameworks 里的库全部加载起来、解得了片，
+   我们手上没有那种 Mac，只在这里看得到。它在 goreleaser 上传草稿之前跑，不过就不会有草稿。
+5. goreleaser 之后：`check-gpl-sources.sh` 确认两份对应源码都进了 `checksums.txt`、macOS 那份就是包里那套 libmpv 的。
 
 macOS 的裸二进制 `nagare-<版本>_MacOS_universal.tar.gz` **不带** libmpv（另一个 `darwin` 构建，没有 libmpv 标签）：
 归档里没有 `Frameworks/`，链接了 libmpv 的二进制在那里根本起不来。它的行为与以前一样（浏览器 + 系统装的 mpv）。

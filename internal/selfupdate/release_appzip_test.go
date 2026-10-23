@@ -13,7 +13,7 @@ import (
 )
 
 // envReleaseAppZip 指向一个真实的 nagare-<版本>_MacOS_universal.app.zip（scripts/macos/build-app.sh 的产物）。
-// 发布流水线在 goreleaser 之后设它跑这一个测试（release.yml「自更新解包往返」）；平时不设，测试跳过。
+// 发布时由 scripts/release/check-app-zip.sh（goreleaser 的 hook，上传草稿之前）设它跑这一个测试；平时不设，测试跳过。
 const envReleaseAppZip = "NAGARE_RELEASE_APPZIP"
 
 // 用客户端自更新【同一套】解包代码解开发布出去的 .app.zip，确认解出来的 Nagare.app 装上就能用：

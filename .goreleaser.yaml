@@ -143,6 +143,9 @@ universal_binaries:
       post:
         - cmd: scripts/macos/build-app.sh "{{ .Path }}" "{{ .Version }}" dist "{{ .Env.LIBMPV_DIR }}" "{{ .Env.LIBMPV_SOURCE }}"
           output: true
+        # 自更新的 Go 解包代码解开 .app.zip、在 runner（arm64）上真跑一遍 —— 在上传草稿之前，不过就不发
+        - cmd: scripts/release/check-app-zip.sh "dist/nagare-{{ .Version }}_MacOS_universal.app.zip"
+          output: true
 
 # 归档命名：nagare-<版本>_<MacOS|Linux|Windows>_<universal|x86_64|arm64>
 # 每个归档都带 nagare-source/（Nagare Source 引擎 + 只含 BT 规则的 repo/），Go 侧按

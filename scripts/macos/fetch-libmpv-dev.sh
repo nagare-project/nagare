@@ -58,7 +58,7 @@ fetch() {
   got=$(sha256_of "$file.part")
   if [ "$got" != "$want" ]; then
     rm -f "$file.part"
-    echo "sha256 校验失败：$(basename "$file")（期望 $want，实际 $got）" >&2
+    echo "sha256 校验失败：$(basename "$file")（期望 ${want}，实际 ${got}）" >&2
     exit 1
   fi
   mv "$file.part" "$file"

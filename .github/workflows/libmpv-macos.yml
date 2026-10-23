@@ -198,6 +198,11 @@ jobs:
           scripts/macos/libmpv/source-bundle.sh "$src"
           echo "src=$src" >> "$GITHUB_OUTPUT"
 
+      # 发布流水线（release.yml）拿到这两个包后用 unpack.sh 再核对一遍；这里先对刚出的包跑同一个脚本，
+      # 构建号形状、源码包结构这类约定一改坏，在 PR 上就红，而不是等到打 tag 那天。
+      - name: 发布侧的核对（unpack.sh）
+        run: scripts/macos/libmpv/unpack.sh "$LIBMPV_WORK/out" "$LIBMPV_WORK/out" "$RUNNER_TEMP/unpack-check"
+
       - uses: actions/upload-artifact@v4
         with:
           name: libmpv-macos-universal

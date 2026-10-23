@@ -46,6 +46,18 @@ while IFS= read -r name; do
   case "/$name/" in */../*) die "归档条目带 ..：$name" ;; esac
 done < <(tar -tzf "$bin")
 
+# 对应源码包也要真是那一套：能读、顶层就是 libmpv-macos-source-<id>/，里面有 mpv 的源码归档与我们的构建脚本、
+# versions.lock。只核对文件名的话，一个空的或截断的包照样会挂上 Release —— 那就是在不合规地分发。
+src_listing=$(tar -tzf "$src") || die "读不了源码包 ${src}（截断了？）"
+src_top="libmpv-macos-source-${id}"
+if grep -v -e "^${src_top}/" -e "^${src_top}\$" <<<"$src_listing" | grep -q .; then
+  die "源码包里有 ${src_top}/ 之外的条目"
+fi
+for need in "${src_top}/scripts/macos/libmpv/versions.lock" "${src_top}/scripts/macos/libmpv/build.sh" "${src_top}/README.txt"; do
+  grep -qxF "$need" <<<"$src_listing" || die "源码包里缺少 ${need}"
+done
+grep -qE "^${src_top}/sources/mpv-[0-9.]+\.tar\.gz\$" <<<"$src_listing" || die "源码包里没有 mpv 的源码归档"
+
 mkdir -p "$dest"
 dest=$(cd "$dest" && pwd)
 out="$dest/libmpv-macos-universal"
