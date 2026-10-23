@@ -235,6 +235,49 @@ func tapKey(vk uint16, mods []string) error {
 	return send(seq...)
 }
 
+var (
+	pWindowFromPoint = user32.NewProc("WindowFromPoint")
+	pGetAncestor     = user32.NewProc("GetAncestor")
+)
+
+// ownedByUs：这个窗口的顶层祖先是 nagare 进程的（mpv 的子窗口属于 mpv 进程，但它挂在我们的窗口下面）。
+func ownedByUs(h uintptr) bool {
+	if h == 0 {
+		return false
+	}
+	root, _, _ := pGetAncestor.Call(h, 2) // GA_ROOT
+	if root == 0 {
+		root = h
+	}
+	return windowPID(root) == uint32(os.Getpid())
+}
+
+func foregroundIsOurs() bool {
+	fg, _, _ := pGetForegroundWindow.Call()
+	return ownedByUs(fg)
+}
+
+// ensureOurForeground：前台不是我们就抢一次；还不是就报错，这一下不注入。
+func ensureOurForeground() error {
+	if foregroundIsOurs() {
+		return nil
+	}
+	if err := onUI(func() { forceForeground(ui.top) }); err != nil {
+		return err
+	}
+	time.Sleep(200 * time.Millisecond)
+	if foregroundIsOurs() {
+		return nil
+	}
+	return fmt.Errorf("前台不是 nagare 的窗口（别的程序抢走了焦点），这一下没注入，免得按到别的程序里")
+}
+
+// pointIsOurs：屏幕上这个点露出来的是 nagare 的窗口（或挂在它下面的 mpv 画面）。
+func pointIsOurs(pt point) bool {
+	h, _, _ := pWindowFromPoint.Call(uintptr(*(*uint64)(unsafe.Pointer(&pt))))
+	return ownedByUs(h)
+}
+
 // forceForeground 是测试用的抢前台（正式代码里不这么做）：挂到当前前台线程的输入队列上再 SetForegroundWindow；
 // 还不行才按住 Alt 再抢一次。CI 的会话里没有人点窗口，不这样 SendInput 落不到我们的窗口上。
 // Alt 不能单按一下：单按 Alt 会让窗口进「菜单模式」，接下来的一下按键（空格、t、Enter）就被吃掉了 ——

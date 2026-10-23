@@ -12,6 +12,7 @@ nagare Windows 桌面窗口 · 测试包
 2. 把整个测试包解压到一个文件夹（右键 zip → 全部解压缩），例如「桌面\nagare-wintest」。
    不要在 zip 里直接双击运行。
 3. 外接屏可以接着（顺便测缩放），也可以不接。
+4. 关掉或最小化不想被拍到的窗口（聊天、邮件、密码管理器之类）：测试会截整个屏幕的图放进报告。
 
 
 二、自动测试（3–4 分钟，期间不要碰鼠标键盘）
@@ -24,6 +25,9 @@ nagare Windows 桌面窗口 · 测试包
    双击全屏、Esc、最大化 / 最小化、置顶、Shift+N 下一集、Esc 返回媒体库、关窗口、再启动一次 → 退出，
    最后再假装「没有 WebView2」起一次，看是不是退回浏览器模式（这一次 mpv 会单独开一个窗口，是正常的）。
    每一步都会截图。窗口会自己动、自己全屏，这是测试在操作，不用管。
+   · 测试不会起磁力（BT），按理不会弹「Windows 安全中心 / 防火墙」的对话框；万一弹了，点「取消」
+     （别点「允许」：那会给测试版留下一条永久的防火墙规则）。
+   · 测试注入按键前会确认前台是 nagare 的窗口；别的程序抢走焦点时那一步会跳过并记成失败，不会按到别的程序里。
 3. 跑完后黑色窗口里会显示「通过 N 项，失败 M 项」，桌面上多出 nagare-wintest-report.zip。
    有失败也没关系，报告里有截图和日志，按回车关掉黑色窗口。
 
@@ -62,4 +66,12 @@ Windows 11 和大多数 Windows 10 不让卸载它，那就跳过这一项。
 五、要发回来的东西
 ------------------
 桌面上的 nagare-wintest-report.zip 和 nagare-wintest-manual.zip（日志里的登录凭证已经抹掉）。
-测试用的临时目录在 %TEMP%\nagare-wintest-日期 下，跑完会自己删掉。
+测试用的临时目录在 %TEMP%\nagare-wintest-日期 下，跑完（或者中途关掉黑色窗口）会自己清掉：起过的 nagare
+连同 mpv 一起结束，临时目录删除。
+
+
+六、许可证
+----------
+nagare\mpv\ 里是 shinchiro/mpv-winbuild-cmake 构建的 mpv（GPLv3），与 nagare 的 Windows 安装包里的是同一份。
+构建脚本与组件清单见 nagare 仓库的 THIRD_PARTY_NOTICES.md 与 scripts/windows/mpv.lock；完整对应源码
+（mpv-winbuild-cmake 的源码快照）随每个 nagare 正式版的 GitHub Release 一起发布。这个测试包只给测试用，几天后会自动过期删除。

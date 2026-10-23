@@ -38,7 +38,9 @@ New-Item -ItemType Directory -Force -Path $cfgDir, $mediaDir, $shots | Out-Null
 
 $steps = New-Object System.Collections.ArrayList
 $script:proc = $null
+$script:procs = New-Object System.Collections.ArrayList # 起过的每一个 nagare（收尾时一个都不能漏）
 $script:startNo = 0
+$script:job = $null
 $script:api = $null
 $script:ctl = $null
 
@@ -140,6 +142,8 @@ function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
     $env:NAGARE_DESKTOP_TEST_NO_WEBVIEW2 = ''
     $env:NAGARE_DESKTOP_INPUT = ''
     if ($IpcInput) { $env:NAGARE_DESKTOP_INPUT = 'ipc' }
+    # 测试用不着磁力：不起 BT 引擎（它会在所有网卡上监听、向路由器要 UPnP 映射，Windows 会弹防火墙对话框抢焦点）
+    $env:NAGARE_TEST_NO_TORRENT = '1'
     foreach ($k in $extraEnv.Keys) { Set-Item -Path "env:$k" -Value $extraEnv[$k] }
     $script:startNo++
     $sp = @{ FilePath = $Exe; PassThru = $true
@@ -147,6 +151,8 @@ function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
         RedirectStandardOutput = (Join-Path $reportDir ("stdout-{0}.txt" -f $script:startNo)) }
     if ($argv -and $argv.Count -gt 0) { $sp.ArgumentList = $argv }
     $script:proc = Start-Process @sp
+    [void]$script:procs.Add($script:proc)
+    Join-KillJob $script:proc
     $ok = Wait-Until { Test-Path $secret } 30
     if (-not $ok) { throw "测试遥控没有起来（30 秒）：可能不是 desktoptest 构建，或 nagare 起不来" }
     $script:ctl = @{ base = "http://127.0.0.1:$ctlPort"; secret = (Get-Content -Raw $secret).Trim() }
@@ -154,11 +160,57 @@ function Start-Nagare([hashtable]$extraEnv, [string[]]$argv) {
     if (-not $ok) { throw "nagare 的 API 30 秒内没起来" }
 }
 
+# 起来的 nagare 放进一个作业对象（KILL_ON_JOB_CLOSE，句柄归这个 PowerShell 进程）：测试中途关掉黑色窗口时，
+# PowerShell 一退，nagare 连同它的 mpv 一起被系统结束，不会在后台留下一个用临时配置跑着的 nagare。
+function Join-KillJob($proc) {
+    try {
+        if ($null -eq $script:job) {
+            if (-not ('NagareKitJob' -as [type])) {
+                Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class NagareKitJob {
+    [StructLayout(LayoutKind.Sequential)] struct Basic { public long a, b; public uint Flags; public UIntPtr c, d; public uint e; public UIntPtr f; public uint g, h; }
+    [StructLayout(LayoutKind.Sequential)] struct Io { public ulong a, b, c, d, e, f; }
+    [StructLayout(LayoutKind.Sequential)] struct Ext { public Basic B; public Io I; public UIntPtr p, j, pp, jp; }
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateJobObject(IntPtr a, string n);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetInformationJobObject(IntPtr j, int c, ref Ext i, int n);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool AssignProcessToJobObject(IntPtr j, IntPtr p);
+    public static IntPtr Create() {
+        IntPtr j = CreateJobObject(IntPtr.Zero, null);
+        Ext e = new Ext(); e.B.Flags = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if (j == IntPtr.Zero || !SetInformationJobObject(j, 9, ref e, Marshal.SizeOf(typeof(Ext)))) return IntPtr.Zero;
+        return j;
+    }
+    public static bool Assign(IntPtr j, IntPtr p) { return AssignProcessToJobObject(j, p); }
+}
+'@ -IgnoreWarnings
+            }
+            $script:job = [NagareKitJob]::Create()
+        }
+        if ($script:job -ne [IntPtr]::Zero) { [void][NagareKitJob]::Assign($script:job, $proc.Handle) }
+    } catch { Note "没能把 nagare 放进作业对象（中途关窗口时它可能留在后台）：$($_.Exception.Message)" }
+}
+
+# 收尾：每一个还活着的 nagare 先请它退出（会停播、回写进度），15 秒还不走就连进程树一起结束。
+function Stop-AllNagare {
+    $alive = @($script:procs | Where-Object { $null -ne $_ -and -not $_.HasExited })
+    if ($alive.Count -eq 0) { return }
+    try { Api 'POST' '/api/shutdown' | Out-Null } catch { }
+    foreach ($p in $alive) {
+        try { [void]$p.WaitForExit(15000) } catch { }
+        if (-not $p.HasExited) {
+            Note "nagare（PID $($p.Id)）15 秒内没退出，连同子进程一起结束"
+            & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
+        }
+    }
+}
+
 function Stop-Nagare([int]$TimeoutSec = 40) {
     if ($null -eq $script:proc) { return $true }
     try { Api 'POST' '/api/shutdown' | Out-Null } catch { }
     $exited = $script:proc.WaitForExit($TimeoutSec * 1000)
-    if (-not $exited) { try { $script:proc.Kill() } catch { } }
+    if (-not $exited) { & taskkill.exe /T /F /PID $script:proc.Id 2>&1 | Out-Null }
     return $exited
 }
 
@@ -196,11 +248,18 @@ function Collect-Env {
 
 # ══════════════════════════════ 开始 ══════════════════════════════
 
+$exitCode = 1
+$zipName = 'nagare-wintest-report.zip'
+if ($Manual) { $zipName = 'nagare-wintest-manual.zip' }
+if ($IpcInput) { $zipName = $zipName.Replace('.zip', '-ipc-input.zip') }
+$summary = '没跑完'
+try {
 Note "测试目录：$root"
 if (-not (Test-Path $Exe)) { throw "找不到 $Exe（把整个测试包解压后再运行）" }
 if (-not (Test-Path $Media)) { throw "找不到测试片 $Media" }
-# 解压出来的文件带「来自网络」标记，不去掉的话 SmartScreen 会拦 nagare.exe 与 mpv.exe
+# 解压出来的文件带「来自网络」标记，不去掉的话 SmartScreen 会拦 nagare.exe、mpv.exe 与 WebView2 的安装器
 Get-ChildItem -Recurse -File (Split-Path -Parent $Exe) | Unblock-File -ErrorAction SilentlyContinue
+Get-ChildItem -File $here | Unblock-File -ErrorAction SilentlyContinue
 $envInfo = Collect-Env
 if ($envInfo.otherNagareRunning -gt 0 -and -not $CI) {
     Write-Host '检测到另一个 nagare 在运行：请先从托盘退出它（右键托盘图标 → 退出 nagare），然后按回车继续。' -ForegroundColor Yellow
@@ -216,9 +275,9 @@ if (Has-Runtime $envInfo) {
 } else {
     Add-Step 'WebView2 运行时' $null '这台电脑上没有 WebView2 运行时（注册表两处都没有）' ''
     if (-not $CI -and (Test-Path $wv2)) {
-        Write-Host '这台电脑没有 WebView2 运行时（nagare 的窗口要用）。按回车用测试包里的微软官方安装器静默安装（要联网，约 1–2 分钟）；输入 n 回车跳过。' -ForegroundColor Yellow
+        Write-Host '这台电脑没有 WebView2 运行时（nagare 的窗口要用）。要用测试包里的微软官方安装器静默安装吗（要联网，约 1–2 分钟）？输入 y 回车安装；直接回车跳过。' -ForegroundColor Yellow
         $answer = Read-Host
-        if ($answer -ne 'n') {
+        if ($answer -eq 'y' -or $answer -eq 'Y') {
             $p = Start-Process -FilePath $wv2 -ArgumentList '/silent', '/install' -Wait -PassThru
             $envInfo = Collect-Env
             Add-Step '用内嵌的 bootstrapper 静默安装 WebView2 运行时（/silent /install）' (($p.ExitCode -eq 0) -and (Has-Runtime $envInfo)) ("退出码 $($p.ExitCode)；" + (($envInfo.webview2Registry) -join '；')) ''
@@ -497,32 +556,42 @@ foreach ($st in $steps) {
 }
 $lines | Set-Content -Encoding UTF8 (Join-Path $reportDir 'report.txt')
 
-# 日志：抹掉 token 与任何 32 位十六进制串（能力段、token 都是这个形状）
+# 日志与 nagare 的标准输出 / 错误：抹掉 token 与任何 32 位以上的十六进制串（能力段、token 都是这个形状）
+function Scrub([string]$text) {
+    if ($null -eq $text) { return $null }
+    if ($script:api -and $script:api.token) { $text = $text.Replace($script:api.token, '<token>') }
+    return [regex]::Replace($text, '\b[0-9a-fA-F]{32,}\b', '<hex>')
+}
+Stop-AllNagare # 标准输出 / 错误的文件 nagare 还开着时读不全
 $logDir = Join-Path $cfgDir 'logs'
 if (Test-Path $logDir) {
-    $token = if ($script:api) { $script:api.token } else { '' }
     foreach ($f in Get-ChildItem $logDir -File) {
-        $t = Get-Content -Raw -Encoding UTF8 $f.FullName
+        $t = Scrub (Get-Content -Raw -Encoding UTF8 $f.FullName)
         if ($null -eq $t) { continue }
-        if ($token) { $t = $t.Replace($token, '<token>') }
-        $t = [regex]::Replace($t, '\b[0-9a-fA-F]{32,}\b', '<hex>')
         Set-Content -Encoding UTF8 -Path (Join-Path $reportDir ('log-' + $f.Name)) -Value $t
     }
 }
-$zipName = 'nagare-wintest-report.zip'
-if ($Manual) { $zipName = 'nagare-wintest-manual.zip' }
-if ($IpcInput) { $zipName = $zipName.Replace('.zip', '-ipc-input.zip') }
+foreach ($f in Get-ChildItem $reportDir -File -Filter 'std*-*.txt') {
+    $t = Scrub (Get-Content -Raw -Encoding UTF8 $f.FullName)
+    if ($null -eq $t) { $t = '' }
+    Set-Content -Encoding UTF8 -Path $f.FullName -Value $t
+}
 $zip = Join-Path $OutDir $zipName
 Remove-Item -Force -ErrorAction SilentlyContinue $zip
 Compress-Archive -Path (Join-Path $reportDir '*') -DestinationPath $zip
-Note "报告：$zip（$($report.summary)）"
-if (-not $KeepTemp) { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $root }
+$summary = $report.summary
+Note "报告：$zip（$summary）"
+if ($failed -eq 0) { $exitCode = 0 }
+} finally {
+    # 不管跑到哪一步、出了什么错（包括 Ctrl+C），都把起过的 nagare 收掉、删掉临时目录
+    Stop-AllNagare
+    if (-not $KeepTemp) { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $root }
+}
 if (-not $CI) {
     Write-Host ''
-    Write-Host "跑完了：$($report.summary)。请把桌面上的 $zipName 发回来。" -ForegroundColor Green
+    Write-Host "跑完了：$summary。请把桌面上的 $zipName 发回来。" -ForegroundColor Green
     if (-not $Manual) { Write-Host '接着请双击 run-manual.cmd 做「手动检查」（见 README-测试说明.txt）。' }
     Write-Host '按回车关闭这个窗口。'
     [void](Read-Host)
 }
-if ($failed -gt 0) { exit 1 }
-exit 0
+exit $exitCode
