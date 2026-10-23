@@ -337,18 +337,6 @@ func (i *ICoreWebView2) GetSource() (string, error) {
 	return source, nil
 }
 
-func (i *ICoreWebView2) GetContainsFullScreenElement() (bool, error) {
-	var result bool
-	hr, _, _ := i.vtbl.GetContainsFullScreenElement.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&result)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return result, nil
-}
-
 func (i *ICoreWebView2) Navigate(url string) error {
 	u16url, err := windows.UTF16PtrFromString(url)
 	if err != nil {

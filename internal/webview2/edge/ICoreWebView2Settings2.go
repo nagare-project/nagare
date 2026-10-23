@@ -53,23 +53,6 @@ func (i *ICoreWebViewSettings) GetICoreWebView2Settings2() *ICoreWebView2Setting
 	return result
 }
 
-func (i *ICoreWebView2Settings2) GetUserAgent() (string, error) {
-	// Create *uint16 to hold result
-	var _userAgent *uint16
-
-	hr, _, _ := i.Vtbl.GetUserAgent.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(_userAgent)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return "", syscall.Errno(hr)
-	}
-	// Get result and cleanup
-	userAgent := UTF16PtrToString(_userAgent)
-	CoTaskMemFree(unsafe.Pointer(_userAgent))
-	return userAgent, nil
-}
-
 func (i *ICoreWebView2Settings2) PutUserAgent(userAgent string) error {
 
 	// Convert string 'userAgent' to *uint16

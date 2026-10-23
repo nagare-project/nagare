@@ -367,6 +367,7 @@ func (a *app) onEndSession() {
 	}
 	a.endingSession = true
 	log.Print("desktop: Windows 正在注销或关机：停止播放并回写进度")
+	a.savePlacement() // 之后进程随时会被结束，正常退出那条路（拆窗口前记位置）不一定走得到
 	if quit := a.options().Quit; quit != nil {
 		quit()
 	}
@@ -375,7 +376,8 @@ func (a *app) onEndSession() {
 
 // ───────────────────────── 窗口过程 ─────────────────────────
 
-func topProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {
+func topProc(hwnd uintptr, m uint32, w, l uintptr) (r uintptr) {
+	defer recoverProc(&r, "topProc")
 	a := ui
 	switch m {
 	case wmSize:
@@ -395,6 +397,11 @@ func topProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {
 		mmi.PtMinTrackSize = point{int32(minWidth * dpi / 96), int32(minHeight * dpi / 96)}
 		return 0
 	case wmDpiChanged:
+		if !a.shownOnce {
+			// 还没显示过：这是放回记下的位置时（窗口建在主屏、被挪到缩放不同的屏上）系统要的缩放。记下的本来就是那块屏
+			// 上的物理像素，照系统的建议再缩放一次，下次打开窗口就会越来越大 / 越来越小
+			return 0
+		}
 		r := *(**rect)(unsafe.Pointer(&l)) // 系统建议的新位置大小
 		pSetWindowPos.Call(hwnd, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.width()), uintptr(r.height()),
 			swpNoZOrder|swpNoActivate)
@@ -450,13 +457,15 @@ func (a *app) sysCommand(hwnd uintptr, w, l uintptr) (uintptr, bool) {
 	return 0, false
 }
 
-func hostProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {
+func hostProc(hwnd uintptr, m uint32, w, l uintptr) (r uintptr) {
+	defer recoverProc(&r, "hostProc")
 	return defWindowProc(hwnd, m, w, l)
 }
 
 // videoProc 是 mpv 子窗口的父窗口。正常情况下 mpv 的子窗口被重新启用、自己收输入，这里只是黑底；
 // IPC 转发那条退路下输入落在这里，由 forwardInput 转给 mpv。
-func videoProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {
+func videoProc(hwnd uintptr, m uint32, w, l uintptr) (r uintptr) {
+	defer recoverProc(&r, "videoProc")
 	if ipcInput {
 		if r, handled := ui.forwardInput(hwnd, m, w, l); handled {
 			return r

@@ -23,6 +23,10 @@ func Ready() error {
 	}
 	v, err := webviewloader.GetAvailableCoreWebView2BrowserVersionString("")
 	if err == nil && v != "" {
+		if !runtimeAtLeast(v, minRuntimeVersion) {
+			return fmt.Errorf("这台电脑上的 WebView2 运行时太旧（%s，至少要 %s）。界面改在浏览器里打开、mpv 单独开窗口；"+
+				"从 %s 装上最新的「Evergreen 运行时」后重启 nagare 就会用自己的窗口", v, minRuntimeVersion, webView2DownloadURL)
+		}
 		return nil
 	}
 	if err == nil {

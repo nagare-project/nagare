@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"sync"
@@ -47,6 +48,7 @@ var ipcInput = os.Getenv("NAGARE_DESKTOP_INPUT") == "ipc"
 var testHooks struct {
 	noRuntime bool
 	failWeb   bool
+	testBuild bool // 测试构建：网页层留着右键菜单（排查用）
 }
 
 // ui 是唯一的桌面窗口。
@@ -103,6 +105,10 @@ func Launch(ctx context.Context, opts mpv.LaunchOptions) (*mpv.Player, error) {
 	}
 	var prep sessionPrep
 	if err := ui.q.call(callTimeout, func() { prep = ui.beginSession() }); err != nil {
+		if errors.Is(err, errUIClosed) {
+			log.Print("desktop: 桌面窗口已经关闭（nagare 正在退出？），这次用单独的 mpv 窗口播")
+			return mpv.Launch(ctx, opts)
+		}
 		log.Printf("desktop: 窗口没响应，这次用单独的 mpv 窗口播：%v", err)
 		// 超时那一刻 beginSession 可能已经在做了：换到了画面层、开了会话号却不会有人接上。等界面线程缓过来收拾掉
 		ui.q.post(ui.dropOrphanSession)

@@ -18,6 +18,10 @@ func TestWebView2RuntimeDetection(t *testing.T) {
 		assert.Error(t, Ready())
 		return
 	}
+	if RuntimeVersion() == "" {
+		assert.Error(t, Ready(), "没有运行时时 Ready 必须报错（退回浏览器模式）")
+		t.Skip("这台机器上没有 WebView2 运行时：只验了「没有就报错」这一边")
+	}
 	assert.NoError(t, Ready())
 	assert.NotEmpty(t, RuntimeVersion())
 	assert.True(t, runtimeInstalled(machine, user), "安装包的判断与装载器对不上：会白跑一次 bootstrapper")

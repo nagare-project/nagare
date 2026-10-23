@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 const placementFile = "desktop-window.json"
@@ -55,14 +57,44 @@ func (a *app) loadPlacement() (savedPlacement, bool) {
 		return savedPlacement{}, false
 	}
 	var p savedPlacement
-	if json.Unmarshal(b, &p) != nil || p.Right-p.Left < minWidth || p.Bottom-p.Top < minHeight {
+	if json.Unmarshal(b, &p) != nil {
 		return savedPlacement{}, false
 	}
-	r := rect{p.Left, p.Top, p.Right, p.Bottom}
-	if mon, _, _ := pMonitorFromRect.Call(uintptr(unsafe.Pointer(&r)), 0); mon == 0 { // MONITOR_DEFAULTTONULL
+	// 标题栏得在某块显示器上（拖得动、点得着关闭）：只露出一个角不算。记的是物理像素
+	bar := rect{p.Left + titleBarMargin, p.Top, p.Right - titleBarMargin, p.Top + titleBarHeight}
+	if bar.width() <= 0 {
+		return savedPlacement{}, false
+	}
+	mon, _, _ := pMonitorFromRect.Call(uintptr(unsafe.Pointer(&bar)), 0) // MONITOR_DEFAULTTONULL
+	if mon == 0 {
+		return savedPlacement{}, false
+	}
+	// 最小尺寸按那块显示器的缩放换成物理像素再比（记的位置是物理像素，minWidth / minHeight 是逻辑像素）
+	dpi := int32(monitorDPI(mon))
+	if p.Right-p.Left < minWidth*dpi/96 || p.Bottom-p.Top < minHeight*dpi/96 {
 		return savedPlacement{}, false
 	}
 	return p, true
+}
+
+// 判断「标题栏在不在显示器上」用的那一条：左右各让出一点（窗口边框），高度取一个标题栏。物理像素
+const (
+	titleBarMargin = 40
+	titleBarHeight = 30
+)
+
+var pGetDpiForMonitor = windows.NewLazySystemDLL("shcore.dll").NewProc("GetDpiForMonitor")
+
+// monitorDPI 是显示器的有效 DPI（读不到按 96）。
+func monitorDPI(mon uintptr) uintptr {
+	if pGetDpiForMonitor.Find() != nil {
+		return 96
+	}
+	var x, y uint32
+	if hr, _, _ := pGetDpiForMonitor.Call(mon, 0, uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&y))); hr != 0 || x == 0 { // MDT_EFFECTIVE_DPI
+		return 96
+	}
+	return uintptr(x)
 }
 
 // defaultPlacement：所在显示器工作区的正中，默认尺寸（逻辑像素换成物理像素），放不下就缩到工作区的九成。

@@ -32,6 +32,16 @@ func TestRuntimeInstalled(t *testing.T) {
 	}
 }
 
+// 太老的运行时（没有 Settings2/3）退回浏览器模式。
+func TestRuntimeAtLeast(t *testing.T) {
+	assert.True(t, runtimeAtLeast("155.0.4283.62", minRuntimeVersion))
+	assert.True(t, runtimeAtLeast(minRuntimeVersion, minRuntimeVersion))
+	assert.False(t, runtimeAtLeast("86.0.616.0", minRuntimeVersion))
+	assert.False(t, runtimeAtLeast("100.0.1185.35", minRuntimeVersion))
+	assert.False(t, runtimeAtLeast("garbage", minRuntimeVersion))
+	assert.False(t, runtimeAtLeast("", minRuntimeVersion))
+}
+
 // 安装包（nagare.nsi）用同一条规则决定要不要跑 bootstrapper：两处注册表的路径必须与这里逐字一致（Wails 的宏
 // 在 HKCU 那条少了一个反斜杠，按用户装的运行时永远查不到），两处都查，只在都没有时才静默跑。
 func TestInstallerBootstrapsWebView2LikeTheApp(t *testing.T) {
@@ -55,6 +65,7 @@ func TestInstallerBootstrapsWebView2LikeTheApp(t *testing.T) {
 	assert.Contains(t, nsi, `WebView2Installed HKCU "${WEBVIEW2_USER_KEY}"`)
 	assert.Contains(t, nsi, `/silent /install`)
 	assert.Contains(t, nsi, `${OrIf} ${_OUT} == "0.0.0.0"`, "卸载后留下的 0.0.0.0 不算装了")
-	assert.Contains(t, nsi, "Call EnsureWebView2")
+	assert.Contains(t, nsi, "SetRegView 64\n  !insertmacro WebView2Installed HKLM", "32 位的安装程序要显式读 64 位视图")
+	assert.Contains(t, nsi, "  Call EnsureWebView2\nSectionEnd", "放在最后：bootstrapper 卡住也不影响快捷方式与卸载项")
 	assert.NotContains(t, nsi, `Clients{`, "Clients 后面少反斜杠（Wails 宏的错）")
 }

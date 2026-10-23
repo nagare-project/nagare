@@ -26,6 +26,7 @@ import (
 func init() {
 	testHooks.noRuntime = os.Getenv("NAGARE_DESKTOP_TEST_NO_WEBVIEW2") == "1"
 	testHooks.failWeb = os.Getenv("NAGARE_DESKTOP_TEST_FAIL_WEBVIEW2") == "1"
+	testHooks.testBuild = true
 	addr := os.Getenv("NAGARE_DESKTOP_TEST_ADDR")
 	if addr == "" {
 		return
@@ -166,12 +167,21 @@ func testSnap(w http.ResponseWriter, r *http.Request) {
 func testInput(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	num := func(k string) int32 { v, _ := strconv.ParseInt(q.Get(k), 0, 32); return int32(v) }
+	// 注入之前先确认前台是 nagare 的窗口（测试包跑在用户自己的电脑上：别的程序抢了焦点时，按键绝不能落到它那里）
+	if err := ensureOurForeground(); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
 	var err error
 	switch kind := q.Get("kind"); kind {
 	case "move", "click", "dblclick", "down", "up":
 		var pt point
 		if e := onUI(func() { pt = clientToScreen(ui.top, num("x"), num("y")) }); e != nil {
 			fail(w, e)
+			return
+		}
+		if !pointIsOurs(pt) {
+			http.Error(w, "光标落点不在 nagare 的窗口上（被别的窗口挡住了），这一下没注入", http.StatusConflict)
 			return
 		}
 		err = mouseAt(kind, pt, q.Get("button"))

@@ -169,6 +169,7 @@ func start(f flags) error {
 	} else {
 		defer logF.Close()
 		log.SetOutput(logOutput(logF, os.Stderr)) // 先写文件：Windows 双击启动时没有控制台，见 logging.go
+		panicsToLog(logF)
 	}
 	log.Printf("nagare %s 启动（%s/%s）", version, runtime.GOOS, runtime.GOARCH)
 
@@ -328,8 +329,10 @@ func buildServices(configDir string, window bool) (*services, error) {
 	// 磁力引擎：起不来不阻断启动（本地库与播放照常），磁力端点整体降级。
 	streamBase := &streamBaseHolder{}
 	cacheDir := filepath.Join(configDir, "cache", "torrent")
-	engine, err := newTorrentEngine(st, cacheDir, streamBase)
-	if err != nil {
+	var engine *torrentstream.Engine
+	if torrentDisabledForTest() {
+		log.Print("（测试构建）不起磁力引擎：NAGARE_TEST_NO_TORRENT=1")
+	} else if engine, err = newTorrentEngine(st, cacheDir, streamBase); err != nil {
 		log.Printf("磁力播放不可用（不影响本地文件播放）：%v", err)
 	}
 
@@ -502,6 +505,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 			URL:         url,
 			Origin:      fmt.Sprintf("http://127.0.0.1:%d", port),
 			DataDir:     configDir,
+			CacheDir:    desktopCacheDir(configDir),
 			OpenBrowser: openBrowserLogged,
 			Quit:        cancel,
 		})

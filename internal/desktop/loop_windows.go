@@ -8,6 +8,7 @@ package desktop
 import (
 	"log"
 	"runtime"
+	"runtime/debug"
 	"time"
 	"unsafe"
 
@@ -83,8 +84,8 @@ func (a *app) killStraggler() {
 	if s == nil {
 		return
 	}
-	pid := s.pid.Load()
-	if child := s.child.Load(); child != 0 {
+	pid := s.pid.Load() // IPC 问来的 mpv 进程号；没问到才看窗口属于谁
+	if child := s.child.Load(); pid == 0 && child != 0 {
 		pid = windowPID(child)
 	}
 	log.Print("desktop: 退出时 mpv 还挂在窗口上，先结束它")
@@ -199,12 +200,22 @@ func drainMessages() bool {
 	return quit
 }
 
-func dispatchProc(hwnd uintptr, m uint32, w, l uintptr) uintptr {
+func dispatchProc(hwnd uintptr, m uint32, w, l uintptr) (r uintptr) {
+	defer recoverProc(&r, "dispatchProc")
 	if m == wmAppRun {
 		ui.q.drain()
 		return 0
 	}
 	return defWindowProc(hwnd, m, w, l)
+}
+
+// recoverProc 接住窗口过程里的 panic（defer 直接调它）：窗口过程是系统从 DispatchMessage 里回调进来的，panic 穿过
+// 系统的回调就是整个进程退出 —— 同一个进程里还跑着 HTTP 服务、磁力引擎与进度回写。这一条消息当作处理过了。
+func recoverProc(r *uintptr, where string) {
+	if p := recover(); p != nil {
+		log.Printf("desktop: %s 处理一条消息时出错（已跳过）：%v\n%s", where, p, debug.Stack())
+		*r = 0
+	}
 }
 
 func currentThreadID() uint32 {

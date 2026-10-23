@@ -2,6 +2,10 @@ package main
 
 import (
 	"log"
+	"os"
+	"path/filepath"
+
+	"github.com/nagare-project/nagare/internal/config"
 
 	"github.com/nagare-project/nagare/internal/api"
 	"github.com/nagare-project/nagare/internal/desktop"
@@ -34,6 +38,18 @@ func desktopDecision(f flags, apiOnly bool) (bool, string) {
 		return false, err.Error()
 	}
 	return true, ""
+}
+
+// desktopCacheDir 是桌面窗口放本机缓存（Windows 的 WebView2 用户数据目录）的地方：平时在系统的本机缓存目录
+// （%LOCALAPPDATA%\nagare，不随漫游配置同步）；指定了配置目录（NAGARE_CONFIG_DIR：测试、便携用法）时一起放进
+// 那个目录，免得测试与用户自己的 nagare 共用一个浏览器缓存。
+func desktopCacheDir(configDir string) string {
+	if os.Getenv(config.EnvConfigDir) == "" {
+		if dir, err := os.UserCacheDir(); err == nil {
+			return filepath.Join(dir, "nagare")
+		}
+	}
+	return filepath.Join(configDir, "cache")
 }
 
 // desktopStatus 是设置页「播放窗口」一行的数据源：没用窗口时报启动时的退回原因，用着时报窗口此刻的状态

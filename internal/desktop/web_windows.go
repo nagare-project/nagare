@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -26,6 +27,9 @@ import (
 
 // webRetries 是浏览器进程意外退出后重建网页层的次数。
 const webRetries = 1
+
+// webCreateLimit 是等 WebView2 建好的上限（冷启动的运行时 + 首次建用户数据目录，慢机器上要好几秒）。
+const webCreateLimit = 25 * time.Second
 
 // devTools：NAGARE_DESKTOP_DEVTOOLS=1 时允许开发者工具（排查界面问题用）。
 var devTools = os.Getenv("NAGARE_DESKTOP_DEVTOOLS") == "1"
@@ -67,11 +71,15 @@ func (a *app) ensureWeb() {
 		a.failWeb(fmt.Errorf("（测试）假装 WebView2 起不来"))
 		return
 	}
-	dir := filepath.Join(o.DataDir, "webview2")
-	if o.DataDir == "" {
-		a.failWeb(fmt.Errorf("没有配置目录可放 WebView2 的用户数据"))
+	base := o.CacheDir
+	if base == "" {
+		base = o.DataDir
+	}
+	if base == "" {
+		a.failWeb(fmt.Errorf("没有目录可放 WebView2 的用户数据"))
 		return
 	}
+	dir := filepath.Join(base, "webview2")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		a.failWeb(fmt.Errorf("建不了 WebView2 的用户数据目录：%w", err))
 		return
@@ -97,6 +105,15 @@ func (a *app) ensureWeb() {
 	if a.pending == "" {
 		a.pending = o.URL
 	}
+	// 环境与控制器是异步建的：回调一直不来（运行时坏了、用户数据目录被别的进程占着）时窗口会永远是空的。
+	// 到点还没好就按起不来处理，退回浏览器 —— 用户看得见发生了什么
+	time.AfterFunc(webCreateLimit, func() {
+		a.q.post(func() {
+			if a.web == w && !w.ready && a.webFailed == "" {
+				a.failWeb(fmt.Errorf("%s 内没建好（运行时没响应，或者用户数据目录 %s 被占着）", webCreateLimit, dir))
+			}
+		})
+	})
 	if err := c.Start(a.webHost); err != nil {
 		a.failWeb(err)
 	}
@@ -145,6 +162,10 @@ func (w *webLayer) configure() error {
 		"宿主对象":   func() error { return s.PutAreHostObjectsAllowed(false) },
 		"网页消息":   func() error { return s.PutIsWebMessageEnabled(false) },
 		"浏览器快捷键": func() error { return s.PutAreBrowserAcceleratorKeysEnabled(devTools) },
+		// Ctrl+滚轮 / Ctrl+加减号的缩放：缩放比例会记在用户数据目录里，下次打开整个界面还是歪的
+		"缩放": func() error { return s.PutIsZoomControlEnabled(false) },
+		// 浏览器的右键菜单（返回、刷新、另存为、打印……）在应用里没有意义；输入框里的复制粘贴快捷键照常。测试构建留着
+		"右键菜单": func() error { return s.PutAreDefaultContextMenusEnabled(devTools || testHooks.testBuild) },
 	} {
 		if err := put(); err != nil {
 			// 老版本的运行时可能没有某一项：记下来，不当成起不来
@@ -281,21 +302,35 @@ func (*webEvents) Release() uintptr                    { return 1 }
 
 // NavigationStarting：顶层导航，只放行我们自己的源。
 func (e *webEvents) NavigationStarting(_ *edge.ICoreWebView2, args *edge.ICoreWebView2NavigationStartingEventArgs) uintptr {
+	defer recoverCallback("网页导航的回调")
 	uri, err := args.GetUri()
 	if err != nil {
-		_ = args.PutCancel(true)
+		cancelNav(args)
 		return 0
 	}
 	switch decideNav(uri, false, false, e.w.origin) {
 	case actAllow:
 	case actExternal:
 		cancelNav(args)
-		openExternal(uri)
+		// 页面脚本自己跳到外链（不是用户点的）不替它开浏览器：恶意 / 出错的页面不能借窗口一直弹浏览器
+		if user, uerr := args.GetIsUserInitiated(); uerr == nil && user {
+			openExternal(uri)
+		} else {
+			logBlocked(uri)
+		}
 	default:
 		cancelNav(args)
 		logBlocked(uri)
 	}
 	return 0
+}
+
+// recoverCallback 接住 WebView2 回调里的 panic（defer 直接调它）：回调是从系统的 COM 调用里进来的，panic 穿过去
+// 就是整个进程退出。
+func recoverCallback(where string) {
+	if r := recover(); r != nil {
+		log.Printf("desktop: %s出错（已跳过）：%v\n%s", where, r, debug.Stack())
+	}
 }
 
 // cancelNav 取消一次导航；取消不了是安全边界上的事，要记下来。
@@ -307,6 +342,7 @@ func cancelNav(args *edge.ICoreWebView2NavigationStartingEventArgs) {
 
 // NewWindowRequested：target=_blank / window.open。永远不开第二个窗口：自己的源就在这个窗口里开。
 func (e *webEvents) NewWindowRequested(_ *edge.ICoreWebView2, args *edge.ICoreWebView2NewWindowRequestedEventArgs) uintptr {
+	defer recoverCallback("新窗口的回调")
 	uri, err := args.GetUri()
 	if herr := args.PutHandled(true); herr != nil {
 		log.Printf("desktop: 拦不住新窗口（WebView2 可能自己开了一个）：%v", herr)

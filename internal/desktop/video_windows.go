@@ -187,6 +187,13 @@ func newVideoSession(id uint64, p *mpv.Player, host uintptr) *videoSession {
 // run：连 IPC、找子窗口、看门狗，等 mpv 退出后通知界面换回网页。
 func (s *videoSession) run() {
 	ctx, cancel := context.WithTimeout(context.Background(), ipcDialLimit)
+	go func() { // mpv 一起来就死了：不用等满 ipcDialLimit 才换回网页
+		select {
+		case <-s.player.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	conn, err := mpv.DialEndpoint(ctx, s.player.Endpoint())
 	cancel()
 	if err != nil {
@@ -258,7 +265,6 @@ func (s *videoSession) snapshot() map[string]json.RawMessage {
 // EnableWindow 要等 mpv 的窗口线程处理 WM_ENABLE，不能让界面线程等。
 func (s *videoSession) findChild() {
 	<-s.ipcOnce
-	class := utf16Ptr("mpv")
 	deadline := time.Now().Add(childSearchLimit)
 	for time.Now().Before(deadline) {
 		select {
@@ -266,13 +272,7 @@ func (s *videoSession) findChild() {
 			return
 		default:
 		}
-		if h := s.scanChildren(class); h != 0 {
-			s.child.Store(h)
-			if !ipcInput {
-				pEnableWindow.Call(h, 1)
-			}
-			s.enabled.Store(boolCall(pIsWindowEnabled, h))
-			ui.q.post(func() { ui.attachChild(s) })
+		if s.adoptChild() {
 			return
 		}
 		time.Sleep(childSearchStep)
@@ -280,6 +280,33 @@ func (s *videoSession) findChild() {
 	log.Printf("desktop: %s 内没等到 mpv 的窗口（画面可能不在 nagare 的窗口里）", childSearchLimit)
 }
 
+// adoptChild 找 mpv 此刻的子窗口并接上（还没有返回假）。会被调不止一次：mpv 每试一种 GPU 上下文就重建一次窗口
+// （d3d11 起不来退到 OpenGL，vo_w32_init 每次都新建一个、而且是 disabled 的），只认第一个的话，真正在画画面的那个
+// 一直收不到输入、看门狗盯着的也是死句柄（见 childStale）。
+func (s *videoSession) adoptChild() bool {
+	h := s.scanChildren(utf16Ptr("mpv"))
+	if h == 0 {
+		return false
+	}
+	changed := s.child.Swap(h) != h
+	if !ipcInput && !boolCall(pIsWindowEnabled, h) {
+		pEnableWindow.Call(h, 1) // 在这个 goroutine 上：它要等 mpv 的窗口线程处理 WM_ENABLE
+		changed = true
+	}
+	s.enabled.Store(boolCall(pIsWindowEnabled, h))
+	if changed {
+		ui.q.post(func() { ui.attachChild(s) })
+	}
+	return true
+}
+
+// childStale：接上的子窗口已经没了（mpv 重建了窗口），或者（重新启用的模式下）又是 disabled 的了。
+func (s *videoSession) childStale() bool {
+	h := s.child.Load()
+	return h == 0 || !boolCall(pIsWindow, h) || (!ipcInput && !boolCall(pIsWindowEnabled, h))
+}
+
+// scanChildren 是画面层下面属于这个 mpv 的「mpv」类窗口里最上面（最新建）的那个。
 func (s *videoSession) scanChildren(class *uint16) uintptr {
 	pid := s.pid.Load()
 	var after uintptr
@@ -307,10 +334,12 @@ func (s *videoSession) watchdog() {
 			return
 		case <-t.C:
 		}
-		child := s.child.Load()
-		if child == 0 {
+		if s.childStale() {
+			s.adoptChild() // mpv 重建过窗口：接上新的那个、重新启用，别盯着死句柄
+			strikes = 0
 			continue
 		}
+		child := s.child.Load()
 		if !boolCall(pIsHungAppWindow, child) {
 			strikes = 0
 			continue

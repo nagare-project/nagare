@@ -27,9 +27,11 @@ type Options struct {
 	// Origin 是允许在窗口里打开的源（http://127.0.0.1:<port>）；别的地址（外链、target=_blank）
 	// 交给系统默认浏览器。
 	Origin string
-	// DataDir 是 nagare 的配置目录。Windows：WebView2 的用户数据目录放在 DataDir\webview2（不放安装目录 ——
-	// 自更新会整个换掉那里），窗口的位置大小也记在这里。macOS 不用。
+	// DataDir 是 nagare 的配置目录。Windows：窗口的位置大小记在这里。macOS 不用。
 	DataDir string
+	// CacheDir 是本机的缓存目录（不随漫游配置同步）。Windows：WebView2 的用户数据目录放在 CacheDir\webview2
+	// （几十到上百 MB 的浏览器缓存不该进 %AppData% 的漫游配置）；空串时退回 DataDir。macOS 不用。
+	CacheDir string
 	// OpenBrowser 在窗口用不了时（WebView2 起不来）代替窗口打开 url。Windows 用；macOS 不用。
 	OpenBrowser func(url string)
 	// Quit 让 nagare 退出并收尾（Windows 注销 / 关机时由窗口调，随后等进度回写完）。macOS 不用（走托盘的

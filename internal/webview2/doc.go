@@ -20,8 +20,12 @@
 //   - 收到的网页消息不再原样回发；Navigate / Show / Hide / Focus 在控制器建好之前什么都不做；
 //   - 几个没有 //go:build windows 的文件补上标签（否则别的平台上 go vet ./... 会失败）；
 //   - uintptr → unsafe.Pointer 改成 vet 认可的写法；整个目录跑过 gofmt（只动空白与 import 顺序）；
-//   - edge/nagare_ext.go 是新加的：NavigationStarting、NewWindowRequested、GetBrowserProcessID、Reload、
-//     Controller.Close。
+//   - 删掉了拿 1 字节 Go bool 接 4 字节 BOOL 的那些 getter（ICoreWebView2Settings / ICoreWebViewSettings 的 GetIs*、
+//     GetAre*，ICoreWebView2.GetContainsFullScreenElement）与把出参写到空指针上的 GetUserAgent：nagare 一个都不用，
+//     留着就是踩内存的坑。要读这些值用 nagare_ext.go 里 int32 的写法；
+//   - SetBackgroundColour 在控制器 / Controller2 拿不到时报错返回（上游接着解引用空指针）；
+//   - edge/nagare_ext.go 是新加的：NavigationStarting（含 IsUserInitiated）、NewWindowRequested（含 IsUserInitiated）、
+//     GetBrowserProcessID、Reload、Controller.Close、HasFullScreenElement、UserAgentString、RunScript。
 //
 // 升级上游时：拿新版本的这四个目录覆盖，按上面的清单把改动重新打一遍（grep "nagare patch"）。
 package webview2

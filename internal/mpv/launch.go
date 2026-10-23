@@ -111,6 +111,7 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Player, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("启动 mpv（%s）失败：%w。请用 Detect 重新探测 mpv 安装", opts.MPVPath, err)
 	}
+	bindToNagare(cmd.Process) // Windows：nagare 不管怎么结束，mpv 都跟着结束（job_windows.go）
 
 	// 唯一的一次 cmd.Wait 放在这里：启动阶段用它发现「秒退」，
 	// 启动成功后把通道交给 Player 的进程守望。

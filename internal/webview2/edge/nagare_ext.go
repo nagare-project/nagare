@@ -39,6 +39,13 @@ func (i *ICoreWebView2NavigationStartingEventArgs) GetUri() (string, error) {
 	return getString(i.vtbl.GetUri, unsafe.Pointer(i))
 }
 
+// GetIsUserInitiated 报告这次导航是不是用户点出来的（不是脚本自己跳的）。
+func (i *ICoreWebView2NavigationStartingEventArgs) GetIsUserInitiated() (bool, error) {
+	var v int32
+	hr, _, _ := i.vtbl.GetIsUserInitiated.Call(uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(&v)))
+	return v != 0, hrErr(hr)
+}
+
 // PutCancel 取消这次导航。
 func (i *ICoreWebView2NavigationStartingEventArgs) PutCancel(cancel bool) error {
 	return putBool(i.vtbl.PutCancel, unsafe.Pointer(i), cancel)

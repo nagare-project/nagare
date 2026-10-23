@@ -60,18 +60,6 @@ func (i *ICoreWebViewSettings) Release() uint32 {
 	return uint32(ret)
 }
 
-func (i *ICoreWebViewSettings) GetIsScriptEnabled() (bool, error) {
-	var isScriptEnabled bool
-	hr, _, _ := i.vtbl.GetIsScriptEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&isScriptEnabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return isScriptEnabled, nil
-}
-
 func (i *ICoreWebViewSettings) PutIsScriptEnabled(isScriptEnabled bool) error {
 	hr, _, _ := i.vtbl.PutIsScriptEnabled.Call(
 		uintptr(unsafe.Pointer(i)),
@@ -81,18 +69,6 @@ func (i *ICoreWebViewSettings) PutIsScriptEnabled(isScriptEnabled bool) error {
 		return windows.Errno(hr)
 	}
 	return nil
-}
-
-func (i *ICoreWebViewSettings) GetIsWebMessageEnabled() (bool, error) {
-	var isWebMessageEnabled bool
-	hr, _, _ := i.vtbl.GetIsWebMessageEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&isWebMessageEnabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return isWebMessageEnabled, nil
 }
 
 func (i *ICoreWebViewSettings) PutIsWebMessageEnabled(isWebMessageEnabled bool) error {
@@ -106,18 +82,6 @@ func (i *ICoreWebViewSettings) PutIsWebMessageEnabled(isWebMessageEnabled bool) 
 	return nil
 }
 
-func (i *ICoreWebViewSettings) GetAreDefaultScriptDialogsEnabled() (bool, error) {
-	var areDefaultScriptDialogsEnabled bool
-	hr, _, _ := i.vtbl.GetAreDefaultScriptDialogsEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&areDefaultScriptDialogsEnabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return areDefaultScriptDialogsEnabled, nil
-}
-
 func (i *ICoreWebViewSettings) PutAreDefaultScriptDialogsEnabled(areDefaultScriptDialogsEnabled bool) error {
 	hr, _, _ := i.vtbl.PutAreDefaultScriptDialogsEnabled.Call(
 		uintptr(unsafe.Pointer(i)),
@@ -127,18 +91,6 @@ func (i *ICoreWebViewSettings) PutAreDefaultScriptDialogsEnabled(areDefaultScrip
 		return windows.Errno(hr)
 	}
 	return nil
-}
-
-func (i *ICoreWebViewSettings) GetIsStatusBarEnabled() (bool, error) {
-	var isStatusBarEnabled bool
-	hr, _, _ := i.vtbl.GetIsStatusBarEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&isStatusBarEnabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return isStatusBarEnabled, nil
 }
 
 func (i *ICoreWebViewSettings) PutIsStatusBarEnabled(isStatusBarEnabled bool) error {
@@ -152,18 +104,6 @@ func (i *ICoreWebViewSettings) PutIsStatusBarEnabled(isStatusBarEnabled bool) er
 	return nil
 }
 
-func (i *ICoreWebViewSettings) GetAreDevToolsEnabled() (bool, error) {
-	var areDevToolsEnabled bool
-	hr, _, _ := i.vtbl.GetAreDevToolsEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&areDevToolsEnabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return areDevToolsEnabled, nil
-}
-
 func (i *ICoreWebViewSettings) PutAreDevToolsEnabled(areDevToolsEnabled bool) error {
 	hr, _, _ := i.vtbl.PutAreDevToolsEnabled.Call(
 		uintptr(unsafe.Pointer(i)),
@@ -173,18 +113,6 @@ func (i *ICoreWebViewSettings) PutAreDevToolsEnabled(areDevToolsEnabled bool) er
 		return windows.Errno(hr)
 	}
 	return nil
-}
-
-func (i *ICoreWebViewSettings) GetAreDefaultContextMenusEnabled() (bool, error) {
-	var enabled bool
-	hr, _, _ := i.vtbl.GetAreDefaultContextMenusEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&enabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return enabled, nil
 }
 
 func (i *ICoreWebViewSettings) PutAreDefaultContextMenusEnabled(enabled bool) error {
@@ -198,18 +126,6 @@ func (i *ICoreWebViewSettings) PutAreDefaultContextMenusEnabled(enabled bool) er
 	return nil
 }
 
-func (i *ICoreWebViewSettings) GetAreHostObjectsAllowed() (bool, error) {
-	var allowed bool
-	hr, _, _ := i.vtbl.GetAreHostObjectsAllowed.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&allowed)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return allowed, nil
-}
-
 func (i *ICoreWebViewSettings) PutAreHostObjectsAllowed(allowed bool) error {
 	hr, _, _ := i.vtbl.PutAreHostObjectsAllowed.Call(
 		uintptr(unsafe.Pointer(i)),
@@ -219,18 +135,6 @@ func (i *ICoreWebViewSettings) PutAreHostObjectsAllowed(allowed bool) error {
 		return windows.Errno(hr)
 	}
 	return nil
-}
-
-func (i *ICoreWebViewSettings) GetIsZoomControlEnabled() (bool, error) {
-	var enabled bool
-	hr, _, _ := i.vtbl.GetIsZoomControlEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&enabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return enabled, nil
 }
 
 func (i *ICoreWebViewSettings) PutIsZoomControlEnabled(enabled bool) error {
@@ -244,18 +148,6 @@ func (i *ICoreWebViewSettings) PutIsZoomControlEnabled(enabled bool) error {
 	return nil
 }
 
-func (i *ICoreWebViewSettings) GetIsBuiltInErrorPageEnabled() (bool, error) {
-	var enabled bool
-	hr, _, _ := i.vtbl.GetIsBuiltInErrorPageEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&enabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return enabled, nil
-}
-
 func (i *ICoreWebViewSettings) PutIsBuiltInErrorPageEnabled(enabled bool) error {
 	hr, _, _ := i.vtbl.PutIsBuiltInErrorPageEnabled.Call(
 		uintptr(unsafe.Pointer(i)),
@@ -265,21 +157,6 @@ func (i *ICoreWebViewSettings) PutIsBuiltInErrorPageEnabled(enabled bool) error 
 		return windows.Errno(hr)
 	}
 	return nil
-}
-
-func (i *ICoreWebViewSettings) GetUserAgent() (string, error) {
-	// Create *uint16 to hold result
-	var _userAgent *uint16
-	hr, _, _ := i.vtbl.GetUserAgent.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(_userAgent)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return "", windows.Errno(hr)
-	} // Get result and cleanup
-	userAgent := windows.UTF16PtrToString(_userAgent)
-	windows.CoTaskMemFree(unsafe.Pointer(_userAgent))
-	return userAgent, nil
 }
 
 func (i *ICoreWebViewSettings) PutUserAgent(userAgent string) error {
@@ -300,18 +177,6 @@ func (i *ICoreWebViewSettings) PutUserAgent(userAgent string) error {
 	return nil
 }
 
-func (i *ICoreWebViewSettings) GetAreBrowserAcceleratorKeysEnabled() (bool, error) {
-	var enabled bool
-	hr, _, _ := i.vtbl.GetAreBrowserAcceleratorKeysEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&enabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return enabled, nil
-}
-
 func (i *ICoreWebViewSettings) PutAreBrowserAcceleratorKeysEnabled(enabled bool) error {
 	hr, _, _ := i.vtbl.PutAreBrowserAcceleratorKeysEnabled.Call(
 		uintptr(unsafe.Pointer(i)),
@@ -323,18 +188,6 @@ func (i *ICoreWebViewSettings) PutAreBrowserAcceleratorKeysEnabled(enabled bool)
 	return nil
 }
 
-func (i *ICoreWebViewSettings) GetIsPinchZoomEnabled() (bool, error) {
-	var enabled bool
-	hr, _, _ := i.vtbl.GetIsPinchZoomEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&enabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return enabled, nil
-}
-
 func (i *ICoreWebViewSettings) PutIsPinchZoomEnabled(enabled bool) error {
 	hr, _, _ := i.vtbl.PutIsPinchZoomEnabled.Call(
 		uintptr(unsafe.Pointer(i)),
@@ -344,18 +197,6 @@ func (i *ICoreWebViewSettings) PutIsPinchZoomEnabled(enabled bool) error {
 		return windows.Errno(hr)
 	}
 	return nil
-}
-
-func (i *ICoreWebViewSettings) GetIsSwipeNavigationEnabled() (bool, error) {
-	var enabled bool
-	hr, _, _ := i.vtbl.GetIsSwipeNavigationEnabled.Call(
-		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(&enabled)),
-	)
-	if windows.Handle(hr) != windows.S_OK {
-		return false, windows.Errno(hr)
-	}
-	return enabled, nil
 }
 
 func (i *ICoreWebViewSettings) PutIsSwipeNavigationEnabled(enabled bool) error {

@@ -24,6 +24,42 @@ const (
 	webView2DownloadURL = "https://developer.microsoft.com/microsoft-edge/webview2/"
 )
 
+// minRuntimeVersion 是桌面窗口要的最老的 WebView2 运行时（2022 年 3 月的 100）：用到的 ICoreWebView2Settings2/3
+// （User-Agent、浏览器快捷键）、Controller2（底色）都早于它。更老的运行时调这些接口会落到虚表外面 —— 退回浏览器模式。
+// Evergreen 运行时会自己更新，正常的机器上都远比它新。
+const minRuntimeVersion = "100.0.1185.36"
+
+// runtimeAtLeast：版本号 v 不比 min 旧（都是 a.b.c.d；解析不了的当作太旧）。
+func runtimeAtLeast(v, min string) bool {
+	a, okA := parseRuntimeVersion(v)
+	b, okB := parseRuntimeVersion(min)
+	if !okA || !okB {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return true
+}
+
+func parseRuntimeVersion(v string) ([4]int, bool) {
+	var out [4]int
+	parts := strings.Split(strings.TrimSpace(v), ".")
+	if len(parts) != 4 {
+		return out, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
+}
+
 // runtimeInstalled：两处 pv 有一处是比 0.0.0.0 大的版本号，就算装了。
 func runtimeInstalled(pvMachine, pvUser string) bool {
 	return validRuntimeVersion(pvMachine) || validRuntimeVersion(pvUser)
