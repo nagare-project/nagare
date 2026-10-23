@@ -25,7 +25,9 @@
 //     留着就是踩内存的坑。要读这些值用 nagare_ext.go 里 int32 的写法；
 //   - SetBackgroundColour 在控制器 / Controller2 拿不到时报错返回（上游接着解引用空指针）；
 //   - edge/nagare_ext.go 是新加的：NavigationStarting（含 IsUserInitiated）、NewWindowRequested（含 IsUserInitiated）、
-//     GetBrowserProcessID、Reload、Controller.Close、HasFullScreenElement、UserAgentString、RunScript。
+//     GetBrowserProcessID、Reload、Controller.Close、HasFullScreenElement、UserAgentString、RunScript；
+//   - edge/nagare_contextmenu.go 是新加的：ICoreWebView2_11 的 ContextMenuRequested（虚表从 _3 一级一级接到 _11，
+//     槽位有测试守着），用来只在输入框与选中的文字上留浏览器的右键菜单。
 //
 // 升级上游时：拿新版本的这四个目录覆盖，按上面的清单把改动重新打一遍（grep "nagare patch"）。
 package webview2

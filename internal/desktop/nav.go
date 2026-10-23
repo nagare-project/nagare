@@ -68,3 +68,9 @@ func isOurOrigin(u *url.URL, origin string) bool {
 	}
 	return strings.EqualFold(u.Scheme, o.Scheme) && strings.EqualFold(u.Hostname(), o.Hostname()) && u.Port() == o.Port()
 }
+
+// keepContextMenu：网页层里右键时留不留浏览器自己的菜单。输入框（往里贴磁力链接、地址）和选中的文字（复制）上留着；
+// 别处不弹 —— 返回、刷新、另存为、打印……在应用里没有意义。all：开发者工具开着时全留（排查界面用）。
+func keepContextMenu(editable, hasSelection, all bool) bool {
+	return all || editable || hasSelection
+}

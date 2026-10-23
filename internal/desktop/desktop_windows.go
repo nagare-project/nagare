@@ -48,7 +48,6 @@ var ipcInput = os.Getenv("NAGARE_DESKTOP_INPUT") == "ipc"
 var testHooks struct {
 	noRuntime bool
 	failWeb   bool
-	testBuild bool // 测试构建：网页层留着右键菜单（排查用）
 }
 
 // ui 是唯一的桌面窗口。

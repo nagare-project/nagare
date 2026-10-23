@@ -51,3 +51,23 @@ func TestDecideNav(t *testing.T) {
 		})
 	}
 }
+
+// 右键菜单：输入框与选中的文字上留浏览器的菜单（粘贴、复制），别处不弹；开发者工具开着时全留。
+func TestKeepContextMenu(t *testing.T) {
+	cases := []struct {
+		name                     string
+		editable, selection, all bool
+		keep                     bool
+	}{
+		{"输入框：要能粘贴磁力链接", true, false, false, true},
+		{"选中的文字：要能复制", false, true, false, true},
+		{"输入框里选中了一段", true, true, false, true},
+		{"页面空白处、图片、链接", false, false, false, false},
+		{"开发者工具开着", false, false, true, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.keep, keepContextMenu(c.editable, c.selection, c.all))
+		})
+	}
+}

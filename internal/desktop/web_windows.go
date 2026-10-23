@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -33,6 +34,10 @@ const webCreateLimit = 25 * time.Second
 
 // devTools：NAGARE_DESKTOP_DEVTOOLS=1 时允许开发者工具（排查界面问题用）。
 var devTools = os.Getenv("NAGARE_DESKTOP_DEVTOOLS") == "1"
+
+// webBrowserPID 是当前网页层的浏览器进程（msedgewebview2.exe 主进程）。网页层的弹出窗口（右键菜单、下拉框）属于它，
+// 测试遥控据此把它们也算作 nagare 的窗口。
+var webBrowserPID atomic.Uint32
 
 // liveWebLayers 让建过的网页层（连同交给 WebView2 的回调对象）一直可达，不被 GC 收走。只在界面线程上碰。
 var liveWebLayers []*webLayer
@@ -56,9 +61,11 @@ type webLayer struct {
 	ready  bool
 	pid    uint32 // 浏览器进程（msedgewebview2.exe 主进程）
 	// COM 那边存的是这几个对象的裸指针：一直持有，不能让 GC 收走
-	navHandler *edge.ICoreWebView2NavigationStartingEventHandler
-	winHandler *edge.ICoreWebView2NewWindowRequestedEventHandler
-	events     *webEvents
+	navHandler  *edge.ICoreWebView2NavigationStartingEventHandler
+	winHandler  *edge.ICoreWebView2NewWindowRequestedEventHandler
+	menuHandler *edge.ICoreWebView2ContextMenuRequestedEventHandler
+	events      *webEvents
+	ctlClosed   bool // 控制器已经关过（close 可以调不止一次：超时退回之后控制器才迟迟建好时还要再关一次）
 }
 
 // ensureWeb 建网页层（只建一次；起不来过就不再试）。
@@ -122,7 +129,10 @@ func (a *app) ensureWeb() {
 // webReady 是 WebView2 创建的结果（界面线程，经消息循环回来）。
 func (a *app) webReady(w *webLayer, err error) {
 	if a.web != w {
-		return // 早被换掉了（浏览器进程崩了重建过）
+		// 早被换掉了（浏览器进程崩了重建过），或者超过 webCreateLimit 已经退回了浏览器模式：这个迟到的控制器
+		// 没人用了，关掉它（不然它的浏览器进程一直开着、占着用户数据目录）
+		w.close()
+		return
 	}
 	if err != nil {
 		a.failWeb(err)
@@ -164,8 +174,8 @@ func (w *webLayer) configure() error {
 		"浏览器快捷键": func() error { return s.PutAreBrowserAcceleratorKeysEnabled(devTools) },
 		// Ctrl+滚轮 / Ctrl+加减号的缩放：缩放比例会记在用户数据目录里，下次打开整个界面还是歪的
 		"缩放": func() error { return s.PutIsZoomControlEnabled(false) },
-		// 浏览器的右键菜单（返回、刷新、另存为、打印……）在应用里没有意义；输入框里的复制粘贴快捷键照常。测试构建留着
-		"右键菜单": func() error { return s.PutAreDefaultContextMenusEnabled(devTools || testHooks.testBuild) },
+		// 浏览器自己的右键菜单开着，由 ContextMenuRequested 筛：只在输入框与选中的文字上弹（见 keepContextMenu）
+		"右键菜单": func() error { return s.PutAreDefaultContextMenusEnabled(true) },
 	} {
 		if err := put(); err != nil {
 			// 老版本的运行时可能没有某一项：记下来，不当成起不来
@@ -187,8 +197,10 @@ func (w *webLayer) configure() error {
 	if err := core.AddNewWindowRequested(w.winHandler); err != nil {
 		return fmt.Errorf("挂不上新窗口规则：%w", err)
 	}
+	w.filterContextMenus(core)
 	if pid, err := core.GetBrowserProcessID(); err == nil {
 		w.pid = pid
+		webBrowserPID.Store(pid)
 	} else {
 		log.Printf("desktop: 读不到 WebView2 浏览器进程的 PID（退出时不能等它）：%v", err)
 	}
@@ -243,14 +255,34 @@ func (a *app) shutdownWeb(limit time.Duration) {
 	}
 }
 
+// filterContextMenus 挂上右键菜单的筛选。挂不上（运行时太老、没有 ICoreWebView2_11）就整个菜单都留着：
+// 宁可多一个用不着的菜单，也不能让输入框里没有「粘贴」（用户要往里贴磁力链接、地址）。
+func (w *webLayer) filterContextMenus(core *edge.ICoreWebView2) {
+	c11 := core.GetICoreWebView2_11()
+	if c11 == nil {
+		log.Print("desktop: 这个 WebView2 运行时不支持筛右键菜单，浏览器的菜单全留着")
+		return
+	}
+	defer c11.Release()
+	w.menuHandler = edge.NewContextMenuRequestedHandler(w.events)
+	if err := c11.AddContextMenuRequested(w.menuHandler); err != nil {
+		log.Printf("desktop: 挂不上右键菜单的筛选（浏览器的菜单全留着）：%v", err)
+	}
+}
+
+// close 关掉控制器。可以调不止一次：控制器还没建好时只记下「在关了」，之后迟到的控制器在 webReady 里再关一次。
 func (w *webLayer) close() {
 	w.c.ShuttingDown()
+	w.ready = false
+	if w.ctlClosed {
+		return
+	}
 	if ctl := w.c.GetController(); ctl != nil {
+		w.ctlClosed = true
 		if err := ctl.Close(); err != nil {
 			log.Printf("desktop: 关 WebView2 失败：%v", err)
 		}
 	}
-	w.ready = false
 }
 
 func (w *webLayer) resize() {
@@ -302,7 +334,16 @@ func (*webEvents) Release() uintptr                    { return 1 }
 
 // NavigationStarting：顶层导航，只放行我们自己的源。
 func (e *webEvents) NavigationStarting(_ *edge.ICoreWebView2, args *edge.ICoreWebView2NavigationStartingEventArgs) uintptr {
-	defer recoverCallback("网页导航的回调")
+	defer func() {
+		if r := recover(); r != nil {
+			logPanic("网页导航的回调", r)
+			// 导航是安全边界：判断到一半出错就拦下这次导航（fail closed）；取消本身再出错也不往外抛
+			func() {
+				defer recoverCallback("取消导航")
+				cancelNav(args)
+			}()
+		}
+	}()
 	uri, err := args.GetUri()
 	if err != nil {
 		cancelNav(args)
@@ -329,8 +370,32 @@ func (e *webEvents) NavigationStarting(_ *edge.ICoreWebView2, args *edge.ICoreWe
 // 就是整个进程退出。
 func recoverCallback(where string) {
 	if r := recover(); r != nil {
-		log.Printf("desktop: %s出错（已跳过）：%v\n%s", where, r, debug.Stack())
+		logPanic(where, r)
 	}
+}
+
+func logPanic(where string, r any) {
+	log.Printf("desktop: %s出错（已跳过）：%v\n%s", where, r, debug.Stack())
+}
+
+// ContextMenuRequested：右键。输入框与选中的文字上留浏览器的菜单（复制、粘贴、全选），别处不弹。
+// 读不到点的是什么时照默认菜单弹：宁可多一个菜单，不能让输入框没有粘贴。
+func (e *webEvents) ContextMenuRequested(_ *edge.ICoreWebView2, args *edge.ICoreWebView2ContextMenuRequestedEventArgs) uintptr {
+	defer recoverCallback("右键菜单的回调")
+	t, err := args.GetContextMenuTarget()
+	if err != nil || t == nil {
+		log.Printf("desktop: 读不到右键点到的东西（照默认菜单）：%v", err)
+		return 0
+	}
+	editable, eerr := t.IsEditable()
+	selection, serr := t.HasSelection()
+	t.Release()
+	if !keepContextMenu(editable || eerr != nil, selection || serr != nil, devTools) {
+		if err := args.PutHandled(true); err != nil {
+			log.Printf("desktop: 压不住右键菜单（浏览器的菜单照样弹）：%v", err)
+		}
+	}
+	return 0
 }
 
 // cancelNav 取消一次导航；取消不了是安全边界上的事，要记下来。
