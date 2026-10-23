@@ -42,7 +42,8 @@ export interface MpvCardProps {
 
 /**
  * mpv 信息卡。找到：版本 / 路径 / 来源；未找到：提示 + 按平台的安装指引
- * （命令块 + 一键复制 + 外链）+「重新检测」—— macOS 不捆绑 mpv，用户装完不用重启。
+ * （命令块 + 一键复制 + 外链）+「重新检测」—— 用户装完不用重启。安装指引只会出现在 Linux 与 macOS 的裸二进制上：
+ * Windows 包与 Nagare.app 都自带 mpv（Nagare.app 在窗口模式下另有一行「进度条缩略图」说明用的是哪个命令行 mpv）。
  */
 export function MpvCard({ mpv, onReload }: MpvCardProps) {
   const [detect, setDetect] = useState<DetectState>({ phase: 'idle' })
