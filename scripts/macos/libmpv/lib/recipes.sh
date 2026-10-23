@@ -163,17 +163,28 @@ ffmpeg_deps="mbedtls dav1d zimg"
 ffmpeg_licenses="LICENSE.md COPYING.LGPLv2.1 COPYING.LGPLv3 COPYING.GPLv2 COPYING.GPLv3"
 recipe_ffmpeg() {
   # 只开放番剧发布里会遇到的格式。清单与 README「FFmpeg 组件」对应，verify.sh 逐个核对。
+  # 媒体库扫描器认的每个扩展名（internal/library/scan.go 的 scanVideoExts）都要播得了，包括老格式：
+  #   .wmv  —— asf 分离器 + WMV 7/8/9（wmv1 / wmv2 / wmv3、vc1）+ WMA（wmav1 / wmav2 / wmapro / wmavoice / wmalossless）
+  #   .rmvb —— rm 分离器 + RealVideo 1–4（rv10 / rv20 / rv30 / rv40）+ RealAudio（ra_144 / ra_288 / cook / sipr /
+  #            atrac3 / ralf）
+  #   .flv  —— 老 FLV 的 Sorenson Spark（flv）、VP6（vp6 / vp6f / vp6a）、adpcm_swf、nellymoser
+  #   .avi  —— 老 AVI 常见的 DivX / Xvid（mpeg4、msmpeg4v1–3）与 MS / IMA ADPCM 音频
+  #   .m4v  —— 多是 mp4 容器（mov 分离器），也有裸 MPEG-4 视频流（m4v 分离器）
+  # 这些都是 FFmpeg 的 LGPL 部分，不需要 --enable-gpl。
   local FF_DECODERS="h264 hevc av1 libdav1d vp8 vp9 mpeg1video mpeg2video mpeg4 msmpeg4v1 msmpeg4v2 msmpeg4v3 h263 vc1 wmv3
+    wmv1 wmv2 rv10 rv20 rv30 rv40 flv vp6 vp6f vp6a
     mjpeg png webp
     aac aac_latm ac3 eac3 truehd mlp dca flac opus vorbis mp1 mp1float mp2 mp2float mp3 mp3float alac
+    wmav1 wmav2 wmapro wmavoice wmalossless ra_144 ra_288 cook sipr atrac3 ralf adpcm_swf nellymoser adpcm_ms adpcm_ima_wav
     pcm_s8 pcm_u8 pcm_s16le pcm_s16be pcm_s24le pcm_s24be pcm_s32le pcm_s32be pcm_f32le pcm_f32be pcm_f64le
     pcm_bluray pcm_dvd pcm_alaw pcm_mulaw
     aac_at ac3_at eac3_at mp3_at alac_at
     ass ssa subrip srt webvtt movtext text microdvd pgssub dvdsub dvbsub ccaption"
   local FF_DEMUXERS="matroska mov mpegts mpegps avi flv ogg hls wav flac mp3 aac ac3 eac3 dts dtshd truehd mlp h264 hevc
+    asf rm m4v
     ass srt webvtt sup vobsub microdvd image2 image_jpeg_pipe image_png_pipe image_webp_pipe"
   local FF_PARSERS="h264 hevc av1 vp8 vp9 mpeg4video mpegvideo vc1 h263 mjpeg png webp aac aac_latm ac3 dca flac mlp
-    mpegaudio opus vorbis dvdsub dvbsub"
+    mpegaudio opus vorbis dvdsub dvbsub rv34 cook sipr"
   # 截图（png / mjpeg；jpg 实际由 libjpeg 写）+ thumbfast 的 --ovc=rawvideo --of=image2
   local FF_ENCODERS="mjpeg png rawvideo"
   local FF_MUXERS="image2"

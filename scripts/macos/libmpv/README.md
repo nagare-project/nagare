@@ -53,11 +53,18 @@ CoreAudio 初始化失败时的清理（两条）。
 
 **FFmpeg 组件**（[`lib/recipes.sh`](lib/recipes.sh) 的 `recipe_ffmpeg`）：
 解码 h264 / hevc（含 10bit）/ av1（dav1d，外加给 VideoToolbox 用的原生 av1）/ vp8 / vp9 / mpeg1/2/4 /
-msmpeg4 / vc1 / mjpeg / png / webp，aac / ac3 / eac3 / truehd / dts / flac / opus / vorbis / mp1-3 / alac / pcm，
-ass / srt / webvtt / mov_text / pgs / dvdsub / dvbsub / cc；分离器 matroska（含 webm）/ mp4 / mpegts /
-mpegps / avi / flv / ogg / hls 与各种裸流和字幕文件；协议 file / http / https / tls / crypto；
+msmpeg4 / vc1 / wmv1-3 / rv10-40 / flv（Sorenson）/ vp6 / mjpeg / png / webp，aac / ac3 / eac3 / truehd / dts / flac /
+opus / vorbis / mp1-3 / alac / wma（v1 / v2 / pro / voice / lossless）/ RealAudio（14.4 / 28.8 / cook / sipr / atrac3 /
+ralf）/ adpcm（swf / ms / ima_wav）/ nellymoser / pcm，ass / srt / webvtt / mov_text / pgs / dvdsub / dvbsub / cc；
+分离器 matroska（含 webm）/ mp4 / mpegts / mpegps / avi / flv / asf（wmv）/ rm（rmvb）/ m4v / ogg / hls 与各种裸流和
+字幕文件；协议 file / http / https / tls / crypto；
 编码器只有截图与 thumbfast 用的 mjpeg / png / rawvideo（+ image2 封装）；滤镜是 mpv 与 thumbfast
 用到的那几个（裁剪、缩放、补边、翻转、zscale、tonemap、去隔行、音量整形）。
+
+**媒体库扫描器认的每个扩展名都要播得了**（`internal/library/scan.go` 的 `scanVideoExts`：mkv mp4 avi webm mov m4v
+flv wmv ts rmvb）：Nagare.app 里的 mpv 是探测时排第一的，删掉一个分离器或解码器，用户以前用 Homebrew mpv 能放的
+文件就会放不了。verify.sh 对每个扩展名各解一段测试片段，并核对清单里这些格式要用的组件都在（ffmpeg 编不出
+RV30/40、cook、WMV 9、VP6 这些，只能查组件）；`scanVideoExts` 加了扩展名而没有对应的测试片段，verify.sh 直接失败。
 
 ## TLS
 
@@ -117,7 +124,8 @@ scripts/macos/libmpv/verify.sh out
 
 `tests/media/` 是 verify.sh 用的几秒钟的小文件（H.264 + AAC + ASS/SRT/WebVTT、HEVC 10bit + FLAC、
 AV1 + Opus、VP9 + Vorbis、MPEG-2 + AC-3、MPEG-4 + MP3、mp4 的 E-AC-3 + mov_text、DTS / TrueHD / PCM 音轨、
-HLS）。由 [`tests/make-media.sh`](tests/make-media.sh) 用一个全功能的 ffmpeg 生成后入库。
+HLS，以及按扩展名补的 mov（H.264 + ALAC）、m4v（MPEG-4 + AAC）、flv（Sorenson Spark + ADPCM）、
+wmv（WMV 8 + WMA 2）、rmvb（RealVideo 2 + RealAudio 14.4））。由 [`tests/make-media.sh`](tests/make-media.sh) 用一个全功能的 ffmpeg 生成后入库。
 
 ## 验证过的环境
 
