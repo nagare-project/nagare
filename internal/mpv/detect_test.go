@@ -221,9 +221,10 @@ func TestDetect_CandidateOrder(t *testing.T) {
 
 // macOS 的两种内置布局都在时，.app 的 Contents/MacOS/mpv（同目录文件）先于 mpv/mpv 子目录。
 func TestDetect_DarwinBundledOrder(t *testing.T) {
-	assert.Equal(t, []string{"/app/mpv", "/app/mpv/mpv"}, bundledLocations("darwin", "/app"))
+	// 路径按跑测试的这台机器的分隔符拼（与生产一致：goos 只决定布局，分隔符是本机的）
+	assert.Equal(t, []string{filepath.Join("/app", "mpv"), filepath.Join("/app", "mpv", "mpv")}, bundledLocations("darwin", "/app"))
 	assert.Equal(t, []string{filepath.Join("/app", "mpv", "mpv.exe")}, bundledLocations("windows", "/app"))
-	assert.Equal(t, []string{"/app/mpv/mpv"}, bundledLocations("linux", "/app"))
+	assert.Equal(t, []string{filepath.Join("/app", "mpv", "mpv")}, bundledLocations("linux", "/app"))
 }
 
 // 已知位置按顺序取第一个存在的：Apple Silicon Homebrew 优先于 Intel Homebrew。
