@@ -106,7 +106,9 @@ class Smoke:
         return json.loads(self.ctl("/state"))
 
     def ipc_socket(self):
-        socks = glob.glob(f"/tmp/nagare-mpv-*/mpv-{self.proc.pid}-*.sock")
+        # 套接字放在运行时目录里；路径超过 Unix 套接字的长度上限时回落到 /tmp 下的私有目录（internal/mpv/mpv_unix.go）
+        name = f"mpv-{self.proc.pid}-*.sock"
+        socks = glob.glob(os.path.join(self.cfg, "runtime", name)) + glob.glob(f"/tmp/nagare-mpv-*/{name}")
         return max(socks, key=os.path.getmtime) if socks else None
 
     def mpv(self, *command):
