@@ -274,7 +274,8 @@ func (h *navHarness) startPlaying(t *testing.T, i int) (PlayResult, *playback) {
 
 func eventually(t *testing.T, cond func() bool, msg string) {
 	t.Helper()
-	require.Eventually(t, cond, 3*time.Second, 5*time.Millisecond, msg)
+	// 只是上限：条件一成立就返回。机器满载时 3 秒不够（见过偶发超时），放宽不影响正常耗时
+	require.Eventually(t, cond, 10*time.Second, 5*time.Millisecond, msg)
 }
 
 func (h *navHarness) awaitEpisode(t *testing.T, fileID string) {
