@@ -209,6 +209,34 @@ echo "==> 打包 .app zip（自更新用）：$appzip"
 # 普通 zip 压出来的包解开后 codesign 校验不过，自更新装上去就是个打不开的 app。
 (cd "$out" && ditto -c -k --sequesterRsrc --keepParent Nagare.app "$appzip")
 
+# 体积守卫：已经装在用户机器上的旧版本，自更新时按它们自己编进去的上限解这个包（internal/selfupdate：
+# 整包 512 MB、单个条目 256 MB、解开总量 768 MB、条目数 20000）。这些上限在旧客户端里永远改不了 ——
+# 超了，那些用户就再也自更新不上来。这里按一半卡：离上限还远时就红，留出几个版本的增长余量。
+# （数值与 internal/selfupdate 的常量由 TestBuildAppSizeGuardBelowUpdaterLimits 绑着。）
+SIZE_GUARD_ARCHIVE_MB=256
+SIZE_GUARD_ENTRY_MB=128
+SIZE_GUARD_TOTAL_MB=384
+SIZE_GUARD_ENTRIES=10000
+echo "==> 体积守卫（旧客户端的自更新上限的一半）"
+if ! python3 -I -B - "$appzip" "$SIZE_GUARD_ARCHIVE_MB" "$SIZE_GUARD_ENTRY_MB" "$SIZE_GUARD_TOTAL_MB" "$SIZE_GUARD_ENTRIES" <<'PY'
+import os, sys, zipfile
+path, archive_mb, entry_mb, total_mb, max_entries = sys.argv[1], *map(int, sys.argv[2:])
+mb = 1 << 20
+with zipfile.ZipFile(path) as z:
+    infos = z.infolist()
+size = os.path.getsize(path)
+biggest = max(infos, key=lambda i: i.file_size)
+total = sum(i.file_size for i in infos)
+print(f"    整包 {size / mb:.1f} MB（守卫 {archive_mb}）、最大条目 {biggest.file_size / mb:.1f} MB {biggest.filename}（守卫 {entry_mb}）、"
+      f"解开 {total / mb:.1f} MB（守卫 {total_mb}）、{len(infos)} 个条目（守卫 {max_entries}）")
+bad = size > archive_mb * mb or biggest.file_size > entry_mb * mb or total > total_mb * mb or len(infos) > max_entries
+sys.exit(1 if bad else 0)
+PY
+then
+  echo ".app.zip 逼近旧客户端的自更新上限（见上），装着旧版本的用户会自更新不上来 —— 先瘦身再发布。" >&2
+  exit 1
+fi
+
 # 验证 zip 往返之后签名仍然成立。
 #
 # 【两种解包方式都要验】，这不是重复：
