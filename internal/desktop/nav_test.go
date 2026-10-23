@@ -1,0 +1,83 @@
+package desktop
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// User-Agent 的记号：追加在末尾、保留默认的那段，已经有了不重复加。
+func TestWithDesktopMarker(t *testing.T) {
+	const edgeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0"
+	assert.Equal(t, edgeUA+" NagareDesktop", withDesktopMarker(edgeUA))
+	assert.Equal(t, edgeUA+" NagareDesktop", withDesktopMarker(withDesktopMarker(edgeUA)))
+	assert.Equal(t, "x NagareDesktop/0.7.0", withDesktopMarker("x NagareDesktop/0.7.0"))
+	assert.Equal(t, "x NagareDesktopX NagareDesktop", withDesktopMarker("x NagareDesktopX"), "前缀撞车不算")
+}
+
+// 网页层的导航规则（Windows 的 Go 实现）：用例与 nav_darwin_test.go 相同，两边的规则必须一致。
+func TestDecideNav(t *testing.T) {
+	const origin = "http://127.0.0.1:8591"
+	for _, tc := range []struct {
+		name      string
+		url       string
+		newWindow bool
+		subframe  bool
+		want      navAction
+	}{
+		{"本机界面", "http://127.0.0.1:8591/settings#about", false, false, actAllow},
+		{"本机界面 target=_blank", "http://127.0.0.1:8591/entry?id=1", true, false, actLoadHere},
+		{"主机名大小写不敏感", "HTTP://127.0.0.1:8591/", false, false, actAllow},
+		{"别的端口不是我们", "http://127.0.0.1:8592/", false, false, actExternal},
+		{"没写端口不是我们", "http://127.0.0.1/", false, false, actExternal},
+		{"localhost 不是我们（首个地址用的是 127.0.0.1）", "http://localhost:8591/", true, false, actExternal},
+		{"外链", "https://anilist.co/anime/1", false, false, actExternal},
+		{"外链 target=_blank", "https://github.com/nagare-project/Nagare_Source", true, false, actExternal},
+		{"邮件", "mailto:someone@example.com", true, false, actExternal},
+		{"data: target=_blank", "data:text/html,<h1>x</h1>", true, false, actCancel},
+		{"data: 顶层", "data:text/html,<h1>x</h1>", false, false, actCancel},
+		{"javascript: target=_blank", "javascript:document.title='x'", true, false, actCancel},
+		{"blob:", "blob:http://127.0.0.1:8591/abc", true, false, actCancel},
+		{"about:blank", "about:blank", true, false, actCancel},
+		{"file:", "file:///C:/Windows/win.ini", false, false, actCancel},
+		{"应用协议", "ms-settings:privacy", true, false, actCancel},
+		{"ftp", "ftp://127.0.0.1/x", true, false, actCancel},
+		{"解析不了", "http://[::1", false, false, actCancel},
+		{"没有协议", "/relative/path", false, false, actCancel},
+		{"内嵌框架照常（预告片）", "https://www.youtube-nocookie.com/embed/x", false, true, actAllow},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, decideNav(tc.url, tc.newWindow, tc.subframe, origin))
+		})
+	}
+}
+
+// 右键菜单：输入框与选中的文字上留浏览器的菜单（粘贴、复制），别处不弹；开发者工具开着时全留。
+func TestKeepContextMenu(t *testing.T) {
+	cases := []struct {
+		name                     string
+		editable, selection, all bool
+		keep                     bool
+	}{
+		{"输入框：要能粘贴磁力链接", true, false, false, true},
+		{"选中的文字：要能复制", false, true, false, true},
+		{"输入框里选中了一段", true, true, false, true},
+		{"页面空白处、图片、链接", false, false, false, false},
+		{"开发者工具开着", false, false, true, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.keep, keepContextMenu(c.editable, c.selection, c.all))
+		})
+	}
+}
+
+// 留下来的菜单里只去掉密码管理与开发者工具那几项；剪切、复制、粘贴、全选这些照留。
+func TestDropMenuItem(t *testing.T) {
+	for _, name := range []string{"importPasswords", "managePasswords", "moreTools", "inspectElement"} {
+		assert.True(t, dropMenuItem(name), name)
+	}
+	for _, name := range []string{"cut", "copy", "paste", "pasteAndMatchStyle", "selectAll", "undo", "redo", "emoji", "spellCheck", ""} {
+		assert.False(t, dropMenuItem(name), name)
+	}
+}

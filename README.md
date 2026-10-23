@@ -96,10 +96,16 @@ tap 仓库与更多说明见 [`packaging/homebrew/`](packaging/homebrew/README.m
 1. 下载 `nagare-<版本>_Windows_x86_64-setup.exe` 双击。SmartScreen 会显示「Windows 已保护你的电脑」——
    点 **「更多信息」→「仍要运行」**。
 2. 安装到当前用户目录（`%LOCALAPPDATA%\Programs\nagare`），不需要管理员权限、不会弹 UAC。
-3. 完成后托盘出现 nagare 图标，浏览器自动打开界面。**mpv 已内置**，不用另装。
-   **关掉浏览器不会退出 nagare**：托盘图标可能被 Windows 折进任务栏的「^」里，从那里可以重新打开界面或退出。
+3. 完成后托盘出现 nagare 图标，并打开 **nagare 自己的窗口**：界面在窗口里（用系统的 WebView2 显示），
+   点播放就在同一个窗口里播（**mpv 已内置**，不用另装），播完、按 Esc 或点「返回」回到媒体库。
+   **关掉窗口不会退出 nagare**（播放会停、进度会记下）：托盘图标可能被 Windows 折进任务栏的「^」里，
+   左键点它重新打开窗口，右键有「在浏览器中打开」和「退出 nagare」。
+   - 窗口要用 **WebView2 运行时**（Windows 11 自带，绝大多数 Windows 10 已经装着）。安装包发现没装时会顺带
+     静默装一份（微软官方的安装器，要联网）；装不上也不要紧 —— nagare 会改在浏览器里打开界面、mpv 单独开窗口，
+     设置页「播放器」一栏写着原因和运行时的下载地址。
+   - 想一直用浏览器 + 单独的 mpv 窗口：用 `nagare.exe --no-window` 启动。
 4. 便携版：下载 `nagare-<版本>_Windows_x86_64.zip`，解压到任意目录，双击 `nagare.exe`
-   （`mpv\` 子目录要和 exe 放在一起）。
+   （`mpv\` 子目录要和 exe 放在一起）。便携版不带 WebView2 的安装器：电脑上没有运行时就用浏览器打开界面。
 5. [Scoop](https://scoop.sh) 用户可以直接装便携版：
 
    ```powershell
@@ -150,6 +156,7 @@ certutil -hashfile <文件名> SHA256                  # Windows，和 checksums
   [docs/releasing.md](docs/releasing.md)）。
 - **日志**：macOS `~/Library/Application Support/nagare/logs/nagare.log`、
   Windows `%AppData%\nagare\logs\`、Linux `~/.config/nagare/logs/`。反馈问题时请附上。
+  Windows 的窗口用的浏览器缓存（WebView2 的用户数据）在 `%LOCALAPPDATA%\nagare\webview2`，删掉也无妨。
 - **卸载**不会删除配置目录（token、媒体库状态、观看进度都在里面），不需要的话手动删。
 
 ## 从源码构建与运行

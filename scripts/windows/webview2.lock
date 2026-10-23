@@ -1,0 +1,17 @@
+# Windows 安装包内嵌的 WebView2 Evergreen Bootstrapper（MicrosoftEdgeWebview2Setup.exe，微软签名，约 1.8MB）。
+# fetch-webview2.sh 读取本文件；sha256 不符即失败。
+#
+# 它只是个下载器：安装时两处注册表（HKLM 与 HKCU 的 EdgeUpdate\Clients\{F3017226-…} 的 pv）都没有运行时，
+# nagare.nsi 才以 /silent /install 跑它，装的永远是微软当前的 Evergreen 运行时（之后由系统自己更新）。
+# 不用 Fixed Version 运行时：250MB 以上、没有自动安全更新。
+#
+# 更新步骤：
+#   1. curl -sSI -L 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' 看 Location（微软 CDN 上的直链）
+#   2. 下载、shasum -a 256，填进来；在 Windows 上 Get-AuthenticodeSignature 确认签名是 Microsoft Corporation
+#      （CI 的 Windows job 会验，见 .github/workflows/ci.yml）
+# 微软偶尔更新这个文件；fwlink 换了指向之后旧直链通常还在，钉住的这一份照样能下。
+fwlink=https://go.microsoft.com/fwlink/p/?LinkId=2124703
+url=https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/ed55121c-0243-4978-b7e7-56505b5b96ff/MicrosoftEdgeWebview2Setup.exe
+sha256=f414de01c4680f0bb0694d1ea7803c6968f3a81bf6bad01b89bfc65dce14c2a2
+size=1876736
+fetched=2026-10-23

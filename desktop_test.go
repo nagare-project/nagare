@@ -1,11 +1,14 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nagare-project/nagare/internal/config"
 	"github.com/nagare-project/nagare/internal/desktop"
 	"github.com/nagare-project/nagare/internal/tray"
 )
@@ -71,6 +74,18 @@ func TestWindowShower(t *testing.T) {
 	show := windowShower(true)
 	require.NotNil(t, show)
 	if !desktop.Available() {
-		assert.True(t, show(), "桩里的 Show 什么都不做，仍报已显示（这个构建本来就不会走到 window=true）")
+		// 桩里没有窗口（State 不 Active）：报「没有窗口」，新进程开浏览器（这个构建本来就不会走到 window=true）。
+		// 有窗口的构建里，窗口中途用不了（Windows 的 WebView2 起不来）时同样报没有窗口
+		assert.False(t, show())
 	}
+}
+
+// WebView2 的用户数据目录：平时在本机缓存目录（不漫游）；指定了配置目录（测试、便携）时跟着配置目录走。
+func TestDesktopCacheDir(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, "")
+	if base, err := os.UserCacheDir(); err == nil {
+		assert.Equal(t, filepath.Join(base, "nagare"), desktopCacheDir("/cfg"))
+	}
+	t.Setenv(config.EnvConfigDir, "/tmp/kit/config")
+	assert.Equal(t, filepath.Join("/tmp/kit/config", "cache"), desktopCacheDir("/tmp/kit/config"))
 }

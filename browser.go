@@ -28,6 +28,10 @@ func aboutURL(port int, token string) string {
 
 // openBrowserLogged 开浏览器，失败只记日志（日志里不带 URL —— 它含 token）。
 func openBrowserLogged(url string) {
+	if browserDisabledForTest() {
+		log.Print("（测试构建）不开浏览器：NAGARE_TEST_NO_BROWSER=1")
+		return
+	}
 	if err := openBrowserFn(url); err != nil {
 		log.Printf("自动打开浏览器失败（请手动访问 http://127.0.0.1:<端口>/ 并按配置文件里的 token 登录）：%v", err)
 	}

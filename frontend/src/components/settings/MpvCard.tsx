@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { copyText } from '../../lib/clipboard'
 import { redetectMpv } from '../../lib/endpoints'
-import type { MpvInfo, MpvInstallGuide, MpvSource } from '../../lib/endpoints'
+import type { DesktopInfo, MpvInfo, MpvInstallGuide, MpvSource } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { isHttpUrl } from '../../lib/url'
 import { label, mono } from '../../theme'
@@ -36,6 +36,8 @@ type DetectState =
 
 export interface MpvCardProps {
   mpv: MpvInfo
+  /** 桌面窗口的状态（旧后端没有）：在窗口里播、还是退回了浏览器模式 */
+  desktop?: DesktopInfo
   /** 重新检测成功后刷新设置（useSettings.reload），让状态点与本卡同步 */
   onReload: () => Promise<void>
 }
@@ -45,7 +47,7 @@ export interface MpvCardProps {
  * （命令块 + 一键复制 + 外链）+「重新检测」—— 用户装完不用重启。安装指引只会出现在 Linux 与 macOS 的裸二进制上：
  * Windows 包与 Nagare.app 都自带 mpv（Nagare.app 在窗口模式下另有一行「进度条缩略图」说明用的是哪个命令行 mpv）。
  */
-export function MpvCard({ mpv, onReload }: MpvCardProps) {
+export function MpvCard({ mpv, desktop, onReload }: MpvCardProps) {
   const [detect, setDetect] = useState<DetectState>({ phase: 'idle' })
   const busy = detect.phase === 'busy'
 
@@ -106,6 +108,8 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
         </>
       )}
 
+      <DesktopRow desktop={desktop} />
+
       {/* 桌面窗口里的 mpv 随 nagare 一起，没有可检测、可安装的东西 */}
       {mpv.embedded !== true && (
         <div className="form-actions">
@@ -133,6 +137,35 @@ export function MpvCard({ mpv, onReload }: MpvCardProps) {
         {view?.text}
       </p>
     </section>
+  )
+}
+
+/**
+ * 播放窗口：在 nagare 自己的窗口里播，还是退回了浏览器模式（Windows 没有 WebView2 运行时之类）。
+ * 退回时原因照后端原文显示 —— 里面写着怎么把运行时装上。没有桌面窗口可谈（Linux、旧后端）就什么都不画。
+ */
+function DesktopRow({ desktop }: { desktop?: DesktopInfo }) {
+  if (desktop === undefined) return null
+  const fallback = desktop.fallback ?? ''
+  if (desktop.window && fallback === '') {
+    return (
+      <dl className="kv-list">
+        <dt>播放窗口</dt>
+        <dd>nagare 自己的窗口</dd>
+      </dl>
+    )
+  }
+  if (fallback === '') return null
+  return (
+    <>
+      <dl className="kv-list">
+        <dt>播放窗口</dt>
+        <dd>浏览器 + 单独的 mpv 窗口</dd>
+      </dl>
+      <p className="alert-warn" role="note">
+        {fallback}
+      </p>
+    </>
   )
 }
 

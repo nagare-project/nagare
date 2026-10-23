@@ -1,14 +1,14 @@
-// Package desktop 是 nagare 的桌面窗口：一个窗口两层 —— 网页（WKWebView，照旧从 127.0.0.1 载入、
-// 同一套鉴权）和 mpv 的画面（进程内 libmpv + render API）。播放时 mpv 盖满窗口，控制条仍是
-// internal/mpv/ui 的 Lua 界面（嵌入模式，见 docs/player-ui.md）；mpv 的会话结束（q、返回、Esc、
-// 最后一集播完）就换回网页，窗口不关。
+// Package desktop 是 nagare 的桌面窗口：一个窗口两层 —— 网页（照旧从 127.0.0.1 载入、同一套鉴权）和 mpv 的画面。
+// 播放时 mpv 盖满窗口，控制条仍是 internal/mpv/ui 的 Lua 界面（嵌入模式，见 docs/player-ui.md）；mpv 的会话结束
+// （q、返回、Esc、最后一集播完）就换回网页，窗口不关。
 //
-// 现在只有 macOS，而且只在 darwin && cgo && libmpv 三者齐备时编进来（libmpv 是新的构建标签）。
-// 其余任何平台与标签组合都是桩：Available 为假，nagare 的行为与以前一样（浏览器 + 独立的 mpv 窗口）。
+//   - macOS：WKWebView + 进程内 libmpv（render API），只在 darwin && cgo && libmpv 三者齐备时编进来。
+//   - Windows：WebView2 + 外部 mpv.exe --wid=<子窗口>（纯 Go，CGO_ENABLED=0），默认构建就带着；机器上没有
+//     WebView2 运行时、或者它起不来时退回浏览器模式（Ready / State）。
+//   - 其余平台与标签组合是桩：Available 为假，nagare 的行为与以前一样（浏览器 + 独立的 mpv 窗口）。
 //
-// 平台层是自己写的薄薄一层 ObjC（不用 webview / Wails 一类框架），也不加 JS 桥：网页本来就走 HTTP
-// 调 Go，A4 的鉴权原样适用。mpv 的控制仍走 JSON IPC（libmpv 开的 input-ipc-server 与外部 mpv
-// 是同一个协议），internal/player 只多知道一件事：Launch 是进程内的（EmbeddedMPV）。
+// 平台层是自己写的薄薄一层（不用 webview / Wails 一类框架），也不加 JS 桥：网页本来就走 HTTP 调 Go，A4 的鉴权
+// 原样适用。mpv 的控制仍走 JSON IPC，internal/player 只多知道一件事：Launch 是不是进程内的（InProcess）。
 package desktop
 
 import (
@@ -27,6 +27,24 @@ type Options struct {
 	// Origin 是允许在窗口里打开的源（http://127.0.0.1:<port>）；别的地址（外链、target=_blank）
 	// 交给系统默认浏览器。
 	Origin string
+	// DataDir 是 nagare 的配置目录。Windows：窗口的位置大小记在这里。macOS 不用。
+	DataDir string
+	// CacheDir 是本机的缓存目录（不随漫游配置同步）。Windows：WebView2 的用户数据目录放在 CacheDir\webview2
+	// （几十到上百 MB 的浏览器缓存不该进 %AppData% 的漫游配置）；空串时退回 DataDir。macOS 不用。
+	CacheDir string
+	// OpenBrowser 在窗口用不了时（WebView2 起不来）代替窗口打开 url。Windows 用；macOS 不用。
+	OpenBrowser func(url string)
+	// Quit 让 nagare 退出并收尾（Windows 注销 / 关机时由窗口调，随后等进度回写完）。macOS 不用（走托盘的
+	// NSTerminateLater）。
+	Quit func()
+}
+
+// Info 是桌面窗口此刻的状态，给设置页看。
+type Info struct {
+	// Active：播放在 nagare 自己的窗口里。
+	Active bool
+	// Fallback 非空：窗口用不了、退回了浏览器模式，写的是原因（用户看得懂的中文）。
+	Fallback string
 }
 
 // embeddedOptions 是进程内 libmpv 在 LaunchSpec 之外要多带的几条。

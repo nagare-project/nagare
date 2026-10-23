@@ -137,6 +137,27 @@ macOS 的宿主在 `internal/desktop`（构建标签 `libmpv`，开发期 libmpv
 没有命令行 mpv 就不出缩略图：thumbfast 在 macOS 上找不到 mpv 的兜底是用 `ps -o comm=` 找「自己这个进程」，那就是 nagare，
 会把 nagare 当 mpv 拉起来。
 
+Windows 的宿主也在 `internal/desktop`（默认构建就有，纯 Go）：一个顶层窗口两个子窗口，网页（WebView2）与黑底的画面层，
+内置的 `mpv.exe` 以 `--wid=<画面层>`（外加 `--no-window-dragging`、`--drag-and-drop=no`）把自己的窗口挂进来，仍是独立
+进程，thumbfast 照常。几件只有 Windows 才有的事：
+
+- mpv 在 `--wid` 下把自己的子窗口建成 disabled（`w32_common.c`），宿主找到它（窗口类 `mpv`、属于这个 mpv 进程）后
+  重新启用并给焦点，悬停、光标隐藏、按键、滚轮、双击、媒体键都由 mpv 原生处理。这不是 mpv 官方支持的用法：设
+  `NAGARE_DESKTOP_INPUT=ipc` 时宿主不启用它，改由画面层收输入、经 IPC 发 `mouse` / `keydown` / `keyup` / `keypress`
+  （上面那几条规矩照样适用）。
+- 宿主另开一条 IPC 连接：设 `embedded=yes`、`titlebar-inset=0`（v1 保留系统标题栏，左上角没有要让的），**不设
+  `hidpi`**（`--wid` 下 mpv 自己按所在显示器读得到 `display-hidpi-scale`）；观察 `fullscreen` / `window-maximized` /
+  `window-minimized` / `ontop` 落到顶层窗口上，用户在标题栏上的操作写回去。`window-maximized` 只认「要最大化」：mpv
+  的子窗口每被改一次大小就把它报成假。
+- mpv 每试一种 GPU 上下文就重建一次子窗口（d3d11 起不来退到 OpenGL，每个新窗口都是 disabled 的）：宿主每秒核对一次，
+  接上的窗口没了或又被禁用了就重新找、重新启用。重新启用（`EnableWindow`，跨进程等 mpv 处理 `WM_ENABLE`）放在单独的
+  goroutine 里、同一时间只有一个：mpv 卡住时它回不来，看门狗照常每秒核对、照样能判出卡死。
+- mpv 的窗口线程卡住超过 15 秒，宿主结束 mpv 进程（跨进程父子窗口的输入队列是连着的，它卡住会拖住宿主）。mpv 进程放在
+  KILL_ON_JOB_CLOSE 的作业里：nagare 被强行结束、崩溃时 mpv 也跟着结束。
+- 播放时单按 Alt 不进「菜单模式」：mpv 的子窗口把它跨线程发给宿主，宿主若进菜单的模态循环，mpv 的窗口线程就一直等着
+  （CI 实测：8 秒后被看门狗当卡死结束）。别的从 mpv 线程发来的系统命令推迟到宿主自己的消息队列里处理。
+- 关窗口（× / Alt+F4）= 发 `quit` 停播、窗口藏到托盘；会话结束跟着 mpv 进程退出走，与命令行下关掉 mpv 窗口同一条路。
+
 **命令行 mpv 下一切照旧**：这些属性一个都没设时（Linux、浏览器模式、今天的所有平台），界面的行为与以前一字不差，
 `capture` / `shown` 也只在嵌入时才发布。0.36 之前的 mpv 没有 `user-data`：观察不存在的属性只会一直是空，不报错。
 

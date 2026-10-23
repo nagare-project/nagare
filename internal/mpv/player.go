@@ -195,6 +195,11 @@ func (p *Player) Events() <-chan Event {
 	return p.events
 }
 
+// Endpoint 是这个 mpv 的 IPC 端点（socket 路径 / 命名管道名）；attach 模式没有端点时为空。
+func (p *Player) Endpoint() string {
+	return p.endpoint
+}
+
 // Done 在进程退出或 IPC 断开收敛后关闭。
 func (p *Player) Done() <-chan struct{} {
 	return p.done

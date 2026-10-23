@@ -54,7 +54,9 @@ type Deps struct {
 	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
 	// EmbeddedMPV：播放在桌面窗口里的进程内 libmpv 上（internal/desktop），不要命令行 mpv。
 	// 设置载荷里的 mpv 据此报「已就绪 · 内置」，界面不再提示安装。
-	EmbeddedMPV  bool
+	EmbeddedMPV bool
+	// Desktop 报告桌面窗口此刻的状态（设置页的「播放窗口」一行）；nil = 这次运行没有桌面窗口可谈。
+	Desktop      func() DesktopView
 	Version      string
 	Sources      *SourcesService
 	SourcePlugin *SourcePluginService

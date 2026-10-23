@@ -89,7 +89,9 @@ builds:
       - -s -w -X main.version={{ .Version }} -extldflags=-Wl,-rpath,@executable_path/../Frameworks
     mod_timestamp: "{{ .CommitTimestamp }}"
 
-  # Windows：纯 Go 交叉编译；-H=windowsgui 去掉控制台窗口（界面在浏览器 + 托盘）。
+  # Windows：纯 Go 交叉编译；-H=windowsgui 去掉控制台窗口（界面在桌面窗口 / 浏览器 + 托盘）。
+  # 仓库根目录的 rsrc_windows_amd64.syso（图标 + PerMonitorV2 manifest，scripts/windows/gen-winres.sh 生成）
+  # 由 go build 自动链进去，这里不用额外配置。
   - id: windows
     binary: nagare
     goos: [windows]
@@ -105,6 +107,9 @@ builds:
       # pre：按 scripts/windows/mpv.lock 拉取并校验内置 mpv → dist/mpv-win、dist/mpv-sources
       pre:
         - cmd: scripts/windows/fetch-mpv.sh
+          output: true
+        # WebView2 Evergreen Bootstrapper → dist/webview2（只进 NSIS 安装包；便携 zip 没有运行时就退回浏览器模式）
+        - cmd: scripts/windows/fetch-webview2.sh
           output: true
         - cmd: scripts/release/fetch-source-plugin.sh windows {{ .Arch }}
           output: true

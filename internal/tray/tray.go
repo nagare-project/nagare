@@ -72,6 +72,10 @@ type Options struct {
 	// OnReady 在托盘（以及 macOS 的 Cocoa 事件循环）就绪后调一次，在托盘自己的 goroutine 上。
 	// 桌面窗口要等 NSApplication 跑起来、Dock 应用升好之后再建，从这里开始。
 	OnReady func()
+	// Loop 非 nil 时托盘不自己跑消息循环（systray.Register 代替 systray.Run），在主线程上调 Loop，
+	// 由它处理托盘与别的窗口的消息、直到退出。Windows 的桌面窗口用它（desktop.MainLoop）：托盘、窗口、WebView2
+	// 都要在同一个线程上收消息。Loop 返回 Run 就返回。
+	Loop func()
 }
 
 // terminateGrace 是 macOS 终止路径上等收尾的上限：用户已经明确要退出，

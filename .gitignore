@@ -64,3 +64,6 @@ todos.md
 /.libmpv-dev/
 /nagare-desktop-dev
 /nagare-desktop-test
+
+# CI 的 Windows 冒烟 job 下载缓存（scripts/windows/fetch-*.sh）
+/.build-cache/

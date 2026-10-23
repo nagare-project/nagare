@@ -4,6 +4,7 @@ package tray
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -192,4 +193,12 @@ func TestDispatchWithoutOpenBrowserItem(t *testing.T) {
 	go dispatch(ctx, Options{OnOpen: func() { opens <- struct{}{} }}, menuChans{open: openCh, quit: quitCh}, nil, func() {}, noReply)
 	openCh <- struct{}{}
 	waitFor(t, func() bool { return len(opens) == 1 }, "应触发 OnOpen")
+}
+
+// 左键点托盘图标直接打开窗口：只在 Windows 的桌面模式下（macOS 的菜单栏图标照旧左键出菜单，浏览器模式照旧出菜单）。
+func TestLeftClickOpensOnlyForWindowsDesktop(t *testing.T) {
+	open := func() {}
+	assert.Equal(t, runtime.GOOS == "windows", leftClickOpens(Options{Desktop: true, OnOpen: open}))
+	assert.False(t, leftClickOpens(Options{OnOpen: open}), "浏览器模式")
+	assert.False(t, leftClickOpens(Options{Desktop: true}), "没有打开回调")
 }

@@ -46,6 +46,7 @@ type settingsView struct {
 	Background struct {
 		Mode string `json:"mode"`
 	} `json:"background"`
+	Desktop DesktopView `json:"desktop"`
 }
 
 func getSettings(t *testing.T, env *testEnv) settingsView {
@@ -190,6 +191,21 @@ func TestSettingsEmbeddedMPVWithBundledCLI(t *testing.T) {
 	assert.Equal(t, "/Applications/Nagare.app/Contents/MacOS/mpv", s.MPV.CLI.Path)
 	assert.Equal(t, "0.41.0", s.MPV.CLI.Version)
 	assert.Equal(t, "bundled", s.MPV.CLI.Source)
+}
+
+// 桌面窗口的状态照原样进设置载荷；没有桌面窗口的运行（Linux、--no-window）是零值。
+func TestSettingsDesktopView(t *testing.T) {
+	assert.Equal(t, DesktopView{}, getSettings(t, newEnv(t)).Desktop)
+
+	env := newEnvDeps(t, true, func(d *Deps) {
+		d.Desktop = func() DesktopView { return DesktopView{Fallback: "这台电脑上没有可用的 WebView2 运行时"} }
+	})
+	s := getSettings(t, env)
+	assert.False(t, s.Desktop.Window)
+	assert.Equal(t, "这台电脑上没有可用的 WebView2 运行时", s.Desktop.Fallback)
+
+	on := newEnvDeps(t, true, func(d *Deps) { d.Desktop = func() DesktopView { return DesktopView{Window: true} } })
+	assert.True(t, getSettings(t, on).Desktop.Window)
 }
 
 // 不是桌面窗口时照旧：没有 embedded 字段，找不到就给安装指引。

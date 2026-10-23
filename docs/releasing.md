@@ -80,7 +80,8 @@ tag 推上去会触发 `release.yml`，产出一个 **draft** Release。人工�
 - [ ] dmg 里的 `Nagare.app` 能双击打开（macOS 会拦一次，点「仍要打开」）
 - [ ] Apple Silicon 真机：打开 dmg 里的 app，播本地文件、拖进度条、⌘Q
       （CI 的 arm64 runner 上有冒烟测试，但那是测试构建、可能是软件渲染器；真机上的发布包只有人能看）
-- [ ] Windows 安装包装完托盘有图标、浏览器能打开界面
+- [ ] Windows 安装包装完托盘有图标、nagare 自己的窗口能打开（没有 WebView2 运行时的机器上，安装过程会先装它；
+      装不上时界面在浏览器里打开）
 - [ ] `mpv-sources/` 两个都在（GPL 合规，流水线的「校验 mpv 的对应源码都在」一步会查）：
       `mpv-winbuild-cmake-<提交>.tar.gz`（Windows 包内置 mpv 的构建脚本快照）与
       `libmpv-macos-source-<构建号>.tar.gz`（Nagare.app 里 libmpv 的完整对应源码，约 65 MB）
@@ -143,6 +144,46 @@ macOS 的裸二进制 `nagare-<版本>_MacOS_universal.tar.gz` **不带** libmpv
 > **TODO（TLS，待定）**：这套 libmpv 用 mbedTLS，它不读系统钥匙串；mpv 本身默认 `tls-verify=no`（与 Windows 包、
 > Homebrew 的 mpv 一样，这是现在的基线，本轮不改）。要校验证书时给 https 来源传
 > `--tls-verify=yes --tls-ca-file=/etc/ssl/cert.pem`（macOS 自带这份 CA 列表，verify.sh 测过通过 / 拒绝两种情况）。
+
+---
+
+## Windows 桌面窗口：WebView2 运行时、资源与测试
+
+Windows 版的界面在 nagare 自己的窗口里（WebView2），播放时 mpv.exe 挂进同一个窗口（`--wid`）。
+发版相关的几件事：
+
+**WebView2 运行时（Evergreen）。** 它是系统组件，不随 nagare 分发：Windows 11 自带，绝大多数 Windows 10 已装。
+
+- **安装包**（`-setup.exe`）内嵌微软的 Evergreen Bootstrapper（`MicrosoftEdgeWebview2Setup.exe`，约 1.8MB，
+  `scripts/windows/fetch-webview2.sh` 按 [`scripts/windows/webview2.lock`](../scripts/windows/webview2.lock) 的 sha256
+  下载，CI 的 Windows job 另外核对它的微软签名）。安装时读两处注册表的 `pv`：
+  `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}` 与
+  `HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`，**两处都没有**（或是
+  `0.0.0.0`）才以 `/silent /install` 跑它。安装包不提权，运行时按用户装。装不上（离线之类）**不算安装失败**：
+  nagare 照样能用，只是界面改在浏览器里打开。这条规则与 `internal/desktop/bootstrap.go` 是同一份，测试核对两边的
+  注册表路径逐字一致（别抄 Wails 的 NSIS 宏：它 HKCU 那条少一个反斜杠）。
+- **便携 zip / Scoop** 装不了东西：没有运行时就退回浏览器模式（mpv 单独开窗口），日志与设置页「播放器」一栏写着原因
+  和下载地址。
+- 微软换了 bootstrapper 之后旧直链通常还在；要更新就按 `webview2.lock` 顶部的步骤重新钉。
+  **不要换成 Fixed Version 运行时**：250MB 以上，没有自动安全更新。
+
+**用户数据目录与自更新。** WebView2 的用户数据目录在本机缓存目录（`os.UserCacheDir()`，即
+`%LOCALAPPDATA%\nagare\webview2`）：浏览器缓存不该进会漫游的 `%AppData%`，也不在安装目录里，自更新换 exe 时碰不到它。
+指定了 `NAGARE_CONFIG_DIR`（测试包、便携用法）时跟着配置目录走（`<配置目录>\cache\webview2`），不与用户自己的 nagare
+共用。窗口位置仍记在配置目录（`desktop-window.json`）。但一个目录同时只能有一个 WebView2 会话：退出时（含自更新之后的重启）nagare 先关掉
+WebView2、等它的浏览器进程退出（最多 5 秒，期间照常处理消息），再拆窗口、再 exec 新版本。新旧版本给 WebView2
+的启动参数要保持一致（现在是空的）。
+
+**exe 的资源。** 仓库根目录的 `rsrc_windows_amd64.syso` / `rsrc_windows_arm64.syso` 是图标 + manifest
+（**PerMonitorV2** DPI 感知、asInvoker）：mpv.exe 是 PerMonitorV2，跨进程的父子窗口 DPI 模式不一致时系统会强制
+重置子窗口进程的 DPI。`go build` 会自动把同目录的 `.syso` 链进去（`CGO_ENABLED=0` 也一样），goreleaser 不用配。
+改了图标或 `packaging/windows/winres.json` 就跑 `scripts/windows/gen-winres.sh` 重新生成并提交（`winres_test.go` 守着）。
+
+**测试。** CI 的「Windows 桌面窗口冒烟（截图）」job 在 windows-latest 上用测试构建（`-tags desktoptest`）真起窗口、
+真播一段测试片、用 SendInput 点和按，截图与报告在 artifact `windows-desktop-smoke-report` 里；同一个 job 打出
+给真机用的测试包 `nagare-wintest-kit`（解压后双击 `run-test.cmd`，说明见包里的 `README-测试说明.txt`，脚本在
+[`scripts/windows/desktoptest/`](../scripts/windows/desktoptest/)）。还没开 PR 的分支可以 `gh workflow run ci.yml --ref <分支>`。
+runner 没有 GPU、没有声卡，画面走 WARP，帧率与真机不能比；**真机上的行为以测试包的报告为准**。
 
 ---
 

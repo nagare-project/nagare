@@ -90,7 +90,7 @@ export function SettingsPage() {
           {settings.state.phase === 'ready' && <AccountCard animego={settings.state.data.animego} onReload={settings.reload} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'player'}>
-          {settings.state.phase === 'ready' && <MpvCard mpv={settings.state.data.mpv} onReload={settings.reload} />}
+          {settings.state.phase === 'ready' && <MpvCard mpv={settings.state.data.mpv} desktop={settings.state.data.desktop} onReload={settings.reload} />}
           {settings.state.phase === 'ready' && <PlaybackCard player={settings.state.data.player} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'torrent'}>

@@ -1,0 +1,52 @@
+{
+  "RT_GROUP_ICON": {
+    "APP": {
+      "0000": "../icon/nagare.ico"
+    }
+  },
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "identity": {
+          "name": "nagare",
+          "version": ""
+        },
+        "description": "nagare",
+        "minimum-os": "win10",
+        "execution-level": "as invoker",
+        "ui-access": false,
+        "auto-elevate": false,
+        "dpi-awareness": "per monitor v2",
+        "disable-theming": false,
+        "disable-window-filtering": false,
+        "high-resolution-scrolling-aware": false,
+        "ultra-high-resolution-scrolling-aware": false,
+        "long-path-aware": false,
+        "printer-driver-isolation": false,
+        "gdi-scaling": false,
+        "segment-heap": false,
+        "use-common-controls-v6": true
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": {
+          "file_version": "0.0.0.0",
+          "product_version": "0.0.0.0"
+        },
+        "info": {
+          "0409": {
+            "CompanyName": "nagare project",
+            "FileDescription": "nagare",
+            "InternalName": "nagare",
+            "LegalCopyright": "AGPL-3.0",
+            "OriginalFilename": "nagare.exe",
+            "ProductName": "nagare"
+          }
+        }
+      }
+    }
+  }
+}

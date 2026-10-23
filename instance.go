@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/nagare-project/nagare/internal/config"
+	"github.com/nagare-project/nagare/internal/desktop"
 	"github.com/nagare-project/nagare/internal/httpserver"
 )
 
@@ -79,6 +80,9 @@ func surfaceRunning(cfg *config.Config, how surface) {
 		return
 	}
 	if how == surfaceWindow {
+		// Windows：这个新进程是用户刚启动的、有资格抢前台，把资格让给已有实例，它的 SetForegroundWindow
+		// 才不会被系统拦下（拦下时只是任务栏按钮闪一下）。别的平台什么都不做。
+		desktop.BeforeHandoff()
 		shown, err := requestShowWindow(cfg.Port, cfg.Token)
 		if err != nil {
 			log.Printf("没能请已有实例显示窗口，改开浏览器：%v", err)

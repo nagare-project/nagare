@@ -1,14 +1,19 @@
 ; nagare Windows 安装程序（NSIS 3 / MUI2）。由 scripts/windows/build-installer.sh 编译。
 ; 编译时必须传入：/DVERSION=<版本> /DVERSION_NUMERIC=<a.b.c.d> /DSRCDIR=<待打包目录>
 ;                 /DICON=<nagare.ico> /DOUTFILE=<输出 exe>
+; File 的路径一律用反斜杠：Windows 版 makensis 只按「\」切目录与文件名（"D:\x\stage/a.exe" 会去 D:\x 下找
+; "stage/a.exe"，报 no files found）；macOS/Linux 版 makensis 会把「\」转成「/」，两边都能编。
 ; 设计要点：
 ;   - 按用户安装（RequestExecutionLevel user）：装到 %LOCALAPPDATA%\Programs\nagare，
 ;     不需要管理员、不弹 UAC；卸载信息写 HKCU
 ;   - 无代码签名：SmartScreen 会拦一次，README 有「更多信息 → 仍要运行」说明
 ;   - 覆盖安装前先试删旧 nagare.exe，删不掉说明还在运行 —— 提示从托盘退出
+;   - 桌面窗口要 WebView2 运行时：两处注册表（按机器 / 按用户）都没有时，静默跑内嵌的 Evergreen Bootstrapper
+;     （按用户装，不弹 UAC）。装不上不算安装失败：nagare 会退回浏览器模式
 Unicode true
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
+!include "LogicLib.nsh"
 
 !ifndef VERSION
   !error "缺少 /DVERSION=<版本>"
@@ -31,6 +36,11 @@ Unicode true
 !define HOMEPAGE "https://github.com/nagare-project/nagare"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 !define APP_KEY "Software\${APP_NAME}"
+; WebView2 运行时的两处注册表（微软 distribution 一文的检测办法，与 internal/desktop/bootstrap.go 逐字一致，
+; 测试核对）。HKCU 那条别抄 Wails 的宏：它少了 Clients 后面的反斜杠，永远查不到按用户装的运行时。
+!define WEBVIEW2_GUID "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+!define WEBVIEW2_MACHINE_KEY "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\${WEBVIEW2_GUID}"
+!define WEBVIEW2_USER_KEY "Software\Microsoft\EdgeUpdate\Clients\${WEBVIEW2_GUID}"
 
 Name "${APP_NAME}"
 OutFile "${OUTFILE}"
@@ -67,6 +77,12 @@ LangString AbortRunning ${LANG_SIMPCHINESE} "已取消：nagare 仍在运行。"
 LangString AbortRunning ${LANG_ENGLISH} "Aborted: nagare is still running."
 LangString UninstallShortcut ${LANG_SIMPCHINESE} "卸载 nagare"
 LangString UninstallShortcut ${LANG_ENGLISH} "Uninstall nagare"
+LangString WebView2Installing ${LANG_SIMPCHINESE} "正在安装 WebView2 运行时（nagare 的窗口要用）…"
+LangString WebView2Installing ${LANG_ENGLISH} "Installing the WebView2 Runtime (used by the nagare window)…"
+LangString WebView2Failed ${LANG_SIMPCHINESE} "WebView2 运行时没装上（代码 $0）。nagare 照样能用：界面会在浏览器里打开。"
+LangString WebView2Failed ${LANG_ENGLISH} "The WebView2 Runtime was not installed (code $0). nagare still works: its UI opens in the browser."
+LangString WebView2Present ${LANG_SIMPCHINESE} "WebView2 运行时已安装。"
+LangString WebView2Present ${LANG_ENGLISH} "The WebView2 Runtime is already installed."
 
 ; ---- exe 版本信息（资源管理器属性页）----
 VIProductVersion "${VERSION_NUMERIC}"
@@ -92,18 +108,53 @@ VIAddVersionKey /LANG=${LANG_SIMPCHINESE} "LegalCopyright" "AGPL-3.0"
   proceed:
 !macroend
 
+; WebView2 运行时：pv 存在且不是空串 / 0.0.0.0 就算装了（卸载后可能留下 0.0.0.0）。两处都没有才跑 bootstrapper。
+!macro WebView2Installed _KEYROOT _KEY _OUT
+  ClearErrors
+  ReadRegStr ${_OUT} ${_KEYROOT} "${_KEY}" "pv"
+  ${If} ${Errors}
+  ${OrIf} ${_OUT} == ""
+  ${OrIf} ${_OUT} == "0.0.0.0"
+    StrCpy ${_OUT} ""
+  ${EndIf}
+!macroend
+
+Function EnsureWebView2
+  ; 安装程序是 32 位进程：显式读 64 位视图，WOW6432Node 那条路径才是它在注册表里的真实位置（不再被重定向一次）
+  SetRegView 64
+  !insertmacro WebView2Installed HKLM "${WEBVIEW2_MACHINE_KEY}" $0
+  SetRegView default
+  !insertmacro WebView2Installed HKCU "${WEBVIEW2_USER_KEY}" $1
+  ${If} $0 != ""
+  ${OrIf} $1 != ""
+    DetailPrint "$(WebView2Present)"
+    Return
+  ${EndIf}
+  DetailPrint "$(WebView2Installing)"
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File "${SRCDIR}\MicrosoftEdgeWebview2Setup.exe"
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install' $0
+  ${If} ${Errors}
+  ${OrIf} $0 != 0
+    DetailPrint "$(WebView2Failed)"
+  ${EndIf}
+  SetOutPath "$INSTDIR"
+FunctionEnd
+
 Section "nagare" SecMain
   SectionIn RO
   SetOutPath "$INSTDIR"
   !insertmacro EnsureNotRunning
 
-  File "${SRCDIR}/nagare.exe"
-  File "${SRCDIR}/LICENSE.txt"
-  File "${SRCDIR}/THIRD_PARTY_NOTICES.md"
+  File "${SRCDIR}\nagare.exe"
+  File "${SRCDIR}\LICENSE.txt"
+  File "${SRCDIR}\THIRD_PARTY_NOTICES.md"
   ; 内置 mpv：nagare.exe 旁边的 mpv\mpv.exe，Go 侧按这个相对位置查找
-  File /r "${SRCDIR}/mpv"
+  File /r "${SRCDIR}\mpv"
   ; 捆绑的 Nagare Source 插件（引擎 + 只含 BT 规则的 repo），同样按相对位置查找
-  File /r "${SRCDIR}/nagare-source"
+  File /r "${SRCDIR}\nagare-source"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
@@ -126,6 +177,8 @@ Section "nagare" SecMain
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" "$0"
+  ; 放在最后：快捷方式与卸载项先写好，bootstrapper 卡住或装不上也不影响 nagare 本身装好
+  Call EnsureWebView2
 SectionEnd
 
 ; ---- 卸载 ----

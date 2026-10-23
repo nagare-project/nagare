@@ -6,6 +6,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # 手动在某个分支上跑一遍（还没开 PR 的分支要看 Windows 冒烟截图时用：gh workflow run ci.yml --ref <分支>）
+  workflow_dispatch:
 
 # 最小权限：CI 只读代码，不发布任何东西。显式声明而非依赖仓库默认设置
 # —— 以后有人往这里加写操作时，会先撞到这一行而不是悄悄拿到写权限。
@@ -66,6 +68,16 @@ jobs:
           fi
       - name: go vet
         run: go vet ./...
+      - name: Windows 资源（rsrc_windows_*.syso）与 packaging/windows/winres.json 一致
+        # .syso 入库、由 go build 自动链进 nagare.exe；改了 winres.json 或图标却忘了重新生成，这里拦下
+        run: |
+          scripts/windows/gen-winres.sh
+          git diff --exit-code -- '*.syso'
+      - name: go vet（Windows，含桌面窗口与它的测试构建）
+        # Windows 的桌面窗口（internal/desktop、internal/webview2）在 linux 上整个不编译，这里按 windows 目标查一遍
+        run: |
+          GOOS=windows go vet ./...
+          GOOS=windows go vet -tags desktoptest ./internal/desktop/...
       - name: 播放器界面 Lua 语法检查
         # 真 mpv 的界面集成测试在 CI 上跑不起来（没有 mpv、没有显示器），至少先挡住语法错误。
         # 用 LuaJIT：macOS 上的 mpv 多半配它（Lua 5.1 语法），比 5.3/5.4 的 luac 更严。
@@ -100,10 +112,157 @@ jobs:
       # 刚写入的媒体文件（「being used by another process」，等 3 秒也不放，连做种方
       # 那份都被占），像是 runner 的杀软 / 索引器在扫新文件，没有 Windows 机器无法定论。
       # 那个包的 Windows 专属代码只有 EADDRINUSE 判定一处，交叉编译已经覆盖。
-      - name: go test（mpv / tray / selfupdate）
+      - name: go test（mpv / tray / selfupdate / 桌面窗口 / WebView2 绑定）
+        # 用 bash（-e）：Windows 默认的 pwsh 只看最后一条命令的退出码，前一条 go test 失败了这一步照样绿
+        shell: bash
         env:
           CGO_ENABLED: "0"
-        run: go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/...
+        # internal/desktop 在这里是真窗口：消息循环、两层切换、全屏、窗口位置、WebView2 运行时检测（runner 装着 Edge）。
+        # 根包只跑资源那两条：nagare.exe 的 manifest 在测试二进制里同样生效（PerMonitorV2）。
+        run: |
+          go test ./internal/mpv/... ./internal/tray/... ./internal/selfupdate/... ./internal/desktop/... ./internal/webview2/...
+          go test -run 'TestProcessIsPerMonitorV2|TestWindowsResourcesHaveManifestAndIcon' .
+
+  desktop-windows-smoke:
+    # Windows 桌面窗口的冒烟测试：GitHub 的 Windows runner 有交互式桌面、装着 Edge / WebView2 运行时。
+    # 用测试构建（-tags desktoptest）起 nagare、在窗口里播测试片，跑与用户测试包同一份脚本
+    # （scripts/windows/desktoptest/run-wintest.ps1），截图与报告当 artifact 上传 —— 用户上真机之前，这是唯一能看到
+    # Windows 上实际行为的地方。顺带打一份给用户在 Boot Camp 里独立跑的测试包。
+    name: Windows 桌面窗口冒烟（截图）
+    runs-on: windows-latest
+    needs: frontend
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: 缓存 mpv 与 WebView2 bootstrapper 的下载
+        uses: actions/cache@v4
+        with:
+          path: .build-cache
+          key: win-deps-${{ hashFiles('scripts/windows/mpv.lock', 'scripts/windows/webview2.lock') }}
+      - name: 拉内置 mpv 与 WebView2 bootstrapper（sha256 钉死）
+        env:
+          NAGARE_MPV_CACHE_DIR: .build-cache
+        run: |
+          scripts/windows/fetch-mpv.sh
+          scripts/windows/fetch-webview2.sh
+      - name: 核对 bootstrapper 的微软签名
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature dist/webview2/MicrosoftEdgeWebview2Setup.exe
+          Write-Host "$($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { exit 1 }
+      - name: 测试脚本的语法
+        shell: pwsh
+        run: |
+          $errs = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/windows/desktoptest/run-wintest.ps1", [ref]$null, [ref]$errs)
+          if ($errs) { $errs | ForEach-Object { Write-Host $_ }; exit 1 }
+      - name: 编译测试构建（-tags desktoptest，与发布同样的 -H=windowsgui）
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist/smoke
+          go build -tags desktoptest -trimpath -ldflags "-s -w -H=windowsgui -X main.version=0.0.0-desktoptest+${GITHUB_SHA::7}" -o dist/smoke/nagare.exe .
+          cp -R dist/mpv-win dist/smoke/mpv
+      - name: 打用户的测试包，并照用户的方式解压
+        # 包里的脚本是 UTF-8 带 BOM、CRLF 的那一份（Windows PowerShell 5.1 要这样才读得对中文）；下面的退路冒烟就跑解压出来的这一份
+        id: kit
+        env:
+          PYTHONUTF8: "1" # runner 的控制台是 cp1252，打印中文会抛 UnicodeEncodeError
+        run: |
+          python scripts/windows/desktoptest/build_kit.py dist/smoke/nagare.exe dist/mpv-win dist/webview2/MicrosoftEdgeWebview2Setup.exe dist/nagare-wintest-kit.zip
+          powershell -NoProfile -Command "Expand-Archive -LiteralPath dist/nagare-wintest-kit.zip -DestinationPath '${RUNNER_TEMP}/kit' -Force"
+          mkdir -p "${RUNNER_TEMP}/smoke-report"
+      - name: 冒烟测试（真窗口、真 WebView2、真 mpv、真输入）
+        if: ${{ !cancelled() && steps.kit.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          ./scripts/windows/desktoptest/run-wintest.ps1 -Exe "$PWD/dist/smoke/nagare.exe" -Media "$PWD/scripts/windows/desktoptest/media/clip.mkv" -OutDir "$env:RUNNER_TEMP/smoke-report" -CI
+      - name: 冒烟测试（用户的方式：解压出来的测试包 + Windows PowerShell 5.1；输入经 IPC 转发的退路）
+        # 这一步跑的就是用户手里那一份：Win10 自带的 Windows PowerShell 5.1、包里带 BOM 的脚本、包里的目录布局。
+        # 顺带走一遍退路（NAGARE_DESKTOP_INPUT=ipc：不重新启用 mpv 的子窗口，输入由 nagare 经 IPC 转发）
+        if: ${{ !cancelled() && steps.kit.outcome == 'success' }}
+        shell: powershell
+        run: |
+          $PSVersionTable.PSVersion
+          & "$env:RUNNER_TEMP\kit\nagare-wintest\run-wintest.ps1" -OutDir "$env:RUNNER_TEMP\smoke-report" -CI -SkipFallback -IpcInput
+          exit $LASTEXITCODE
+      - name: 安装包（nagare.nsi）编得出来、静默装得上、卸得掉
+        if: ${{ !cancelled() && steps.kit.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (-not $makensis -and (Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe')) { $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe' }
+          if (-not $makensis) {
+            choco install nsis -y --no-progress | Out-Null
+            $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
+          }
+          # 暂存：真的 nagare.exe 与 bootstrapper；mpv 与插件放占位文件（这里只验安装脚本本身，不验 mpv）
+          $stage = Join-Path $env:RUNNER_TEMP 'nsis-stage'
+          New-Item -ItemType Directory -Force -Path "$stage/mpv", "$stage/nagare-source" | Out-Null
+          Copy-Item dist/smoke/nagare.exe "$stage/nagare.exe"
+          Copy-Item dist/webview2/MicrosoftEdgeWebview2Setup.exe $stage
+          (Get-Content -Raw LICENSE) -replace "`r?`n", "`r`n" | Set-Content -NoNewline "$stage/LICENSE.txt"
+          Copy-Item THIRD_PARTY_NOTICES.md $stage
+          Set-Content "$stage/mpv/mpv.exe" 'placeholder'
+          Set-Content "$stage/nagare-source/README.txt" 'placeholder'
+          $out = Join-Path $env:RUNNER_TEMP 'nagare-ci_Windows_x86_64-setup.exe'
+          & $makensis /V2 /INPUTCHARSET UTF8 /DVERSION=0.0.0-ci /DVERSION_NUMERIC=0.0.0.0 "/DSRCDIR=$stage" "/DICON=$PWD/packaging/icon/nagare.ico" "/DOUTFILE=$out" scripts/windows/nagare.nsi
+          if ($LASTEXITCODE -ne 0) { throw "makensis 失败（$LASTEXITCODE）" }
+          # 静默安装（runner 装着 WebView2，所以不会跑 bootstrapper），装完核对文件与卸载项，再静默卸掉
+          $p = Start-Process $out -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "静默安装失败（$($p.ExitCode)）" }
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs/nagare'
+          foreach ($f in 'nagare.exe', 'uninstall.exe', 'mpv/mpv.exe') { if (-not (Test-Path (Join-Path $dir $f))) { throw "安装后缺少 $f" } }
+          if (-not (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\nagare' -ErrorAction SilentlyContinue)) { throw '没写卸载项' }
+          # _?=<目录>：卸载程序就地跑（不先把自己拷到临时目录再起一个），-Wait 等的就是真正的卸载；
+          # 代价是它删不掉自己，卸完再手动删 uninstall.exe 与空目录
+          $u = Start-Process (Join-Path $dir 'uninstall.exe') -ArgumentList '/S', "_?=$dir" -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "静默卸载失败（$($u.ExitCode)）" }
+          if (Test-Path (Join-Path $dir 'nagare.exe')) { throw '卸载后 nagare.exe 还在' }
+          if (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\nagare' -ErrorAction SilentlyContinue) { throw '卸载后卸载项还在' }
+          Remove-Item -LiteralPath (Join-Path $dir 'uninstall.exe') -Force
+          Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host "安装包：编译、静默安装、卸载都通过（$((Get-Item $out).Length) 字节）"
+      - name: 失败时也收一张整屏截图
+        if: failure()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/smoke-report" | Out-Null
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
+          $bmp.Save("$env:RUNNER_TEMP/smoke-report/desktop-at-failure.png")
+      - name: 上传冒烟报告（截图 + 报告 + 日志）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-smoke-report
+          path: ${{ runner.temp }}/smoke-report/
+          if-no-files-found: warn
+      - name: 上传测试包
+        # 包里有 GPLv3 的 mpv 二进制：对应的构建脚本与源码快照见 THIRD_PARTY_NOTICES.md 与 scripts/windows/mpv.lock，
+        # 随每个正式版的 Release 发布（mpv-sources/）。测试包只是短期的测试品，7 天后过期。
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nagare-wintest-kit
+          path: dist/nagare-wintest-kit.zip
+          retention-days: 7
+          if-no-files-found: warn
 
   # macOS 的 libmpv：与发布同一套（libmpv-macos.yml 以 workflow_call 调用，组件命中缓存时约 4 分钟），
   # 构建 + verify.sh 全套验证过了才出 artifact，下面的桌面窗口 job 用它。

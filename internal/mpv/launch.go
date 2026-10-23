@@ -52,6 +52,10 @@ type LaunchOptions struct {
 	NoConfig bool
 	// Volume 是起播音量（nil = mpv 默认）；界面里调过的音量由 nagare 记住，下次起播带回来。
 	Volume *int
+	// ParentWindow 非 0 时 mpv 把画面画进这个窗口（Windows 桌面窗口的画面层，HWND 按 uint32 传，见 mpv 文档的
+	// --wid）。同时关掉 mpv 自己的拖窗（它拖的是自己的子窗口 —— 会把画面拖离宿主）与拖放打开文件（绕过 nagare
+	// 的进度记账）。0 = 像以前一样 mpv 自己开窗口。
+	ParentWindow uint32
 }
 
 // streamCacheOptions 是网络流专用的 mpv 缓存参数。
@@ -107,6 +111,7 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Player, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("启动 mpv（%s）失败：%w。请用 Detect 重新探测 mpv 安装", opts.MPVPath, err)
 	}
+	bindToNagare(cmd.Process) // Windows：nagare 不管怎么结束，mpv 都跟着结束（job_windows.go）
 
 	// 唯一的一次 cmd.Wait 放在这里：启动阶段用它发现「秒退」，
 	// 启动成功后把通道交给 Player 的进程守望。
@@ -191,6 +196,13 @@ func NewLaunchSpec(opts LaunchOptions, endpoint string) LaunchSpec {
 		// 逐条用 -append（一次追加一项、不解析）：-add 按 -set 的语法在逗号处拆项，「(KHTML, like Gecko)」
 		// 那种 User-Agent 到对端会变成两行（mpv 0.41 实测，第二行以空格开头被当成续行折回去，逗号丢了）
 		o = append(o, listOption("http-header-fields", "http-header-fields-append", headers).perFile())
+	}
+	if opts.ParentWindow != 0 {
+		o = append(o,
+			stringOption("wid", fmt.Sprintf("%d", opts.ParentWindow)),
+			flagOption("window-dragging", false),
+			stringOption("drag-and-drop", "no"),
+		)
 	}
 	return LaunchSpec{Options: o, Media: opts.MediaPath}
 }
