@@ -58,12 +58,12 @@ func TestReleaseAppZip(t *testing.T) {
 	}
 
 	// 在这台机器的架构上真的起一次：dyld 加载不了哪个库，进程当场就退出、stderr 里写着是哪一个
-	mpvOut, err := exec.Command(filepath.Join(contents, "MacOS", "mpv"), "--no-config", "--version").CombinedOutput()
+	mpvOut, err := bundled(t, filepath.Join(contents, "MacOS", "mpv"), "--no-config", "--version").CombinedOutput()
 	require.NoError(t, err, "命令行 mpv 起不来（%s）：\n%s", runtime.GOARCH, mpvOut)
 	assert.True(t, strings.HasPrefix(string(mpvOut), "mpv "), "mpv --version 的输出不对：%s", mpvOut)
 	t.Logf("mpv（%s）：%s", runtime.GOARCH, firstLine(string(mpvOut)))
 
-	nagareOut, err := exec.Command(filepath.Join(contents, "MacOS", "nagare"), "-version").CombinedOutput()
+	nagareOut, err := bundled(t, filepath.Join(contents, "MacOS", "nagare"), "-version").CombinedOutput()
 	require.NoError(t, err, "nagare 起不来（%s，桌面窗口版链接了 libmpv）：\n%s", runtime.GOARCH, nagareOut)
 	t.Logf("nagare（%s）：%s", runtime.GOARCH, firstLine(string(nagareOut)))
 
@@ -73,14 +73,23 @@ func TestReleaseAppZip(t *testing.T) {
 	media := filepath.Join("..", "..", "scripts", "macos", "libmpv", "tests", "media", "h264-aac-ass.mkv")
 	require.FileExists(t, media)
 	mpvBin := filepath.Join(contents, "MacOS", "mpv")
-	out, err = exec.Command(mpvBin, "--no-config", "--vo=null", "--ao=null", "--frames=24", "--msg-level=all=error", media).CombinedOutput()
+	out, err = bundled(t, mpvBin, "--no-config", "--vo=null", "--ao=null", "--frames=24", "--msg-level=all=error", media).CombinedOutput()
 	require.NoError(t, err, "包里的 mpv 解不了测试片段（%s）：\n%s", runtime.GOARCH, out)
 	imgDir := t.TempDir()
-	out, err = exec.Command(mpvBin, "--no-config", "--ao=null", "--frames=1", "--vf=scale=w=384:h=216",
+	out, err = bundled(t, mpvBin, "--no-config", "--ao=null", "--frames=1", "--vf=scale=w=384:h=216",
 		"--vo=image", "--vo-image-format=jpg", "--vo-image-outdir="+imgDir, "--msg-level=all=error", media).CombinedOutput()
 	require.NoError(t, err, "包里的 mpv 出不了缩略图（%s）：\n%s", runtime.GOARCH, out)
 	shots, _ := filepath.Glob(filepath.Join(imgDir, "*.jpg"))
 	assert.Len(t, shots, 1, "应当恰好出一张 jpg")
+}
+
+// bundled 准备一条起包里二进制的命令：只给最小的环境（PATH / HOME / TMPDIR）。发布流水线的环境里有
+// GITHUB_TOKEN、TAP_GITHUB_TOKEN、MINISIGN_KEY_FILE 这些，刚构建出来的二进制没理由看见它们。
+func bundled(t *testing.T, name string, args ...string) *exec.Cmd {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	cmd.Env = []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "HOME=" + t.TempDir(), "TMPDIR=" + t.TempDir()}
+	return cmd
 }
 
 func firstLine(s string) string {
