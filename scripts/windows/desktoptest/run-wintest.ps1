@@ -27,6 +27,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Exe) { $Exe = Join-Path $here 'nagare\nagare.exe' }
 if (-not $Media) { $Media = Join-Path $here 'media\clip.mkv' }
 if (-not $OutDir) { $OutDir = [Environment]::GetFolderPath('Desktop') }
+if (-not (Test-Path -LiteralPath $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $root = Join-Path $env:TEMP "nagare-wintest-$stamp"

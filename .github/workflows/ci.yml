@@ -175,12 +175,29 @@ jobs:
           cp -R dist/mpv-win dist/smoke/mpv
       - name: 打用户的测试包，并照用户的方式解压
         # 包里的脚本是 UTF-8 带 BOM、CRLF 的那一份（Windows PowerShell 5.1 要这样才读得对中文）；下面的退路冒烟就跑解压出来的这一份
+        id: kit
         env:
           PYTHONUTF8: "1" # runner 的控制台是 cp1252，打印中文会抛 UnicodeEncodeError
         run: |
           python scripts/windows/desktoptest/build_kit.py dist/smoke/nagare.exe dist/mpv-win dist/webview2/MicrosoftEdgeWebview2Setup.exe dist/nagare-wintest-kit.zip
           powershell -NoProfile -Command "Expand-Archive -LiteralPath dist/nagare-wintest-kit.zip -DestinationPath '${RUNNER_TEMP}/kit' -Force"
+          mkdir -p "${RUNNER_TEMP}/smoke-report"
+      - name: 冒烟测试（真窗口、真 WebView2、真 mpv、真输入）
+        if: ${{ !cancelled() && steps.kit.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          ./scripts/windows/desktoptest/run-wintest.ps1 -Exe "$PWD/dist/smoke/nagare.exe" -Media "$PWD/scripts/windows/desktoptest/media/clip.mkv" -OutDir "$env:RUNNER_TEMP/smoke-report" -CI
+      - name: 冒烟测试（用户的方式：解压出来的测试包 + Windows PowerShell 5.1；输入经 IPC 转发的退路）
+        # 这一步跑的就是用户手里那一份：Win10 自带的 Windows PowerShell 5.1、包里带 BOM 的脚本、包里的目录布局。
+        # 顺带走一遍退路（NAGARE_DESKTOP_INPUT=ipc：不重新启用 mpv 的子窗口，输入由 nagare 经 IPC 转发）
+        if: ${{ !cancelled() && steps.kit.outcome == 'success' }}
+        shell: powershell
+        run: |
+          $PSVersionTable.PSVersion
+          & "$env:RUNNER_TEMP\kit\nagare-wintest\run-wintest.ps1" -OutDir "$env:RUNNER_TEMP\smoke-report" -CI -SkipFallback -IpcInput
+          exit $LASTEXITCODE
       - name: 安装包（nagare.nsi）编得出来、静默装得上、卸得掉
+        if: ${{ !cancelled() && steps.kit.outcome == 'success' }}
         shell: pwsh
         run: |
           $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
@@ -211,24 +228,11 @@ jobs:
           Start-Sleep -Seconds 3 # NSIS 的卸载程序会把自己拷到临时目录再跑，等它跑完
           if (Test-Path (Join-Path $dir 'nagare.exe')) { throw '卸载后 nagare.exe 还在' }
           Write-Host "安装包：编译、静默安装、卸载都通过（$((Get-Item $out).Length) 字节）"
-      - name: 冒烟测试（真窗口、真 WebView2、真 mpv、真输入）
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/smoke-report" | Out-Null
-          ./scripts/windows/desktoptest/run-wintest.ps1 -Exe "$PWD/dist/smoke/nagare.exe" -Media "$PWD/scripts/windows/desktoptest/media/clip.mkv" -OutDir "$env:RUNNER_TEMP/smoke-report" -CI
-      - name: 冒烟测试（用户的方式：解压出来的测试包 + Windows PowerShell 5.1；输入经 IPC 转发的退路）
-        # 这一步跑的就是用户手里那一份：Win10 自带的 Windows PowerShell 5.1、包里带 BOM 的脚本、包里的目录布局。
-        # 顺带走一遍退路（NAGARE_DESKTOP_INPUT=ipc：不重新启用 mpv 的子窗口，输入由 nagare 经 IPC 转发）
-        if: always()
-        shell: powershell
-        run: |
-          $PSVersionTable.PSVersion
-          & "$env:RUNNER_TEMP\kit\nagare-wintest\run-wintest.ps1" -OutDir "$env:RUNNER_TEMP\smoke-report" -CI -SkipFallback -IpcInput
-          exit $LASTEXITCODE
       - name: 失败时也收一张整屏截图
         if: failure()
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/smoke-report" | Out-Null
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
           $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
           $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height

@@ -1,6 +1,8 @@
 ; nagare Windows 安装程序（NSIS 3 / MUI2）。由 scripts/windows/build-installer.sh 编译。
 ; 编译时必须传入：/DVERSION=<版本> /DVERSION_NUMERIC=<a.b.c.d> /DSRCDIR=<待打包目录>
 ;                 /DICON=<nagare.ico> /DOUTFILE=<输出 exe>
+; File 的路径一律用反斜杠：Windows 版 makensis 只按「\」切目录与文件名（"D:\x\stage/a.exe" 会去 D:\x 下找
+; "stage/a.exe"，报 no files found）；macOS/Linux 版 makensis 会把「\」转成「/」，两边都能编。
 ; 设计要点：
 ;   - 按用户安装（RequestExecutionLevel user）：装到 %LOCALAPPDATA%\Programs\nagare，
 ;     不需要管理员、不弹 UAC；卸载信息写 HKCU
@@ -131,7 +133,7 @@ Function EnsureWebView2
   DetailPrint "$(WebView2Installing)"
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
-  File "${SRCDIR}/MicrosoftEdgeWebview2Setup.exe"
+  File "${SRCDIR}\MicrosoftEdgeWebview2Setup.exe"
   ClearErrors
   ExecWait '"$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install' $0
   ${If} ${Errors}
@@ -146,13 +148,13 @@ Section "nagare" SecMain
   SetOutPath "$INSTDIR"
   !insertmacro EnsureNotRunning
 
-  File "${SRCDIR}/nagare.exe"
-  File "${SRCDIR}/LICENSE.txt"
-  File "${SRCDIR}/THIRD_PARTY_NOTICES.md"
+  File "${SRCDIR}\nagare.exe"
+  File "${SRCDIR}\LICENSE.txt"
+  File "${SRCDIR}\THIRD_PARTY_NOTICES.md"
   ; 内置 mpv：nagare.exe 旁边的 mpv\mpv.exe，Go 侧按这个相对位置查找
-  File /r "${SRCDIR}/mpv"
+  File /r "${SRCDIR}\mpv"
   ; 捆绑的 Nagare Source 插件（引擎 + 只含 BT 规则的 repo），同样按相对位置查找
-  File /r "${SRCDIR}/nagare-source"
+  File /r "${SRCDIR}\nagare-source"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
