@@ -28,5 +28,25 @@
         "use-common-controls-v6": true
       }
     }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": {
+          "file_version": "0.0.0.0",
+          "product_version": "0.0.0.0"
+        },
+        "info": {
+          "0409": {
+            "CompanyName": "nagare project",
+            "FileDescription": "nagare",
+            "InternalName": "nagare",
+            "LegalCopyright": "AGPL-3.0",
+            "OriginalFilename": "nagare.exe",
+            "ProductName": "nagare"
+          }
+        }
+      }
+    }
   }
 }
