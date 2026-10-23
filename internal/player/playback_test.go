@@ -119,8 +119,9 @@ func awaitWindowEnd(t *testing.T, pb *playback) {
 	t.Helper()
 	select {
 	case <-pb.finished:
-	case <-time.After(5 * time.Second):
-		t.Fatal("窗口没有在 5 秒内收尾")
+	// 只是等待的上限，正常几十毫秒就收尾；机器满载（两套 -race 同时跑）时 5 秒不够，见过偶发超时
+	case <-time.After(15 * time.Second):
+		t.Fatal("窗口没有在 15 秒内收尾")
 	}
 }
 
@@ -298,7 +299,7 @@ func TestWindowSyncFailureVisibleWhenPlayingTurnsFalse(t *testing.T) {
 	require.Eventually(t, func() bool { return h.m.Status().Danmaku.State == "ok" }, 3*time.Second, 10*time.Millisecond)
 
 	pushEOF(t, h.fake, 1439, 1440)
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(15 * time.Second) // 上限，同 awaitWindowEnd
 	for {
 		st := h.m.Status()
 		if !st.Playing {
