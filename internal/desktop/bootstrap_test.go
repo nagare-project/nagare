@@ -47,7 +47,8 @@ func TestRuntimeAtLeast(t *testing.T) {
 func TestInstallerBootstrapsWebView2LikeTheApp(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "scripts", "windows", "nagare.nsi"))
 	require.NoError(t, err)
-	nsi := string(b)
+	// Windows 上 git 检出成 CRLF：按 LF 比对
+	nsi := strings.ReplaceAll(string(b), "\r\n", "\n")
 	expand := func(s string) string { return strings.ReplaceAll(s, "${WEBVIEW2_GUID}", webView2ClientGUID) }
 	define := func(name string) string {
 		for _, line := range strings.Split(nsi, "\n") {

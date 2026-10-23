@@ -113,6 +113,8 @@ jobs:
       # 那份都被占），像是 runner 的杀软 / 索引器在扫新文件，没有 Windows 机器无法定论。
       # 那个包的 Windows 专属代码只有 EADDRINUSE 判定一处，交叉编译已经覆盖。
       - name: go test（mpv / tray / selfupdate / 桌面窗口）
+        # 用 bash（-e）：Windows 默认的 pwsh 只看最后一条命令的退出码，前一条 go test 失败了这一步照样绿
+        shell: bash
         env:
           CGO_ENABLED: "0"
         # internal/desktop 在这里是真窗口：消息循环、两层切换、全屏、窗口位置、WebView2 运行时检测（runner 装着 Edge）。
