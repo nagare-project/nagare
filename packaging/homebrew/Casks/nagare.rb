@@ -55,11 +55,14 @@ cask "nagare" do
   # zap 只在用户显式要求时才跑（brew uninstall --zap --cask nagare），
   # 语义就是「连数据一起清掉」，所以配置目录放在这里。
   # 注意：设了 NAGARE_CONFIG_DIR 的用户，配置不在下面这些路径里，zap 清不到。
+  # 桌面窗口里的 WKWebView 用持久的数据存储（本机存储、缓存），WebKit 按 bundle id 放在下面两处。
   zap trash: [
     "~/Library/Application Support/nagare",
     "~/Library/Caches/io.github.nagare-project.Nagare",
+    "~/Library/HTTPStorages/io.github.nagare-project.Nagare",
     "~/Library/Preferences/io.github.nagare-project.Nagare.plist",
     "~/Library/Saved Application State/io.github.nagare-project.Nagare.savedState",
+    "~/Library/WebKit/io.github.nagare-project.Nagare",
   ]
 
   caveats <<~EOS
