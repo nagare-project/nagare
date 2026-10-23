@@ -41,6 +41,11 @@ jobs:
     if: github.event_name != 'release'
     runs-on: macos-latest
     steps:
+      # 失败时只清理这次运行建的草稿（见最后一步），按这个时间认
+      - name: 记下开始时间
+        id: started
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # changelog 与 snapshot 版本号都要完整 tag 历史
@@ -168,6 +173,11 @@ jobs:
 
       # 自更新要下载的产物名在 goreleaser 模板与 internal/selfupdate 里各写了一遍，
       # 没有东西把它们绑在一起。改错了只会在那个平台的用户点更新时才暴露。
+      #
+      # 这一步与下面的「对应源码」核对都要看 checksums.txt，而 goreleaser（OSS）在 checksum 与 publish 之间
+      # 没有 hook，只能放在它之后 —— 打 tag 那次草稿已经传上去了。所以任何一步不过，最后一步会删掉这次运行
+      # 建的草稿。能提前做的都已经在 goreleaser 的 hook 里做了（.app.zip 往返与 arm64 启动、对应源码在
+      # dist/mpv-sources/），这里是按最终清单再核一遍。
       - name: 校验自更新要用的产物都在
         if: always()
         run: |
@@ -184,6 +194,23 @@ jobs:
         run: |
           test -f dist/checksums.txt || { echo "没有 dist/checksums.txt，跳过"; exit 0; }
           scripts/release/check-gpl-sources.sh dist/checksums.txt dist/Nagare.app
+
+      # 打 tag 那次：goreleaser 之后的任何一步没过，删掉这次运行建的草稿 Release（tag 不动）。只认「同一个 tag、
+      # 草稿、建于本 job 开始之后」的，不碰以前留下的草稿，也不碰已发布的 Release。
+      - name: 检查没过：删掉这次运行建的草稿
+        if: failure() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          SINCE: ${{ steps.started.outputs.at }}
+        run: |
+          ids=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft and .tag_name == env.TAG and .created_at >= env.SINCE) | .id')
+          [ -n "$ids" ] || { echo "这次运行没有建草稿，不用清"; exit 0; }
+          for id in $ids; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+            echo "::warning::发布检查没过，已删掉这次运行建的草稿 Release（id $id）；修好后重新打 tag"
+          done
 
       # 密钥文件在同一个 job 里用完即删；runner 是一次性的，这一步是纵深防御。
       - name: 清理签名密钥

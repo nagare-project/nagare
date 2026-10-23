@@ -146,6 +146,10 @@ universal_binaries:
         # 自更新的 Go 解包代码解开 .app.zip、在 runner（arm64）上真跑一遍 —— 在上传草稿之前，不过就不发
         - cmd: scripts/release/check-app-zip.sh "dist/nagare-{{ .Version }}_MacOS_universal.app.zip"
           output: true
+        # GPL：两份对应源码都已放进 dist/mpv-sources/（checksum 与 release 都按这个目录收）。这时所有 build 都跑完了，
+        # Windows 那份（fetch-mpv.sh，windows build 的 pre hook）也在；同样早于上传草稿
+        - cmd: scripts/release/check-gpl-sources.sh dist dist/Nagare.app
+          output: true
 
 # 归档命名：nagare-<版本>_<MacOS|Linux|Windows>_<universal|x86_64|arm64>
 # 每个归档都带 nagare-source/（Nagare Source 引擎 + 只含 BT 规则的 repo/），Go 侧按

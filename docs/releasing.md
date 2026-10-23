@@ -78,6 +78,8 @@ tag 推上去会触发 `release.yml`，产出一个 **draft** Release。人工�
 - [ ] `checksums.txt` 与 `checksums.txt.minisig` 都在
 - [ ] 产物齐了：`.dmg` / `.app.zip` / `-setup.exe` / Windows `.zip` / 三个 `.tar.gz` / `.deb` / `.rpm`
 - [ ] dmg 里的 `Nagare.app` 能双击打开（macOS 会拦一次，点「仍要打开」）
+- [ ] Apple Silicon 真机：打开 dmg 里的 app，播本地文件、拖进度条、⌘Q
+      （CI 的 arm64 runner 上有冒烟测试，但那是测试构建、可能是软件渲染器；真机上的发布包只有人能看）
 - [ ] Windows 安装包装完托盘有图标、浏览器能打开界面
 - [ ] `mpv-sources/` 两个都在（GPL 合规，流水线的「校验 mpv 的对应源码都在」一步会查）：
       `mpv-winbuild-cmake-<提交>.tar.gz`（Windows 包内置 mpv 的构建脚本快照）与
@@ -125,7 +127,15 @@ macOS 的 `Nagare.app` 在自己的窗口里放视频：进程内链接 libmpv�
    **同一套** Go 解包代码解开 `.app.zip`、验签名，并在 runner（arm64）上跑解出来的 `nagare -version`、`mpv --version`，
    再用包里的 mpv 解一段测试片、出一张 jpg —— Apple Silicon 上能不能把 Frameworks 里的库全部加载起来、解得了片，
    我们手上没有那种 Mac，只在这里看得到。它在 goreleaser 上传草稿之前跑，不过就不会有草稿。
-5. goreleaser 之后：`check-gpl-sources.sh` 确认两份对应源码都进了 `checksums.txt`、macOS 那份就是包里那套 libmpv 的。
+   同一个 hook 再跑 `check-gpl-sources.sh dist`：两份对应源码都在 `dist/mpv-sources/`，macOS 那份就是包里那套 libmpv 的。
+5. goreleaser 之后：`check-update-assets.sh` 与 `check-gpl-sources.sh` 按最终的 `checksums.txt` 再核一遍。goreleaser（OSS）
+   在 checksum 与 publish 之间没有 hook，这两步只能放在它之后 —— 打 tag 那次草稿已经上传了，所以 job 的最后一步在
+   任何一步失败时删掉这次运行建的草稿（只认同一个 tag、建于本 job 开始之后的草稿；tag 本身不动），修好后重新打 tag。
+
+PR 与 main 的 CI 里，`desktop-mac` job 用同一套自建 libmpv（`ci.yml` 也以 `workflow_call` 调 `libmpv-macos.yml`）编带
+遥控的测试构建，在 arm64 runner 上跑 `scripts/macos/desktop-smoke.py`：开窗口、`/api/play` 起播（起播卡死会超时失败）、
+IPC 看 `current-vo=libmpv` 与 `time-pos` 在走、暂停后拖进度条、⌘Q 收尾、进度已回写。runner 没有 GPU 时测试构建退到
+苹果的软件渲染器（`NAGARE_DESKTOP_TEST_SOFTWARE_GL=1`，只有测试构建认它）。
 
 macOS 的裸二进制 `nagare-<版本>_MacOS_universal.tar.gz` **不带** libmpv（另一个 `darwin` 构建，没有 libmpv 标签）：
 归档里没有 `Frameworks/`，链接了 libmpv 的二进制在那里根本起不来。它的行为与以前一样（浏览器 + 系统装的 mpv）。
