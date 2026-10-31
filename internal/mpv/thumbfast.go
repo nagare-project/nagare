@@ -124,6 +124,9 @@ func thumbfastCLI(scriptOpts []string, self func() (string, error)) (string, str
 	if err != nil || !st.Mode().IsRegular() {
 		return "", "命令行 mpv 不是普通文件"
 	}
+	if self == nil {
+		return "", "取不到 nagare 自己的路径，没法确认 thumbfast 不会把 nagare 当 mpv 拉起来"
+	}
 	selfPath, err := self()
 	if err != nil {
 		return "", "取不到 nagare 自己的路径，没法确认 thumbfast 不会把 nagare 当 mpv 拉起来"

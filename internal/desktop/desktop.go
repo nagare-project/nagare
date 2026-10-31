@@ -47,7 +47,8 @@ type Info struct {
 
 // 进程内 libmpv 的起播选项在 internal/mpv（mpv.DesktopLibmpvSpec，与 iOS 的 mpv.IOSLibmpvSpec 共用一份拼法，
 // 将来的 internal/mobile 不用引这个包）。下面几个是那边的薄包装：桌面窗口这一层只多提供 nagare 自己的路径
-// 与屏幕缩放。
+// 与屏幕缩放。embeddedOptions / thumbnailScriptOpts 只有 desktop_test.go 在用（挪动时那份测试原样保留，
+// 作为 macOS 输出不变的回归证明）；以后改那份测试时可以直接改调 mpv 包里的函数，把这两个删掉。
 
 // selfExecutable 返回 nagare 自己的可执行文件（解析过符号链接）。测试替换它。
 var selfExecutable = func() (string, error) {

@@ -2,6 +2,8 @@ package mpv
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -286,4 +288,73 @@ func TestWithOptions(t *testing.T) {
 	got := withOptions(base, []Option{stringOption("b", "20"), stringOption("c", "3")})
 	assert.Equal(t, []Option{stringOption("a", "1"), stringOption("b", "20"), stringOption("c", "3")}, got)
 	assert.Equal(t, []Option{stringOption("a", "1"), stringOption("b", "2")}, base)
+}
+
+// thumbfastCLI 在这个包里也测一遍（桌面窗口那边经 libmpvSpec 测过整条路径）：只有绝对路径、普通文件、
+// 而且不是 nagare 自己的命令行 mpv 才交给 thumbfast；取不到 nagare 自己的路径（含没给）一律不交。
+func TestThumbfastCLI(t *testing.T) {
+	dir := t.TempDir()
+	cli, self := filepath.Join(dir, "mpv"), filepath.Join(dir, "nagare")
+	require.NoError(t, os.WriteFile(cli, []byte("#!/bin/sh\n"), 0o755))
+	require.NoError(t, os.WriteFile(self, []byte("#!/bin/sh\n"), 0o755))
+	resolvedSelf, err := filepath.EvalSymlinks(self)
+	require.NoError(t, err)
+	link := filepath.Join(t.TempDir(), "mpv-link")
+	require.NoError(t, os.Symlink(self, link))
+	selfFn := func() (string, error) { return resolvedSelf, nil }
+
+	path, why := thumbfastCLI([]string{"thumbfast-mpv_path=" + cli}, selfFn)
+	assert.Equal(t, cli, path)
+	assert.Empty(t, why)
+
+	for name, tc := range map[string]struct {
+		opts []string
+		self func() (string, error)
+	}{
+		"没有命令行 mpv":     {nil, selfFn},
+		"相对路径":          {[]string{"thumbfast-mpv_path=mpv"}, selfFn},
+		"不存在":           {[]string{"thumbfast-mpv_path=" + filepath.Join(dir, "missing")}, selfFn},
+		"是目录":           {[]string{"thumbfast-mpv_path=" + dir}, selfFn},
+		"就是 nagare 自己":  {[]string{"thumbfast-mpv_path=" + self}, selfFn},
+		"指向 nagare 的链接": {[]string{"thumbfast-mpv_path=" + link}, selfFn},
+		"取不到自己的路径":      {[]string{"thumbfast-mpv_path=" + cli}, func() (string, error) { return "", errors.New("x") }},
+		"没给取自己路径的函数":    {[]string{"thumbfast-mpv_path=" + cli}, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			path, why := thumbfastCLI(tc.opts, tc.self)
+			assert.Empty(t, path)
+			assert.NotEmpty(t, why, "不能用时要说清楚原因（写进日志）")
+		})
+	}
+}
+
+// DesktopLibmpvSpec 在这个包里的最小覆盖：有能用的命令行 mpv 时点名加载 thumbfast，缩略图按屏幕缩放放大。
+// 完整输出的黄金在 internal/desktop（libmpv_spec_golden_test.go）。
+func TestDesktopLibmpvSpecLoadsThumbfast(t *testing.T) {
+	t.Setenv("NAGARE_DESKTOP_MPV_LOG", "")
+	dir := t.TempDir()
+	cli, self := filepath.Join(dir, "mpv"), filepath.Join(dir, "nagare")
+	require.NoError(t, os.WriteFile(cli, []byte("#!/bin/sh\n"), 0o755))
+	require.NoError(t, os.WriteFile(self, []byte("#!/bin/sh\n"), 0o755))
+	spec, err := DesktopLibmpvSpec(LaunchOptions{
+		MediaPath:  "/v/a.mkv",
+		ConfigDir:  "/cfg",
+		ScriptOpts: []string{"thumbfast-mpv_path=" + cli},
+	}, "/run/mpv.sock", 2, func() (string, error) { return filepath.EvalSymlinks(self) })
+	require.NoError(t, err)
+	var scripts, so LibmpvOption
+	for _, o := range spec.Init {
+		switch o.Name {
+		case "scripts":
+			scripts = o
+		case "script-opts":
+			so = o
+		}
+	}
+	assert.Equal(t, []string{filepath.Join("/cfg", "scripts", "nagare"), filepath.Join("/cfg", "scripts", "thumbfast.lua")}, scripts.List)
+	assert.Equal(t, []KeyValue{
+		{Key: "thumbfast-mpv_path", Value: cli},
+		{Key: "thumbfast-max_width", Value: "384"},
+		{Key: "thumbfast-max_height", Value: "384"},
+	}, so.Map)
 }
