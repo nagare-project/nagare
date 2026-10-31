@@ -13,10 +13,11 @@
 #   * 不带 TLS（没有 https / tls / crypto 协议），VideoToolbox 硬解与 render API 要的组件都在，
 #     LuaJIT 的 JIT 编译器没编进去（LJ_HASJIT 0）
 #   * iOS 的 FFmpeg 解码 / 分离 / 解析器清单是 macOS 版的超集
-# 运行（--simulator：建一台 iOS 模拟器，用本机架构对应的模拟器切片跑 tests/sim_test.m）：
+# 运行（--simulator：建一台 iOS 模拟器，经 simctl spawn 跑链接了模拟器切片的 tests/sim_test.m；
+#   本机架构那一片全套必过，Apple Silicon 上装了 Rosetta 时 x86_64 那一片也跑全套）：
 #   初始化与版本 / 媒体库扫描器认的每个扩展名各解一段 / 回环地址 http 能播、https 被拒 /
-#   Lua（LuaJIT、jit.status() 为 false、jit.on() 被拒）/ render API 在 OpenGL ES 上画帧（软解，
-#   VideoToolbox 为可选项）
+#   Lua（LuaJIT、jit.status() 为 false、jit.on() 被拒）/ render API 在 OpenGL ES 上画帧（软解）/
+#   VideoToolbox 解码与它接到 OpenGL ES 上（模拟器里能不能用上取决于环境，这两项只警告，真机为准）
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -182,13 +183,16 @@ fi
 
 # ---------------------------------------------------------------------------
 echo "== 模拟器 =="
-sim_arch=$HOST_ARCH
 sim_lib="$XCF/ios-arm64_x86_64-simulator"
-bin="$TMP/sim_test"
-xcrun --sdk iphonesimulator clang -target "$sim_arch-apple-ios$DEPLOYMENT_TARGET-simulator" \
-  -isysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" -fobjc-arc -Wall -Werror -Wno-deprecated-declarations -O1 \
-  -F "$sim_lib" -framework Libmpv -framework OpenGLES -framework Foundation -Wl,-rpath,"$sim_lib" \
-  "$here/tests/sim_test.m" -o "$bin" || die "编不出 sim_test"
+
+# 编 sim_test：链接模拟器那一份 Libmpv.framework 的 <架构> 切片
+build_sim_test() {
+  local arch=$1
+  xcrun --sdk iphonesimulator clang -target "$arch-apple-ios$DEPLOYMENT_TARGET-simulator" \
+    -isysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" -fobjc-arc -Wall -Werror -Wno-deprecated-declarations -O1 \
+    -F "$sim_lib" -framework Libmpv -framework OpenGLES -framework Foundation -Wl,-rpath,"$sim_lib" \
+    "$here/tests/sim_test.m" -o "$TMP/sim_test-$arch" || die "编不出 sim_test（${arch}）"
+}
 
 runtime=$(xcrun simctl list runtimes available -j | python3 -I -B -c '
 import json, sys
@@ -207,64 +211,113 @@ log "模拟器：${SIM_UDID}（${devtype}，${runtime}）"
 xcrun simctl boot "$SIM_UDID"
 with_timeout 300 xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null || die "模拟器 5 分钟内没启动起来"
 
-# sim <日志名> 参数...：在模拟器里跑 sim_test，输出进日志，返回它的退出码
-sim() {
-  local logf="$TMP/sim-$1.log"
-  shift
-  set +e
-  with_timeout 120 xcrun simctl spawn "$SIM_UDID" "$bin" "$@" > "$logf" 2>&1
-  local rc=$?
-  set -e
-  return $rc
-}
-
-if sim info info && grep -q "^arch=$sim_arch mpv-version=mpv v$want_mpv" "$TMP/sim-info.log"; then
-  pass "模拟器里初始化：$(head -1 "$TMP/sim-info.log")"
-else
-  fail "模拟器里初始化（${sim_arch}）"; show_log "$TMP/sim-info.log"
-fi
-protocols=$(sed -n 's/^protocol-list=//p' "$TMP/sim-info.log")
-case ",$protocols," in
-  *,https,* | *,tls,*) fail "协议清单里有 https / tls：$protocols" ;;
-  *,http,*) pass "协议：${protocols}（有 http，没有 https / tls）" ;;
-  *) fail "协议清单里没有 http：$protocols" ;;
-esac
-
-# 媒体库扫描器认的每个扩展名（与 macOS 的 verify.sh 同一张表）+ 几种主要编码
-for f in h264-aac-ass.mkv h264-eac3-movtext.mp4 mpeg4-mp3.avi vp9-vorbis.webm h264-alac.mov mpeg4-aac.m4v \
-  flv1-adpcm.flv wmv2-wmav2.wmv mpeg2-ac3.ts rv20-ra144.rmvb hevc10-flac.mkv av1-opus.webm; do
-  if sim "play-$f" play "$MEDIA/$f"; then pass "模拟器里解码 ${f}：$(grep -o 'width=[0-9]* samplerate=[0-9]*' "$TMP/sim-play-$f.log")"
-  else fail "模拟器里解码 $f"; show_log "$TMP/sim-play-$f.log" 15; fi
-done
-
 python3 -I -B "$here/tests/http_server.py" "$MEDIA" "$TMP/port" > "$TMP/http-server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 600); do [ -s "$TMP/port" ] && break; sleep 0.1; done
 [ -s "$TMP/port" ] || die "HTTP 测试服务端 60 秒内没起来：$(cat "$TMP/http-server.log")"
 port=$(cat "$TMP/port")
-if sim http play "http://127.0.0.1:$port/h264-aac-ass.mkv"; then pass "模拟器里经回环地址 http 播放"
-else fail "模拟器里经回环地址 http 播放"; show_log "$TMP/sim-http.log" 15; fi
-rc=0
-sim https play "https://127.0.0.1:$port/h264-aac-ass.mkv" || rc=$?
-if [ $rc -eq 3 ]; then pass "https:// 被拒（没有 TLS）"
-else fail "https:// 应当因为没有协议而失败，实际退出码 $rc"; show_log "$TMP/sim-https.log" 10; fi
 
-if sim lua lua "$here/tests/lua_check.lua" "$MEDIA/h264-aac-ass.mkv" \
-  && grep -q "lua-check engine=LuaJIT_2\.1[^ ]* arch=$( [ "$sim_arch" = x86_64 ] && echo x64 || echo arm64) jit=off jit-on=refused " \
-    "$TMP/sim-lua.log"; then
-  pass "Lua：$(grep -o 'lua-check engine=[^ ]* arch=[^ ]* jit=[^ ]* jit-on=[^ ]*' "$TMP/sim-lua.log")"
+# sim <架构> <日志名> 参数...：在模拟器里跑那个架构的 sim_test，输出进日志，返回它的退出码
+sim() {
+  local arch=$1 logf="$TMP/sim-$1-$2.log"
+  shift 2
+  set +e
+  with_timeout 120 xcrun simctl spawn "$SIM_UDID" "$TMP/sim_test-$arch" "$@" > "$logf" 2>&1
+  local rc=$?
+  set -e
+  return $rc
+}
+slog() { echo "$TMP/sim-$1-$2.log"; }
+
+# 一个架构的全套运行检查
+sim_suite() {
+  local a=$1 f rc hw label jit_arch=arm64
+  [ "$a" = x86_64 ] && jit_arch=x64
+
+  local protocols
+  protocols=$(sed -n 's/^protocol-list=//p' "$(slog "$a" info)")
+  case ",$protocols," in
+    *,https,* | *,tls,*) fail "协议清单里有 https / tls（${a}）：$protocols" ;;
+    *,http,*) pass "协议（${a}）：${protocols}（有 http，没有 https / tls）" ;;
+    *) fail "协议清单里没有 http（${a}）：$protocols" ;;
+  esac
+
+  # 媒体库扫描器认的每个扩展名（与 macOS 的 verify.sh 同一张表）+ 几种主要编码
+  for f in h264-aac-ass.mkv h264-eac3-movtext.mp4 mpeg4-mp3.avi vp9-vorbis.webm h264-alac.mov mpeg4-aac.m4v \
+    flv1-adpcm.flv wmv2-wmav2.wmv mpeg2-ac3.ts rv20-ra144.rmvb hevc10-flac.mkv av1-opus.webm; do
+    if sim "$a" "play-$f" play "$MEDIA/$f"; then
+      pass "模拟器里解码 ${f}（${a}）：$(grep -o 'width=[0-9]* samplerate=[0-9]*' "$(slog "$a" "play-$f")")"
+    else
+      fail "模拟器里解码 ${f}（${a}）"; show_log "$(slog "$a" "play-$f")" 15
+    fi
+  done
+
+  if sim "$a" http play "http://127.0.0.1:$port/h264-aac-ass.mkv"; then pass "模拟器里经回环地址 http 播放（${a}）"
+  else fail "模拟器里经回环地址 http 播放（${a}）"; show_log "$(slog "$a" http)" 15; fi
+  rc=0
+  sim "$a" https play "https://127.0.0.1:$port/h264-aac-ass.mkv" || rc=$?
+  if [ $rc -eq 3 ]; then pass "https:// 被拒（${a}，没有 TLS）"
+  else fail "https:// 应当因为没有协议而失败（${a}），实际退出码 $rc"; show_log "$(slog "$a" https)" 10; fi
+
+  if sim "$a" lua lua "$here/tests/lua_check.lua" "$MEDIA/h264-aac-ass.mkv" \
+    && grep -q "lua-check engine=LuaJIT_2\.1[^ ]* arch=$jit_arch jit=off jit-on=refused " "$(slog "$a" lua)"; then
+    pass "Lua（${a}）：$(grep -o 'lua-check engine=[^ ]* arch=[^ ]* jit=[^ ]* jit-on=[^ ]*' "$(slog "$a" lua)")"
+  else
+    fail "Lua（${a}，LuaJIT、关 JIT）"; show_log "$(slog "$a" lua)"
+  fi
+
+  rc=0
+  sim "$a" render-sw render "$MEDIA/h264-aac-ass.mkv" no || rc=$?
+  label="render API（OpenGL ES，${a}，软解）"
+  if [ $rc -eq 0 ]; then
+    pass "${label}：$(grep '^GL_RENDERER' "$(slog "$a" render-sw)")；$(grep '^frames=' "$(slog "$a" render-sw)")"
+  else
+    fail "${label}，退出码 ${rc}"; show_log "$(slog "$a" render-sw)"
+  fi
+
+  # VideoToolbox：模拟器能不能真的用上它与运行环境有关（真机才是准的），这两项只警告
+  if sim "$a" vt-copy play "$MEDIA/h264-aac-ass.mkv" videotoolbox-copy \
+    && grep -q 'hwdec-used=videotoolbox-copy' "$(slog "$a" vt-copy)"; then
+    pass "VideoToolbox 硬解（${a}，videotoolbox-copy）"
+  else
+    soft "模拟器里 VideoToolbox 没解码（${a}，videotoolbox-copy）：$(grep -o 'hwdec-used=[^ ]*' "$(slog "$a" vt-copy)" || tail -1 "$(slog "$a" vt-copy)")"
+  fi
+  rc=0
+  sim "$a" render-vt render "$MEDIA/h264-aac-ass.mkv" videotoolbox || rc=$?
+  hw=$(grep -o 'hwdec-current=[^ ]*' "$(slog "$a" render-vt)" || true)
+  if [ $rc -eq 0 ] && [ "$hw" = hwdec-current=videotoolbox ]; then
+    pass "render API + VideoToolbox 互操作（${a}）：$(grep '^frames=' "$(slog "$a" render-vt)")"
+  else
+    soft "模拟器里 VideoToolbox 没接上 OpenGL ES（${a}，退出码 ${rc}，${hw:-没有 hwdec-current}）：要在真机上看"
+  fi
+}
+
+# 本机架构的模拟器切片：全部必过
+build_sim_test "$HOST_ARCH"
+if sim "$HOST_ARCH" info info && grep -q "^arch=$HOST_ARCH mpv-version=mpv v$want_mpv" "$(slog "$HOST_ARCH" info)"; then
+  pass "模拟器里初始化：$(head -1 "$(slog "$HOST_ARCH" info)")"
+  sim_suite "$HOST_ARCH"
 else
-  fail "Lua（LuaJIT、关 JIT）"; show_log "$TMP/sim-lua.log"
+  fail "模拟器里初始化（${HOST_ARCH}）"; show_log "$(slog "$HOST_ARCH" info)"
 fi
 
-for hw in no videotoolbox; do
-  rc=0
-  sim "render-$hw" render "$MEDIA/h264-aac-ass.mkv" "$hw" || rc=$?
-  label="render API（OpenGL ES，hwdec=${hw}）"
-  if [ $rc -eq 0 ]; then pass "${label}：$(grep '^GL_RENDERER' "$TMP/sim-render-$hw.log")；$(grep '^frames=' "$TMP/sim-render-$hw.log")"
-  elif [ "$hw" = no ]; then fail "${label}，退出码 ${rc}"; show_log "$TMP/sim-render-$hw.log"
-  else soft "${label}，退出码 ${rc}（模拟器的 VideoToolbox 不一定能交给 GL）"; show_log "$TMP/sim-render-$hw.log" 10; fi
-done
+# 另一个模拟器切片：Apple Silicon 上 x86_64 靠 Rosetta 跑（开发机是 Intel，用的就是这一片）。
+# 模拟器本身跑不起 x86_64 进程时只警告；跑得起来，后面每一项都必过
+if [ "$HOST_ARCH" = arm64 ]; then
+  if arch -x86_64 /usr/bin/true 2>/dev/null; then
+    build_sim_test x86_64
+    if sim x86_64 info info && grep -q "^arch=x86_64 mpv-version=mpv v$want_mpv" "$(slog x86_64 info)"; then
+      pass "模拟器里初始化（x86_64，Rosetta）：$(head -1 "$(slog x86_64 info)")"
+      sim_suite x86_64
+    else
+      soft "模拟器里跑不起 x86_64 的进程（Rosetta），x86_64 切片只做了静态检查"; show_log "$(slog x86_64 info)" 10
+    fi
+  else
+    soft "没有 Rosetta：x86_64 模拟器切片只做了静态检查"
+  fi
+else
+  warn "Intel 机器跑不了 arm64 的模拟器切片：它只做了静态检查"
+fi
 
 echo
 echo "通过 ${passed}，失败 ${failed}，警告 $warned"

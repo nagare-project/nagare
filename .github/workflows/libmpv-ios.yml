@@ -154,6 +154,11 @@ jobs:
         run: |
           echo "LIBMPV_WORK=$RUNNER_TEMP/libmpv-ios" >> "$GITHUB_ENV"
           echo "LIBMPV_SOURCES=$RUNNER_TEMP/libmpv/sources" >> "$GITHUB_ENV"
+          # 模拟器的 x86_64 切片（开发机是 Intel Mac）要在 Rosetta 下跑一遍
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true && echo "Rosetta 可用"
           xcodebuild -version
           xcrun simctl list runtimes available
 

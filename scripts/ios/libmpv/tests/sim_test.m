@@ -3,7 +3,8 @@
 // Lua 能用且没有 JIT，render API 能在 OpenGL ES 上把画面画出来。
 //
 //   sim_test info                      打印版本与协议清单
-//   sim_test play <文件或 URL>          vo=null / ao=null 不计时解码到 1.5 秒处，视频与音频都要解出东西来
+//   sim_test play <文件或 URL> [hwdec]  vo=null / ao=null 不计时解码到 1.5 秒处，视频与音频都要解出东西来；
+//                                      打印期间实际用上的硬解（hwdec-used=）
 //   sim_test lua <脚本> <文件>          加载 <脚本>，把 mpv 的日志原样打印出来（verify.sh 在里面找脚本的输出）
 //   sim_test render <文件> <hwdec>      EAGLContext（OpenGL ES）+ FBO 上建 render context，画 30 帧读回像素
 //
@@ -105,13 +106,16 @@ static int info(void) {
 }
 
 // 不计时地解码到 1.5 秒处。视频宽度与音频采样率都观察到非零值、以 EOF 结束、没有解码器报错，才算通过。
-static int play(const char *file, const char *script) {
-    const char *opts[] = {"vo", "null", "ao", "null", "hwdec", "no", "untimed", "yes", "ao-null-untimed", "yes",
+// 结束时打印期间用过的硬解（hwdec-used=，没用上是 no），verify.sh 拿它看 VideoToolbox。
+static int play(const char *file, const char *script, const char *hwdec) {
+    const char *opts[] = {"vo", "null", "ao", "null", "hwdec", hwdec, "untimed", "yes", "ao-null-untimed", "yes",
                           "end", "1.5", script ? "scripts" : NULL, script, NULL};
     mpv_handle *h = make_handle(opts);
     if (!h) return FAILED;
     mpv_observe_property(h, 1, "video-params/w", MPV_FORMAT_INT64);
     mpv_observe_property(h, 2, "audio-params/samplerate", MPV_FORMAT_INT64);
+    mpv_observe_property(h, 3, "hwdec-current", MPV_FORMAT_STRING);
+    char hw_used[64] = "no";
     const char *load[] = {"loadfile", file, NULL};
     int err = mpv_command(h, load);
     if (err < 0) {
@@ -133,6 +137,9 @@ static int play(const char *file, const char *script) {
                 int64_t v = *(int64_t *)p->data;
                 if (ev->reply_userdata == 1 && v > width) width = v;
                 if (ev->reply_userdata == 2 && v > rate) rate = v;
+            } else if (p->format == MPV_FORMAT_STRING && ev->reply_userdata == 3) {
+                const char *v = *(char **)p->data;
+                if (v && v[0] && strcmp(v, "no") != 0) snprintf(hw_used, sizeof(hw_used), "%s", v);
             }
             break;
         }
@@ -150,7 +157,8 @@ static int play(const char *file, const char *script) {
                 printf("sim_test: video width=%lld audio samplerate=%lld decoder-error=%d\n", (long long)width,
                        (long long)rate, decoder_error);
             } else {
-                printf("sim_test: play OK width=%lld samplerate=%lld\n", (long long)width, (long long)rate);
+                printf("sim_test: play OK width=%lld samplerate=%lld hwdec-used=%s\n", (long long)width,
+                       (long long)rate, hw_used);
                 result = OK;
             }
             break;
@@ -285,10 +293,10 @@ int main(int argc, char **argv) {
     @autoreleasepool {
         setvbuf(stdout, NULL, _IOLBF, 0);
         if (argc == 2 && strcmp(argv[1], "info") == 0) return info();
-        if (argc == 3 && strcmp(argv[1], "play") == 0) return play(argv[2], NULL);
-        if (argc == 4 && strcmp(argv[1], "lua") == 0) return play(argv[3], argv[2]);
+        if ((argc == 3 || argc == 4) && strcmp(argv[1], "play") == 0) return play(argv[2], NULL, argc == 4 ? argv[3] : "no");
+        if (argc == 4 && strcmp(argv[1], "lua") == 0) return play(argv[3], argv[2], "no");
         if (argc == 4 && strcmp(argv[1], "render") == 0) return render(argv[2], argv[3]);
-        fprintf(stderr, "usage: sim_test info | play <file> | lua <script> <file> | render <file> <hwdec>\n");
+        fprintf(stderr, "usage: sim_test info | play <file> [hwdec] | lua <script> <file> | render <file> <hwdec>\n");
         return USAGE;
     }
 }
