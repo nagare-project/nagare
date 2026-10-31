@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,10 +15,10 @@ import (
 // 进度条缩略图（thumbfast，po5/thumbfast，原样内嵌在 ui/scripts/thumbfast.lua）在两种宿主下的差别：
 //
 //   - 命令行 mpv：配置目录里的脚本自动加载，thumbfast 自己读 display-hidpi-scale 放大缩略图。
-//   - macOS 桌面窗口（进程内 libmpv，internal/desktop）：配置目录里的脚本不自动加载（thumbfast 在
+//   - macOS 桌面窗口（进程内 libmpv，DesktopLibmpvSpec）：配置目录里的脚本不自动加载（thumbfast 在
 //     macOS 上找不到 mpv 时会用 `ps -o comm=` 把「自己这个进程」当 mpv 拉起来 —— 那就是 nagare），
-//     只在有命令行 mpv 可用时点名加载它；render API 下读不到 display-hidpi-scale，缩略图尺寸由宿主
-//     按屏幕缩放算好，经 script-opts 传进去（ThumbfastScaledSize）。thumbfast.lua 本身不改。
+//     只在有命令行 mpv 可用时点名加载它（thumbfastCLI）；render API 下读不到 display-hidpi-scale，
+//     缩略图尺寸由宿主按屏幕缩放算好，经 script-opts 传进去（ThumbfastScaledSize）。thumbfast.lua 本身不改。
 
 // ThumbfastScript 是 thumbfast 在界面配置目录（PrepareUIConfig）里的相对路径，正斜杠分隔。
 const ThumbfastScript = "scripts/thumbfast.lua"
@@ -101,4 +103,50 @@ func ThumbfastMPVPath(scriptOpts []string) string {
 		}
 	}
 	return path
+}
+
+// thumbfastCLI 从起播参数里取出交给 thumbfast 的命令行 mpv（player 在探测到命令行 mpv 时给
+// thumbfast-mpv_path），确认它能用：绝对路径、是个普通文件、而且不是 nagare 自己（self 返回 nagare
+// 自己的可执行文件，解析过符号链接）。不能用就返回空串和原因 —— 进程内 libmpv 就不加载 thumbfast。
+func thumbfastCLI(scriptOpts []string, self func() (string, error)) (string, string) {
+	path := ThumbfastMPVPath(scriptOpts)
+	if path == "" {
+		return "", "没有命令行 mpv"
+	}
+	if !filepath.IsAbs(path) {
+		return "", "命令行 mpv 的路径不是绝对路径"
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", "命令行 mpv 不存在"
+	}
+	st, err := os.Stat(resolved)
+	if err != nil || !st.Mode().IsRegular() {
+		return "", "命令行 mpv 不是普通文件"
+	}
+	selfPath, err := self()
+	if err != nil {
+		return "", "取不到 nagare 自己的路径，没法确认 thumbfast 不会把 nagare 当 mpv 拉起来"
+	}
+	if selfSt, err := os.Stat(selfPath); err != nil || resolved == selfPath || os.SameFile(st, selfSt) {
+		return "", "交给 thumbfast 的 mpv 就是 nagare 自己"
+	}
+	return path, ""
+}
+
+// ThumbfastScriptOpts 按 thumbfastCLI 的结论改写 script-opts（返回新切片，不动传进来的）：
+// 能用就追加按屏幕缩放放大的缩略图尺寸（render API 下 thumbfast 读不到 display-hidpi-scale）；
+// 不能用就去掉 thumbfast-mpv_path（thumbfast 不加载，这一项没人读）。
+func ThumbfastScriptOpts(scriptOpts []string, usable bool, hidpi float64) []string {
+	out := make([]string, 0, len(scriptOpts)+2)
+	for _, kv := range scriptOpts {
+		if !usable && strings.HasPrefix(kv, "thumbfast-mpv_path=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	if usable {
+		out = append(out, ThumbfastScaledSize(hidpi)...)
+	}
+	return out
 }
