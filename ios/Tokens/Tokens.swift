@@ -45,8 +45,8 @@ enum NagareUIColor {
     static var accentFillActive: UIColor { UIColor(red: 0.0 / 255, green: 102.0 / 255, blue: 204.0 / 255, alpha: 1) }
     /// 选中项的底、可点击色的轻填充 · rgba(10, 132, 255, 0.12)
     static var accentDim: UIColor { UIColor(red: 10.0 / 255, green: 132.0 / 255, blue: 255.0 / 255, alpha: 0.12) }
-    /// 焦点环（3px box-shadow），所有可交互元素共用这一个 · rgba(10, 132, 255, 0.4)
-    static var focusRing: UIColor { UIColor(red: 10.0 / 255, green: 132.0 / 255, blue: 255.0 / 255, alpha: 0.4) }
+    /// 焦点环：不透明的实线 outline，所有可交互元素共用这一个，不随海报色变 · #0a84ff
+    static var focusRing: UIColor { .systemBlue }
     /// 只读信息：信息标签、弹幕分区、只读高亮；不可点击 · #5ac8fa
     static var teal: UIColor { UIColor(red: 90.0 / 255, green: 200.0 / 255, blue: 250.0 / 255, alpha: 1) }
     /// teal 的底色填充 · rgba(90, 200, 250, 0.1)

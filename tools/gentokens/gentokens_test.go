@@ -98,6 +98,7 @@ func TestDeclaredContrastPairs(t *testing.T) {
 	for _, bg := range []string{"bg", "bg-card", "bg-elevated"} {
 		assert.True(t, declared["text text-secondary "+bg], "text-secondary 在 %s 上", bg)
 		assert.True(t, declared["restricted text-tertiary "+bg], "text-tertiary 在 %s 上", bg)
+		assert.True(t, declared["ui focus-ring "+bg], "焦点环在 %s 上", bg)
 	}
 	for _, bg := range []string{"accent-fill", "accent-fill-hover", "accent-fill-active", "error-fill", "error-fill-hover", "error-fill-active"} {
 		assert.True(t, declared["text text "+bg], "实心按钮的白字在 %s 上", bg)

@@ -107,7 +107,7 @@
 | `--accent-fill-hover` | `#0274de` | 固定值 | 实心主按钮的悬停态（白字 4.61:1） |
 | `--accent-fill-active` | `#0066cc` | 固定值 | 实心主按钮的按下态（白字 5.57:1） |
 | `--accent-dim` | `rgba(10, 132, 255, 0.12)` | 固定值 | 选中项的底、可点击色的轻填充 |
-| `--focus-ring` | `rgba(10, 132, 255, 0.4)` | 固定值 | 焦点环（3px box-shadow），所有可交互元素共用这一个 |
+| `--focus-ring` | `#0a84ff` | `systemBlue` | 焦点环：不透明的实线 outline，所有可交互元素共用这一个，不随海报色变 |
 | `--teal` | `#5ac8fa` | 固定值 | 只读信息：信息标签、弹幕分区、只读高亮；不可点击 |
 | `--teal-dim` | `rgba(90, 200, 250, 0.1)` | 固定值 | teal 的底色填充 |
 | `--text` | `#ffffff` | `label` | 主文字 |
@@ -142,7 +142,7 @@
 ### 规则
 
 1. **可点击 = 蓝色家族**。`--accent`（`#0a84ff`）是链接、焦点环、进度条、选中态的颜色。**实心按钮的底用 `-fill` 一档**：主按钮 `--accent-fill`，危险按钮 `--error-fill`（悬停、按下各有 `-fill-hover` / `-fill-active`），白字在这三态上都 ≥ 4.5:1；`#0a84ff` 不做实心按钮的底 —— 白字在它上面只有 3.65:1。不在纯装饰上用蓝色。唯一的例外是作品页 hero 的主按钮（海报色，见下）。
-2. **焦点环永远是 `--focus-ring` 那一个蓝色**（`--shadow-focus`，3px box-shadow），不随海报色变，没有例外。输入框也用它，不另设一档。
+2. **焦点环永远是不透明的 `#0a84ff` 实线**：`outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset);`，即 2px 实线、2px 透明间隔。不随海报色变，不做半透明光晕，没有例外；输入框也用它，不另设一档。间隔让环落在底色上，环对三层底色都 ≥ 3:1（见对比度表）。用 outline 而不是 box-shadow：Windows 高对比度模式（`forced-colors: active`）会去掉所有 box-shadow，而 outline 照样画出来、颜色换成系统色 —— 所以不要在可聚焦元素上写 `forced-color-adjust: none`，也不要用 `outline: none` 再拿别的东西替代。
 3. **`--teal` 只做只读信息**：信息标签、弹幕分区、只读高亮。不做可点击元素。
 4. **层级靠底色差**：`--bg` → `--bg-card` → `--bg-elevated`，不靠堆阴影。
 5. **文字四档**：
@@ -177,6 +177,7 @@
 | `text` | 文字 ≥ 4.5:1 | `accent-fill` 4.90:1 ✓<br>`accent-fill-hover` 4.61:1 ✓<br>`accent-fill-active` 5.57:1 ✓ | 实心主按钮的白字（静止 / 悬停 / 按下） |
 | `text` | 文字 ≥ 4.5:1 | `error-fill` 4.87:1 ✓<br>`error-fill-hover` 4.62:1 ✓<br>`error-fill-active` 5.56:1 ✓ | 危险按钮的白字（静止 / 悬停 / 按下） |
 | `accent` | 界面元素 ≥ 3:1 | `bg` 5.76:1 ✓<br>`bg-card` 4.66:1 ✓<br>`bg-elevated` 3.82:1 ✓ | 进度条、选中态的色块（非文字） |
+| `focus-ring` | 界面元素 ≥ 3:1 | `bg` 5.76:1 ✓<br>`bg-card` 4.66:1 ✓<br>`bg-elevated` 3.82:1 ✓ | 焦点环（有 2px 透明间隔，环紧挨着的是底色） |
 | `text-tertiary` | 不写要读的字 | `bg` 2.25:1<br>`bg-card` 2.48:1<br>`bg-elevated` 2.41:1 | 只用于占位符、禁用、装饰 |
 | `text-quaternary` | 不写要读的字 | `bg` 1.47:1<br>`bg-card` 1.68:1<br>`bg-elevated` 1.69:1 | 只用于禁用态 |
 | `accent` | 不写要读的字 | `bg-elevated` 3.82:1 | 浮层上的蓝字改用 accent-on-elevated |
@@ -272,6 +273,8 @@ nagare 的做法让这个陷阱在结构上不会发生：
 | `--content-max` | 1400px | css | 内容最大宽度 |
 | `--gutter` | 24px | css | 内容两侧留白 |
 | `--touch-min` | 44px | 全部 | 触控目标最小尺寸 |
+| `--focus-ring-width` | 2px | css | 焦点环 outline 的粗细 |
+| `--focus-ring-offset` | 2px | css | 焦点环与元素之间的透明间隔（outline-offset），环因此落在底色上 |
 | `--edge-gesture` | 20px | swift | iOS 播放器屏幕边缘不接手势的宽度（pt） |
 | `--bp-sm` | 600px | 只在文档 | 手机 / 平板分界：网格 2 → 3 列 |
 | `--bp-md` | 900px | 只在文档 | 平板 / 桌面分界：网格 3 → 6 列 |
@@ -343,7 +346,7 @@ nagare 的做法让这个陷阱在结构上不会发生：
 | Level 2 | `--bg-elevated` + `--shadow-elevated` | 下拉菜单、提示气泡、浮层面板 |
 | Level 3 | `--bg-elevated` + `--shadow-modal` + `--overlay` 遮罩 | 模态框、确认弹窗 |
 | 顶栏玻璃 | `--glass-nav` + `saturate(160%) blur(16px)`，页面顶部透明、下滚后出现 | 桌面顶栏 |
-| 焦点 | `--shadow-focus` | 所有可交互元素 |
+| 焦点 | 2px `--focus-ring` 实线 outline + 2px 间隔（不是阴影） | 所有可交互元素 |
 
 <!-- gentokens:begin elevation -->
 
@@ -355,7 +358,6 @@ nagare 的做法让这个陷阱在结构上不会发生：
 | `--shadow-popover` | `0 18px 48px -10px rgba(0, 0, 0, 0.7)` | 顶栏弹层 |
 | `--shadow-toast` | `0 24px 64px -20px rgba(0, 0, 0, 0.9)` | 全局提示胶囊 |
 | `--shadow-poster` | `0 24px 56px -20px rgba(0, 0, 0, 0.92)` | 作品页 hero 海报的投影（与海报色无关，无条件） |
-| `--shadow-focus` | `0 0 0 3px var(--focus-ring)` | 键盘焦点，所有可交互元素 |
 
 <!-- gentokens:end elevation -->
 
@@ -374,7 +376,7 @@ nagare 的做法让这个陷阱在结构上不会发生：
 | 圆形图标 | `--bg-fill`，悬停 `--bg-fill-hover` | 图标 `--text-secondary`，悬停白 | 40×40（触屏 44） | 收藏、分享、弹幕开关 |
 | 玻璃·重 / 玻璃·轻 | 只在作品页 hero 上 | | | 见「作品页」 |
 
-- 触屏上所有按钮至少 44px 高；禁用态 `opacity: 0.35` 且不可点；焦点环共用 `--shadow-focus`。
+- 触屏上所有按钮至少 44px 高；禁用态 `opacity: 0.35` 且不可点；焦点环见颜色规则 2。
 - **一页只有一个实心按钮**：作品页是海报色主按钮，其余页面是蓝色主按钮。两个实心按钮会互抢视线。
 
 ### 卡片
@@ -385,7 +387,7 @@ nagare 的做法让这个陷阱在结构上不会发生：
 
 ### 输入
 
-- **文字输入**：`--bg-elevated` 底，`--text` 字，占位符 `--text-tertiary`（这正是它的用途），12px 16px 内边距，`--radius-sm`，1px `--separator-opaque`；聚焦时边框 `--accent` + `--shadow-focus`。字号 16px：iOS 上小于 16px 会触发页面缩放。
+- **文字输入**：`--bg-elevated` 底，`--text` 字，占位符 `--text-tertiary`（这正是它的用途），12px 16px 内边距，`--radius-sm`，1px `--separator-opaque`；聚焦时边框 `--accent` + 焦点环（颜色规则 2）。字号 16px：iOS 上小于 16px 会触发页面缩放。
 - **搜索框**：同上，`--radius-full`，左侧留 44px 给放大镜图标。输入法确认候选的那次 Enter 不提交（`isComposing`，以及先发 compositionend 时的 keyCode 229）。
 - **下拉选择**：同文字输入，右侧箭头 `--text-secondary`；展开的列表用浮层卡样式。
 
@@ -412,7 +414,7 @@ nagare 的做法让这个陷阱在结构上不会发生：
 - 两个会重犯的坑：
   1. **顶栏自己的控件要带 `scroll-margin-top: calc(-1 * var(--nav-h))`**。它们就在 `scroll-padding-top` 标出的那条带子里，不抵消的话，聚焦任何一个都会让页面跳几百像素。脚本里移动焦点另外都加 `preventScroll`。
   2. **`<body>` 用 `overflow-x: clip`，不能用 `hidden`**。`hidden` 会把 body 变成一个滚动容器，所有 `position: sticky`（顶栏首当其冲）都跟着页面滚走。
-- 焦点环外加 `outline: 2px solid transparent; outline-offset: 2px`：平时看不见；Windows 高对比度模式（`forced-colors: active`）去掉所有 box-shadow 时，它是唯一的焦点指示。
+- 顶栏控件的焦点环同样是颜色规则 2 的实线 outline；搜索框的环画在外层胶囊上。高对比度模式下 outline 由系统换成系统色，不需要另外处理。
 
 ### iPhone 底部标签栏
 
@@ -551,7 +553,7 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 - 浮层（`--bg-elevated`）上的彩色字用 `--accent-on-elevated` / `--error-on-elevated`。
 - 用三层底色差（`--bg` → `--bg-card` → `--bg-elevated`）表达层级，而不是堆阴影。
 - 要读的次要文字用 `--text-secondary`。
-- 每个可交互元素都有焦点环，而且永远是那一个蓝色。
+- 每个可交互元素都有焦点环：2px 不透明 `#0a84ff` 实线、2px 间隔，永远是这一个。
 - 所有数字 tabular-nums（集数、时长、体积、评分、进度）。
 - 动画只服务于状态理解；`prefers-reduced-motion` 时停下。
 - 海报色写在使用它的元素自身。
@@ -564,6 +566,7 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 - 不用 `--teal` 做可点击元素。
 - 不拿 `--accent` / `--error` 做实心按钮的底，不把它们写在浮层上。
 - 不拿 `--poster-tone-mid` / `--poster-tone-low` 写字。
+- 焦点环不用半透明光晕，不用海报色，不写 `outline: none`。
 - 不在比 `--poster-hue` 更靠上的选择器上组装 `--poster-tone*`。
 - 卡片圆角不超过 16px（20px 只给大弹窗），封面圆角不超过 12px。
 - 不给 Level 0 / 1 的元素加阴影；不用不透明度低于 0.3 的阴影。
@@ -585,7 +588,7 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 
 ## 待定
 
-1. **焦点环的非文字对比度**。`--focus-ring` 是 40% 不透明的蓝，叠在三层底色上实测约 1.7:1，低于非文字元素的 3:1。自动无障碍扫描不查这一项，不影响 CI 门槛，但键盘用户在暗处看焦点会费劲。候选：焦点环改用不透明的 `--accent`（在三层底色上 ≥ 3.8:1），或加粗到 3px 以上再配一圈深色外环。要在桌面界面重写之前定下来。
+目前没有。
 
 ## 决定记录
 
@@ -605,7 +608,7 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 | 2026-11-01 | iPhone 播放只做横屏全屏；控制条按钮 + 常见手势，每个手势都有等价按钮 | 竖屏半屏不做；手势对辅助技术用户不可用，必须有按钮替代 |
 | 2026-11-01 | 30% 白（`--text-tertiary`）只用于占位符 / 禁用 / 装饰，要读的字用 60% 白；无障碍扫描 serious + critical 为零、不开豁免 | 30% 白在三层底色上都不到 4.5:1（见对比度表）；照常用法写说明就得给扫描开豁免，门槛形同虚设 |
 | 2026-11-01 | 桌面磁力面板改为作品页右侧抽屉（<600px 底部面板） | 作品页在桌面与 iOS 上同构；行为不变 |
-| 2026-11-01 | 焦点环只有一档（`--focus-ring`，0.4），输入框也用它 | 少一个值，少一个选错的机会 |
+| 2026-11-01 | 焦点环是 2px 不透明 `#0a84ff` 实线 outline + 2px 透明间隔，取代 40% 蓝的 3px 光晕；所有元素（含输入框）只用这一个，不随海报色变 | 光晕叠在三层底色上只有约 1.7:1，低于非文字元素的 3:1；实线在三层底色上 5.76 / 4.66 / 3.82:1。outline 在高对比度模式下仍会画出、换成系统色 |
 | 2026-11-01 | 实心按钮的底用深一档的 `-fill`（主按钮 `--accent-fill`、危险按钮 `--error-fill`，各带悬停 / 按下）；`#0a84ff` 只留给链接、焦点、进度 | 白字在 `#0a84ff` 上 3.65:1、在 `#ff453a` 上 3.41:1，过不了 4.5:1；深一档后三态都 ≥ 4.5:1 |
 | 2026-11-01 | 浮层（`--bg-elevated`）上的彩色字用亮一档：蓝字 `--accent-on-elevated`（与悬停同值 `#409cff`），红字 `--error-on-elevated` | `--accent`、`--error` 在浮层上只有 3.82:1、4.09:1 |
 | 2026-11-01 | 「颜色写在哪些底色上」写进 `tokens.json` 的 `contrast`，生成器逐条实算，文字不到 4.5:1、界面元素不到 3:1 就失败 | 对比度从文档里的说法变成会红的检查；新增用法必须先声明 |

@@ -28,7 +28,7 @@ M.color = {
 	accent_fill_hover = { color = "#0274DE", opacity = 1 }, -- 实心主按钮的悬停态（白字 4.61:1）
 	accent_fill_active = { color = "#0066CC", opacity = 1 }, -- 实心主按钮的按下态（白字 5.57:1）
 	accent_dim = { color = "#0A84FF", opacity = 0.12 }, -- 选中项的底、可点击色的轻填充
-	focus_ring = { color = "#0A84FF", opacity = 0.4 }, -- 焦点环（3px box-shadow），所有可交互元素共用这一个
+	focus_ring = { color = "#0A84FF", opacity = 1 }, -- 焦点环：不透明的实线 outline，所有可交互元素共用这一个，不随海报色变
 	teal = { color = "#5AC8FA", opacity = 1 }, -- 只读信息：信息标签、弹幕分区、只读高亮；不可点击
 	teal_dim = { color = "#5AC8FA", opacity = 0.1 }, -- teal 的底色填充
 	text = { color = "#FFFFFF", opacity = 1 }, -- 主文字

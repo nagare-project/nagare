@@ -24,7 +24,7 @@
   --accent-fill-hover: #0274de; /* 实心主按钮的悬停态（白字 4.61:1） */
   --accent-fill-active: #0066cc; /* 实心主按钮的按下态（白字 5.57:1） */
   --accent-dim: rgba(10, 132, 255, 0.12); /* 选中项的底、可点击色的轻填充 */
-  --focus-ring: rgba(10, 132, 255, 0.4); /* 焦点环（3px box-shadow），所有可交互元素共用这一个 */
+  --focus-ring: #0a84ff; /* 焦点环：不透明的实线 outline，所有可交互元素共用这一个，不随海报色变 */
   --teal: #5ac8fa; /* 只读信息：信息标签、弹幕分区、只读高亮；不可点击 */
   --teal-dim: rgba(90, 200, 250, 0.1); /* teal 的底色填充 */
   --text: #ffffff; /* 主文字 */
@@ -142,7 +142,6 @@
   --shadow-popover: 0 18px 48px -10px rgba(0, 0, 0, 0.7); /* 顶栏弹层 */
   --shadow-toast: 0 24px 64px -20px rgba(0, 0, 0, 0.9); /* 全局提示胶囊 */
   --shadow-poster: 0 24px 56px -20px rgba(0, 0, 0, 0.92); /* 作品页 hero 海报的投影（与海报色无关，无条件） */
-  --shadow-focus: 0 0 0 3px var(--focus-ring); /* 键盘焦点，所有可交互元素 */
 
   /* ---- 布局（断点用不了自定义属性，只写在 DESIGN.md 里） ---- */
   --nav-h: 64px; /* 顶栏高度（≥1024px） */
@@ -150,4 +149,6 @@
   --content-max: 1400px; /* 内容最大宽度 */
   --gutter: 24px; /* 内容两侧留白 */
   --touch-min: 44px; /* 触控目标最小尺寸 */
+  --focus-ring-width: 2px; /* 焦点环 outline 的粗细 */
+  --focus-ring-offset: 2px; /* 焦点环与元素之间的透明间隔（outline-offset），环因此落在底色上 */
 }
