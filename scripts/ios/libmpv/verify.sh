@@ -225,6 +225,11 @@ sim() {
   with_timeout 120 xcrun simctl spawn "$SIM_UDID" "$TMP/sim_test-$arch" "$@" > "$logf" 2>&1
   local rc=$?
   set -e
+  echo "(sim_test 退出码 $rc)" >> "$logf"
+  # 崩了的话把系统写的崩溃报告也收进来（CI 失败时随验证现场上传）
+  if [ $rc -ne 0 ] && [ $rc -ne 3 ] && [ $rc -ne 77 ]; then
+    find "$HOME/Library/Logs/DiagnosticReports" -name 'sim_test*' -newer "$TMP/port" -exec cp {} "$TMP/" \; 2>/dev/null || true
+  fi
   return $rc
 }
 slog() { echo "$TMP/sim-$1-$2.log"; }
