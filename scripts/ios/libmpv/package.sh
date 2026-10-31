@@ -84,18 +84,28 @@ framework() {
   log "${target}：链接 Libmpv.framework（mpv ${version}，client API ${api}）"
   # -force_load 把 libmpv.a 整个拉进来（只导出 mpv_*，否则链接器不会去静态库里取任何东西），
   # 其余静态库按需取；-dead_strip 去掉从 mpv_* 走不到的代码。C++ 的依赖（libplacebo、zimg、uchardet、
-  # harfbuzz）要 libc++。
+  # harfbuzz）要 libc++。mpv 的 meson 没把 iOS 专属代码用到的 framework 写进 mpv.pc（ios-gl 的
+  # EAGLContext / CVOpenGLESTextureCache、AudioUnit 输出的 AVAudioSession），这里补上；
+  # -dead_strip_dylibs 把实际没用到的 framework 去掉，不留多余的装载命令。
   # shellcheck disable=SC2046,SC2086 # arch_flags 与 pkg-config 的输出故意按空白拆开
   if ! clang -dynamiclib $(arch_flags "$target") \
     -install_name @rpath/Libmpv.framework/Libmpv \
     -compatibility_version 1.0.0 -current_version "$api" \
-    -Wl,-exported_symbols_list,"$out/exports.txt" -Wl,-dead_strip \
+    -Wl,-exported_symbols_list,"$out/exports.txt" -Wl,-dead_strip -Wl,-dead_strip_dylibs \
+    -Wl,-no_warn_duplicate_libraries \
     -Wl,-force_load,"$prefix/lib/libmpv.a" $libs -lc++ \
+    -framework OpenGLES -framework CoreVideo -framework CoreMedia -framework AVFoundation \
+    -framework AudioToolbox -framework Foundation -framework CoreFoundation \
     -o "$fw/Libmpv" > "$out/info/$target/link.log" 2>&1; then
     cat "$out/info/$target/link.log" >&2
     die "${target}：链接失败"
   fi
-  if [ -s "$out/info/$target/link.log" ]; then sed 's/^/  ld | /' "$out/info/$target/link.log" >&2; fi
+  # nasm 汇编出的目标文件（x86_64 模拟器的 dav1d / FFmpeg / libjpeg-turbo 的 SIMD）不带平台信息，链接器
+  # 逐个警告「按 iOS-simulator 处理」—— 这是对的，只报个数；其余输出原样打出来
+  local nasm_objs
+  nasm_objs=$(grep -c 'no platform load command found' "$out/info/$target/link.log" || true)
+  grep -v 'no platform load command found' "$out/info/$target/link.log" | sed 's/^/  ld | /' >&2 || true
+  if [ "$nasm_objs" -gt 0 ]; then log "${target}：${nasm_objs} 个 nasm 目标文件没有平台信息，链接器按本切片的平台处理"; fi
   # 有目标文件的平台或最低版本与这个切片不一致（某个组件没按 iOS 的参数编）：链接器只警告，这里当错误
   if grep -E -i 'built for|was built for newer|building for .* but linking' "$out/info/$target/link.log" >&2; then
     die "${target}：有目标文件不是按这个切片的平台 / 部署目标编的"
