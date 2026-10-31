@@ -86,7 +86,7 @@ func TestBackgroundModeViewDefaultsToNone(t *testing.T) {
 
 // 桌面窗口：background.mode 是 window（界面在窗口里说「关闭窗口」），其余字段与以前一样。
 func TestSettingsBackgroundModeForDesktopWindow(t *testing.T) {
-	env := newEnvDeps(t, false, func(d *Deps) {
+	env := newEnvDeps(t, func(d *Deps) {
 		d.BackgroundMode = "window"
 		d.EmbeddedMPV = true
 	})
@@ -153,7 +153,7 @@ func TestMPVDetectWithoutRuntime(t *testing.T) {
 // 桌面窗口（EmbeddedMPV）：播放用进程内 libmpv，命令行 mpv 找不找得到都报已就绪、带 embedded，
 // 不给安装指引 —— 引导、媒体库的红点与横幅都只认 found。
 func TestSettingsEmbeddedMPV(t *testing.T) {
-	env := newEnvDeps(t, true, func(d *Deps) { d.EmbeddedMPV = true })
+	env := newEnvDeps(t, func(d *Deps) { d.EmbeddedMPV = true })
 	env.mpvDetect = func(string) (mpv.Info, error) { return mpv.Info{}, errors.New("未找到 mpv") }
 	rec := env.do(t, http.MethodPost, "/api/mpv/detect", "")
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -176,7 +176,7 @@ func TestSettingsEmbeddedMPV(t *testing.T) {
 
 // 桌面窗口 + 探测到 .app 内置的命令行 mpv：照旧报 embedded，另在 cli 里给出缩略图用的那个 mpv。
 func TestSettingsEmbeddedMPVWithBundledCLI(t *testing.T) {
-	env := newEnvDeps(t, true, func(d *Deps) { d.EmbeddedMPV = true })
+	env := newEnvDeps(t, func(d *Deps) { d.EmbeddedMPV = true })
 	env.mpvDetect = func(string) (mpv.Info, error) {
 		return mpv.Info{Path: "/Applications/Nagare.app/Contents/MacOS/mpv", Version: "0.41.0", Source: mpv.SourceBundled}, nil
 	}
@@ -197,14 +197,14 @@ func TestSettingsEmbeddedMPVWithBundledCLI(t *testing.T) {
 func TestSettingsDesktopView(t *testing.T) {
 	assert.Equal(t, DesktopView{}, getSettings(t, newEnv(t)).Desktop)
 
-	env := newEnvDeps(t, true, func(d *Deps) {
+	env := newEnvDeps(t, func(d *Deps) {
 		d.Desktop = func() DesktopView { return DesktopView{Fallback: "这台电脑上没有可用的 WebView2 运行时"} }
 	})
 	s := getSettings(t, env)
 	assert.False(t, s.Desktop.Window)
 	assert.Equal(t, "这台电脑上没有可用的 WebView2 运行时", s.Desktop.Fallback)
 
-	on := newEnvDeps(t, true, func(d *Deps) { d.Desktop = func() DesktopView { return DesktopView{Window: true} } })
+	on := newEnvDeps(t, func(d *Deps) { d.Desktop = func() DesktopView { return DesktopView{Window: true} } })
 	assert.True(t, getSettings(t, on).Desktop.Window)
 }
 

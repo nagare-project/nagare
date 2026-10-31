@@ -4,7 +4,8 @@
 // 界面在请求在途期间并行轮询 GET /api/torrent/status 显示分阶段进展与实时
 // peer/速度，并可随时 POST /api/torrent/stop 取消 —— 这样「响应即结果」的
 // 简单语义与「等待可观测」两件事都拿到，不必引入异步任务状态机。
-package api
+
+package sources
 
 import (
 	"context"

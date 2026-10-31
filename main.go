@@ -24,6 +24,7 @@ import (
 
 	"github.com/nagare-project/nagare/internal/animego"
 	"github.com/nagare-project/nagare/internal/api"
+	"github.com/nagare-project/nagare/internal/api/sources"
 	"github.com/nagare-project/nagare/internal/artcache"
 	"github.com/nagare-project/nagare/internal/config"
 	"github.com/nagare-project/nagare/internal/desktop"
@@ -82,9 +83,9 @@ type services struct {
 	lib            *api.LibraryService
 	// identify 在后台给媒体库里还没认出作品的分组补上作品与封面（随 run 的 ctx 起停）。
 	identify *api.Identifier
-	sources  *api.SourcesService
+	sources  *sources.SourcesService
 	// sourcePlugin 始终存在；未配置时保持 disabled，不启动任何子进程。
-	sourcePlugin *api.SourcePluginService
+	sourcePlugin *sources.SourcePluginService
 	// torrent 为 nil 表示磁力引擎启动失败：其余功能照常，磁力端点整体返回 503，
 	// 设置页据此显示降级原因（决议 CQ3：降级必须可见）。
 	torrent         *torrentstream.Engine
@@ -405,14 +406,14 @@ func buildServices(configDir string, window bool) (*services, error) {
 	// 磁力下载：没有没下完的任务就不起 BT client；有的话接着下。下完的进媒体库。
 	// 测试构建的 NAGARE_TEST_NO_TORRENT 同样不建它：手动检查里点「下载」也不能在用户的电脑上开 BT 监听、要 UPnP
 	// （下载端点照常答 503「磁力下载未启用」，日志写明原因）。
-	defaultDownloadDir := api.DefaultDownloadDir(configDir)
+	defaultDownloadDir := sources.DefaultDownloadDir(configDir)
 	var downloads *torrentstream.Downloader
 	if torrentDisabledForTest() {
 		log.Print("（测试构建）不起磁力下载：NAGARE_TEST_NO_TORRENT=1")
 	} else {
 		downloads = torrentstream.NewDownloader(torrentstream.DownloaderOptions{
 			Store: st,
-			Root:  func() string { return api.DownloadDir(st.TorrentConfig(), defaultDownloadDir) },
+			Root:  func() string { return sources.DownloadDir(st.TorrentConfig(), defaultDownloadDir) },
 			Trackers: func() []string {
 				c := st.TorrentConfig()
 				return torrentstream.EffectiveTrackers(!c.DisableDefaultTrackers, c.Trackers)
@@ -425,11 +426,11 @@ func buildServices(configDir string, window bool) (*services, error) {
 
 	// 磁力源规则：零内置，规则目录空就是空；来源由用户在设置里指定（A3 / 红线 1）。
 	sourceClient := &http.Client{Timeout: 20 * time.Second}
-	sources := api.NewSourcesService(st,
+	ruleSources := sources.NewSourcesService(st,
 		&rules.Fetcher{Client: sourceClient, UserAgent: "nagare/" + version},
 		&rulesync.Syncer{Client: sourceClient, UserAgent: "nagare/" + version},
 		filepath.Join(configDir, "rules"))
-	if n, loadErrs := sources.Load(); n > 0 || len(loadErrs) > 0 {
+	if n, loadErrs := ruleSources.Load(); n > 0 || len(loadErrs) > 0 {
 		log.Printf("磁力源规则：%d 条已加载，%d 个文件有问题", n, len(loadErrs))
 		for _, e := range loadErrs {
 			log.Printf("  规则错误：%s", e)
@@ -438,7 +439,7 @@ func buildServices(configDir string, window bool) (*services, error) {
 
 	// 统一来源插件同样默认关闭。只有 state.json 中保存了用户显式启用的
 	// 绝对路径才会启动；失败只降级插件，不影响本地库与原有磁力规则。
-	pluginService := api.NewSourcePluginService(st, sourceplugin.NewManager(), version)
+	pluginService := sources.NewSourcePluginService(st, sourceplugin.NewManager(), version)
 	// 安装包捆绑的插件（引擎 + 只含 BT 规则）：首次运行自动采用，之后照用户配置。
 	if exeDir, err := nagareExecutableDir(); err == nil {
 		bundled, ok := sourceplugin.DetectBundled(exeDir)
@@ -452,7 +453,7 @@ func buildServices(configDir string, window bool) (*services, error) {
 	}
 
 	return &services{
-		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, identify: identify, sources: sources, sourcePlugin: pluginService,
+		store: st, mpv: mpvRT, auth: client, lists: client, player: mgr, lib: lib, identify: identify, sources: ruleSources, sourcePlugin: pluginService,
 		torrent: engine, torrentCacheDir: cacheDir, streamBase: streamBase,
 		downloads: downloads, defaultDownloadDir: defaultDownloadDir,
 		selfUpdate: su, episodeSpaces: spaces, embeddedMPV: inProcess, window: window,
@@ -497,9 +498,9 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 
 	window := svc.window
 	mode := backgroundMode(f.noTray, apiOnly, window)
-	apiHandler, updater := buildHandlers(configDir, svc, cancel, mode)
+	apiHandler, sourcesHandler, updater := buildHandlers(configDir, svc, cancel, mode)
 
-	srv, ln, port, err := listenAndBuild(cfg, configDir, webFS, apiHandler, updater, windowShower(window))
+	srv, ln, port, err := listenAndBuild(cfg, configDir, webFS, apiHandler, sourcesHandler, updater, windowShower(window))
 	if err != nil {
 		return err
 	}
@@ -606,11 +607,29 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	return nil
 }
 
-// buildHandlers 构造业务处理器与更新检查器。
+// buildHandlers 构造业务处理器（api 与磁力 / 来源插件 / 规则的 api/sources）与更新检查器。
 //
 // 更新检查构造失败不阻断启动 —— 播放是主线功能，少一个「有新版本」提示
 // 不该让用户打不开 nagare；此时返回的 updater 为 nil，端点自然缺席。
-func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, mode tray.Mode) (*api.Handler, *update.Checker) {
+func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, mode tray.Mode) (*api.Handler, *sources.Handler, *update.Checker) {
+	sourceDeps := sources.Deps{
+		Store:           svc.store,
+		Player:          svc.player,
+		Sources:         svc.sources,
+		SourcePlugin:    svc.sourcePlugin,
+		TorrentCacheDir: svc.torrentCacheDir,
+
+		DefaultDownloadDir: svc.defaultDownloadDir,
+	}
+	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
+	// 「非 nil 接口包着 nil 指针」，降级判断会失效并在调用时 panic。
+	if svc.torrent != nil {
+		sourceDeps.Torrent = svc.torrent
+	}
+	if svc.downloads != nil {
+		sourceDeps.Downloads = svc.downloads
+	}
+	sh := sources.New(sourceDeps)
 	deps := api.Deps{
 		Store:           svc.store,
 		Lib:             svc.lib,
@@ -624,24 +643,12 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 		EmbeddedMPV:     svc.embeddedMPV,
 		Desktop:         desktopStatus(svc.window, svc.windowFallback),
 		Version:         version,
-		Sources:         svc.sources,
-		SourcePlugin:    svc.sourcePlugin,
+		TorrentSettings: sh.TorrentSettings,
 		Shutdown:        cancel,
 		DataDir:         configDir,
 		LogPath:         logfile.Path(configDir),
 		BackgroundMode:  string(mode),
-		TorrentCacheDir: svc.torrentCacheDir,
 		EpisodeSpaces:   svc.episodeSpaces,
-
-		DefaultDownloadDir: svc.defaultDownloadDir,
-	}
-	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
-	// 「非 nil 接口包着 nil 指针」，降级判断会失效并在调用时 panic。
-	if svc.torrent != nil {
-		deps.Torrent = svc.torrent
-	}
-	if svc.downloads != nil {
-		deps.Downloads = svc.downloads
 	}
 	h := api.New(deps)
 	updater, err := update.New(update.Options{
@@ -665,9 +672,9 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 	})
 	if err != nil {
 		log.Printf("更新检查不可用（不影响其余功能）：%v", err)
-		return h, nil
+		return h, sh, nil
 	}
-	return h, updater
+	return h, sh, updater
 }
 
 // listenAndBuild 挂路由、监听端口、写实例标记，返回可服务的 Server 与 listener。
@@ -679,11 +686,14 @@ func listenAndBuild(
 	configDir string,
 	webFS fs.FS,
 	apiHandler *api.Handler,
+	sourcesHandler *sources.Handler,
 	updater *update.Checker,
 	showWindow httpserver.ShowWindowFunc,
 ) (*httpserver.Server, net.Listener, int, error) {
 	registerAPI := func(mux *http.ServeMux) {
 		apiHandler.Register(mux)
+		// 磁力 / 来源插件 / 规则的端点：只有桌面版注册（internal/api 自己不依赖这些包）
+		sourcesHandler.Register(mux)
 		// 更新检查构造失败时 updater 为 nil，三个端点自然缺席（前端有对应错误态）。
 		if updater != nil {
 			updater.Register(mux)

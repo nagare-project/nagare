@@ -212,7 +212,7 @@ type MediaSource interface {
 | `internal/mpv/launch.go` | 媒体路径是 HTTP 地址时跳过存在性预检 |
 | `internal/library/hash.go` | `Hash16M` 改为可接受 `io.Reader` |
 | `internal/httpserver/capability.go` | 流端点从占位改为转发给注册的处理器 |
-| `internal/api/torrent.go` | 新增：播放 / 停止 / 状态 / 清缓存端点 |
+| `internal/api/torrent.go`（现在在 `internal/api/sources/torrent.go`） | 新增：播放 / 停止 / 状态 / 清缓存端点 |
 | `internal/api/handlers.go` | 注册路由；设置载荷增加 torrent 配置与缓存占用 |
 | `internal/store/store.go` | 新增 torrent 配置项 |
 | `internal/errors/errors.go` | 新增磁力相关失败分类 |
