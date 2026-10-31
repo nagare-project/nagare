@@ -613,24 +613,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 // 更新检查构造失败不阻断启动 —— 播放是主线功能，少一个「有新版本」提示
 // 不该让用户打不开 nagare；此时返回的 updater 为 nil，端点自然缺席。
 func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, mode tray.Mode) (*api.Handler, *sources.Handler, *update.Checker) {
-	sourceDeps := sources.Deps{
-		Store:           svc.store,
-		Player:          svc.player,
-		Sources:         svc.sources,
-		SourcePlugin:    svc.sourcePlugin,
-		TorrentCacheDir: svc.torrentCacheDir,
-
-		DefaultDownloadDir: svc.defaultDownloadDir,
-	}
-	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
-	// 「非 nil 接口包着 nil 指针」，降级判断会失效并在调用时 panic。
-	if svc.torrent != nil {
-		sourceDeps.Torrent = svc.torrent
-	}
-	if svc.downloads != nil {
-		sourceDeps.Downloads = svc.downloads
-	}
-	sh := sources.New(sourceDeps)
+	sh := sources.New(sourcesDeps(svc))
 	deps := api.Deps{
 		Store:           svc.store,
 		Lib:             svc.lib,
@@ -678,6 +661,41 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 	return h, sh, updater
 }
 
+// sourcesDeps 组装磁力 / 来源插件 / 规则端点的依赖。
+func sourcesDeps(svc *services) sources.Deps {
+	deps := sources.Deps{
+		Store:           svc.store,
+		Player:          svc.player,
+		Sources:         svc.sources,
+		SourcePlugin:    svc.sourcePlugin,
+		TorrentCacheDir: svc.torrentCacheDir,
+
+		DefaultDownloadDir: svc.defaultDownloadDir,
+	}
+	// 只在引擎真的建起来时赋值：把一个 nil 的 *Engine 装进接口字段会得到
+	// 「非 nil 接口包着 nil 指针」，降级判断会失效并在调用时 panic。
+	if svc.torrent != nil {
+		deps.Torrent = svc.torrent
+	}
+	if svc.downloads != nil {
+		deps.Downloads = svc.downloads
+	}
+	return deps
+}
+
+// registerRoutes 是挂进 /api/* 鉴权链的全部业务路由：api、磁力 / 来源插件 / 规则（api/sources）、更新检查。
+func registerRoutes(apiHandler *api.Handler, sourcesHandler *sources.Handler, updater *update.Checker) func(*http.ServeMux) {
+	return func(mux *http.ServeMux) {
+		apiHandler.Register(mux)
+		// 磁力 / 来源插件 / 规则的端点：只有桌面版注册（internal/api 自己不依赖这些包）
+		sourcesHandler.Register(mux)
+		// 更新检查构造失败时 updater 为 nil，三个端点自然缺席（前端有对应错误态）。
+		if updater != nil {
+			updater.Register(mux)
+		}
+	}
+}
+
 // listenAndBuild 挂路由、监听端口、写实例标记，返回可服务的 Server 与 listener。
 //
 // 更新端点必须挂在 /api/* 的鉴权链之内（Host 白名单 + token + CSRF 头）；
@@ -691,15 +709,7 @@ func listenAndBuild(
 	updater *update.Checker,
 	showWindow httpserver.ShowWindowFunc,
 ) (*httpserver.Server, net.Listener, int, error) {
-	registerAPI := func(mux *http.ServeMux) {
-		apiHandler.Register(mux)
-		// 磁力 / 来源插件 / 规则的端点：只有桌面版注册（internal/api 自己不依赖这些包）
-		sourcesHandler.Register(mux)
-		// 更新检查构造失败时 updater 为 nil，三个端点自然缺席（前端有对应错误态）。
-		if updater != nil {
-			updater.Register(mux)
-		}
-	}
+	registerAPI := registerRoutes(apiHandler, sourcesHandler, updater)
 
 	ln, port, err := httpserver.Listen(cfg.Port)
 	if err != nil {

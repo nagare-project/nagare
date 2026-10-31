@@ -23,16 +23,12 @@ import (
 
 // fakePlayer 是 PlayerAPI 替身。
 type fakePlayer struct {
-	playRes     player.PlayResult
-	playErr     error
-	lastItem    library.Item
-	lastSub     string
-	lastPath    string
-	lastHeaders map[string]string
-	lastAnilist int
-	lastAlts    []string
-	stopped     bool
-	status      player.Status
+	playRes  player.PlayResult
+	playErr  error
+	lastItem library.Item
+	lastSub  string
+	stopped  bool
+	status   player.Status
 	// playing / refreshErr 决定 RefreshShaders 的结果；refreshes 记调了几次
 	playing    bool
 	refreshErr error
@@ -45,13 +41,6 @@ type fakePlayer struct {
 func (f *fakePlayer) Play(_ context.Context, src player.MediaSource, sub string) (player.PlayResult, error) {
 	f.record("player.play")
 	f.lastItem, f.lastSub = src.Item(), sub
-	if withHeaders, ok := src.(interface{ HTTPHeaders() map[string]string }); ok {
-		f.lastPath = src.MPVPath()
-		f.lastHeaders = withHeaders.HTTPHeaders()
-	}
-	if hinted, ok := src.(interface{ MatchHints() (int, []string) }); ok {
-		f.lastAnilist, f.lastAlts = hinted.MatchHints()
-	}
 	result := f.playRes
 	if result.FileID == "" {
 		result.FileID = f.lastItem.FileID

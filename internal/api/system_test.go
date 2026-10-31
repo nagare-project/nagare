@@ -208,6 +208,32 @@ func TestSettingsDesktopView(t *testing.T) {
 	assert.True(t, getSettings(t, on).Desktop.Window)
 }
 
+// torrent 一项来自 Deps.TorrentSettings（桌面版接 api/sources）：接了就原样放进载荷，没接（不带磁力的构建）就不出这一项。
+func TestSettingsTorrentItemComesFromHook(t *testing.T) {
+	settingsKeys := func(env *testEnv) map[string]json.RawMessage {
+		t.Helper()
+		rec := env.do(t, http.MethodGet, "/api/settings", "")
+		require.Equal(t, http.StatusOK, rec.Code)
+		var keys map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(decode(t, rec).Data, &keys))
+		return keys
+	}
+
+	without := settingsKeys(newEnv(t))
+	assert.NotContains(t, without, "torrent")
+	assert.Contains(t, without, "mpv", "其余各项照常")
+
+	calls := 0
+	with := settingsKeys(newEnvDeps(t, func(d *Deps) {
+		d.TorrentSettings = func() map[string]any {
+			calls++
+			return map[string]any{"enabled": true, "cacheDir": "/data/nagare/cache/torrent"}
+		}
+	}))
+	assert.JSONEq(t, `{"enabled":true,"cacheDir":"/data/nagare/cache/torrent"}`, string(with["torrent"]))
+	assert.Equal(t, 1, calls, "每次请求现取一次（重启提示、缓存占用都是实时的）")
+}
+
 // 不是桌面窗口时照旧：没有 embedded 字段，找不到就给安装指引。
 func TestSettingsCommandLineMPVUnchanged(t *testing.T) {
 	env := newEnv(t)
