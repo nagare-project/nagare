@@ -165,6 +165,7 @@ func TestValidation(t *testing.T) {
 		{"不认识的文字样式", `"iosTextStyle": "body"`, `"iosTextStyle": "huge"`, "文字样式"},
 		{"字重", `"weight": 400`, `"weight": 450`, "整百"},
 		{"对比度引用", `"foregrounds": ["text"]`, `"foregrounds": ["missing"]`, "不在 colors 里"},
+		{"阴影截断样式表", `"version": 1,`, `"version": 1, "shadows": [{ "name": "x", "value": "0 0 1px red; } body {", "use": "坏" }],`, "不能含"},
 		{"多余内容", `"backgrounds": ["bg"] }
 }`, `"backgrounds": ["bg"] }
 } {}`, "之后还有内容"},

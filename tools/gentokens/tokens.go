@@ -159,8 +159,9 @@ func (f *tokenFile) validate() error {
 	}
 	for _, s := range f.Shadows {
 		v.common("shadows", s.Name, s.Use, "shadow-"+s.Name)
-		if strings.TrimSpace(s.Value) == "" {
-			v.fail("shadows.%s: value 不能为空", s.Name)
+		// 原样写进 CSS 声明：分号、花括号、注释结束符会把样式表截断
+		if strings.TrimSpace(s.Value) == "" || strings.ContainsAny(s.Value, ";{}\n") || strings.Contains(s.Value, "*/") {
+			v.fail("shadows.%s: value 不能为空，也不能含 ; { } */ 或换行", s.Name)
 		}
 	}
 	v.contrast(f)
