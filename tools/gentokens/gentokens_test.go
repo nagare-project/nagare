@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"os"
 	"path"
@@ -56,24 +57,53 @@ func TestRepoOutputsUpToDate(t *testing.T) {
 	}
 }
 
-// 文字色规则（DESIGN.md 颜色规则 5）：要读的文字色在三层底色上都要达到 4.5:1；
-// 最淡两档不达标，所以只许用于占位符、禁用、装饰。哪天它们达标了，DESIGN.md 的说法要跟着改。
-func TestTextColorContrastRule(t *testing.T) {
-	f, err := decodeTokens(readFile(t, filepath.Join(repoRoot, tokensPath)))
-	require.NoError(t, err)
+// tokens.json 里声明的每一条对比度配对都要达标：要读的文字 ≥ 4.5:1，非文字界面元素 ≥ 3:1；
+// restricted（占位符 / 禁用 / 换底色就该换 token）本来就不达标，达标了说明限制过时。
+// 生成器的校验也会拦，这里不经过校验、直接从原始 JSON 再算一遍，校验被改坏时这条仍然会红。
+func TestDeclaredContrastPairs(t *testing.T) {
+	var f tokenFile
+	require.NoError(t, json.Unmarshal(readFile(t, filepath.Join(repoRoot, tokensPath)), &f))
 	colors := map[string]rgba{}
 	for _, c := range f.Colors {
-		colors[c.Name] = c.rgba
+		parsed, err := parseColor(c.Value)
+		require.NoError(t, err, c.Name)
+		colors[c.Name] = parsed
 	}
+	ratio := func(fg, bg string) float64 {
+		require.Contains(t, colors, fg)
+		require.Contains(t, colors, bg)
+		return contrastRatio(colors[fg], colors[bg])
+	}
+	declared := map[string]bool{} // "kind fg bg"
+	for _, r := range f.Contrast.Text {
+		for _, bg := range r.On {
+			declared["text "+r.FG+" "+bg] = true
+			assert.GreaterOrEqual(t, ratio(r.FG, bg), 4.5, "文字 %s 在 %s 上", r.FG, bg)
+		}
+	}
+	for _, r := range f.Contrast.UI {
+		for _, bg := range r.On {
+			declared["ui "+r.FG+" "+bg] = true
+			assert.GreaterOrEqual(t, ratio(r.FG, bg), 3.0, "界面元素 %s 在 %s 上", r.FG, bg)
+		}
+	}
+	for _, r := range f.Contrast.Restricted {
+		for _, bg := range r.On {
+			declared["restricted "+r.FG+" "+bg] = true
+			assert.Less(t, ratio(r.FG, bg), 4.5, "%s 在 %s 上已经达标：限制过时，改 DESIGN.md", r.FG, bg)
+		}
+	}
+
+	// DESIGN.md 颜色规则依赖的配对必须声明着（删掉一条，上面的检查就管不到它了）
 	for _, bg := range []string{"bg", "bg-card", "bg-elevated"} {
-		for _, fg := range []string{"text", "text-secondary", "nav-link"} {
-			assert.GreaterOrEqual(t, contrastRatio(colors[fg], colors[bg]), 4.5, "%s 在 %s 上", fg, bg)
-		}
-		for _, fg := range []string{"text-tertiary", "text-quaternary"} {
-			assert.Less(t, contrastRatio(colors[fg], colors[bg]), 4.5,
-				"%s 在 %s 上已经达标：DESIGN.md 颜色规则 5 的说法要改", fg, bg)
-		}
+		assert.True(t, declared["text text-secondary "+bg], "text-secondary 在 %s 上", bg)
+		assert.True(t, declared["restricted text-tertiary "+bg], "text-tertiary 在 %s 上", bg)
 	}
+	for _, bg := range []string{"accent-fill", "accent-fill-hover", "accent-fill-active", "error-fill", "error-fill-hover", "error-fill-active"} {
+		assert.True(t, declared["text text "+bg], "实心按钮的白字在 %s 上", bg)
+	}
+	assert.True(t, declared["text accent-on-elevated bg-elevated"])
+	assert.True(t, declared["text error-on-elevated bg-elevated"])
 }
 
 // 公开仓库里的设计文档与 token 不出现其他产品的品牌名。
@@ -138,7 +168,10 @@ const minimalTokens = `{
   ],
   "type": [{ "name": "body", "size": 16, "weight": 400, "tracking": 0, "iosTextStyle": "body", "use": "正文" }],
   "spacing": [{ "name": "sm", "value": 8, "use": "间距" }],
-  "contrast": { "foregrounds": ["text"], "backgrounds": ["bg"] }
+  "contrast": {
+    "text": [{ "fg": "text", "on": ["bg"], "use": "正文" }],
+    "restricted": [{ "fg": "bg", "on": ["bg"], "use": "黑在黑上" }]
+  }
 }`
 
 func TestValidation(t *testing.T) {
@@ -164,10 +197,18 @@ func TestValidation(t *testing.T) {
 		{"缺 iOS 文字样式", `, "iosTextStyle": "body"`, ``, "iosTextStyle"},
 		{"不认识的文字样式", `"iosTextStyle": "body"`, `"iosTextStyle": "huge"`, "文字样式"},
 		{"字重", `"weight": 400`, `"weight": 450`, "整百"},
-		{"对比度引用", `"foregrounds": ["text"]`, `"foregrounds": ["missing"]`, "不在 colors 里"},
+		{"对比度引用", `"fg": "text", "on": ["bg"]`, `"fg": "missing", "on": ["bg"]`, "不在 colors 里"},
+		{"对比度底色缺失", `"fg": "text", "on": ["bg"]`, `"fg": "text", "on": ["nope"]`, "不在 colors 里"},
+		{"对比度没有底色", `"fg": "text", "on": ["bg"]`, `"fg": "text", "on": []`, "至少要有一种底色"},
+		{"文字不到 4.5", `"fg": "text", "on": ["bg"]`, `"fg": "bg", "on": ["bg"]`, "要 ≥ 4.5:1"},
+		{"界面元素不到 3", `"restricted": [`, `"ui": [{ "fg": "bg", "on": ["bg"], "use": "色块" }], "restricted": [`, "要 ≥ 3:1"},
+		{"限制已过时", `"fg": "bg", "on": ["bg"], "use": "黑在黑上"`, `"fg": "text", "on": ["bg"], "use": "白在黑上"`, "限制过时了"},
+		{"use 里的对比度与实算不符", `"use": "文字" }`, `"use": "文字（20.00:1）" }`, "实算出这个值"},
 		{"阴影截断样式表", `"version": 1,`, `"version": 1, "shadows": [{ "name": "x", "value": "0 0 1px red; } body {", "use": "坏" }],`, "不能含"},
-		{"多余内容", `"backgrounds": ["bg"] }
-}`, `"backgrounds": ["bg"] }
+		{"多余内容", `"use": "黑在黑上" }]
+  }
+}`, `"use": "黑在黑上" }]
+  }
 } {}`, "之后还有内容"},
 	}
 	for _, tc := range cases {

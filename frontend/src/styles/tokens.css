@@ -17,9 +17,12 @@
   --hairline: rgba(255, 255, 255, 0.07); /* 列表行之间的发丝线、顶栏玻璃底边 */
   --row-hover: rgba(255, 255, 255, 0.045); /* 列表行悬停时浮起的面 */
   --overlay: rgba(0, 0, 0, 0.6); /* 模态遮罩 */
-  --accent: #0a84ff; /* 唯一可点击色：按钮、链接、进度条、选中态 */
-  --accent-hover: #409cff; /* 可点击色的悬停态 */
-  --accent-active: #0070d6; /* 可点击色的按下态 */
+  --accent: #0a84ff; /* 可点击色：链接、焦点环、进度条、选中态；实心按钮的底改用 accent-fill，浮层上的蓝字改用 accent-on-elevated */
+  --accent-hover: #409cff; /* 链接与蓝字的悬停态 */
+  --accent-on-elevated: #409cff; /* 浮层（bg-elevated：弹窗、菜单、弹层）上的蓝字与链接（4.92:1） */
+  --accent-fill: #0070d6; /* 实心主按钮的底（白字 4.90:1） */
+  --accent-fill-hover: #0274de; /* 实心主按钮的悬停态（白字 4.61:1） */
+  --accent-fill-active: #0066cc; /* 实心主按钮的按下态（白字 5.57:1） */
   --accent-dim: rgba(10, 132, 255, 0.12); /* 选中项的底、可点击色的轻填充 */
   --focus-ring: rgba(10, 132, 255, 0.4); /* 焦点环（3px box-shadow），所有可交互元素共用这一个 */
   --teal: #5ac8fa; /* 只读信息：信息标签、弹幕分区、只读高亮；不可点击 */
@@ -33,8 +36,11 @@
   --success-dim: rgba(48, 209, 88, 0.12); /* 成功徽标的底 */
   --warning: #ff9f0a; /* 连载中、待确认、需要注意 */
   --warning-dim: rgba(255, 159, 10, 0.12); /* 警示徽标的底 */
-  --error: #ff453a; /* 错误、删除确认、危险按钮 */
-  --error-hover: #ff6961; /* 危险按钮的悬停态、提示里的失败图标 */
+  --error: #ff453a; /* 错误文字与图标；危险按钮的底改用 error-fill，浮层上的红字改用 error-on-elevated */
+  --error-on-elevated: #ff6961; /* 浮层上的红字、全局提示里的失败图标（4.94:1） */
+  --error-fill: #d63027; /* 危险按钮的底（白字 4.87:1） */
+  --error-fill-hover: #dc332a; /* 危险按钮的悬停态（白字 4.62:1） */
+  --error-fill-active: #c8281f; /* 危险按钮的按下态（白字 5.56:1） */
   --error-dim: rgba(255, 69, 58, 0.12); /* 错误徽标的底 */
   --info: #5ac8fa; /* 信息提示（与 teal 同值） */
   --glass-nav: rgba(9, 9, 11, 0.78); /* 顶栏毛玻璃（配 saturate(160%) blur(16px)） */

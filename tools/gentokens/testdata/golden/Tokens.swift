@@ -15,8 +15,10 @@ enum NagareUIColor {
     static var bg: UIColor { .systemBackground }
     /// 次要文字 · rgba(235, 235, 245, 0.6)
     static var textSecondary: UIColor { .secondaryLabel }
-    /// 可点击 · #0a84ff
+    /// 可点击（在 bg 上 5.76:1，写进 use 的对比度要与实算一致） · #0a84ff
     static var accent: UIColor { .systemBlue }
+    /// 占位符 · rgba(235, 235, 245, 0.3)
+    static var textTertiary: UIColor { .tertiaryLabel }
     /// 只读信息，固定值 · #5ac8fa
     static var teal: UIColor { UIColor(red: 90.0 / 255, green: 200.0 / 255, blue: 250.0 / 255, alpha: 1) }
 }
@@ -26,6 +28,7 @@ enum NagareColor {
     static let bg = Color(NagareUIColor.bg)
     static let textSecondary = Color(NagareUIColor.textSecondary)
     static let accent = Color(NagareUIColor.accent)
+    static let textTertiary = Color(NagareUIColor.textTertiary)
     static let teal = Color(NagareUIColor.teal)
 }
 

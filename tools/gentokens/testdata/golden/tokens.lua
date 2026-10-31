@@ -13,7 +13,8 @@ local M = {}
 M.color = {
 	bg = { color = "#000000", opacity = 1 }, -- 页面底色
 	text_secondary = { color = "#EBEBF5", opacity = 0.6 }, -- 次要文字
-	accent = { color = "#0A84FF", opacity = 1 }, -- 可点击
+	accent = { color = "#0A84FF", opacity = 1 }, -- 可点击（在 bg 上 5.76:1，写进 use 的对比度要与实算一致）
+	text_tertiary = { color = "#EBEBF5", opacity = 0.3 }, -- 占位符
 	teal = { color = "#5AC8FA", opacity = 1 }, -- 只读信息，固定值
 }
 

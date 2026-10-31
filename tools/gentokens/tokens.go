@@ -86,18 +86,6 @@ type shadow struct {
 	Use   string `json:"use"`
 }
 
-type contrastSpec struct {
-	Foregrounds []string       `json:"foregrounds"`
-	Backgrounds []string       `json:"backgrounds"`
-	Pairs       []contrastPair `json:"pairs"`
-}
-
-type contrastPair struct {
-	FG  string `json:"fg"`
-	BG  string `json:"bg"`
-	Use string `json:"use"`
-}
-
 // 输出目标
 const (
 	targetCSS   = "css"
@@ -310,30 +298,6 @@ func (v *validator) easing(e easing) {
 	}
 	if e.Value[0] < 0 || e.Value[0] > 1 || e.Value[2] < 0 || e.Value[2] > 1 {
 		v.fail("easings.%s: 两个控制点的 x 要在 0 与 1 之间", e.Name)
-	}
-}
-
-func (v *validator) contrast(f *tokenFile) {
-	check := func(where, name string) {
-		if _, ok := v.colors[name]; !ok {
-			v.fail("contrast.%s: 颜色 %q 不在 colors 里", where, name)
-		}
-	}
-	for _, n := range f.Contrast.Foregrounds {
-		check("foregrounds", n)
-	}
-	for _, n := range f.Contrast.Backgrounds {
-		check("backgrounds", n)
-		if c, ok := v.colors[n]; ok && c.A != 1 {
-			v.fail("contrast.backgrounds: %q 是半透明的，算不出对比度", n)
-		}
-	}
-	for _, p := range f.Contrast.Pairs {
-		check("pairs", p.FG)
-		check("pairs", p.BG)
-		if c, ok := v.colors[p.BG]; ok && c.A != 1 {
-			v.fail("contrast.pairs: 底色 %q 是半透明的，算不出对比度", p.BG)
-		}
 	}
 }
 

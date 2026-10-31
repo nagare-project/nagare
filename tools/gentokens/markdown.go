@@ -117,43 +117,6 @@ func mdPosterTones(f *tokenFile) string {
 	return table([]string{"Token", "OKLCH（h = 封面色相）", "没有色相时", "写字", "用途"}, rows)
 }
 
-func mdContrast(f *tokenFile) string {
-	colors := map[string]rgba{}
-	for _, c := range f.Colors {
-		colors[c.Name] = c.rgba
-	}
-	header := []string{"文字色"}
-	for _, bg := range f.Contrast.Backgrounds {
-		header = append(header, "在 "+code(bg)+" 上")
-	}
-	var rows [][]string
-	for _, fg := range f.Contrast.Foregrounds {
-		row := []string{code(fg)}
-		for _, bg := range f.Contrast.Backgrounds {
-			row = append(row, ratioCell(contrastRatio(colors[fg], colors[bg])))
-		}
-		rows = append(rows, row)
-	}
-	out := table(header, rows)
-	if len(f.Contrast.Pairs) == 0 {
-		return out
-	}
-	rows = nil
-	for _, p := range f.Contrast.Pairs {
-		rows = append(rows, []string{code(p.FG), code(p.BG), ratioCell(contrastRatio(colors[p.FG], colors[p.BG])), p.Use})
-	}
-	return out + "\n" + table([]string{"文字色", "底色", "对比度", "场景"}, rows)
-}
-
-// ratioCell：对比度保留两位小数，按 WCAG AA 正文 4.5:1 标出是否达标。
-func ratioCell(r float64) string {
-	mark := "✓"
-	if r < 4.5 {
-		mark = "✗"
-	}
-	return fmt.Sprintf("%.2f:1 %s", r, mark)
-}
-
 func mdFonts(f *tokenFile) string {
 	var rows [][]string
 	for _, t := range f.Fonts {

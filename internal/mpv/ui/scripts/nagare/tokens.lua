@@ -21,9 +21,12 @@ M.color = {
 	hairline = { color = "#FFFFFF", opacity = 0.07 }, -- 列表行之间的发丝线、顶栏玻璃底边
 	row_hover = { color = "#FFFFFF", opacity = 0.045 }, -- 列表行悬停时浮起的面
 	overlay = { color = "#000000", opacity = 0.6 }, -- 模态遮罩
-	accent = { color = "#0A84FF", opacity = 1 }, -- 唯一可点击色：按钮、链接、进度条、选中态
-	accent_hover = { color = "#409CFF", opacity = 1 }, -- 可点击色的悬停态
-	accent_active = { color = "#0070D6", opacity = 1 }, -- 可点击色的按下态
+	accent = { color = "#0A84FF", opacity = 1 }, -- 可点击色：链接、焦点环、进度条、选中态；实心按钮的底改用 accent-fill，浮层上的蓝字改用 accent-on-elevated
+	accent_hover = { color = "#409CFF", opacity = 1 }, -- 链接与蓝字的悬停态
+	accent_on_elevated = { color = "#409CFF", opacity = 1 }, -- 浮层（bg-elevated：弹窗、菜单、弹层）上的蓝字与链接（4.92:1）
+	accent_fill = { color = "#0070D6", opacity = 1 }, -- 实心主按钮的底（白字 4.90:1）
+	accent_fill_hover = { color = "#0274DE", opacity = 1 }, -- 实心主按钮的悬停态（白字 4.61:1）
+	accent_fill_active = { color = "#0066CC", opacity = 1 }, -- 实心主按钮的按下态（白字 5.57:1）
 	accent_dim = { color = "#0A84FF", opacity = 0.12 }, -- 选中项的底、可点击色的轻填充
 	focus_ring = { color = "#0A84FF", opacity = 0.4 }, -- 焦点环（3px box-shadow），所有可交互元素共用这一个
 	teal = { color = "#5AC8FA", opacity = 1 }, -- 只读信息：信息标签、弹幕分区、只读高亮；不可点击
@@ -37,8 +40,11 @@ M.color = {
 	success_dim = { color = "#30D158", opacity = 0.12 }, -- 成功徽标的底
 	warning = { color = "#FF9F0A", opacity = 1 }, -- 连载中、待确认、需要注意
 	warning_dim = { color = "#FF9F0A", opacity = 0.12 }, -- 警示徽标的底
-	error = { color = "#FF453A", opacity = 1 }, -- 错误、删除确认、危险按钮
-	error_hover = { color = "#FF6961", opacity = 1 }, -- 危险按钮的悬停态、提示里的失败图标
+	error = { color = "#FF453A", opacity = 1 }, -- 错误文字与图标；危险按钮的底改用 error-fill，浮层上的红字改用 error-on-elevated
+	error_on_elevated = { color = "#FF6961", opacity = 1 }, -- 浮层上的红字、全局提示里的失败图标（4.94:1）
+	error_fill = { color = "#D63027", opacity = 1 }, -- 危险按钮的底（白字 4.87:1）
+	error_fill_hover = { color = "#DC332A", opacity = 1 }, -- 危险按钮的悬停态（白字 4.62:1）
+	error_fill_active = { color = "#C8281F", opacity = 1 }, -- 危险按钮的按下态（白字 5.56:1）
 	error_dim = { color = "#FF453A", opacity = 0.12 }, -- 错误徽标的底
 	info = { color = "#5AC8FA", opacity = 1 }, -- 信息提示（与 teal 同值）
 	glass_nav = { color = "#09090B", opacity = 0.78 }, -- 顶栏毛玻璃（配 saturate(160%) blur(16px)）

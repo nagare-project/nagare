@@ -84,7 +84,7 @@
 
 ## 颜色
 
-方针：克制。`#0a84ff` 是唯一可点击色，稀少才有力量。单一暗色主题，不提供亮色模式（iOS 固定 `.preferredColorScheme(.dark)`）。
+方针：克制。可点击的东西只用一个蓝色家族（`#0a84ff` 与它深一档、亮一档的变体），稀少才有力量。单一暗色主题，不提供亮色模式（iOS 固定 `.preferredColorScheme(.dark)`）。
 
 <!-- gentokens:begin colors -->
 
@@ -100,9 +100,12 @@
 | `--hairline` | `rgba(255, 255, 255, 0.07)` | 固定值 | 列表行之间的发丝线、顶栏玻璃底边 |
 | `--row-hover` | `rgba(255, 255, 255, 0.045)` | 固定值 | 列表行悬停时浮起的面 |
 | `--overlay` | `rgba(0, 0, 0, 0.6)` | 固定值 | 模态遮罩 |
-| `--accent` | `#0a84ff` | `systemBlue` | 唯一可点击色：按钮、链接、进度条、选中态 |
-| `--accent-hover` | `#409cff` | 固定值 | 可点击色的悬停态 |
-| `--accent-active` | `#0070d6` | 固定值 | 可点击色的按下态 |
+| `--accent` | `#0a84ff` | `systemBlue` | 可点击色：链接、焦点环、进度条、选中态；实心按钮的底改用 accent-fill，浮层上的蓝字改用 accent-on-elevated |
+| `--accent-hover` | `#409cff` | 固定值 | 链接与蓝字的悬停态 |
+| `--accent-on-elevated` | `#409cff` | 固定值 | 浮层（bg-elevated：弹窗、菜单、弹层）上的蓝字与链接（4.92:1） |
+| `--accent-fill` | `#0070d6` | 固定值 | 实心主按钮的底（白字 4.90:1） |
+| `--accent-fill-hover` | `#0274de` | 固定值 | 实心主按钮的悬停态（白字 4.61:1） |
+| `--accent-fill-active` | `#0066cc` | 固定值 | 实心主按钮的按下态（白字 5.57:1） |
 | `--accent-dim` | `rgba(10, 132, 255, 0.12)` | 固定值 | 选中项的底、可点击色的轻填充 |
 | `--focus-ring` | `rgba(10, 132, 255, 0.4)` | 固定值 | 焦点环（3px box-shadow），所有可交互元素共用这一个 |
 | `--teal` | `#5ac8fa` | 固定值 | 只读信息：信息标签、弹幕分区、只读高亮；不可点击 |
@@ -116,8 +119,11 @@
 | `--success-dim` | `rgba(48, 209, 88, 0.12)` | 固定值 | 成功徽标的底 |
 | `--warning` | `#ff9f0a` | `systemOrange` | 连载中、待确认、需要注意 |
 | `--warning-dim` | `rgba(255, 159, 10, 0.12)` | 固定值 | 警示徽标的底 |
-| `--error` | `#ff453a` | `systemRed` | 错误、删除确认、危险按钮 |
-| `--error-hover` | `#ff6961` | 固定值 | 危险按钮的悬停态、提示里的失败图标 |
+| `--error` | `#ff453a` | `systemRed` | 错误文字与图标；危险按钮的底改用 error-fill，浮层上的红字改用 error-on-elevated |
+| `--error-on-elevated` | `#ff6961` | 固定值 | 浮层上的红字、全局提示里的失败图标（4.94:1） |
+| `--error-fill` | `#d63027` | 固定值 | 危险按钮的底（白字 4.87:1） |
+| `--error-fill-hover` | `#dc332a` | 固定值 | 危险按钮的悬停态（白字 4.62:1） |
+| `--error-fill-active` | `#c8281f` | 固定值 | 危险按钮的按下态（白字 5.56:1） |
 | `--error-dim` | `rgba(255, 69, 58, 0.12)` | 固定值 | 错误徽标的底 |
 | `--info` | `#5ac8fa` | 固定值 | 信息提示（与 teal 同值） |
 | `--glass-nav` | `rgba(9, 9, 11, 0.78)` | 固定值 | 顶栏毛玻璃（配 saturate(160%) blur(16px)） |
@@ -135,7 +141,7 @@
 
 ### 规则
 
-1. **可点击 = `--accent`**：按钮、链接、进度条、选中态。不在纯装饰上用蓝色。唯一的例外是作品页 hero 的主按钮（海报色，见下）。
+1. **可点击 = 蓝色家族**。`--accent`（`#0a84ff`）是链接、焦点环、进度条、选中态的颜色。**实心按钮的底用 `-fill` 一档**：主按钮 `--accent-fill`，危险按钮 `--error-fill`（悬停、按下各有 `-fill-hover` / `-fill-active`），白字在这三态上都 ≥ 4.5:1；`#0a84ff` 不做实心按钮的底 —— 白字在它上面只有 3.65:1。不在纯装饰上用蓝色。唯一的例外是作品页 hero 的主按钮（海报色，见下）。
 2. **焦点环永远是 `--focus-ring` 那一个蓝色**（`--shadow-focus`，3px box-shadow），不随海报色变，没有例外。输入框也用它，不另设一档。
 3. **`--teal` 只做只读信息**：信息标签、弹幕分区、只读高亮。不做可点击元素。
 4. **层级靠底色差**：`--bg` → `--bg-card` → `--bg-elevated`，不靠堆阴影。
@@ -148,48 +154,50 @@
    拿不准就用 `--text-secondary`。这比常见暗色界面的说明小字亮一档，是有意的：无障碍门槛不开豁免（见「无障碍」）。
 6. **状态徽标**：语义色文字 + 同色 12% 底（`--success` 配 `--success-dim`，其余同理），字和底在同一处决定，不分开取值。压在封面上的徽标改用 `--badge-scrim` 遮罩、只让文字带颜色 —— 封面背后可能是任何颜色，12% 的淡底在图上没有对比度保证。
 7. **不引入蓝色以外的品牌色**：无紫、无渐变、无霓虹。海报色不是品牌色，是每部作品自己的颜色（下一节）。
+8. **浮层上的彩色字用亮一档**。浮层 = `--bg-elevated` 底（弹窗、菜单、弹层、输入框）。上面的蓝字（链接、ghost 按钮的字）用 `--accent-on-elevated`，红字（错误说明）用 `--error-on-elevated`；`--accent`、`--error` 不写在浮层上（分别只有 3.82:1、4.09:1）。浮层里的悬停态不再提亮颜色，改用底色变化（`--bg-fill-hover`）或下划线。
 
 ### 对比度
 
-下表由生成器按 WCAG 2.x 算出（半透明文字先叠到底色上再算），✓ 表示达到正文的 4.5:1。
+`tokens.json` 的 `contrast` 声明了「哪个颜色会写在哪些底色上」，每一条都是要求：要读的文字 ≥ 4.5:1，非文字的界面元素 ≥ 3:1（WCAG 1.4.11）；「不写要读的字」那几条本来就不达标，用来写明限制。生成器逐条实算（半透明文字先叠到底色上），任何一条不满足 `go generate` 就失败、CI 变红；「不写要读的字」那几条哪天达标了也会失败，提醒把限制拿掉。下表就是实算结果。
 
 <!-- gentokens:begin contrast -->
 
-| 文字色 | 在 `bg` 上 | 在 `bg-card` 上 | 在 `bg-elevated` 上 |
+| 前景 | 要求 | 实测（底色 对比度） | 场景 |
 |---|---|---|---|
-| `text` | 21.00:1 ✓ | 17.01:1 ✓ | 13.94:1 ✓ |
-| `text-secondary` | 6.36:1 ✓ | 5.95:1 ✓ | 5.27:1 ✓ |
-| `nav-link` | 7.61:1 ✓ | 6.92:1 ✓ | 6.04:1 ✓ |
-| `text-tertiary` | 2.25:1 ✗ | 2.48:1 ✗ | 2.41:1 ✗ |
-| `text-quaternary` | 1.47:1 ✗ | 1.68:1 ✗ | 1.69:1 ✗ |
-| `accent` | 5.76:1 ✓ | 4.66:1 ✓ | 3.82:1 ✗ |
-| `teal` | 11.08:1 ✓ | 8.97:1 ✓ | 7.35:1 ✓ |
-| `success` | 10.39:1 ✓ | 8.42:1 ✓ | 6.89:1 ✓ |
-| `warning` | 10.22:1 ✓ | 8.28:1 ✓ | 6.78:1 ✓ |
-| `error` | 6.16:1 ✓ | 4.99:1 ✓ | 4.09:1 ✗ |
-
-| 文字色 | 底色 | 对比度 | 场景 |
-|---|---|---|---|
-| `text` | `accent` | 3.65:1 ✗ | 主按钮：白字在 accent 上 |
-| `bg` | `accent` | 5.76:1 ✓ | 主按钮：黑字在 accent 上（候选） |
-| `text` | `accent-active` | 4.90:1 ✓ | 主按钮：白字在 accent-active 上（候选） |
-| `accent-hover` | `bg-elevated` | 4.92:1 ✓ | 浮层里的蓝字改用 accent-hover（候选） |
-| `text` | `error` | 3.41:1 ✗ | 危险按钮：白字在 error 上 |
-| `error-hover` | `bg-elevated` | 4.94:1 ✓ | 浮层里的错误文字改用 error-hover（候选） |
+| `text` | 文字 ≥ 4.5:1 | `bg` 21.00:1 ✓<br>`bg-card` 17.01:1 ✓<br>`bg-elevated` 13.94:1 ✓ | 主文字 |
+| `text-secondary` | 文字 ≥ 4.5:1 | `bg` 6.36:1 ✓<br>`bg-card` 5.95:1 ✓<br>`bg-elevated` 5.27:1 ✓ | 说明、徽标、元信息、计数 |
+| `nav-link` | 文字 ≥ 4.5:1 | `bg` 7.61:1 ✓<br>`bg-card` 6.92:1 ✓<br>`bg-elevated` 6.04:1 ✓ | 顶栏链接（玻璃出现前压在页面上） |
+| `accent` | 文字 ≥ 4.5:1 | `bg` 5.76:1 ✓<br>`bg-card` 4.66:1 ✓ | 页面与卡片上的链接、ghost 按钮的字 |
+| `accent-on-elevated` | 文字 ≥ 4.5:1 | `bg-elevated` 4.92:1 ✓ | 浮层上的链接、ghost 按钮的字 |
+| `error` | 文字 ≥ 4.5:1 | `bg` 6.16:1 ✓<br>`bg-card` 4.99:1 ✓ | 页面与卡片上的错误说明 |
+| `error-on-elevated` | 文字 ≥ 4.5:1 | `bg-elevated` 4.94:1 ✓ | 浮层上的错误说明 |
+| `teal` | 文字 ≥ 4.5:1 | `bg` 11.08:1 ✓<br>`bg-card` 8.97:1 ✓<br>`bg-elevated` 7.35:1 ✓ | 只读信息标签 |
+| `success` | 文字 ≥ 4.5:1 | `bg` 10.39:1 ✓<br>`bg-card` 8.42:1 ✓<br>`bg-elevated` 6.89:1 ✓ | 成功状态的字 |
+| `warning` | 文字 ≥ 4.5:1 | `bg` 10.22:1 ✓<br>`bg-card` 8.28:1 ✓<br>`bg-elevated` 6.78:1 ✓ | 警示状态的字 |
+| `text` | 文字 ≥ 4.5:1 | `accent-fill` 4.90:1 ✓<br>`accent-fill-hover` 4.61:1 ✓<br>`accent-fill-active` 5.57:1 ✓ | 实心主按钮的白字（静止 / 悬停 / 按下） |
+| `text` | 文字 ≥ 4.5:1 | `error-fill` 4.87:1 ✓<br>`error-fill-hover` 4.62:1 ✓<br>`error-fill-active` 5.56:1 ✓ | 危险按钮的白字（静止 / 悬停 / 按下） |
+| `accent` | 界面元素 ≥ 3:1 | `bg` 5.76:1 ✓<br>`bg-card` 4.66:1 ✓<br>`bg-elevated` 3.82:1 ✓ | 进度条、选中态的色块（非文字） |
+| `text-tertiary` | 不写要读的字 | `bg` 2.25:1<br>`bg-card` 2.48:1<br>`bg-elevated` 2.41:1 | 只用于占位符、禁用、装饰 |
+| `text-quaternary` | 不写要读的字 | `bg` 1.47:1<br>`bg-card` 1.68:1<br>`bg-elevated` 1.69:1 | 只用于禁用态 |
+| `accent` | 不写要读的字 | `bg-elevated` 3.82:1 | 浮层上的蓝字改用 accent-on-elevated |
+| `error` | 不写要读的字 | `bg-elevated` 4.09:1 | 浮层上的红字改用 error-on-elevated |
+| `text` | 不写要读的字 | `accent` 3.65:1<br>`error` 3.41:1 | 实心按钮不用 accent / error 做底，改用 -fill 一档 |
 
 <!-- gentokens:end contrast -->
 
 读法：
 
-- `--text`、`--text-secondary` 在三层底色上都达标 → 可以写任何要读的字。生成器的测试钉住了这一条，改了值就红。
+- `--text`、`--text-secondary` 在三层底色上都达标 → 可以写任何要读的字。
 - `--text-tertiary`、`--text-quaternary` 都不达标 → 只能用于占位符、禁用、装饰（规则 5）。
-- `--accent`、`--error` 写在 `--bg-elevated`（弹窗、弹层、输入框）上不达标；主按钮的白字在 `--accent` 上、危险按钮的白字在 `--error` 上也不达标 → 见「待定」。
+- `--accent`、`--error` 只在 `--bg` / `--bg-card` 上写字；浮层上换 `-on-elevated`（规则 8）。
+- 实心按钮的白字只放在 `-fill` 一档上（规则 1）。
+- 新增一种「某颜色写在某底色上」的用法，先在 `contrast` 里加一条，再写代码。
 
 ### iOS 语义色
 
 - `tokens.json` 的 `ios` 字段记录每个颜色在 UIKit 里的对应语义色：底色 → `systemBackground` 一族，文字 → `label` 一族，`--accent` → `systemBlue`，语义色 → `systemGreen` / `systemOrange` / `systemRed`，`--separator-opaque` → `opaqueSeparator`。
 - `Tokens.swift` 对这些颜色输出系统色引用，「增强对比度」等辅助设置因此由系统自动生效。
-- **只有深色外观下系统值与 token 值一致才映射**，生成器会核对，不一致直接报错。没有对应的写固定 sRGB 值：海报色阶、毛玻璃与弹层底、`--teal`（`systemTeal` 各系统版本的深色值不同）、`--separator`（系统 `separator` 是 0.6，nagare 是 0.65）、填充色。
+- **只有深色外观下系统值与 token 值一致才映射**，生成器会核对，不一致直接报错。没有对应的写固定 sRGB 值：海报色阶、实心按钮的 `-fill` 一档、浮层上的 `-on-elevated` 一档、毛玻璃与弹层底、`--teal`（`systemTeal` 各系统版本的深色值不同）、`--separator`（系统 `separator` 是 0.6，nagare 是 0.65）、填充色。
 
 ### 海报色：每部作品自己的颜色
 
@@ -359,10 +367,10 @@ nagare 的做法让这个陷阱在结构上不会发生：
 
 | 档 | 底 | 字 | 其他 | 用在 |
 |---|---|---|---|---|
-| 主按钮 | `--accent`，悬停 `--accent-hover`，按下 `--accent-active` | 白（见「待定」1） | 10px 20px，`--radius-sm`，`label` 样式 | 主操作：添加文件夹、登录、确认 |
-| 次按钮（ghost） | `--bg-fill`，悬停 `--bg-fill-hover` | `--accent` | 无边框 | 取消、筛选、切换视图 |
-| 三级（描边） | 透明 | `--text-secondary`，悬停变 `--accent` | 1px `--separator` | 加载更多、外链；平面背景上用 |
-| 危险 | `--error`，悬停 `--error-hover` | 白（见「待定」1） | | 删除确认、退出登录 |
+| 主按钮 | `--accent-fill`，悬停 `--accent-fill-hover`，按下 `--accent-fill-active` | 白（三态都 ≥ 4.5:1） | 10px 20px，`--radius-sm`，`label` 样式 | 主操作：添加文件夹、登录、确认 |
+| 次按钮（ghost） | `--bg-fill`，悬停 `--bg-fill-hover` | `--accent`；浮层上 `--accent-on-elevated` | 无边框 | 取消、筛选、切换视图 |
+| 三级（描边） | 透明 | `--text-secondary`，悬停变 `--accent`（浮层上 `--accent-on-elevated`） | 1px `--separator` | 加载更多、外链；平面背景上用 |
+| 危险 | `--error-fill`，悬停 `--error-fill-hover`，按下 `--error-fill-active` | 白（三态都 ≥ 4.5:1） | 同主按钮 | 删除确认、退出登录 |
 | 圆形图标 | `--bg-fill`，悬停 `--bg-fill-hover` | 图标 `--text-secondary`，悬停白 | 40×40（触屏 44） | 收藏、分享、弹幕开关 |
 | 玻璃·重 / 玻璃·轻 | 只在作品页 hero 上 | | | 见「作品页」 |
 
@@ -390,7 +398,7 @@ nagare 的做法让这个陷阱在结构上不会发生：
 ### 全局提示
 
 - 只有一个出口；同一时间只留一条，新的顶替旧的。屏幕**底部正中**，离底 28px（手机 16px + 安全区）；不放顶部，那里会压住顶栏。
-- 胶囊：`--toast` 底 + `blur(20px) saturate(150%)` + 1px `--toast-border` + `--shadow-toast`，14px 字。成功是 `--success` 描边对勾，失败是 `--error-hover` 感叹号，加载中是转圈，普通提示没有图标。
+- 胶囊：`--toast` 底 + `blur(20px) saturate(150%)` + 1px `--toast-border` + `--shadow-toast`，14px 字。成功是 `--success` 描边对勾，失败是 `--error-on-elevated` 感叹号，加载中是转圈，普通提示没有图标。
 - 进场淡入 + 上移 12px（`--dur-toast-in`、`--ease-emphasized`），退场淡出 + 下移 6px（`--dur-toast-out`）；不缩放。减弱动态效果时不移动。
 - 关于某部作品的提示把作品名放在前面、颜色安静；窄屏先省略作品名，动作文字不省略。
 
@@ -539,7 +547,8 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 
 ### 该做
 
-- 用 `--accent` 作为**唯一**的可点击色；唯一的例外是作品页 hero 的海报色主按钮。
+- 可点击只用蓝色家族：链接 / 焦点 / 进度用 `--accent`，实心按钮的底用 `--accent-fill`（危险按钮 `--error-fill`）；唯一的例外是作品页 hero 的海报色主按钮。
+- 浮层（`--bg-elevated`）上的彩色字用 `--accent-on-elevated` / `--error-on-elevated`。
 - 用三层底色差（`--bg` → `--bg-card` → `--bg-elevated`）表达层级，而不是堆阴影。
 - 要读的次要文字用 `--text-secondary`。
 - 每个可交互元素都有焦点环，而且永远是那一个蓝色。
@@ -553,6 +562,7 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 - 不引入蓝色以外的强调色：无紫色、无渐变、无霓虹。
 - 不用 `--text-tertiary` 写说明、徽标、计数这类要读的字。
 - 不用 `--teal` 做可点击元素。
+- 不拿 `--accent` / `--error` 做实心按钮的底，不把它们写在浮层上。
 - 不拿 `--poster-tone-mid` / `--poster-tone-low` 写字。
 - 不在比 `--poster-hue` 更靠上的选择器上组装 `--poster-tone*`。
 - 卡片圆角不超过 16px（20px 只给大弹窗），封面圆角不超过 12px。
@@ -564,9 +574,9 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 
 ## 改界面前的检查清单
 
-1. 可点击 = `--accent`，只读信息 = `--teal`。
+1. 可点击 = 蓝色家族（实心按钮用 `-fill`，浮层上的字用 `-on-elevated`），只读信息 = `--teal`。
 2. 三层底色表达层级，不靠阴影。
-3. 要读的字至少 `--text-secondary`；无障碍扫描 serious + critical 为零。
+3. 要读的字至少 `--text-secondary`；新的「颜色 × 底色」用法先在 `contrast` 里声明；无障碍扫描 serious + critical 为零。
 4. 数字 tabular-nums；每个交互元素有焦点环；触控目标 ≥ 44px。
 5. 动画只做状态转换，缓动用 `--ease-*`，减弱动态效果时停。
 6. 网格 6 → 3 → 2 列，断点 900px / 600px，内容最宽 1400px。
@@ -575,8 +585,7 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 
 ## 待定
 
-1. **实心按钮的字色**。白字在 `--accent` 上、在 `--error` 上都不到 4.5:1（见对比度表），而无障碍门槛不开豁免。主按钮的候选：黑字（`--bg`）在 `--accent` 上；或把底换成 `--accent-active`、保留白字。危险按钮同理，要么换深一档的红底，要么换字色。要在桌面界面重写、接上无障碍扫描之前定下来。
-2. **浮层里的彩色字**。`--accent`、`--error` 写在 `--bg-elevated` 上不到 4.5:1（ghost 按钮、链接、错误说明出现在弹窗与弹层里时）。候选：浮层里改用亮一档的 `--accent-hover` / `--error-hover`（对比度表里有实测），或浮层里的次按钮改用白字。
+1. **焦点环的非文字对比度**。`--focus-ring` 是 40% 不透明的蓝，叠在三层底色上实测约 1.7:1，低于非文字元素的 3:1。自动无障碍扫描不查这一项，不影响 CI 门槛，但键盘用户在暗处看焦点会费劲。候选：焦点环改用不透明的 `--accent`（在三层底色上 ≥ 3.8:1），或加粗到 3px 以上再配一圈深色外环。要在桌面界面重写之前定下来。
 
 ## 决定记录
 
@@ -597,3 +606,6 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 | 2026-11-01 | 30% 白（`--text-tertiary`）只用于占位符 / 禁用 / 装饰，要读的字用 60% 白；无障碍扫描 serious + critical 为零、不开豁免 | 30% 白在三层底色上都不到 4.5:1（见对比度表）；照常用法写说明就得给扫描开豁免，门槛形同虚设 |
 | 2026-11-01 | 桌面磁力面板改为作品页右侧抽屉（<600px 底部面板） | 作品页在桌面与 iOS 上同构；行为不变 |
 | 2026-11-01 | 焦点环只有一档（`--focus-ring`，0.4），输入框也用它 | 少一个值，少一个选错的机会 |
+| 2026-11-01 | 实心按钮的底用深一档的 `-fill`（主按钮 `--accent-fill`、危险按钮 `--error-fill`，各带悬停 / 按下）；`#0a84ff` 只留给链接、焦点、进度 | 白字在 `#0a84ff` 上 3.65:1、在 `#ff453a` 上 3.41:1，过不了 4.5:1；深一档后三态都 ≥ 4.5:1 |
+| 2026-11-01 | 浮层（`--bg-elevated`）上的彩色字用亮一档：蓝字 `--accent-on-elevated`（与悬停同值 `#409cff`），红字 `--error-on-elevated` | `--accent`、`--error` 在浮层上只有 3.82:1、4.09:1 |
+| 2026-11-01 | 「颜色写在哪些底色上」写进 `tokens.json` 的 `contrast`，生成器逐条实算，文字不到 4.5:1、界面元素不到 3:1 就失败 | 对比度从文档里的说法变成会红的检查；新增用法必须先声明 |

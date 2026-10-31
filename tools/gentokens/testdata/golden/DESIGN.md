@@ -8,7 +8,8 @@
 |---|---|---|---|
 | `--bg` | `#000000` | `systemBackground` | 页面底色 |
 | `--text-secondary` | `rgba(235, 235, 245, 0.6)` | `secondaryLabel` | 次要文字 |
-| `--accent` | `#0a84ff` | `systemBlue` | 可点击 |
+| `--accent` | `#0a84ff` | `systemBlue` | 可点击（在 bg 上 5.76:1，写进 use 的对比度要与实算一致） |
+| `--text-tertiary` | `rgba(235, 235, 245, 0.3)` | `tertiaryLabel` | 占位符 |
 | `--glass` | `rgba(9, 9, 11, 0.78)` | 不输出 | 只给网页的毛玻璃 |
 | `--teal` | `#5ac8fa` | 固定值 | 只读信息，固定值 |
 
@@ -25,14 +26,12 @@
 
 <!-- gentokens:begin contrast -->
 
-| 文字色 | 在 `bg` 上 |
-|---|---|
-| `text-secondary` | 6.36:1 ✓ |
-| `accent` | 5.76:1 ✓ |
-
-| 文字色 | 底色 | 对比度 | 场景 |
+| 前景 | 要求 | 实测（底色 对比度） | 场景 |
 |---|---|---|---|
-| `bg` | `accent` | 5.76:1 ✓ | 黑字在蓝底上 |
+| `text-secondary` | 文字 ≥ 4.5:1 | `bg` 6.36:1 ✓ | 说明 |
+| `accent` | 文字 ≥ 4.5:1 | `bg` 5.76:1 ✓ | 链接 |
+| `accent` | 界面元素 ≥ 3:1 | `bg` 5.76:1 ✓ | 进度条 |
+| `text-tertiary` | 不写要读的字 | `bg` 2.25:1 | 只用于占位符 |
 
 <!-- gentokens:end contrast -->
 

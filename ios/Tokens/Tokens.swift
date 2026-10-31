@@ -31,12 +31,18 @@ enum NagareUIColor {
     static var rowHover: UIColor { UIColor(red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, alpha: 0.045) }
     /// 模态遮罩 · rgba(0, 0, 0, 0.6)
     static var overlay: UIColor { UIColor(red: 0.0 / 255, green: 0.0 / 255, blue: 0.0 / 255, alpha: 0.6) }
-    /// 唯一可点击色：按钮、链接、进度条、选中态 · #0a84ff
+    /// 可点击色：链接、焦点环、进度条、选中态；实心按钮的底改用 accent-fill，浮层上的蓝字改用 accent-on-elevated · #0a84ff
     static var accent: UIColor { .systemBlue }
-    /// 可点击色的悬停态 · #409cff
+    /// 链接与蓝字的悬停态 · #409cff
     static var accentHover: UIColor { UIColor(red: 64.0 / 255, green: 156.0 / 255, blue: 255.0 / 255, alpha: 1) }
-    /// 可点击色的按下态 · #0070d6
-    static var accentActive: UIColor { UIColor(red: 0.0 / 255, green: 112.0 / 255, blue: 214.0 / 255, alpha: 1) }
+    /// 浮层（bg-elevated：弹窗、菜单、弹层）上的蓝字与链接（4.92:1） · #409cff
+    static var accentOnElevated: UIColor { UIColor(red: 64.0 / 255, green: 156.0 / 255, blue: 255.0 / 255, alpha: 1) }
+    /// 实心主按钮的底（白字 4.90:1） · #0070d6
+    static var accentFill: UIColor { UIColor(red: 0.0 / 255, green: 112.0 / 255, blue: 214.0 / 255, alpha: 1) }
+    /// 实心主按钮的悬停态（白字 4.61:1） · #0274de
+    static var accentFillHover: UIColor { UIColor(red: 2.0 / 255, green: 116.0 / 255, blue: 222.0 / 255, alpha: 1) }
+    /// 实心主按钮的按下态（白字 5.57:1） · #0066cc
+    static var accentFillActive: UIColor { UIColor(red: 0.0 / 255, green: 102.0 / 255, blue: 204.0 / 255, alpha: 1) }
     /// 选中项的底、可点击色的轻填充 · rgba(10, 132, 255, 0.12)
     static var accentDim: UIColor { UIColor(red: 10.0 / 255, green: 132.0 / 255, blue: 255.0 / 255, alpha: 0.12) }
     /// 焦点环（3px box-shadow），所有可交互元素共用这一个 · rgba(10, 132, 255, 0.4)
@@ -63,10 +69,16 @@ enum NagareUIColor {
     static var warning: UIColor { .systemOrange }
     /// 警示徽标的底 · rgba(255, 159, 10, 0.12)
     static var warningDim: UIColor { UIColor(red: 255.0 / 255, green: 159.0 / 255, blue: 10.0 / 255, alpha: 0.12) }
-    /// 错误、删除确认、危险按钮 · #ff453a
+    /// 错误文字与图标；危险按钮的底改用 error-fill，浮层上的红字改用 error-on-elevated · #ff453a
     static var error: UIColor { .systemRed }
-    /// 危险按钮的悬停态、提示里的失败图标 · #ff6961
-    static var errorHover: UIColor { UIColor(red: 255.0 / 255, green: 105.0 / 255, blue: 97.0 / 255, alpha: 1) }
+    /// 浮层上的红字、全局提示里的失败图标（4.94:1） · #ff6961
+    static var errorOnElevated: UIColor { UIColor(red: 255.0 / 255, green: 105.0 / 255, blue: 97.0 / 255, alpha: 1) }
+    /// 危险按钮的底（白字 4.87:1） · #d63027
+    static var errorFill: UIColor { UIColor(red: 214.0 / 255, green: 48.0 / 255, blue: 39.0 / 255, alpha: 1) }
+    /// 危险按钮的悬停态（白字 4.62:1） · #dc332a
+    static var errorFillHover: UIColor { UIColor(red: 220.0 / 255, green: 51.0 / 255, blue: 42.0 / 255, alpha: 1) }
+    /// 危险按钮的按下态（白字 5.56:1） · #c8281f
+    static var errorFillActive: UIColor { UIColor(red: 200.0 / 255, green: 40.0 / 255, blue: 31.0 / 255, alpha: 1) }
     /// 错误徽标的底 · rgba(255, 69, 58, 0.12)
     static var errorDim: UIColor { UIColor(red: 255.0 / 255, green: 69.0 / 255, blue: 58.0 / 255, alpha: 0.12) }
     /// 信息提示（与 teal 同值） · #5ac8fa
@@ -107,7 +119,10 @@ enum NagareColor {
     static let overlay = Color(NagareUIColor.overlay)
     static let accent = Color(NagareUIColor.accent)
     static let accentHover = Color(NagareUIColor.accentHover)
-    static let accentActive = Color(NagareUIColor.accentActive)
+    static let accentOnElevated = Color(NagareUIColor.accentOnElevated)
+    static let accentFill = Color(NagareUIColor.accentFill)
+    static let accentFillHover = Color(NagareUIColor.accentFillHover)
+    static let accentFillActive = Color(NagareUIColor.accentFillActive)
     static let accentDim = Color(NagareUIColor.accentDim)
     static let focusRing = Color(NagareUIColor.focusRing)
     static let teal = Color(NagareUIColor.teal)
@@ -122,7 +137,10 @@ enum NagareColor {
     static let warning = Color(NagareUIColor.warning)
     static let warningDim = Color(NagareUIColor.warningDim)
     static let error = Color(NagareUIColor.error)
-    static let errorHover = Color(NagareUIColor.errorHover)
+    static let errorOnElevated = Color(NagareUIColor.errorOnElevated)
+    static let errorFill = Color(NagareUIColor.errorFill)
+    static let errorFillHover = Color(NagareUIColor.errorFillHover)
+    static let errorFillActive = Color(NagareUIColor.errorFillActive)
     static let errorDim = Color(NagareUIColor.errorDim)
     static let info = Color(NagareUIColor.info)
     static let glassNav = Color(NagareUIColor.glassNav)
