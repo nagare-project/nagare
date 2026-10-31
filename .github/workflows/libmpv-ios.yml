@@ -179,6 +179,7 @@ jobs:
       - name: 验证（静态 + 模拟器）
         env:
           LIBMPV_VERIFY_DIR: ${{ runner.temp }}/verify
+          LIBMPV_SIM_STRESS: "15"
         run: |
           set -o pipefail
           scripts/ios/libmpv/verify.sh "$LIBMPV_WORK/out/libmpv-ios" --simulator 2>&1 | tee "$RUNNER_TEMP/verify.log"
@@ -245,7 +246,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 上传验证现场（失败时）
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: libmpv-ios-verify-debug
