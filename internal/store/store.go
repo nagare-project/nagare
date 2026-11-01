@@ -48,6 +48,23 @@ type Progress struct {
 	// SyncedEpisode 是实际写进账号的作品集号。跨季连续编号的文件会换算（文件里 38 → 第 10 集），
 	// 改关联时列「写到了别的作品上的集」要用这个，而不是文件里的集号。0 = 没记（旧数据）。
 	SyncedEpisode int `json:"syncedEpisode,omitempty"`
+	// SyncHold 记下这一集按哪条匹配回写时被规则挡下了（集号换算不出来、服务端拒收这一集），
+	// 再试多半也是同样的结果。启动时的补发在一段时间内跳过它，免得每次启动都弹同一条横幅；
+	// 匹配变了（改了关联、重新认出作品）就不再算挡下，重看这一集看完时也照常再试。零值 = 没有被挡下。
+	SyncHold SyncHold `json:"syncHold,omitzero"`
+}
+
+// SyncHold 是一次被规则挡下的回写所用的匹配（作品 + 文件里的集号）与挡下的时间。
+type SyncHold struct {
+	AnilistID int `json:"anilistId"`
+	Episode   int `json:"episode"`
+	// At 是挡下的时间（毫秒）：过一阵补发会再试一次（总集数、集号偏移可能已经补上了）。
+	At int64 `json:"at"`
+}
+
+// Holds：按这条匹配（anilistID 的文件里第 episode 集）回写是不是已经被挡下过。
+func (h SyncHold) Holds(anilistID, episode int) bool {
+	return h.AnilistID > 0 && h.AnilistID == anilistID && h.Episode == episode
 }
 
 // AnimegoSession 是 animego 账号会话（access 15 分钟 + refresh cookie 7 天）。

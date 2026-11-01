@@ -39,12 +39,15 @@ type remoteSource struct {
 	altTitles []string
 }
 
+// remoteFileIDPrefix 是在线候选 FileID 的前缀（后面跟来源与候选的摘要，没有别的「|」）。
+const remoteFileIDPrefix = "remote|"
+
 func NewRemoteSource(options RemoteSourceOptions) MediaSource {
 	title := strings.TrimSpace(options.Title)
 	episode := options.Episode
 	digest := sha256.Sum256([]byte(options.SourceID + "\x00" + options.CandidateID))
 	item := library.Item{
-		FileID:       "remote|" + hex.EncodeToString(digest[:]),
+		FileID:       remoteFileIDPrefix + hex.EncodeToString(digest[:]),
 		FileName:     title,
 		Size:         options.SizeBytes,
 		Episode:      &episode,

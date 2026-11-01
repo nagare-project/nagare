@@ -37,10 +37,10 @@
 
 <!-- gentokens:begin fonts -->
 
-| Token | 字体栈 | 用途 |
-|---|---|---|
-| `--font-cjk` | `"PingFang SC", system-ui, sans-serif` | 中文回落链 |
-| `--font-latin` | `Sora, var(--font-cjk)` | 拉丁显示字体 |
+| Token | 字体栈 | 播放器（Lua） | 用途 |
+|---|---|---|---|
+| `--font-cjk` | `"PingFang SC", system-ui, sans-serif` | macOS `PingFang SC`<br>Windows `Microsoft YaHei UI`<br>Linux `Noto Sans CJK SC` | 中文回落链 |
+| `--font-latin` | `Sora, var(--font-cjk)` | — | 拉丁显示字体 |
 
 <!-- gentokens:end fonts -->
 

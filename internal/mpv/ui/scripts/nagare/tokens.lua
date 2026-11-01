@@ -2,10 +2,10 @@
 -- 改 token：编辑 design/tokens.json，再在仓库根目录运行 go generate ./...（CI 检查生成文件是最新的）。
 -- 规则与用法见仓库根目录的 DESIGN.md。
 --
--- 用法：local T = require 'tokens'；颜色项的字段名与 draw.lua 的选项一致，
--- 例如 c:rect(x1, y1, x2, y2, { color = T.color.accent.color, opacity = T.color.accent.opacity })。
+-- 用法：local T = require 'tokens'（界面是目录脚本，mpv 把脚本目录放进了 package.path）。
+-- 颜色项可以整个交给 draw.lua 的 color 选项，例如 c:rect(x1, y1, x2, y2, { color = T.color.accent })。
 -- 尺寸是 CSS 像素，画的时候照常乘界面缩放倍数；时长是秒（mp.add_timeout 用秒）。
--- 现有界面还没有改用它（配色仍在 core.lua 的 M.P），播放器换新样式时再接。
+-- 字体按平台取（core.lua），ASS 的 \fn 只认一个字体名。
 
 local M = {}
 
@@ -56,7 +56,12 @@ M.color = {
 	popover_border = { color = "#FFFFFF", opacity = 0.08 }, -- 弹层描边
 	toast = { color = "#121216", opacity = 0.94 }, -- 全局提示胶囊的底（配 blur(20px) saturate(150%)）
 	toast_border = { color = "#FFFFFF", opacity = 0.12 }, -- 全局提示胶囊的描边
-	badge_scrim = { color = "#000000", opacity = 0.75 }, -- 压在封面上的徽标底（配 blur(8px)），只让文字带颜色
+	badge_scrim = { color = "#000000", opacity = 0.75 }, -- 压在封面上的徽标底（配 blur(8px)），只让文字带颜色；播放器进度条上的悬停时间也用它
+	player_scrim_top = { color = "#000000", opacity = 0.75 }, -- 播放器顶部渐变遮罩最深处（窗口顶边），往下渐变到透明，压暗标题后面的画面
+	player_scrim_bottom = { color = "#000000", opacity = 0.85 }, -- 播放器底部渐变遮罩最深处（窗口底边），往上渐变到透明，压暗控制条后面的画面
+	player_track = { color = "#FFFFFF", opacity = 0.2 }, -- 播放器压在画面上的底轨：进度条、音量条、转圈的整圈
+	player_buffered = { color = "#FFFFFF", opacity = 0.16 }, -- 进度条上已经能直接拖过去的部分（叠在底轨上；本地文件是整条）
+	player_text_halo = { color = "#000000", opacity = 0.7 }, -- 播放器压在画面上的文字描边（标题、副标题、缓冲提示），弹幕密、画面亮时字也看得清
 }
 
 -- 字号阶梯：size 是像素，weight 是 100–900，tracking_em 是字距（em）
@@ -72,6 +77,12 @@ M.type_scale = {
 	micro = { size = 11, weight = 500, tracking_em = 0 }, -- 徽标、角标
 	wordmark = { size = 20, weight = 700, tracking_em = -0.01 }, -- 字标「nagare」（iOS 也用打包的 Sora，固定字号）
 	romaji = { size = 12, weight = 500, tracking_em = 0.1 }, -- 罗马音标题（大写）；iOS 用系统字体
+}
+
+-- 字体：按 mpv 的 platform 属性取（darwin / windows，其余按 linux）
+M.font = {
+	cjk = { darwin = "PingFang SC", windows = "Microsoft YaHei UI", linux = "Noto Sans CJK SC" }, -- 中文回落链：网页字体都只打包拉丁子集，每个中文字都由它渲染
+	mono = { darwin = "Menlo", windows = "Consolas", linux = "monospace" }, -- 数字与字段标签（配 tabular-nums）、磁力链接、集号；播放器里是每秒跳动的时间与速度（ASS 没有 tabular-nums，只能换等宽字体）
 }
 
 -- 间距（像素）
@@ -108,6 +119,7 @@ M.duration = {
 	toast_in = 0.26, -- 提示进场
 	toast_out = 0.18, -- 提示退场
 	tone = 0.9, -- 整页随海报色相过渡
+	spin = 1, -- 播放器里的转圈转一整圈的时间（缓冲、正在准备下一集）
 }
 
 return M

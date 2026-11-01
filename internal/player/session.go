@@ -1,4 +1,4 @@
-// 一集的播放：轨道编排（对白字幕主轨 + 弹幕副轨）、进度回写、看完回写 animego 账号。
+// 一集的播放：轨道编排（对白字幕主轨 + 弹幕副轨）、进度落盘；「看完」回写账号在 sync.go。
 // 窗口级的事件循环与结束收敛在 playback.go —— 「用户手动关掉 mpv」这类失败模式在那里兜住。
 package player
 
@@ -227,7 +227,8 @@ func (m *Manager) arrangeTracks(sess *session) {
 //   - 位置小于 resumeMinSec 且未看完 → 不写。这同时挡住「续播后 mpv 秒退、
 //     time-pos 还停在 0」把此前真实进度砸掉的场景（对齐网页端策略）；
 //   - Completed 一旦为 true 就保持（重看不清除已看完标记）；
-//   - Synced 跟随旧值（回写成功后由 syncWatched 单独置位）。
+//   - Synced 跟随旧值（回写成功后由 syncWatched 单独置位）；
+//   - SyncHold 跟随旧值：它只影响补发（sync_retry.go），重看这一集看完时收尾照常再试。
 func progressUpdate(prev store.Progress, hadPrev bool, st mpv.State, endedByEOF bool, nowMs int64) (store.Progress, bool) {
 	completed := endedByEOF || (st.Duration > 0 && st.TimePos >= completionRatio*st.Duration)
 	if hadPrev && prev.Completed {
@@ -244,6 +245,7 @@ func progressUpdate(prev store.Progress, hadPrev bool, st mpv.State, endedByEOF 
 		Synced:      hadPrev && prev.Synced,
 		// 写进账号的是哪一集跟着「已回写」一起保留（改关联时要列出来）
 		SyncedEpisode: syncedEpisodeOf(prev, hadPrev),
+		SyncHold:      syncHoldOf(prev, hadPrev),
 	}, true
 }
 
@@ -265,108 +267,6 @@ func (m *Manager) flushProgressAt(sess *session, st mpv.State, endedByEOF bool) 
 	}
 }
 
-// syncWatched 把「这一集看完了」回写 animego 账号。
-//
-// 单独一个函数而不是塞在收尾（endEpisode）里：它是收尾几件事中唯一会
-// 走网络、也是唯一会失败给用户看的一件，值得能被单独测（测它不需要 mpv）。
-// 收尾经 kickSync 把它放到后台跑，不拖住窗口的事件循环。
-func (m *Manager) syncWatched(sess *session) {
-	p, ok := m.opts.Store.Progress(sess.item.FileID)
-	if !ok || !p.Completed || p.Synced {
-		return
-	}
-	b := sess.bindingSnapshot()
-	if b.AnilistID <= 0 || b.Episode <= 0 || m.opts.Client == nil || !m.opts.Client.LoggedIn() {
-		return
-	}
-	// 会话里的匹配是开播时的快照。收尾跑在停止播放之后，这期间用户可能已经在媒体库里
-	// 改了作品关联（它会作废这条匹配）—— 那就不能再按旧匹配回写到旧作品上。
-	if !m.bindingStillCurrent(sess.item.FileID, b) {
-		log.Printf("player: 作品关联已改，不按旧匹配回写（anilistId=%d 第%d集）", b.AnilistID, b.Episode)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), markWatchedTimeout)
-	defer cancel()
-	// 文件里的集号 → 作品自己的集号（跨季连续编号的第二季「38」是第 10 集）
-	place := m.placeEpisode(ctx, sess.item.FileID, b.AnilistID, b.Episode)
-	if place.Episode <= 0 {
-		recovery := "先确认它是作品的第几集，再在 animego 网站上手动标记（不要按文件里的编号标）"
-		if place.Retry {
-			recovery = "重看这一集看完时会再试"
-		}
-		m.reportSync(sess.item.FileID, b, place.Reason, recovery)
-		log.Printf("player: 集号无法换算成作品集号，不回写（anilistId=%d 文件里第%d集）", b.AnilistID, b.Episode)
-		return
-	}
-	// 查集数可能等了一阵，再核对一次：这期间关联被改了就不写
-	if !m.bindingStillCurrent(sess.item.FileID, b) {
-		log.Printf("player: 作品关联已改，不按旧匹配回写（anilistId=%d 第%d集）", b.AnilistID, b.Episode)
-		return
-	}
-	if err := m.markWatched(ctx, b.AnilistID, place.Episode); err != nil {
-		// 只记日志是不够的：这条失败发生在 mpv 已经退出之后，用户面前
-		// 什么都不会变 —— 他以为这一集记上了，下次打开网站才发现没有，
-		// 而那时已经不知道是哪一集丢的。挂进 Status 让界面说出来。
-		reason, recovery := classifySyncErr(err)
-		m.reportSync(sess.item.FileID, b, reason, recovery)
-		// 措辞不再写「下次退出时重试」——那是过度承诺。重试只发生在
-		// 重看【这一集】并再次看完时（上面那个 p.Synced 判断只在那一集的会话里跑）。
-		log.Printf("player: 回写看完标记失败（重看这一集看完时会再试）：%v", err)
-		return
-	}
-	// 成功就把这一集上一次的失败留痕清掉，横幅跟着消失，不用用户手动关。留痕说的是别的集
-	// （同一个窗口里连着看，上一集没记上）就留着：那件事仍然成立，不能被这一集的成功盖掉。
-	m.clearSyncFailure(sess.item.FileID)
-	// 回写途中关联被改了：这一集已经写到了旧作品上，但不能标成「已回写」——
-	// 否则重看这一集看完时也不会再按新关联写一次。
-	if !m.bindingStillCurrent(sess.item.FileID, b) {
-		log.Printf("player: 回写途中作品关联已改，这一集不标记为已回写")
-		return
-	}
-	m.recordSynced(sess.item.FileID, place.Episode)
-	if place.Episode != b.Episode {
-		log.Printf("player: 已回写 animego：anilistId=%d 第%d集（文件里是第%d集）", b.AnilistID, place.Episode, b.Episode)
-	} else {
-		log.Printf("player: 已回写 animego：anilistId=%d 第%d集", b.AnilistID, place.Episode)
-	}
-}
-
-// markWatched 先确保订阅存在，再标记这一集看完（episode 是作品集号）。
-func (m *Manager) markWatched(ctx context.Context, anilistID, episode int) error {
-	if err := m.opts.Client.EnsureSubscription(ctx, anilistID); err != nil {
-		return err
-	}
-	return m.opts.Client.MarkWatched(ctx, anilistID, episode)
-}
-
-// reportSync 把「这一集没记到账号」挂进 Status，媒体库页据此出横幅。
-// Episode 是文件里的集号 —— 用户在界面上看到的是它。
-func (m *Manager) reportSync(fileID string, b store.Binding, reason, recovery string) {
-	m.setSyncFailure(&SyncInfo{
-		State:    "failed",
-		FileID:   fileID,
-		Title:    b.Title,
-		Episode:  b.Episode,
-		Reason:   reason,
-		Recovery: recovery,
-		At:       time.Now().UnixMilli(),
-	})
-}
-
-// recordSynced 标记这一集已回写，并记下写进账号的作品集号。重读一次再置位：
-// 网络请求期间进度可能被别处改过，不能用开头那份整个盖回去。
-func (m *Manager) recordSynced(fileID string, episode int) {
-	p, ok := m.opts.Store.Progress(fileID)
-	if !ok {
-		return
-	}
-	p.Synced, p.SyncedEpisode = true, episode
-	if err := m.opts.Store.SetProgress(fileID, p); err != nil {
-		log.Printf("player: 记录同步状态失败：%v", err)
-	}
-}
-
 // syncedEpisodeOf：进度更新时，「写进账号的是哪一集」跟着「已回写」一起保留。
 func syncedEpisodeOf(prev store.Progress, hadPrev bool) int {
 	if hadPrev && prev.Synced {
@@ -375,10 +275,10 @@ func syncedEpisodeOf(prev store.Progress, hadPrev bool) int {
 	return 0
 }
 
-// bindingStillCurrent：store 里这个文件的匹配仍是会话开播时那一条（同一部作品、同一集），
-// 并且与文件现在的作品关联不冲突。改关联会作废不一致的匹配；后台匹配迟到时
-// 又可能把它写回来，所以关联本身也要再看一眼。
-func (m *Manager) bindingStillCurrent(fileID string, b store.Binding) bool {
-	cur, ok := m.opts.Store.Binding(fileID)
-	return ok && cur.AnilistID == b.AnilistID && cur.Episode == b.Episode && m.agreesWithAssociation(fileID, b)
+// syncHoldOf：进度更新时，「这一集按哪条匹配回写被挡下了」跟着保留（已回写的不会有）。
+func syncHoldOf(prev store.Progress, hadPrev bool) store.SyncHold {
+	if hadPrev && !prev.Synced {
+		return prev.SyncHold
+	}
+	return store.SyncHold{}
 }

@@ -34,6 +34,8 @@ func teardownOnCancel(
 		defer close(stopped)
 		<-ctx.Done()
 		log.Print("正在退出：停止播放并回写进度…")
+		// 在跑的「看完」补发先停下：它可能挂在 /api/player/sync/retry 的请求里，Shutdown 会等它
+		p.StopRetrying()
 		graceCtx, cancelGrace := context.WithTimeout(context.Background(), shutdownGrace)
 		defer cancelGrace()
 		if err := srv.Shutdown(graceCtx); err != nil {
