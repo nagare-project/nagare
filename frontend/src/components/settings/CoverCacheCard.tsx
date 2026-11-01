@@ -19,10 +19,23 @@ type ClearState =
   | { phase: 'done'; result: CoverCacheClearResult }
   | { phase: 'error'; message: string }
 
-/** 清空之后的一句话；有正在显示的封面没删掉时说一声 */
+/** 清空之后的一句话（占用以上面刷新后的列表为准）；有正在显示的封面没删掉时说一声 */
 export function clearedText(result: CoverCacheClearResult): string {
-  const base = `已清空 · 当前占用 ${formatBytes(result.bytes)}`
-  return result.skipped > 0 ? `${base}（${result.skipped} 张正在显示，稍后可再清一次）` : base
+  return result.skipped > 0 ? `已清空（${result.skipped} 张正在显示，这次没删，稍后可再清一次）` : '已清空'
+}
+
+/** 状态行的文字：请求中、完成、失败各一句；空闲与确认中为空 */
+function statusText(state: ClearState): string {
+  switch (state.phase) {
+    case 'busy':
+      return '正在清空 …'
+    case 'done':
+      return clearedText(state.result)
+    case 'error':
+      return `清空失败：${state.message}`
+    default:
+      return ''
+  }
 }
 
 /**
@@ -31,6 +44,7 @@ export function clearedText(result: CoverCacheClearResult): string {
  */
 export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
   const [state, setState] = useState<ClearState>({ phase: 'idle' })
+  const card = useRef<HTMLElement>(null)
   const clearButton = useRef<HTMLButtonElement>(null)
   const cancelButton = useRef<HTMLButtonElement>(null)
   // 只在用户自己从确认区退出来时把焦点还给「清空」按钮；首次渲染不抢焦点
@@ -40,23 +54,36 @@ export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
   useEffect(() => {
     if (state.phase === 'confirming') {
       cancelButton.current?.focus()
-    } else if (!confirming && returnFocus.current) {
-      returnFocus.current = false
+      return
+    }
+    if (state.phase === 'busy' || !returnFocus.current) return
+    returnFocus.current = false
+    // 请求期间用户可能已经把焦点挪到别处：只在焦点还在卡片里、或掉到了 body 上时才移
+    const active = document.activeElement
+    if (active === null || active === document.body || card.current?.contains(active)) {
       clearButton.current?.focus()
     }
-  }, [state.phase, confirming])
+  }, [state.phase])
 
   async function handleConfirm(): Promise<void> {
     setState({ phase: 'busy' })
     returnFocus.current = true
+    let result: CoverCacheClearResult
     try {
-      const result = await clearCoverCache()
-      setState({ phase: 'done', result })
-      await onReload()
+      result = await clearCoverCache()
     } catch (err) {
       console.error('清空封面缓存失败', err)
-      setState({ phase: 'error', message: errorText(err, '清空封面缓存失败') })
+      setState({ phase: 'error', message: errorText(err, '请稍后再试') })
+      return
     }
+    // 先刷新设置再报完成：上面的占用换成后端的新数字，状态行与列表不会一时对不上。
+    // 刷新失败不算清空失败（清空已经做完了）
+    try {
+      await onReload()
+    } catch (err) {
+      console.error('清空封面缓存后刷新设置失败', err)
+    }
+    setState({ phase: 'done', result })
   }
 
   function handleCancel(): void {
@@ -65,7 +92,7 @@ export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
   }
 
   return (
-    <section className="panel settings-card" aria-labelledby="cover-cache-heading">
+    <section ref={card} className="panel settings-card" aria-labelledby="cover-cache-heading">
       <h2 id="cover-cache-heading" className="panel-heading">
         封面缓存
       </h2>
@@ -102,7 +129,7 @@ export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
       )}
 
       <p className={state.phase === 'error' ? 'result result--err' : 'result result--dim'} style={mono} role="status" aria-live="polite">
-        {state.phase === 'done' ? clearedText(state.result) : state.phase === 'error' ? state.message : ''}
+        {statusText(state)}
       </p>
     </section>
   )

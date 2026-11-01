@@ -15,8 +15,8 @@ const settings = {
   torrent: { enabled: true, seeding: false, trackers: [], useDefaultTrackers: true, defaultTrackers: [], portForwarding: true, listenPort: 6881, cacheDir: '/cache', cacheBytes: 0, downloadDir: '/Users/you/Downloads/nagare', downloadDirIsDefault: true },
 }
 
-/** 设置载荷里的封面缓存占用；null = 这次运行没有封面缓存 */
-let coverCache: { bytes: number; count: number; maxBytes: number } | null = null
+/** 设置载荷里的封面缓存占用；null = 这次运行没有封面缓存；undefined = 旧后端没有这个字段 */
+let coverCache: { bytes: number; count: number; maxBytes: number } | null | undefined = null
 
 beforeEach(() => {
   coverCache = null
@@ -61,11 +61,16 @@ describe('设置分区', () => {
     expect(about?.textContent).toContain('5 MB · 42 张')
     await shown.unmount()
 
-    coverCache = null
-    const hidden = await open('/settings#about')
-    expect(hidden.container.querySelector('#about-heading')).not.toBeNull()
-    expect(hidden.container.querySelector('#cover-cache-heading')).toBeNull()
-    await hidden.unmount()
+    for (const absent of [null, undefined]) {
+      coverCache = absent
+      const hidden = await open('/settings#about')
+      try {
+        expect(hidden.container.querySelector('#about-heading')).not.toBeNull()
+        expect(hidden.container.querySelector('#cover-cache-heading')).toBeNull()
+      } finally {
+        await hidden.unmount()
+      }
+    }
   })
 
   it('切换分类保留登录草稿，并保留登录前的会话限制说明', async () => {
