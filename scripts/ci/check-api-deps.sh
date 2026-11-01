@@ -18,7 +18,8 @@ fi
 # 一行一个导入路径。用 [.] 而不是 \.：同一个正则还要交给 awk，awk -v 会吃掉反斜杠。
 forbidden='^(github[.]com/nagare-project/nagare/internal/(torrentstream|sourceplugin|rules|rulesync)|github[.]com/anacrolix/[^ ]+)(/[^ ]*)?$'
 # 目标写成 goos/goarch，带 :libmpv 的按 CGO_ENABLED=1 -tags libmpv 查（go list 只解析，不调 C 编译器）。
-targets="linux/amd64 darwin/arm64 windows/amd64 ios/arm64 darwin/arm64:libmpv ios/arm64:libmpv"
+# ios/amd64 是 Intel Mac 上的模拟器；android/arm64 留给以后的安卓版（它同样只该引 internal/api 本体）。
+targets="linux/amd64 linux/arm64 darwin/arm64 windows/amd64 ios/arm64 ios/amd64 android/arm64 darwin/arm64:libmpv ios/arm64:libmpv"
 
 list_deps() { # list_deps <目标> <go list 的其余参数...>
 	local target=$1 platform cgo=0 tags=""
