@@ -38,6 +38,14 @@
         "recentAiring": {
           "episode": 7,
           "at": 1791979200
+        },
+        "posterTones": {
+          "hue": 152.4,
+          "tone": "#88c197",
+          "quiet": "#77a583",
+          "mid": "#497555",
+          "low": "#0c2514",
+          "onTone": "#020f06"
         }
       },
       {
@@ -46,7 +54,8 @@
         "episodes": null,
         "genres": [],
         "status": "NOT_YET_RELEASED",
-        "format": "TV"
+        "format": "TV",
+        "posterTones": null
       },
       {
         "anilistId": 180002,
@@ -58,7 +67,8 @@
         ],
         "status": "FINISHED",
         "format": "MOVIE",
-        "duration": 105
+        "duration": 105,
+        "posterTones": null
       }
     ],
     "fetchedAt": 1792065600

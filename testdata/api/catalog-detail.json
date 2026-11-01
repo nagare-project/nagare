@@ -44,7 +44,8 @@
           "episodes": null,
           "genres": [],
           "status": "NOT_YET_RELEASED",
-          "format": "TV"
+          "format": "TV",
+          "posterTones": null
         }
       }
     ],
@@ -63,7 +64,15 @@
           "Music"
         ],
         "status": "FINISHED",
-        "format": "TV"
+        "format": "TV",
+        "posterTones": {
+          "hue": 341.8,
+          "tone": "#d79cc0",
+          "quiet": "#b787a5",
+          "mid": "#855974",
+          "low": "#2e1625",
+          "onTone": "#14060f"
+        }
       }
     ],
     "characters": [
@@ -84,6 +93,14 @@
         "episode": 2,
         "title": "It Didn't Have to Be Magic..."
       }
-    ]
+    ],
+    "posterTones": {
+      "hue": 152.4,
+      "tone": "#88c197",
+      "quiet": "#77a583",
+      "mid": "#497555",
+      "low": "#0c2514",
+      "onTone": "#020f06"
+    }
   }
 }

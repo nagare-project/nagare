@@ -29,7 +29,15 @@
         "studios": [
           "Madhouse"
         ],
-        "startDate": "2026-10-03"
+        "startDate": "2026-10-03",
+        "posterTones": {
+          "hue": 152.4,
+          "tone": "#88c197",
+          "quiet": "#77a583",
+          "mid": "#497555",
+          "low": "#0c2514",
+          "onTone": "#020f06"
+        }
       },
       {
         "anilistId": 180003,
@@ -37,7 +45,8 @@
         "episodes": null,
         "genres": [],
         "status": "NOT_YET_RELEASED",
-        "format": "TV"
+        "format": "TV",
+        "posterTones": null
       }
     ]
   }

@@ -46,6 +46,9 @@ CGO_ENABLED=0 go test ./internal/api/... ./internal/update/ -run Golden -update
 - 固定时钟（2026-10-15 12:00 UTC）、固定的封面 / 媒体能力段（`/art/cap-art`、`/media/cap-media`）、
   固定的平台（linux/amd64；桌面窗口那份是 darwin/arm64、Windows 回退那份是 windows/amd64）。
 - 目录、收藏、账号、mpv、播放器都是替身，不联网；逐集资料的上游用本机 httptest 服务器。
+- 海报取色（`posterTones`）用替身：两张封面算出了色阶，其余是 `null`，两种形态都在黄金文件里。
+- `catalog-*-offline` 是「离线启动」：先在固定时钟下把目录取一遍写进临时目录里的磁盘缓存，再换一个全新的 Handler
+  （同一个缓存目录、上游全挂、两小时后）请求两次，等后台刷新失败收场，第二次的 `freshness` 带上 `stale` 与 `offline`。
 - 会话凭证只是占位串，响应里本来也不带；不读写真实的配置目录，状态文件放在临时目录。
 - 实在没有注入点的几样，比对前换成固定值：媒体库的临时目录路径（换成 `/media/anime`）、
   store 生成的库目录 ID 与添加时间、规则目录的加载时间。

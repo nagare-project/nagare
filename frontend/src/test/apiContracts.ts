@@ -8,10 +8,10 @@
  */
 import type { AssociationData, LibraryAssociation, LibraryMatch, SyncedRecord } from '../lib/associations'
 import type {
-  AddFolderData, BundledPluginView, CatalogSearchData, CollectionData, CollectionDeleteData, CollectionEntry,
+  AddFolderData, BundledPluginView, CatalogFreshness, CatalogSearchData, CollectionData, CollectionDeleteData, CollectionEntry,
   ContinueItem, DanmakuStatus, DirListing, DiscoverData, DownloadTask, DownloadsData, ItemProgress, LibraryCluster,
   LibraryData, LibraryDropGroup, LibraryDrops, LibraryFolder, LibraryGroup, LibraryIdentify, LibraryItem, MpvInfo,
-  PlaybackFailure, PlayData, PlayerConfigResult, PlayerStatus, PlayingStatus, PluginSource, RulesInfo, ScanStats,
+  PlaybackFailure, PlayData, PlayerConfigResult, PlayerStatus, PlayingStatus, PluginSource, PosterTones, RulesInfo, ScanStats,
   ScheduleData, SeasonalData, SelfUpdateInfo, SettingsData, SourceInfo, SourcePluginConfigView, SourcePluginManifest,
   SourcePluginStatus, SourcePluginView, SourcesData, SummaryMediaData, SyncFailure, TorrentConfigData, TorrentFile,
   TorrentPlayData, TorrentSettings, TorrentStatus, UpdateView,
@@ -20,6 +20,11 @@ import type {
 import type { EpisodeOffset } from '../lib/episodeOffset'
 import type { EpisodeMetadata } from '../components/media/types'
 import { arr, bool, exact, int, lazy, lit, nullable, num, obj, str, union, type Schema } from './contract'
+
+// ---------- 海报色 · 目录数据的来历（多个接口共用） ----------
+
+const posterTones = exact<PosterTones>()(obj({ hue: num, tone: str, quiet: str, mid: str, low: str, onTone: str }))
+const freshness = exact<CatalogFreshness>()(obj({ fetchedAt: str, stale: bool, offline: bool }))
 
 // ---------- 媒体库 ----------
 
@@ -40,11 +45,11 @@ const association = exact<LibraryAssociation>()(obj(
 const match = exact<LibraryMatch>()(obj({ anilistId: int }, { title: str }))
 const cluster = exact<LibraryCluster>()(obj(
   { clusterKey: str, title: str, season: nullable(int), confidence: num, episodeCount: int, groups: arr(libraryGroup) },
-  { cover: str, association, matched: match },
+  { cover: str, association, matched: match, posterTones: nullable(posterTones) },
 ))
 const continueItem = exact<ContinueItem>()(obj(
   { fileId: str, title: str, episode: nullable(int), episodeCount: int, positionSec: num, durationSec: num, updatedAt: int },
-  { episodeTitle: str, cover: str },
+  { episodeTitle: str, cover: str, posterTones: nullable(posterTones) },
 ))
 const identify = exact<LibraryIdentify>()(obj({ running: bool, done: int, total: int }, { error: str }))
 export const libraryData = exact<LibraryData>()(obj(
@@ -127,19 +132,27 @@ export const summaryMedia: Schema<SummaryMediaData> = exact<SummaryMediaData>()(
     recommendations: arr(lazy((): Schema<SummaryMediaData> => summaryMedia)),
     characters: arr(obj({ name: str, image: str, role: str }, { actor: str, actorImage: str })),
     episodeTitles: arr(obj({ episode: int, title: str })),
+    freshness, posterTones: nullable(posterTones),
   },
 ))
-export const discoverData = exact<DiscoverData>()(obj({
-  sections: arr(obj({ key: str, title: str, items: arr(summaryMedia) }, { error: str })),
-  fetchedAt: int,
-}))
-export const seasonalData = exact<SeasonalData>()(obj({
-  season: lit('WINTER', 'SPRING', 'SUMMER', 'FALL'), year: int, items: arr(summaryMedia), fetchedAt: int,
-}))
-export const scheduleData = exact<ScheduleData>()(obj({
-  airings: arr(obj({ anilistId: int, episode: int, airingAt: int, title: str, inLibrary: bool }, { cover: str, format: str })),
-  fetchedAt: int,
-}))
+export const discoverData = exact<DiscoverData>()(obj(
+  { sections: arr(obj({ key: str, title: str, items: arr(summaryMedia) }, { error: str })), fetchedAt: int },
+  { freshness },
+))
+export const seasonalData = exact<SeasonalData>()(obj(
+  { season: lit('WINTER', 'SPRING', 'SUMMER', 'FALL'), year: int, items: arr(summaryMedia), fetchedAt: int },
+  { freshness },
+))
+export const scheduleData = exact<ScheduleData>()(obj(
+  {
+    airings: arr(obj(
+      { anilistId: int, episode: int, airingAt: int, title: str, inLibrary: bool },
+      { cover: str, format: str, posterTones: nullable(posterTones) },
+    )),
+    fetchedAt: int,
+  },
+  { freshness },
+))
 export const catalogSearchData = exact<CatalogSearchData>()(obj({ query: str, items: arr(summaryMedia) }))
 export const episodeMetadataList = exact<EpisodeMetadata[]>()(arr(obj(
   { episode: int, title: str },

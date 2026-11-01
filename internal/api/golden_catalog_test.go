@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -59,6 +60,12 @@ func catalogGoldenCases() []goldenCase {
 		}},
 		{"catalog-episode-offset-known", get("/api/anime/180003/episode-offset")},
 		{"catalog-episode-offset-unknown", get("/api/anime/154587/episode-offset")},
+		{"catalog-discover-offline", func(t *testing.T) []byte { return goldenOfflineEnv(t).callOffline(t, "/api/discover") }},
+		{"catalog-seasonal-offline", func(t *testing.T) []byte {
+			return goldenOfflineEnv(t).callOffline(t, "/api/seasonal?season=FALL&year=2026")
+		}},
+		{"catalog-schedule-offline", func(t *testing.T) []byte { return goldenOfflineEnv(t).callOffline(t, "/api/schedule") }},
+		{"catalog-detail-offline", func(t *testing.T) []byte { return goldenOfflineEnv(t).callOffline(t, "/api/anime/154587") }},
 		{"lists", get("/api/lists")},
 		{"lists-logged-out", func(t *testing.T) []byte {
 			env := newGoldenEnv(t, goldenOptions{})
@@ -78,8 +85,35 @@ func catalogGoldenCases() []goldenCase {
 // warmSchedule 先取一次放送表：季度页与详情页只用已缓存的放送快照补倒计时，不为它多发请求。
 func (e *goldenEnv) warmSchedule(t *testing.T) {
 	t.Helper()
-	_, err := e.h.catalog.schedule(context.Background())
+	_, _, err := e.h.catalog.schedule(context.Background())
 	require.NoError(t, err)
+}
+
+// goldenOfflineEnv 模拟「上次运行把公开目录落了盘，这次启动时上游连不上」：先在 goldenNow 把发现、季度、
+// 放送、详情各取一次（写进磁盘缓存），再换一个全新的进程 —— 同一个缓存目录、上游全挂、两小时之后。
+func goldenOfflineEnv(t *testing.T) *goldenEnv {
+	t.Helper()
+	dir := t.TempDir()
+	withDisk := func(d *Deps) { d.CatalogCacheDir = dir }
+	online := newGoldenEnv(t, goldenOptions{deps: withDisk})
+	for _, target := range []string{"/api/discover", "/api/seasonal?season=FALL&year=2026", "/api/schedule", "/api/anime/154587"} {
+		online.call(t, http.StatusOK, http.MethodGet, target, "")
+	}
+	online.h.catalog.cache.waitBackground()
+	later := goldenNow.Add(2 * time.Hour)
+	offline := newGoldenEnv(t, goldenOptions{deps: withDisk, clock: func() time.Time { return later }})
+	offline.catalog.failAll = true
+	return offline
+}
+
+// callOffline 请求两次：第一次拿到盘上那份（已过期，后台去刷新且失败），等后台收场后第二次的 freshness 就带上 offline。
+func (e *goldenEnv) callOffline(t *testing.T, target string) []byte {
+	t.Helper()
+	e.call(t, http.StatusOK, http.MethodGet, target, "")
+	e.h.catalog.cache.waitBackground()
+	body := e.call(t, http.StatusOK, http.MethodGet, target, "")
+	e.h.catalog.cache.waitBackground()
+	return body
 }
 
 // goldenAniZip 是逐集资料上游的一份响应（只有映射键是正片集号的条目会被采用）。

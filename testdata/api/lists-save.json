@@ -16,7 +16,15 @@
       "season": "秋",
       "episodes": 28,
       "genres": [],
-      "status": "RELEASING"
+      "status": "RELEASING",
+      "posterTones": {
+        "hue": 152.4,
+        "tone": "#88c197",
+        "quiet": "#77a583",
+        "mid": "#497555",
+        "low": "#0c2514",
+        "onTone": "#020f06"
+      }
     },
     "lastWatchedAt": 1792009800
   }

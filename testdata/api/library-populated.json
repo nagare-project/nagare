@@ -107,7 +107,15 @@
               }
             ]
           }
-        ]
+        ],
+        "posterTones": {
+          "hue": 152.4,
+          "tone": "#88c197",
+          "quiet": "#77a583",
+          "mid": "#497555",
+          "low": "#0c2514",
+          "onTone": "#020f06"
+        }
       },
       {
         "clusterKey": "9ae613bd",
@@ -143,7 +151,15 @@
               }
             ]
           }
-        ]
+        ],
+        "posterTones": {
+          "hue": 341.8,
+          "tone": "#d79cc0",
+          "quiet": "#b787a5",
+          "mid": "#855974",
+          "low": "#2e1625",
+          "onTone": "#14060f"
+        }
       },
       {
         "clusterKey": "58e8d75c",
@@ -173,7 +189,8 @@
               }
             ]
           }
-        ]
+        ],
+        "posterTones": null
       }
     ],
     "continueWatching": [
@@ -186,7 +203,15 @@
         "cover": "/art/cap-art/%5BANi%5D%20Bocchi%20the%20Rock%21%20-%2001%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4%7C2097152%7C1788249600000?v=1792062000000",
         "positionSec": 600,
         "durationSec": 1440,
-        "updatedAt": 1792062000000
+        "updatedAt": 1792062000000,
+        "posterTones": {
+          "hue": 341.8,
+          "tone": "#d79cc0",
+          "quiet": "#b787a5",
+          "mid": "#855974",
+          "low": "#2e1625",
+          "onTone": "#14060f"
+        }
       },
       {
         "fileId": "[Sub] Frieren - 02 [1080p].mkv|3145728|1788249600000",
@@ -196,7 +221,15 @@
         "cover": "/art/cap-art/assoc/20a0c072?v=154587-1792047600000",
         "positionSec": 312.5,
         "durationSec": 1420,
-        "updatedAt": 1792058400000
+        "updatedAt": 1792058400000,
+        "posterTones": {
+          "hue": 152.4,
+          "tone": "#88c197",
+          "quiet": "#77a583",
+          "mid": "#497555",
+          "low": "#0c2514",
+          "onTone": "#020f06"
+        }
       }
     ],
     "scannedAt": 1792065600000,

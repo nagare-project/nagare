@@ -19,7 +19,15 @@
           "season": "秋",
           "episodes": 28,
           "genres": [],
-          "status": "RELEASING"
+          "status": "RELEASING",
+          "posterTones": {
+            "hue": 152.4,
+            "tone": "#88c197",
+            "quiet": "#77a583",
+            "mid": "#497555",
+            "low": "#0c2514",
+            "onTone": "#020f06"
+          }
         },
         "lastWatchedAt": 1792009800
       },
@@ -36,7 +44,15 @@
           "season": "夏",
           "episodes": 12,
           "genres": [],
-          "status": "FINISHED"
+          "status": "FINISHED",
+          "posterTones": {
+            "hue": 341.8,
+            "tone": "#d79cc0",
+            "quiet": "#b787a5",
+            "mid": "#855974",
+            "low": "#2e1625",
+            "onTone": "#14060f"
+          }
         }
       }
     ]

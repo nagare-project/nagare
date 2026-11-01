@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/nagare-project/nagare/internal/artcache"
 )
 
 // 黄金环境里的目录 / 收藏替身：字段尽量填全，让每个可选字段都至少在一份黄金响应里出现
@@ -77,15 +78,38 @@ func frierenDetail() animego.CatalogMedia {
 	return m
 }
 
-type goldenCatalog struct {
-	failGems bool
+// goldenTones 是海报取色的替身：两部作品的封面算出了色相，其余（没下载完、灰度封面）是 null。
+type goldenTones struct{}
+
+func (goldenTones) PosterTones(source string) *artcache.PosterTones {
+	hues := map[string]float64{anilistCover("bx154587"): 152.4, anilistCover("bx130003"): 341.8}
+	hue, ok := hues[source]
+	if !ok {
+		return nil
+	}
+	tones := artcache.LadderFor(hue)
+	return &tones
 }
 
-func (goldenCatalog) Trending(context.Context) ([]animego.CatalogMedia, error) {
+type goldenCatalog struct {
+	failGems bool
+	// failAll：上游整个连不上（离线启动）
+	failAll bool
+}
+
+var errGoldenOffline = errors.New("dial tcp: network is unreachable")
+
+func (g goldenCatalog) Trending(context.Context) ([]animego.CatalogMedia, error) {
+	if g.failAll {
+		return nil, errGoldenOffline
+	}
 	return []animego.CatalogMedia{{AnilistID: goldenFrierenID, TitleChinese: "葬送的芙莉莲"}, bocchiRow()}, nil
 }
 
-func (goldenCatalog) Seasonal(_ context.Context, season string, year int) ([]animego.CatalogMedia, error) {
+func (g goldenCatalog) Seasonal(_ context.Context, season string, year int) ([]animego.CatalogMedia, error) {
+	if g.failAll {
+		return nil, errGoldenOffline
+	}
 	switch {
 	case season == "FALL" && year == 2026:
 		return []animego.CatalogMedia{frierenRow(), upcomingRow(goldenUpcoming, "秋季待播作品"), movieRow()}, nil
@@ -98,17 +122,23 @@ func (goldenCatalog) Seasonal(_ context.Context, season string, year int) ([]ani
 }
 
 func (g goldenCatalog) Gems(context.Context) ([]animego.CatalogMedia, error) {
-	if g.failGems {
+	if g.failGems || g.failAll {
 		return nil, errors.New("upstream 502")
 	}
 	return []animego.CatalogMedia{bocchiRow()}, nil
 }
 
-func (goldenCatalog) YearlyTop(context.Context, int) ([]animego.CatalogMedia, error) {
+func (g goldenCatalog) YearlyTop(context.Context, int) ([]animego.CatalogMedia, error) {
+	if g.failAll {
+		return nil, errGoldenOffline
+	}
 	return []animego.CatalogMedia{frierenRow()}, nil
 }
 
-func (goldenCatalog) Schedule(context.Context) (animego.ScheduleData, error) {
+func (g goldenCatalog) Schedule(context.Context) (animego.ScheduleData, error) {
+	if g.failAll {
+		return animego.ScheduleData{}, errGoldenOffline
+	}
 	at := func(d time.Duration) int64 { return goldenNow.Add(d).Unix() }
 	return animego.ScheduleData{Today: "2026-10-15", Groups: map[string][]animego.ScheduleItem{
 		"2026-10-15": {
@@ -119,7 +149,10 @@ func (goldenCatalog) Schedule(context.Context) (animego.ScheduleData, error) {
 	}}, nil
 }
 
-func (goldenCatalog) Detail(_ context.Context, id int) (animego.CatalogMedia, error) {
+func (g goldenCatalog) Detail(_ context.Context, id int) (animego.CatalogMedia, error) {
+	if g.failAll {
+		return animego.CatalogMedia{}, errGoldenOffline
+	}
 	if id == goldenFrierenID {
 		return frierenDetail(), nil
 	}

@@ -40,6 +40,14 @@
             "recentAiring": {
               "episode": 7,
               "at": 1791979200
+            },
+            "posterTones": {
+              "hue": 152.4,
+              "tone": "#88c197",
+              "quiet": "#77a583",
+              "mid": "#497555",
+              "low": "#0c2514",
+              "onTone": "#020f06"
             }
           },
           {
@@ -60,6 +68,14 @@
             "recentAiring": {
               "episode": 3,
               "at": 1792054800
+            },
+            "posterTones": {
+              "hue": 341.8,
+              "tone": "#d79cc0",
+              "quiet": "#b787a5",
+              "mid": "#855974",
+              "low": "#2e1625",
+              "onTone": "#14060f"
             }
           }
         ]
@@ -86,6 +102,14 @@
             "recentAiring": {
               "episode": 3,
               "at": 1792054800
+            },
+            "posterTones": {
+              "hue": 341.8,
+              "tone": "#d79cc0",
+              "quiet": "#b787a5",
+              "mid": "#855974",
+              "low": "#2e1625",
+              "onTone": "#14060f"
             }
           },
           {
@@ -118,6 +142,14 @@
             "recentAiring": {
               "episode": 7,
               "at": 1791979200
+            },
+            "posterTones": {
+              "hue": 152.4,
+              "tone": "#88c197",
+              "quiet": "#77a583",
+              "mid": "#497555",
+              "low": "#0c2514",
+              "onTone": "#020f06"
             }
           }
         ]
@@ -160,6 +192,14 @@
             "recentAiring": {
               "episode": 7,
               "at": 1791979200
+            },
+            "posterTones": {
+              "hue": 152.4,
+              "tone": "#88c197",
+              "quiet": "#77a583",
+              "mid": "#497555",
+              "low": "#0c2514",
+              "onTone": "#020f06"
             }
           },
           {
@@ -168,7 +208,8 @@
             "episodes": null,
             "genres": [],
             "status": "NOT_YET_RELEASED",
-            "format": "TV"
+            "format": "TV",
+            "posterTones": null
           },
           {
             "anilistId": 180002,
@@ -180,7 +221,8 @@
             ],
             "status": "FINISHED",
             "format": "MOVIE",
-            "duration": 105
+            "duration": 105,
+            "posterTones": null
           }
         ]
       },
@@ -206,6 +248,14 @@
             "recentAiring": {
               "episode": 3,
               "at": 1792054800
+            },
+            "posterTones": {
+              "hue": 341.8,
+              "tone": "#d79cc0",
+              "quiet": "#b787a5",
+              "mid": "#855974",
+              "low": "#2e1625",
+              "onTone": "#14060f"
             }
           }
         ]
@@ -220,7 +270,8 @@
             "episodes": null,
             "genres": [],
             "status": "NOT_YET_RELEASED",
-            "format": "TV"
+            "format": "TV",
+            "posterTones": null
           },
           {
             "anilistId": 180003,
@@ -228,7 +279,8 @@
             "episodes": null,
             "genres": [],
             "status": "NOT_YET_RELEASED",
-            "format": "TV"
+            "format": "TV",
+            "posterTones": null
           }
         ]
       },
@@ -246,7 +298,8 @@
             ],
             "status": "FINISHED",
             "format": "MOVIE",
-            "duration": 105
+            "duration": 105,
+            "posterTones": null
           }
         ],
         "error": "暂时取不到该板块，请稍后重试：部分数据未加载：gems 暂不可用"

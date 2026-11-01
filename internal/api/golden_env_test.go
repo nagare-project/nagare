@@ -55,11 +55,17 @@ type goldenOptions struct {
 	deps func(*Deps)
 	// statePath 非空时用这个状态文件（调用方预先写好）。
 	statePath string
+	// clock 非 nil 时替换 goldenClock（模拟「过了一段时间之后再启动」）。
+	clock func() time.Time
 }
 
 func newGoldenEnv(t *testing.T, opts goldenOptions) *goldenEnv {
 	t.Helper()
 	setGoldenPlatform(t, "linux", "amd64")
+	clock := opts.clock
+	if clock == nil {
+		clock = goldenClock
+	}
 	path := opts.statePath
 	if path == "" {
 		path = filepath.Join(t.TempDir(), "state.json")
@@ -67,8 +73,9 @@ func newGoldenEnv(t *testing.T, opts goldenOptions) *goldenEnv {
 	st, err := store.Open(path)
 	require.NoError(t, err)
 	lib := NewLibraryService(st)
-	lib.now = goldenClock
+	lib.now = clock
 	lib.SetArtPrefix(goldenArtPrefix)
+	lib.SetPosterTones(goldenTones{})
 	lib.SetMediaPrefix(goldenMediaPrefix)
 	env := &goldenEnv{
 		store:   st,
@@ -103,12 +110,13 @@ func newGoldenEnv(t *testing.T, opts goldenOptions) *goldenEnv {
 	}
 	env.h = New(deps)
 	env.h.SetCatalogArtPrefix(goldenArtPrefix)
-	env.h.catalog.cache.now = goldenClock
+	env.h.SetPosterTones(goldenTones{})
+	env.h.catalog.cache.now = clock
 	env.h.catalog.sleep = func(context.Context, time.Duration) error { return nil }
-	env.h.lists.cache.now = goldenClock
-	env.h.episodes.cache.now = goldenClock
+	env.h.lists.cache.now = clock
+	env.h.episodes.cache.now = clock
 	if deps.EpisodeSpaces != nil {
-		deps.EpisodeSpaces.cache.now = goldenClock
+		deps.EpisodeSpaces.cache.now = clock
 	}
 	env.mux = http.NewServeMux()
 	env.h.Register(env.mux)
