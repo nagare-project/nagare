@@ -22,8 +22,10 @@
 
 #include <dlfcn.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <Libmpv/mpv/client.h>
 #include <Libmpv/mpv/render_gl.h>
@@ -105,24 +107,26 @@ static int info(void) {
     return ok ? OK : FAILED;
 }
 
-// 不计时地解码到 1.5 秒处。视频宽度与音频采样率都观察到非零值、以 EOF 结束、没有解码器报错，才算通过。
-// 结束时打印期间用过的硬解（hwdec-used=，没用上是 no），verify.sh 拿它看 VideoToolbox。
+// 不计时地解码到 1.5 秒处，停在那里（keep-open）再读结果：视频宽度与音频采样率都非零、没有解码器报错，
+// 才算通过；同时打印当时的硬解（hwdec-used=，没用上是 no），verify.sh 拿它看 VideoToolbox。
+// 必须停住再读：不停的话片子瞬间就放完卸载了，属性的变化通知来不及送到，读到的是空的。
+static int64_t get_int(mpv_handle *h, const char *name) {
+    int64_t v = 0;
+    return mpv_get_property(h, name, MPV_FORMAT_INT64, &v) < 0 ? 0 : v;
+}
+
 static int play(const char *file, const char *script, const char *hwdec) {
     const char *opts[] = {"vo", "null", "ao", "null", "hwdec", hwdec, "untimed", "yes", "ao-null-untimed", "yes",
-                          "end", "1.5", script ? "scripts" : NULL, script, NULL};
+                          "end", "1.5", "keep-open", "yes", script ? "scripts" : NULL, script, NULL};
     mpv_handle *h = make_handle(opts);
     if (!h) return FAILED;
-    mpv_observe_property(h, 1, "video-params/w", MPV_FORMAT_INT64);
-    mpv_observe_property(h, 2, "audio-params/samplerate", MPV_FORMAT_INT64);
-    mpv_observe_property(h, 3, "hwdec-current", MPV_FORMAT_STRING);
-    char hw_used[64] = "no";
+    mpv_observe_property(h, 1, "eof-reached", MPV_FORMAT_FLAG);
     const char *load[] = {"loadfile", file, NULL};
     int err = mpv_command(h, load);
     if (err < 0) {
         fprintf(stderr, "sim_test: loadfile: %s\n", mpv_error_string(err));
         return FAILED;
     }
-    int64_t width = 0, rate = 0;
     int result = FAILED, done = 0;
     double deadline = now_seconds() + TIMEOUT_SECONDS;
     while (!done && now_seconds() < deadline) {
@@ -133,14 +137,20 @@ static int play(const char *file, const char *script, const char *hwdec) {
             break;
         case MPV_EVENT_PROPERTY_CHANGE: {
             mpv_event_property *p = ev->data;
-            if (p->format == MPV_FORMAT_INT64) {
-                int64_t v = *(int64_t *)p->data;
-                if (ev->reply_userdata == 1 && v > width) width = v;
-                if (ev->reply_userdata == 2 && v > rate) rate = v;
-            } else if (p->format == MPV_FORMAT_STRING && ev->reply_userdata == 3) {
-                const char *v = *(char **)p->data;
-                if (v && v[0] && strcmp(v, "no") != 0) snprintf(hw_used, sizeof(hw_used), "%s", v);
+            if (script || ev->reply_userdata != 1 || p->format != MPV_FORMAT_FLAG || !*(int *)p->data) break;
+            // 停在了 1.5 秒处：此刻视频 / 音频参数与解码器都还在
+            done = 1;
+            int64_t width = get_int(h, "video-params/w"), rate = get_int(h, "audio-params/samplerate");
+            char *hw = mpv_get_property_string(h, "hwdec-current");
+            if (width <= 0 || rate <= 0 || decoder_error) {
+                printf("sim_test: video width=%lld audio samplerate=%lld decoder-error=%d\n", (long long)width,
+                       (long long)rate, decoder_error);
+            } else {
+                printf("sim_test: play OK width=%lld samplerate=%lld hwdec-used=%s\n", (long long)width,
+                       (long long)rate, hw && hw[0] ? hw : "no");
+                result = OK;
             }
+            mpv_free(hw);
             break;
         }
         case MPV_EVENT_END_FILE: {
@@ -150,16 +160,9 @@ static int play(const char *file, const char *script, const char *hwdec) {
                 printf("sim_test: playback error: %s\n", mpv_error_string(end->error));
                 result = PLAYBACK_ERROR;
             } else if (script) {
-                result = OK; // lua 模式：脚本自己 quit（原因是 quit 不是 eof），结论由 verify.sh 看日志
-            } else if (end->reason != MPV_END_FILE_REASON_EOF) {
-                printf("sim_test: playback ended with reason %d\n", end->reason);
-            } else if (width <= 0 || rate <= 0 || decoder_error) {
-                printf("sim_test: video width=%lld audio samplerate=%lld decoder-error=%d\n", (long long)width,
-                       (long long)rate, decoder_error);
+                result = OK; // lua 模式：脚本自己 quit，结论由 verify.sh 看日志
             } else {
-                printf("sim_test: play OK width=%lld samplerate=%lld hwdec-used=%s\n", (long long)width,
-                       (long long)rate, hw_used);
-                result = OK;
+                printf("sim_test: playback ended with reason %d before reaching the end\n", end->reason);
             }
             break;
         }
@@ -291,7 +294,13 @@ done:
 
 int main(int argc, char **argv) {
     @autoreleasepool {
+        // verify.sh 让输出直接写进文件（经 SIMCTL_CHILD_SIM_TEST_OUT 传进来），不全靠 simctl 转发：
+        // 这样能分清「进程根本没起来」与「起来了但失败」
+        const char *out = getenv("SIM_TEST_OUT");
+        if (out && out[0] && freopen(out, "w", stdout)) dup2(fileno(stdout), fileno(stderr));
         setvbuf(stdout, NULL, _IOLBF, 0);
+        setvbuf(stderr, NULL, _IOLBF, 0);
+        printf("sim_test: start %s\n", argc > 1 ? argv[1] : "");
         if (argc == 2 && strcmp(argv[1], "info") == 0) return info();
         if ((argc == 3 || argc == 4) && strcmp(argv[1], "play") == 0) return play(argv[2], NULL, argc == 4 ? argv[3] : "no");
         if (argc == 4 && strcmp(argv[1], "lua") == 0) return play(argv[3], argv[2], "no");
