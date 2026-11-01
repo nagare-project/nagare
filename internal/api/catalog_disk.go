@@ -181,18 +181,27 @@ func (d *catalogDisk) store(key string, value any, fetchedAt time.Time) {
 		log.Printf("目录缓存：%s 有 %d 字节，超过上限，不落盘", key, len(buf))
 		return
 	}
+	tmpName, err := writeTemp(d.dir, buf)
+	if err != nil {
+		log.Printf("目录缓存：写入 %s 失败：%v", key, err)
+		return
+	}
+	defer os.Remove(tmpName) // 成功路径上已经改名走了，这里只清理失败的
 	name := catalogDiskName(key)
-	if err := writeFileAtomic(d.dir, name, buf); err != nil {
+	path := filepath.Join(d.dir, name)
+	// 改名与索引更新在同一把锁里：否则另一个键的淘汰可能在这两步之间删掉刚改名到位的新文件，
+	// 索引就记着一个不存在的文件（总量也跟着虚高）。
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := os.Rename(tmpName, path); err != nil {
 		log.Printf("目录缓存：写入 %s 失败：%v", key, err)
 		return
 	}
 	now := d.now()
 	// mtime 与内存索引用同一只钟：重启后按 mtime 重建的淘汰顺序才与运行时一致
-	if err := os.Chtimes(filepath.Join(d.dir, name), now, now); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := os.Chtimes(path, now, now); err != nil {
 		log.Printf("目录缓存：更新使用时间失败（只影响淘汰顺序）：%v", err)
 	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
 	d.total += int64(len(buf)) - d.index[name].size
 	d.index[name] = catalogDiskEntry{size: int64(len(buf)), used: now}
 	d.evictLocked(name)
@@ -202,15 +211,22 @@ func (d *catalogDisk) store(key string, value any, fetchedAt time.Time) {
 func (d *catalogDisk) discard(key, reason string) {
 	name := catalogDiskName(key)
 	log.Printf("目录缓存：丢弃 %s（%s），改从网络读取", key, reason)
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if err := os.Remove(filepath.Join(d.dir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		log.Printf("目录缓存：删除 %s 失败：%v", key, err)
+		return // 删不掉就留在索引里，总量仍按它算
 	}
-	d.forget(name)
+	d.forgetLocked(name)
 }
 
 func (d *catalogDisk) forget(name string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.forgetLocked(name)
+}
+
+func (d *catalogDisk) forgetLocked(name string) {
 	if e, ok := d.index[name]; ok {
 		d.total -= e.size
 		delete(d.index, name)
@@ -232,11 +248,15 @@ func (d *catalogDisk) touch(name, path string) {
 }
 
 // evictLocked 超过总上限时从最久没用的开始删，keep（刚写入的那个）不删。调用方持有 d.mu。
+//
+// 删不掉的文件（Windows 上正被读取的文件不让删）留在索引里、总量照算，这一轮跳过它去删下一个：
+// 不然它成了不受管的孤儿文件，总量也会少算。
 func (d *catalogDisk) evictLocked(keep string) {
+	skip := map[string]bool{}
 	for d.total > d.maxBytes {
 		oldest := ""
 		for name, e := range d.index {
-			if name != keep && (oldest == "" || e.used.Before(d.index[oldest].used)) {
+			if name != keep && !skip[name] && (oldest == "" || e.used.Before(d.index[oldest].used)) {
 				oldest = name
 			}
 		}
@@ -244,34 +264,39 @@ func (d *catalogDisk) evictLocked(keep string) {
 			return
 		}
 		if err := os.Remove(filepath.Join(d.dir, oldest)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			log.Printf("目录缓存：淘汰旧文件失败：%v", err)
+			log.Printf("目录缓存：淘汰旧文件失败（下次再试）：%v", err)
+			skip[oldest] = true
+			continue
 		}
 		d.total -= d.index[oldest].size
 		delete(d.index, oldest)
 	}
 }
 
-// writeFileAtomic 先写同目录下的临时文件再改名：读的人要么看到旧的完整文件，要么看到新的。
-func writeFileAtomic(dir, name string, data []byte) error {
+// writeTemp 把内容写进同目录下的临时文件（0600）并关闭，返回它的路径；改名由调用方在锁内完成，
+// 读的人要么看到旧的完整文件，要么看到新的。
+func writeTemp(dir string, data []byte) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil { // 用户可能在运行中清掉了缓存目录
-		return err
+		return "", err
 	}
 	tmp, err := os.CreateTemp(dir, catalogDiskTempPrefix+"*")
 	if err != nil {
-		return err
+		return "", err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // 成功路径上已经改名走了，这里只清理失败的
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
-		return err
+		_ = os.Remove(tmpName)
+		return "", err
 	}
 	if err := tmp.Chmod(0o600); err != nil {
 		_ = tmp.Close()
-		return err
+		_ = os.Remove(tmpName)
+		return "", err
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		_ = os.Remove(tmpName)
+		return "", err
 	}
-	return os.Rename(tmpName, filepath.Join(dir, name))
+	return tmpName, nil
 }

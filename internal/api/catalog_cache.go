@@ -71,11 +71,12 @@ func (c *readCache) get(key string) (any, bool) {
 
 // peek 取内存里的任何一份（过期的也算）：给详情、季度补放送倒计时用，
 // 放送时间是绝对时刻，过期的快照照样能算出「下一集」。
+// 没有磁盘层的键与以前一样只认未过期的。
 func (c *readCache) peek(key string) (any, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	v, ok := c.entries[key]
-	return v.value, ok
+	return v.value, ok && (c.persistent(key) || c.now().Before(v.expires))
 }
 
 // lookup 取内存副本：未过期的总能用；过期的只有可落盘的键才拿来先顶上（stale=true）。
@@ -130,6 +131,14 @@ func cachedReadMeta[T any](ctx context.Context, c *readCache, key string, ttl ti
 		return zero, cacheMeta{}, ctx.Err()
 	case result := <-ch:
 		if result.Err != nil {
+			// 内存副本被挤掉时，这次读取可能合并进了一次失败的后台刷新；盘上还有就先给盘上的
+			if c.persistent(key) {
+				if r, ok := loadFromDisk[T](c, key, ttl); ok {
+					c.markFailed(key, result.Err) // 记下失败：接下来的读取按退避处理，并报 offline
+					r.meta.offline = true
+					return r.value.(T), r.meta, nil
+				}
+			}
 			return zero, cacheMeta{}, result.Err
 		}
 		r := result.Val.(readResult)
