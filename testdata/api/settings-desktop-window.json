@@ -10,6 +10,11 @@
     "background": {
       "mode": "window"
     },
+    "coverCache": {
+      "bytes": 52428800,
+      "count": 312,
+      "maxBytes": 314572800
+    },
     "dataDir": "/Users/viewer/Library/Application Support/nagare",
     "desktop": {
       "window": true

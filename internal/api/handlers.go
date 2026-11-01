@@ -87,6 +87,8 @@ type Handler struct {
 	lists     *ListsService
 	remoteArt *RemoteArt
 	episodes  *episodeMetadataService
+	// coverCache 是封面缓存（cover_cache.go），启动时注入
+	coverCache coverCacheSlot
 }
 
 // New 构造 Handler。
@@ -127,6 +129,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/settings", h.settings)
 	mux.HandleFunc("POST /api/mpv/detect", h.mpvDetect)
 	mux.HandleFunc("POST /api/shutdown", h.shutdown)
+	mux.HandleFunc("POST /api/cover-cache/clear", h.clearCoverCache)
 	mux.HandleFunc("POST /api/animego/login", h.login)
 	mux.HandleFunc("POST /api/animego/logout", h.logout)
 	// /api/search*、/api/sources*、/api/source-plugin/*、/api/torrent/*、/api/downloads 由 api/sources 注册

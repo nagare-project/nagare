@@ -9,7 +9,7 @@
 import type { AssociationData, LibraryAssociation, LibraryMatch, SyncedRecord } from '../lib/associations'
 import type {
   AddFolderData, BundledPluginView, CatalogFreshness, CatalogSearchData, CollectionData, CollectionDeleteData, CollectionEntry,
-  ContinueItem, DanmakuStatus, DirListing, DiscoverData, DownloadTask, DownloadsData, ItemProgress, LibraryCluster,
+  ContinueItem, CoverCacheClearResult, CoverCacheInfo, DanmakuStatus, DirListing, DiscoverData, DownloadTask, DownloadsData, ItemProgress, LibraryCluster,
   LibraryData, LibraryDropGroup, LibraryDrops, LibraryFolder, LibraryGroup, LibraryIdentify, LibraryItem, MpvInfo,
   PlaybackFailure, PlayData, PlayerConfigResult, PlayerStatus, PlayingStatus, PluginSource, PosterTones, RulesInfo, ScanStats,
   ScheduleData, SeasonalData, SelfUpdateInfo, SettingsData, SourceInfo, SourcePluginConfigView, SourcePluginManifest,
@@ -103,6 +103,8 @@ const torrentSettings = exact<TorrentSettings>()(obj({
   restartRequired: bool,
 }))
 export const torrentConfigData: Schema<TorrentConfigData> = torrentSettings
+const coverCacheInfo = exact<CoverCacheInfo>()(obj({ bytes: int, count: int, maxBytes: int }))
+export const coverCacheClearResult = exact<CoverCacheClearResult>()(obj({ bytes: int, count: int, maxBytes: int, skipped: int }))
 export const settingsData = exact<SettingsData>()(obj(
   {
     version: str, platform: lit('darwin', 'linux', 'windows'), arch: str, dataDir: str, logPath: str, mpv: mpvInfo,
@@ -110,7 +112,7 @@ export const settingsData = exact<SettingsData>()(obj(
     player: obj({ anime4k }),
     background: obj({ mode: lit('dock', 'menubar', 'tray', 'window', 'none') }),
   },
-  { torrent: torrentSettings, desktop: obj({ window: bool }, { fallback: str }) },
+  { torrent: torrentSettings, desktop: obj({ window: bool }, { fallback: str }), coverCache: nullable(coverCacheInfo) },
 ))
 export const loginData = exact<Awaited<ReturnType<typeof animegoLogin>>>()(obj({ user: obj({ email: str }) }))
 const selfUpdate = exact<SelfUpdateInfo>()(obj(

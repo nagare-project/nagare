@@ -212,3 +212,12 @@ func (l *goldenLists) GetListEntry(_ context.Context, id int) (*animego.ListEntr
 
 func (l *goldenLists) SaveListEntry(context.Context, int, string, int, *int) error { return nil }
 func (l *goldenLists) DeleteListEntry(context.Context, int) error                  { return nil }
+
+// goldenCoverCache 是封面缓存的替身：占用固定；清空后剩一张正在显示的封面没删。
+func goldenCoverCache() *fakeCoverCache {
+	return &fakeCoverCache{
+		usage:   artcache.Usage{Bytes: 52428800, Count: 312, MaxBytes: artcache.MaxBytes},
+		after:   artcache.Usage{Bytes: 183296, Count: 1, MaxBytes: artcache.MaxBytes},
+		skipped: 1,
+	}
+}

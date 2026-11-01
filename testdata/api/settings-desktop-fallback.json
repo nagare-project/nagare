@@ -10,6 +10,7 @@
     "background": {
       "mode": "none"
     },
+    "coverCache": null,
     "dataDir": "/home/viewer/.config/nagare",
     "desktop": {
       "window": false,

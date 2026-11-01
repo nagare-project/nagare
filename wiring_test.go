@@ -21,6 +21,7 @@ func TestRegisterRoutesMountsCoreAndSourcesEndpoints(t *testing.T) {
 	for _, route := range []struct{ method, target, pattern string }{
 		{http.MethodGet, "/api/library", "GET /api/library"},
 		{http.MethodGet, "/api/settings", "GET /api/settings"},
+		{http.MethodPost, "/api/cover-cache/clear", "POST /api/cover-cache/clear"},
 		{http.MethodPost, "/api/torrent/play", "POST /api/torrent/play"},
 		{http.MethodGet, "/api/search?q=x", "GET /api/search"},
 		{http.MethodPost, "/api/source-plugin/play", "POST /api/source-plugin/play"},

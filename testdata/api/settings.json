@@ -10,6 +10,11 @@
     "background": {
       "mode": "tray"
     },
+    "coverCache": {
+      "bytes": 52428800,
+      "count": 312,
+      "maxBytes": 314572800
+    },
     "dataDir": "/home/viewer/.config/nagare",
     "desktop": {
       "window": false
