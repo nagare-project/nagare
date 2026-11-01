@@ -161,9 +161,14 @@ func (a *app) onProperty(s *videoSession, name string, data json.RawMessage) {
 	}
 	host := a.hostState()
 	acts, writes := s.sync.fromMpv(name, v, host)
-	traceWin("mpv 报 %s=%v（宿主 %+v）→ 动作 %v、写回 %v", name, v, host, acts, writes)
+	if testHooks.trace != nil {
+		traceWin("mpv 报 %s=%v（宿主 %+v）→ 动作 %v、写回 %v", name, v, host, acts, writes)
+	}
 	s.write(writes)
 	a.apply(acts)
+	if len(writes) > 0 {
+		a.settleChild(s) // 刚写过去的值同样可能与紧跟着的请求合并掉（winstate.go 开头）
+	}
 }
 
 // ───────────────────────── 会话 ─────────────────────────
@@ -182,9 +187,8 @@ type videoSession struct {
 	enabling atomic.Bool
 	killed   atomic.Bool
 
-	sync *windowSync // 界面线程
-	// settleGen：settleChild 的轮次（界面线程），只有最新的一轮去读回来对
-	settleGen uint64
+	sync *windowSync    // 界面线程
+	rec  reconcileState // 界面线程（winsync_windows.go）
 
 	mu    sync.Mutex
 	props map[string]json.RawMessage // 最近一次的属性值（给测试遥控看）

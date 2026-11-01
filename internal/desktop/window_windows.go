@@ -5,10 +5,8 @@ package desktop
 // 顶层窗口与两个子窗口（网页层 / 画面层）：建、拆、排版、两层切换、全屏、提到前面、关窗口。全部在界面线程上。
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -27,10 +25,6 @@ const (
 	defaultWidth, defaultHeight = 1280, 800
 	// 网页的近黑底（与 macOS 窗口、网页 body 的底色一致），免得建网页层时白屏一闪
 	bgR, bgG, bgB = 0x0B, 0x0B, 0x0B
-
-	// 宿主改了 mpv 子窗口的大小之后，隔这么久看一次它跟上没有（见 settleChild），最多看这么久
-	childSettlePoll  = 100 * time.Millisecond
-	childSettleLimit = 3 * time.Second
 )
 
 var (
@@ -159,8 +153,10 @@ func (a *app) layout() {
 	}
 	if s := a.session; s != nil {
 		if child := s.child.Load(); child != 0 {
-			if c := clientRect(child); uintptr(c.width()) != w || uintptr(c.height()) != h {
-				traceWin("mpv 子窗口 %dx%d → %dx%d（异步）", c.width(), c.height(), w, h)
+			if testHooks.trace != nil {
+				if c := clientRect(child); uintptr(c.width()) != w || uintptr(c.height()) != h {
+					traceWin("mpv 子窗口 %dx%d → %dx%d（异步）", c.width(), c.height(), w, h)
+				}
 			}
 			pSetWindowPos.Call(child, 0, 0, 0, w, h, swpNoZOrder|swpNoActivate|swpNoOwnerZOrder|swpAsyncWindowPos)
 		}
@@ -315,85 +311,11 @@ func (a *app) hostChanged() {
 	if s := a.session; s != nil && s.sync != nil {
 		host := a.hostState()
 		writes := s.sync.fromHost(host)
-		traceWin("宿主 %+v → 写给 mpv %v", host, writes)
+		if testHooks.trace != nil {
+			traceWin("宿主 %+v → 写给 mpv %v", host, writes)
+		}
 		s.write(writes)
 		a.settleChild(s)
-	}
-}
-
-// settleChild（界面线程）：宿主的窗口刚变过（改大小、全屏、置顶），等 mpv 的子窗口跟上客户区（连续两次看到：它处理完
-// 了那次 WM_SIZE，不会再有一个假晚到），再把这几个属性从 mpv 读回来对一遍（winstate.go 的 reconcile）—— 宿主写过去
-// 的值与紧跟着的另一次改动常被 mpv 合并成「没变」、一个通知都不发。只留最新的一轮：拖着窗口边框改大小时每个
-// WM_SIZE 都会来一次。等不到（mpv 卡住、子窗口没了）也照样读一次：读不到就算了。
-func (a *app) settleChild(s *videoSession) {
-	s.settleGen++
-	gen, deadline := s.settleGen, time.Now().Add(childSettleLimit)
-	var poll func(seen bool)
-	poll = func(seen bool) {
-		time.AfterFunc(childSettlePoll, func() {
-			a.q.post(func() {
-				if a.session != s || s.settleGen != gen {
-					return // 会话换了，或者窗口又变了一次（新的一轮接手）
-				}
-				child := s.child.Load()
-				want, got := clientRect(a.videoHost), clientRect(child)
-				settled := child != 0 && got.width() == want.width() && got.height() == want.height()
-				switch {
-				case settled && seen:
-					a.reconcileFlags(s)
-				case time.Now().After(deadline):
-					traceWin("mpv 子窗口 %s 内没跟上（%dx%d，客户区 %dx%d）", childSettleLimit, got.width(), got.height(), want.width(), want.height())
-					a.reconcileFlags(s)
-				default:
-					poll(settled)
-				}
-			})
-		})
-	}
-	poll(false)
-}
-
-// reconcileFlags（界面线程）：把全屏 / 最大化 / 最小化 / 置顶从 mpv 读回来（后台 goroutine 里等回复，mpv 卡住也不
-// 拖住界面线程），再回到界面线程按宿主此刻的状态对一遍。
-func (a *app) reconcileFlags(s *videoSession) {
-	c := s.ipc.Load()
-	if c == nil || s.sync == nil {
-		return
-	}
-	marks := s.sync.marks(windowFlags)
-	go func() {
-		vals := make([]*bool, len(windowFlags))
-		for i, name := range windowFlags {
-			raw, err := c.request(ipcReplyWait, "get_property", name)
-			var v bool
-			if err == nil && json.Unmarshal(raw, &v) == nil {
-				vals[i] = &v
-			}
-		}
-		a.q.post(func() {
-			if a.session != s || s.sync == nil {
-				return
-			}
-			for i, name := range windowFlags {
-				if vals[i] == nil {
-					continue
-				}
-				host := a.hostState()
-				acts, writes := s.sync.reconcile(name, *vals[i], host, marks[i])
-				if len(acts) > 0 || len(writes) > 0 {
-					traceWin("读回 %s=%v（宿主 %+v）→ 动作 %v、写回 %v", name, *vals[i], host, acts, writes)
-				}
-				s.write(writes)
-				a.apply(acts)
-			}
-		})
-	}()
-}
-
-// traceWin 记一条窗口状态同步的事件：只有测试构建设了 testHooks.trace（失败时连同状态一起报出来），正式构建什么都不做。
-func traceWin(format string, args ...any) {
-	if t := testHooks.trace; t != nil {
-		t(fmt.Sprintf(format, args...))
 	}
 }
 

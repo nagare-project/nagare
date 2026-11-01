@@ -172,3 +172,31 @@ func TestWindowSyncUnknownProperty(t *testing.T) {
 	assert.Empty(t, acts)
 	assert.Empty(t, writes)
 }
+
+// mpv 把宿主写的值报回来之前都算 pending：它还没取过那次改动，之后的请求随时可能与它合并掉，要接着读。
+func TestWindowSyncPendingUntilEchoed(t *testing.T) {
+	s := newWindowSync()
+	names := []string{"fullscreen", "window-maximized", "ontop"}
+	host := hostWindow{}
+	s.fromHost(host)
+	assert.True(t, s.pending(names), "写过去了，还没报回来")
+	for _, n := range names {
+		s.fromMpv(n, false, host)
+	}
+	assert.False(t, s.pending(names), "都报回来了")
+
+	maxed := hostWindow{Maximized: true}
+	s.fromHost(maxed)
+	assert.True(t, s.pending(names))
+	s.reconcile("window-maximized", true, maxed, s.marks(names[1:2])[0])
+	assert.True(t, s.pending(names), "读回来与写的一样也不算：mpv 没报，就是还没取过")
+	s.fromMpv("window-maximized", true, maxed)
+	assert.False(t, s.pending(names))
+
+	// 还原时宿主写假，请求的真贴着到、合并掉：读回来照做之后，宿主认为的值与 mpv 上次报的一样，不用再读
+	s.fromHost(host)
+	assert.True(t, s.pending(names))
+	acts, _ := s.reconcile("window-maximized", true, host, s.marks(names[1:2])[0])
+	assert.Equal(t, []winAction{winMaximize}, acts)
+	assert.False(t, s.pending(names))
+}

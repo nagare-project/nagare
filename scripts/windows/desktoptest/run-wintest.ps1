@@ -515,20 +515,24 @@ function Win-Diag([string]$what) {
 # mpv 的子窗口跟上了宿主的客户区：它处理完了宿主改大小的那一下（那一下会把 mpv 的 window-maximized 改成假）
 function Child-Settled($s) { return ($s.childClient -and $s.client -and $s.childClient[0] -eq $s.client[0] -and $s.childClient[1] -eq $s.client[1]) }
 
+# 直接问 mpv 此刻的 window-maximized（遥控状态里的是 mpv 最近一次报来的，可能早就过时了）
+function Live-Maximized { try { return (Mpv '["get_property","window-maximized"]').data } catch { return $null } }
+
 $maxRepeat = 1
 if ($env:NAGARE_WINTEST_MAX_REPEAT) { $maxRepeat = [int]$env:NAGARE_WINTEST_MAX_REPEAT }
 for ($round = 1; $round -le $maxRepeat; $round++) {
 $tag = if ($maxRepeat -gt 1) { "（第 $round 轮）" } else { '' }
 Step "最大化$tag" {
     Ctl '/winop' @{ op = 'maximize' } | Out-Null
-    $ok = Wait-Until { $s = State; $s.maximized -and (Prop $s 'window-maximized') -eq $true } 5
+    $ok = Wait-Until { $s = State; $s.maximized -and (Prop $s 'window-maximized') -eq $true -and (Live-Maximized) -eq $true } 5
     $d = if ($ok) { '' } else { Win-Diag '5 秒内没等到' }
     $shot = if ($round -eq 1) { Snap 'maximized' -Full } else { '' }
     Add-Step "窗口最大化，写回 mpv 的 window-maximized$tag" $ok $d $shot
     Ctl '/winop' @{ op = 'restore' } | Out-Null
     # 只等到 mpv 的子窗口跟上还原后的大小（它处理完那次 WM_SIZE，不会再把接下来的请求盖成假），然后马上请求：
-    # 宿主还原时刚把 window-maximized=假 写过去，请求的真贴着它到，mpv 常把两下合并成「没变」不发通知 ——
-    # 这正是要守的那条（宿主改完窗口后读回来对一遍才看得见这个请求）。
+    # 宿主还原时刚把 window-maximized=假 写过去，mpv 取这次改动、发通知常要几十到几百毫秒，请求的真在那之前到，
+    # 两下就合并成「没变」、宿主一个通知都收不到（修之前 CI 上 80 轮丢了 23 次）—— 这正是要守的那条：宿主改完窗口
+    # 后要读回来对，一直读到 mpv 把它写的值报回来。
     $ok2 = Wait-Until { $s = State; -not $s.maximized -and (Child-Settled $s) } 5
     $d = if ($ok2) { '' } else { Win-Diag '还原后 5 秒没等到窗口还原、mpv 的子窗口跟上' }
     $ok3 = $false
