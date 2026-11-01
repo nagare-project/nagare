@@ -68,9 +68,11 @@ const search = async (container: HTMLElement) => act(async () => {
 })
 const rows = (container: HTMLElement) => [...container.querySelectorAll<HTMLLIElement>('.media-resource-list li')]
 const titles = (container: HTMLElement) => rows(container).map(row => row.querySelector('strong')?.textContent)
-const groupNames = (container: HTMLElement) => [...container.querySelectorAll('.media-fansub-chip strong')].map(node => node.textContent)
+const groupNames = (container: HTMLElement) => [...container.querySelectorAll('.media-fansub-chip strong')].map(node => node.textContent?.replace(/^字幕组 /, ''))
 const button = (container: HTMLElement, text: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.includes(text))
-const pick = async (container: HTMLElement, group: string) => act(async () => container.querySelector<HTMLButtonElement>(`[aria-label="字幕组 ${group}"]`)!.click())
+/** 字幕组按钮：名字就是可见文字「字幕组 <组名> …」，按组名找 */
+const chip = (container: HTMLElement, group: string) => [...container.querySelectorAll<HTMLButtonElement>('.media-fansub-chip')].find(button => button.querySelector('strong')?.textContent === `字幕组 ${group}`) ?? null
+const pick = async (container: HTMLElement, group: string) => act(async () => chip(container, group)!.click())
 
 describe('作品页磁力：不选集数，直接按字幕组分类', () => {
   it('切到磁力标签就直接搜，没有集数选择；单集播放带作品身份与条目自己的集号', async () => {
@@ -134,7 +136,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     localStorage.setItem('nagare:fansub:7', 'B组')
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
     const chips = [...container.querySelectorAll<HTMLButtonElement>('.media-fansub-chip')]
-    expect(chips.map(item => item.querySelector('strong')?.textContent)).toEqual(['B组', 'A组'])
+    expect(chips.map(item => item.querySelector('strong')?.textContent)).toEqual(['字幕组 B组', '字幕组 A组'])
     expect(chips[0]?.getAttribute('aria-pressed')).toBe('true')
     await act(async () => chips[1]!.click())
     expect(titles(container)).toEqual(['[A组] 测试动画 [1-3]', '[A组] 测试动画 2', '[A组] 测试动画 02 v2'])
@@ -303,13 +305,13 @@ describe('按字幕组浏览磁力版本', () => {
     vi.mocked(streamPluginMagnets).mockImplementation(async (_q, _c, onEvent) => { emits.push(onEvent); await new Promise<void>(() => {}) })
     const { container, rerender, unmount } = await mount(<MediaTorrentButton media={media} inline />)
     await act(async () => emits[0]!({ event: 'item', item: release(2, '新组', 2) }))
-    const groupChip = container.querySelector<HTMLButtonElement>('[aria-label="字幕组 新组"]')!
+    const groupChip = chip(container, '新组')!
     await act(async () => groupChip.click())
     await act(async () => emits[0]!({ event: 'item', item: release(3, '另一组', 2) }))
     expect(groupChip.getAttribute('aria-pressed')).toBe('true')
     await rerender(<MediaTorrentButton media={{ ...media, id: 9, title: '另一部作品' }} inline />)
     await act(async () => emits[0]!({ event: 'item', item: release(4, '过期组', 2) }))
-    expect(container.querySelector('[aria-label="字幕组 过期组"]')).toBeNull()
+    expect(chip(container, '过期组')).toBeNull()
     await unmount()
   })
 
@@ -320,9 +322,9 @@ describe('按字幕组浏览磁力版本', () => {
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
     await search(container)
     await act(async () => emits[0]!({ event: 'item', item: release(5, '旧组', 3) }))
-    expect(container.querySelector('[aria-label="字幕组 旧组"]')).toBeNull()
+    expect(chip(container, '旧组')).toBeNull()
     await act(async () => emits[1]!({ event: 'item', item: release(6, '新组', 3) }))
-    expect(container.querySelector('[aria-label="字幕组 新组"]')).not.toBeNull()
+    expect(chip(container, '新组')).not.toBeNull()
     await unmount()
   })
 
@@ -369,6 +371,43 @@ describe('按字幕组浏览磁力版本', () => {
     expect(container.querySelector('.media-resource-list')).not.toBeNull()
     await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button.btn--primary')!.click())
     expect(container.querySelector<HTMLDialogElement>('dialog')?.open).toBe(false)
+    await unmount()
+  })
+
+  it('作品页的磁力抽屉：「磁力」打开抽屉就搜，行为与弹窗一样；只有按下与松开都在遮罩上才关，关掉后焦点回到「磁力」', async () => {
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} drawer />)
+    // 抽屉模式没有卡片上的「字幕组」入口
+    expect(container.querySelector('.discover-card-torrent')).toBeNull()
+    const trigger = [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.startsWith('磁力'))!
+    expect(trigger.getAttribute('aria-haspopup')).toBe('dialog')
+    const drawer = container.querySelector<HTMLDialogElement>('dialog')!
+    expect(drawer.getAttribute('aria-labelledby')).toBe(drawer.querySelector('h2')?.id)
+    expect(drawer.querySelector('h2')?.textContent).toBe(media.title)
+    await act(async () => trigger.click())
+    expect(drawer.open).toBe(true)
+    expect(searchMagnets).toHaveBeenCalledOnce()
+    expect(rows(container)).toHaveLength(1)
+    // 下载整部照常可用
+    expect(button(container, '下载')).toBeDefined()
+
+    drawer.getBoundingClientRect = () => ({ left: 600, right: 1000, top: 0, bottom: 800, width: 400, height: 800, x: 600, y: 0, toJSON: () => ({}) })
+    const at = (type: string, x: number, target: Element = drawer) =>
+      act(async () => { target.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: 100 })) })
+    // 在抽屉里按下、拖到遮罩上松手（拖选文字）：不关
+    await at('pointerdown', 700, container.querySelector('.media-release-search input')!)
+    await at('click', 10)
+    expect(drawer.open).toBe(true)
+    await at('pointerdown', 10)
+    await at('click', 10)
+    expect(drawer.open).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+
+    // 关闭按钮同样还焦点
+    await act(async () => trigger.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="关闭磁力抽屉"]')!.click())
+    expect(drawer.open).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+    expect(searchMagnets).toHaveBeenCalledOnce()
     await unmount()
   })
 

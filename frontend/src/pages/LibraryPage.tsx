@@ -22,6 +22,7 @@ import type { SettingsState } from '../hooks/useSettings'
 import { errorText, formatClock } from '../lib/format'
 import { mono } from '../theme'
 import '../components/library/library.css'
+import '../components/library/library-page.css'
 
 /** 顶栏状态行的一条消息；link 是附带的恢复动作（目前只有「去设置安装 mpv」） */
 interface Notice {
@@ -150,7 +151,7 @@ export function LibraryPage() {
 
   return (
     <main
-      className={playing !== null ? 'lib-shell lib-shell--with-bar' : 'lib-shell'}
+      className={playing !== null ? 'lib-shell library-page lib-shell--with-bar' : 'lib-shell library-page'}
     >
       <header className="page-head">
         <h1 className="page-title">媒体库</h1>
@@ -405,7 +406,7 @@ function LibraryBody({
         activeFileId={activeFileId}
         pendingFileId={pendingFileId}
       />
-      <LibraryCollection clusters={clusters} />
+      <LibraryCollection clusters={clusters} identifying={state.data.identify?.running === true} />
     </>
   )
 }

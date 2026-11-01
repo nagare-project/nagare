@@ -9,7 +9,8 @@
 //	NAGARE_SMOKE_TOKEN=<32 位十六进制> uismoke -web ../web -fixtures e2e/fixtures -port 8599
 //
 // 假数据目录里的 routes.json 把「方法 + 路径」映射到同目录下的数据文件（http.ServeMux 的模式写法，
-// 可带 {id} 通配）；数据文件里只写信封里的 data 一段。没写进 routes.json 的接口答 404 并打一行日志，
+// 可带 {id} 通配）；数据文件里只写信封里的 data 一段。.ndjson 结尾的数据文件是逐行事件流
+// （/api/search/plugin 一类），原样回答、不套信封，每一行都要是合法 JSON。没写进 routes.json 的接口答 404 并打一行日志，
 // 冒烟测试会把这种失败请求当成错误 —— 新页面多调了一个接口，就得在这里补上假数据。
 //
 // 时间写成占位串，回答时换成当时的时间：放送表只显示近七日、媒体库扫描太久会触发自动重扫，
@@ -18,6 +19,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,6 +35,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -107,10 +110,14 @@ func run() error {
 	return nil
 }
 
-// fixture 是一条假数据接口：ServeMux 模式 + 预先校验过的 JSON。
+// ndjsonSuffix 是逐行事件流数据文件的扩展名：原样回答（Content-Type application/x-ndjson），不套信封。
+const ndjsonSuffix = ".ndjson"
+
+// fixture 是一条假数据接口：ServeMux 模式 + 预先校验过的 JSON（ndjson 为真时是逐行 JSON 的事件流）。
 type fixture struct {
 	pattern string
 	data    json.RawMessage
+	ndjson  bool
 }
 
 // loadFixtures 读 routes.json 与它引用的每个数据文件；任何一个读不到或不是合法 JSON 都直接失败，
@@ -140,21 +147,54 @@ func loadFixtures(dir string) ([]fixture, error) {
 		if err != nil {
 			return nil, fmt.Errorf("读 %s 的假数据：%w", pattern, err)
 		}
-		if !json.Valid(body) {
+		ndjson := strings.HasSuffix(name, ndjsonSuffix)
+		if ndjson {
+			if err := validNDJSON(body); err != nil {
+				return nil, fmt.Errorf("%s 的假数据 %s：%w", pattern, name, err)
+			}
+		} else if !json.Valid(body) {
 			return nil, fmt.Errorf("%s 的假数据 %s 不是合法 JSON", pattern, name)
 		}
-		out = append(out, fixture{pattern: pattern, data: json.RawMessage(body)})
+		out = append(out, fixture{pattern: pattern, data: json.RawMessage(body), ndjson: ndjson})
 	}
 	return out, nil
+}
+
+// validNDJSON 检查事件流里每一个非空行都是合法 JSON，并且至少有一行。
+func validNDJSON(body []byte) error {
+	lines := 0
+	for i, line := range bytes.Split(body, []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		if !json.Valid(line) {
+			return fmt.Errorf("第 %d 行不是合法 JSON", i+1)
+		}
+		lines++
+	}
+	if lines == 0 {
+		return errors.New("事件流是空的")
+	}
+	return nil
 }
 
 // register 把假数据挂进 /api/* 的鉴权链；兜底的 /api/ 对没写假数据的接口答 404 并记一行日志。
 func register(routes []fixture) func(*http.ServeMux) {
 	return func(mux *http.ServeMux) {
 		for _, f := range routes {
-			data := f.data
+			data, ndjson := f.data, f.ndjson
 			mux.HandleFunc(f.pattern, func(w http.ResponseWriter, _ *http.Request) {
-				httpserver.WriteJSON(w, http.StatusOK, json.RawMessage(expandNow(data, time.Now())))
+				body := expandNow(data, time.Now())
+				if !ndjson {
+					httpserver.WriteJSON(w, http.StatusOK, json.RawMessage(body))
+					return
+				}
+				w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(http.StatusOK)
+				if _, err := w.Write(body); err != nil {
+					log.Printf("写事件流失败：%v", err)
+				}
 			})
 		}
 		mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,86 @@
+/* ============================================================
+   媒体库页（/library，DESIGN.md「媒体库」）：① 继续观看 → ② 作品网格 → ③ 还没认出的分组。
+   海报卡与网格见 poster-tile.css；顶栏、状态行、提示条沿用 library.css 与 global.css。
+   ============================================================ */
+
+/* 内容最宽 1400px、两侧留白 --gutter（只收这一页，.lib-shell 还有别的页面在用） */
+.lib-shell.library-page { max-width: calc(var(--content-max) + 2 * var(--gutter)); padding-inline: var(--gutter); gap: var(--sp-lg); }
+.library-page .page-title { flex: none; font-size: clamp(24px, 4vw, var(--type-h1-size)); font-weight: var(--type-h1-weight); letter-spacing: var(--type-h1-tracking); }
+
+/* 区块标题：中文不参与 flex 收缩 */
+.lib-section-title { flex: none; font-size: clamp(20px, 2.5vw, var(--type-h2-size)); font-weight: var(--type-h2-weight); letter-spacing: var(--type-h2-tracking); line-height: 1.3; }
+.section-count { margin-left: var(--sp-xs); color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-body-sm-size); font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+
+/* ---------- ① 继续观看：最多三条，16:9 缩略图 + --accent 进度条 ---------- */
+
+.cont { display: flex; flex-direction: column; gap: var(--sp-md); }
+.cont-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); margin: 0; padding: 0; list-style: none; }
+.cont-card { min-width: 0; }
+.cont-card-hit { display: flex; flex-direction: column; gap: var(--sp-sm); width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cont-card-hit:disabled { opacity: 0.6; cursor: wait; }
+.cont-thumb { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--radius-md); background: var(--bg-card); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.cont-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 22%; transition: transform var(--dur-medium) var(--ease-enter); }
+.cont-card-hit:hover .cont-thumb img { transform: scale(1.04); }
+.cont-thumb-blank { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-tertiary); font-size: 28px; }
+.cont-play { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius-full); background: var(--badge-scrim); color: var(--text); transform: translate(-50%, -50%); opacity: 0; transition: opacity var(--dur-short) var(--ease-standard); }
+.cont-card-hit:hover .cont-play, .cont-card-hit:focus-visible .cont-play { opacity: 1; }
+.cont-bar { position: absolute; right: 0; bottom: 0; left: 0; height: 4px; background: rgba(255, 255, 255, 0.2); }
+.cont-bar-fill { display: block; height: 100%; background: var(--accent); }
+.cont-card--active .cont-thumb { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cont-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cont-card-title { overflow: hidden; font-size: var(--type-body-sm-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.cont-card-meta { color: var(--text-secondary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; }
+.cont-card-episode { overflow: hidden; color: var(--text-secondary); font-size: var(--type-caption-size); text-overflow: ellipsis; white-space: nowrap; }
+.cont-card-state { color: var(--teal); font-size: var(--type-caption-size); }
+
+/* ---------- ② 作品网格 ---------- */
+
+.library-collection { display: flex; flex-direction: column; gap: var(--sp-md); }
+.collection-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-md); }
+.collection-tools { display: flex; gap: var(--sp-sm); min-width: 0; margin-left: auto; }
+.collection-search { position: relative; display: flex; align-items: center; width: 240px; min-width: 0; color: var(--text-secondary); }
+.collection-search svg { position: absolute; left: 12px; pointer-events: none; }
+.collection-search .input { height: var(--touch-min); padding-left: 38px; border-radius: var(--radius-full); font-size: var(--type-body-size); }
+.collection-sort { width: 132px; height: var(--touch-min); font-size: var(--type-label-size); }
+.collection-filters { display: flex; gap: var(--sp-sm); overflow-x: auto; }
+.collection-filter { flex: none; min-height: 36px; padding: 0 var(--sp-md); border: 0; border-radius: var(--radius-full); background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--type-label-size); font-weight: 500; cursor: pointer; }
+.collection-filter:hover { background: var(--bg-fill); color: var(--text); }
+.collection-filter[aria-pressed='true'] { background: var(--accent-dim); color: var(--text); }
+.collection-empty { padding: var(--sp-xxl) var(--sp-md); color: var(--text-secondary); text-align: center; }
+
+/* ---------- ③ 还没认出的分组：默认折叠 ---------- */
+
+.unrec { border-top: 1px solid var(--hairline); padding-top: var(--sp-md); }
+.unrec-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-xs) var(--sp-md); min-height: var(--touch-min); padding: var(--sp-sm) 0; border-radius: var(--radius-sm); cursor: pointer; list-style: none; }
+.unrec-summary::-webkit-details-marker { display: none; }
+.unrec-summary::before { content: '▸'; align-self: center; color: var(--text-secondary); font-size: 16px; transition: transform var(--dur-short) var(--ease-standard); }
+.unrec[open] > .unrec-summary::before { transform: rotate(90deg); }
+.unrec-summary-hint { color: var(--text-secondary); font-size: var(--type-caption-size); }
+.unrec-list { margin: var(--sp-sm) 0 0; padding: 0; list-style: none; }
+.unrec-list > li { border-bottom: 1px solid var(--hairline); }
+.unrec-hit { display: flex; align-items: center; gap: var(--sp-md); min-height: 64px; padding: var(--sp-sm); border-radius: var(--radius-sm); color: var(--text); text-decoration: none; transition: background-color var(--dur-short) var(--ease-standard); }
+.unrec-hit:hover { background: var(--row-hover); }
+.unrec-thumb { display: grid; flex: none; place-items: center; width: 36px; aspect-ratio: 3 / 4; border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--text-tertiary); font-size: 14px; }
+.unrec-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.unrec-title { overflow-wrap: anywhere; font-size: var(--type-body-sm-size); font-weight: 500; }
+.unrec-meta { color: var(--text-secondary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; }
+.unrec-action { display: inline-flex; flex: none; align-items: center; gap: var(--sp-xs); color: var(--accent); font-size: var(--type-label-size); font-weight: 500; }
+
+/* 状态徽标：语义色文字 + 同色 12% 底（DESIGN.md 颜色规则 6） */
+.status-badge { flex: none; padding: 2px var(--sp-sm); border-radius: var(--radius-full); font-size: var(--type-micro-size); font-weight: var(--type-micro-weight); white-space: nowrap; }
+.status-badge--warning { background: var(--warning-dim); color: var(--warning); }
+
+/* 手机：继续观看横向一条（滑动或 Tab 过去都会滚到），不把作品网格挤到第三屏 */
+@media (max-width: 600px) {
+  .lib-shell.library-page { padding-inline: var(--sp-md); }
+  .cont-row { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 78%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: var(--sp-xs); }
+  .cont-card { scroll-snap-align: start; }
+  .cont-play { opacity: 1; }
+  .collection-tools { width: 100%; margin-left: 0; }
+  .collection-search { flex: 1; width: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cont-thumb img, .cont-play, .unrec-hit, .unrec-summary::before { transition: none; }
+  .cont-card-hit:hover .cont-thumb img { transform: none; }
+}

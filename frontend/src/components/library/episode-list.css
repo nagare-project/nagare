@@ -1,0 +1,85 @@
+/* 作品页的集数列表（DESIGN.md「作品页 · 集数行」）：
+   文字周围不画框，行与行之间一条发丝线，悬停浮起一个面；集号等宽右对齐，已看圆点两态同尺寸。 */
+
+.epl-list-wrap { display: flex; flex-direction: column; gap: var(--sp-lg); min-width: 0; }
+.epl-section { min-width: 0; }
+.epl-section-title { display: flex; align-items: baseline; gap: var(--sp-sm); margin: 0 0 var(--sp-sm); font-size: var(--type-h3-size); font-weight: var(--type-h3-weight); letter-spacing: var(--type-h3-tracking); }
+.epl-section-title > span { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); font-weight: 400; font-variant-numeric: tabular-nums; }
+
+.epl-list { margin: 0; padding: 0; list-style: none; }
+.epl-item { border-bottom: 1px solid var(--hairline); }
+.epl-item:first-child { border-top: 1px solid var(--hairline); }
+
+.epl-item-main {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 3ch minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--sp-md);
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: 10px var(--sp-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+button.epl-item-main { cursor: pointer; transition: background-color var(--dur-short) var(--ease-standard); }
+button.epl-item-main:hover:not(:disabled) { background: var(--row-hover); }
+button.epl-item-main:disabled { cursor: wait; opacity: 0.6; }
+
+/* 已看圆点：18×18，三态同尺寸（切换已看不改变行高） */
+.epl-dot { display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid var(--text-secondary); border-radius: var(--radius-full); color: var(--bg); }
+.epl-dot--done { border-color: var(--success); background: var(--success); }
+.epl-dot--progress { border-color: var(--accent); background: conic-gradient(var(--accent) 0 50%, transparent 50% 100%); }
+.epl-dot--missing { border-style: dashed; }
+
+/* 集号：等宽、右对齐，01–09 与 10–13 落在同一像素 */
+.epl-no { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-label-size); font-variant-numeric: tabular-nums; text-align: right; }
+.epl-item--next .epl-no { color: var(--poster-tone); }
+
+.epl-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.epl-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: var(--type-body-sm-size); font-weight: 500; line-height: 1.45; }
+.epl-file, .epl-sub { overflow: hidden; color: var(--text-secondary); font-size: var(--type-caption-size); line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.epl-sub { font-variant-numeric: tabular-nums; }
+
+.epl-state { flex: none; font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.epl-state--plain { color: var(--text-secondary); }
+.epl-state--done { color: var(--success); }
+.epl-state--info { color: var(--teal); }
+
+/* 看到一半：一条细进度压在行底（--accent，DESIGN.md 颜色规则 1） */
+.epl-bar { position: absolute; right: var(--sp-sm); bottom: 4px; left: calc(var(--sp-sm) + 18px + 3ch + 2 * var(--sp-md)); height: 2px; border-radius: 1px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.epl-bar > span { display: block; height: 100%; background: var(--accent); }
+
+/* 库里没有的集：不能点，字仍用 --text-secondary（要读的字不降到 30% 白） */
+.epl-item--missing .epl-title { color: var(--text-secondary); font-weight: 400; }
+
+/* 行下面的控件：同一集的其他版本、浏览器内播放、本集资料。目标高度至少 24px（WCAG 2.5.8） */
+.epl-item-extra { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-xs) var(--sp-md); padding: 0 var(--sp-sm) var(--sp-sm) calc(var(--sp-sm) + 18px + 3ch + 2 * var(--sp-md)); }
+.epl-versions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--sp-md); color: var(--text-secondary); font-size: var(--type-caption-size); }
+.epl-versions .link, .epl-extra-link { display: inline-flex; align-items: center; gap: var(--sp-xs); min-height: 24px; font-size: var(--type-caption-size); }
+
+.epl-note { color: var(--text-secondary); font-size: var(--type-body-sm-size); }
+.epl-extras > summary { display: inline-flex; align-items: center; gap: var(--sp-sm); min-height: var(--touch-min); padding: 0 var(--sp-sm); border-radius: var(--radius-sm); color: var(--text); font-size: var(--type-label-size); font-weight: 600; cursor: pointer; list-style: none; }
+.epl-extras > summary::-webkit-details-marker { display: none; }
+.epl-extras > summary::before { content: '▸'; color: var(--text-secondary); transition: transform var(--dur-short) var(--ease-standard); }
+.epl-extras[open] > summary::before { transform: rotate(90deg); }
+.epl-extras > summary > span { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); font-weight: 400; }
+.epl-extras > summary:hover { background: var(--row-hover); }
+
+.epl-details-date { margin-top: var(--sp-sm); color: var(--text-secondary); font-size: var(--type-caption-size); }
+
+@media (max-width: 599px) {
+  .epl-item-main { column-gap: var(--sp-sm); grid-template-columns: 18px 3ch minmax(0, 1fr); }
+  /* 手机：状态挪到标题下面，标题保住宽度 */
+  .epl-state { grid-column: 3; }
+  .epl-bar { left: calc(var(--sp-sm) + 18px + 3ch + 2 * var(--sp-sm)); }
+  .epl-item-extra { padding-left: calc(var(--sp-sm) + 18px + 3ch + 2 * var(--sp-sm)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.epl-item-main, .epl-extras > summary::before { transition: none; }
+}

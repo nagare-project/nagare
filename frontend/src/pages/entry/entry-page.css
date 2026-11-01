@@ -1,0 +1,69 @@
+/* 目录作品页（/entry）独有的部分：hero 里的评分与放送提示、剧集区的来源切换、作品信息、角色。
+   hero、动作行、区块标题与 /anime/$clusterKey 共用，见 components/library/work-hero.css。 */
+
+/* hero 里的补充：评分数字用海报色（DESIGN.md「海报色 · 用在哪」），放送提示是只读信息（--teal） */
+.entry-score { color: var(--text-secondary); font-size: var(--type-label-size); }
+.entry-score strong { color: var(--poster-tone); font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.entry-airing { color: var(--teal); font-size: var(--type-label-size); font-variant-numeric: tabular-nums; }
+
+/* 剧集区的来源切换：分段控件。选中项是 --accent-dim 底 + 白字（选中态用可点击色家族） */
+.entry-page .work-section-head .tabs { display: inline-flex; gap: var(--sp-xs); padding: var(--sp-xs); border: 0; border-radius: var(--radius-full); background: var(--bg-card); }
+.entry-page .work-section-head .tab { display: inline-flex; align-items: center; min-height: 36px; padding: 0 var(--sp-md); border: 0; border-radius: var(--radius-full); background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--type-label-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
+.entry-page .work-section-head .tab:hover { color: var(--text); }
+.entry-page .work-section-head .tab--on { background: var(--accent-dim); color: var(--text); }
+.entry-page [role='tabpanel'][hidden] { display: none; }
+.entry-notice { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm); color: var(--text-secondary); font-size: var(--type-caption-size); }
+
+/* 内嵌的本地选集：去掉弹窗的内边距，标题层级降到区块里的一档 */
+.entry-page .media-play-inline .media-play-body { gap: var(--sp-md); padding: 0; }
+.entry-page .media-play-inline .media-play-selection h3 { font-size: var(--type-body-size); }
+.media-play-empty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm) var(--sp-md); padding: var(--sp-md); border-radius: var(--radius-md); background: var(--bg-card); font-size: var(--type-body-sm-size); }
+.media-play-empty > p { flex: 1 1 280px; }
+.media-play-catalog { display: flex; flex-direction: column; gap: var(--sp-sm); margin-top: var(--sp-sm); }
+.media-play-catalog > h3 { font-size: var(--type-h3-size); font-weight: var(--type-h3-weight); }
+
+/* ---------- 作品信息 ---------- */
+
+.entry-info { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--sp-xl); }
+.entry-description { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-sm); min-width: 0; }
+.entry-description-text { max-width: 72ch; color: var(--text); font-size: var(--type-body-sm-size); line-height: 1.75; white-space: pre-line; }
+.entry-description-text--folded { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.entry-description-toggle { display: inline-flex; align-items: center; min-height: 24px; font-size: var(--type-label-size); }
+/* 类型标签：--bg-fill 底、--text-secondary 字，相邻间距 ≥ 8px 防误触 */
+.entry-tags { display: flex; flex-wrap: wrap; gap: var(--sp-sm); margin: var(--sp-sm) 0 0; padding: 0; list-style: none; }
+.entry-tag { display: inline-flex; align-items: center; min-height: 28px; padding: var(--sp-xs) 10px; border-radius: var(--radius-full); background: var(--bg-fill); color: var(--text-secondary); font-size: 12px; font-weight: 500; text-decoration: none; }
+.entry-tag:hover { background: var(--bg-fill-hover); color: var(--text); }
+.entry-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-md) var(--sp-lg); align-content: start; margin: 0; }
+.entry-facts dt { color: var(--text-secondary); font-size: var(--type-caption-size); }
+.entry-facts dd { margin: 2px 0 0; font-size: var(--type-body-sm-size); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* ---------- 角色 ---------- */
+
+.entry-characters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-md); margin: 0; padding: 0; list-style: none; }
+.entry-characters li { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.entry-characters img, .entry-character-blank { flex: none; width: 56px; height: 56px; border-radius: var(--radius-full); object-fit: cover; object-position: top; background: var(--bg-card); }
+.entry-character-blank { display: grid; place-items: center; color: var(--text-tertiary); }
+.entry-characters li > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.entry-characters strong { overflow: hidden; font-size: var(--type-body-sm-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.entry-characters small { overflow: hidden; color: var(--text-secondary); font-size: var(--type-caption-size); text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- 读取中 / 读不到 ---------- */
+
+.entry-fallback { gap: var(--sp-md); padding-top: var(--sp-xl); }
+.entry-skeleton { height: 360px; border-radius: var(--radius-lg); background: var(--bg-card); animation: entry-pulse 1s ease-in-out infinite alternate; }
+@keyframes entry-pulse { to { opacity: 0.5; } }
+
+@media (max-width: 900px) {
+  .entry-info { grid-template-columns: minmax(0, 1fr); gap: var(--sp-lg); }
+  .entry-characters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .entry-page .work-section-head .tabs { width: 100%; }
+  .entry-page .work-section-head .tab { flex: 1; justify-content: center; }
+  .entry-characters { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-skeleton { animation: none; }
+}

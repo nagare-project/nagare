@@ -1,8 +1,7 @@
-import { MissingEpisodeCards } from '../library/MissingEpisodeCards'
-import { LibraryEpisodeCards } from '../library/LibraryEpisodeCards'
+import { EpisodeList } from '../library/EpisodeList'
 import { displayGroups } from '../library/displayGroups'
 import { PlaybackSurface } from './PlaybackSurface'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../../lib/api'
 import { fetchLibrary, playFile, stopPlayer } from '../../lib/endpoints'
 import type { LibraryCluster, LibraryData, LibraryItem } from '../../lib/endpoints'
@@ -26,6 +25,21 @@ export function nextLibraryEpisode(cluster: LibraryCluster): LibraryItem | undef
     ?? episodes.find(item => !item.progress?.completed) ?? episodes[0]
 }
 
+/** 作品页 hero 上的主按钮：本地有可播的下一集时才有 */
+export interface LocalPrimary {
+  /** 「继续看第 N 集」/「播放第 N 集」 */
+  label: string
+  /** 播放请求在途或媒体库还在读：按钮先禁用 */
+  busy: boolean
+  play: () => void
+}
+
+/** 主按钮上的字：看到一半的说「继续看」，其余说「播放」 */
+export function primaryLabel(item: LibraryItem): string {
+  const verb = item.progress && item.progress.positionSec > 0 && !item.progress.completed ? '继续看' : '播放'
+  return item.episode === null ? verb : `${verb}第 ${item.episode} 集`
+}
+
 /**
  * 目录作品页的本地播放。本地作品分组与这部作品的对应关系存在后端（媒体库的作品关联）：
  * 认定过、或扫描后自动认出是这部作品的分组直接显示真实剧集 —— 同一部番的几个版本
@@ -33,7 +47,13 @@ export function nextLibraryEpisode(cluster: LibraryCluster): LibraryItem | undef
  * 都没有时由用户挑一个，点播放时一并认定。自动认出的只代选、不自动播放，播放时才算用户确认
  * （认定的是那一集所在的分组）。
  */
-export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false }: { media: MediaSummary; onOpenChange?: (open: boolean) => void; inline?: boolean }) {
+export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false, onPrimaryChange }: {
+  media: MediaSummary
+  onOpenChange?: (open: boolean) => void
+  inline?: boolean
+  /** 作品页 hero 接管主按钮时传：下一集变了就报一次（null = 没有可播的），内嵌的播放按钮不再画 */
+  onPrimaryChange?: (primary: LocalPrimary | null) => void
+}) {
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const requestVersion = useRef(0)
@@ -193,6 +213,22 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
     .filter(cluster => [cluster.title, clusterDisplayTitle(cluster)].some(t => t.toLocaleLowerCase().includes(q)))
     .sort((a, b) => Number(isAssociatedWith(b, media.id)) - Number(isAssociatedWith(a, media.id)))
   const busy = loading || pending !== null
+  const heroPrimary = inline && onPrimaryChange !== undefined
+
+  // hero 上的按钮点下去时要用最新的 start（选中的版本、请求版本都可能变了）：提交后同步进 ref，
+  // 不在渲染时写 ref
+  const playNext = useRef<(() => void) | null>(null)
+  const reportPrimary = useRef(onPrimaryChange)
+  useLayoutEffect(() => {
+    reportPrimary.current = onPrimaryChange
+    playNext.current = selected && next ? () => void start(ownerOf(next), next) : null
+  })
+  const primaryText = selected && next ? primaryLabel(next) : null
+  useEffect(() => {
+    if (!heroPrimary) return
+    reportPrimary.current?.(primaryText === null ? null : { label: primaryText, busy, play: () => playNext.current?.() })
+  }, [heroPrimary, primaryText, busy])
+  useEffect(() => () => reportPrimary.current?.(null), [])
 
   return <>
     {!inline && <button type="button" className="discover-card-play" ref={trigger} aria-label={`${resume ? '继续观看' : '播放'} ${media.title}`}
@@ -203,13 +239,14 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
         setQuery(media.title)
         void load(true)
       }}><Icon name="play" size={24} style={{ fill: 'currentColor', strokeWidth: 0 }} />{resume ? '继续观看' : '播放'}</button>}
-    <PlaybackSurface inline={inline} className="media-play-dialog" ref={dialog} aria-labelledby={!inline || selected ? headingId : undefined} aria-label={inline && !selected ? '本地媒体库' : undefined}
+    <PlaybackSurface inline={inline} className="media-play-dialog" ref={dialog} aria-labelledby={inline ? undefined : headingId}
       onClose={() => { requestVersion.current++; setPending(null); trigger.current?.focus(); onOpenChange(false) }}
       onClick={event => { if (event.target === dialog.current) dialog.current.close() }}>
       <div className="media-play-body">
         {!inline && <button type="button" className="icon-button media-play-close" aria-label="关闭播放选集" onClick={() => dialog.current?.close()}><Icon name="close" /></button>}
         <p className="media-play-kicker">本地播放</p>
-        {(!inline || selected) && <h2 id={headingId}>{inline ? '本地剧集' : media.title}</h2>}
+        {/* 作品页上外面已经有「剧集」区块标题与来源标签，内嵌时不再画一个大标题 */}
+        {!inline && <h2 id={headingId}>{media.title}</h2>}
         {error && <p className="result result--err" role="alert">{error}</p>}
         {loading && !pending && <p className="result result--dim" role="status">正在读取媒体库…</p>}
         {pending && <p className="result result--dim" role="status">正在启动播放器…</p>}
@@ -217,16 +254,20 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
         {notice && <p className="result result--warn" role="status">{notice}</p>}
         {!library && !loading && <button type="button" className="btn" onClick={() => void load(false)}>重新读取</button>}
 
+        {inline && library && !selected && <div className="media-play-empty">
+          <p>把这部番的文件放进媒体库就能播。{library.clusters.length > 0 && '已经在媒体库里的，从下面选出对应的本地文件夹。'}</p>
+          <a className="link" href="/library">去媒体库添加文件夹</a>
+        </div>}
         {library && !selected && (!inline || library.clusters.length > 0) && <>
           <p className="media-play-hint">选择这部作品在媒体库中的版本，点播放时会记住你的选择（之后也可以在媒体库的作品页更改）。</p>
           <div className="media-play-search">
-            <input type="search" className="input" aria-label="查找本地作品" placeholder="输入本地作品名…" value={query} onChange={event => setQuery(event.target.value)} />
+            <input type="text" inputMode="search" className="input" aria-label="查找本地作品" placeholder="输入本地作品名…" value={query} onChange={event => setQuery(event.target.value)} />
             {query && <button type="button" className="btn btn--sm" onClick={() => setQuery('')}>显示全部</button>}
           </div>
           {visible.length ? <ul className="media-play-choices">{visible.map(cluster => <li key={cluster.clusterKey}>
             <LocalChoice cluster={cluster} mediaId={media.id} onChoose={() => { setSelectedKeys([cluster.clusterKey]); setVia(isAssociatedWith(cluster, media.id) ? 'manual' : undefined); setError(null); setNotice(null) }} />
           </li>)}</ul> : <p className="media-play-hint" role="status">{library.clusters.length ? '没有找到同名的本地作品。可以显示全部，按文件夹中的名称选择。' : '媒体库里还没有视频，请先导入本地文件。'}</p>}
-          <a className="link" href="/library">管理媒体库</a>
+          {!inline && <a className="link" href="/library">管理媒体库</a>}
         </>}
         {selected && <>
           <div className="media-play-selection">
@@ -235,10 +276,10 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
             <button type="button" className="btn btn--sm" disabled={busy} onClick={() => { setSelectedKeys([]); setQuery(''); setLaunched(false); setNotice(null) }}>更换作品</button>
           </div>
           {chosen.length > 1 && <p className="media-play-versions">本地有 {chosen.length} 个版本，同一集的其他版本列在那一集下面：{chosen.map((c, i) => <span key={c.clusterKey}>{i > 0 && '、'}<LibraryAnimeLink clusterKey={c.clusterKey} className="link">{c.title}（{c.episodeCount} 集）</LibraryAnimeLink></span>)}</p>}
-          {next && <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start(ownerOf(next), next)}>
+          {next && !heroPrimary && <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start(ownerOf(next), next)}>
             <Icon name="play" size={18} />{next.progress?.positionSec && !next.progress.completed ? '继续观看' : '播放'} {next.episode === null ? next.fileName : `第 ${formatEpisode(next.episode)} 集`}
           </button>}
-          {inline ? <LibraryEpisodeCards cluster={selected} next={next} totalEpisodes={media.episodes} titles={media.episodeTitles} banner={media.banner} cover={media.cover} pending={busy} versions={merged?.versions} onPlay={item => void start(ownerOf(item), item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
+          {inline ? <EpisodeList cluster={selected} catalog={media} next={next} pending={busy} versions={merged?.versions} onPlay={item => void start(ownerOf(item), item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
             <h4>{group.label || '剧集'}</h4><ul className="media-play-choices">{group.items.flatMap(item => [{ item, label: '' }, ...(merged?.versions.get(item.fileId) ?? [])]).map(({ item, label }) => <li key={item.fileId}>
               <button type="button" className="media-play-episode" disabled={busy} onClick={() => void start(ownerOf(item), item)} aria-label={`播放 ${item.fileName}`}>
                 <span>{item.episode === null ? '—' : formatEpisode(item.episode)}</span><span>{label ? `其他版本（${label}）：${item.fileName}` : item.fileName}</span><Icon name="play" size={18} />
@@ -247,7 +288,10 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
           </section>)}
           {!selected.groups.some(group => group.items.length) && <p className="media-play-hint" role="status">这部作品中没有可播放的文件，请更换作品或重新扫描媒体库。</p>}
         </>}
-        {inline && library && <MissingEpisodeCards media={media} cluster={selected} unassociated={!selected && library.clusters.length > 0} />}
+        {inline && library && !selected && <section className="media-play-catalog" aria-labelledby={`${headingId}-catalog`}>
+          <h3 id={`${headingId}-catalog`}>剧集资料</h3>
+          <EpisodeList catalog={media} pending={busy} onPlay={() => {}} />
+        </section>}
       </div>
     </PlaybackSurface>
   </>

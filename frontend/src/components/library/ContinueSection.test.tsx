@@ -3,7 +3,7 @@ import { act } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ContinueItem } from '../../lib/endpoints'
 import { mount } from '../../test/harness'
-import { ContinueSection } from './ContinueSection'
+import { ContinueSection, continueMeta } from './ContinueSection'
 
 const ITEM: ContinueItem = {
   fileId: 'f1',
@@ -26,16 +26,32 @@ describe('ContinueSection', () => {
     await unmount()
   })
 
-  it('渲染横幅、卡片与进度', async () => {
+  it('渲染区块标题、卡片与进度：名字说出作品、第几集、还剩多久', async () => {
     const { container, unmount } = await mount(
       <ContinueSection items={[ITEM]} onPlay={vi.fn()} activeFileId={null} pendingFileId={null} />,
     )
-    expect(container.querySelector('.cont-lead-title')?.textContent).toBe('葬送的芙莉莲')
-    expect(container.querySelector('.cont-card-title')?.textContent).toBe('第1话 冒险的终点')
-    expect(container.querySelector('.cont-card-meta')?.textContent).toContain('第 01 集 / 共 28 集')
+    expect(container.querySelector('h2')?.textContent).toBe('继续观看')
+    const card = container.querySelector('li button')
+    // 1400 - 420 = 980 秒 ≈ 16 分钟
+    expect(card?.textContent).toBe('继续播放 葬送的芙莉莲 第 01 集 · 还剩 16 分钟 第1话 冒险的终点')
     // 420 / 1400 = 30%
     expect(container.querySelector<HTMLElement>('.cont-bar-fill')?.style.width).toBe('30%')
     await unmount()
+  })
+
+  it('最多三条（DESIGN.md「媒体库 ①」）', async () => {
+    const items = [1, 2, 3, 4].map((n) => ({ ...ITEM, fileId: `f${n}`, title: `作品 ${n}` }))
+    const { container, unmount } = await mount(
+      <ContinueSection items={items} onPlay={vi.fn()} activeFileId={null} pendingFileId={null} />,
+    )
+    expect([...container.querySelectorAll('li button')].map((b) => b.textContent?.startsWith('继续播放 作品 '))).toEqual([true, true, true])
+    expect(container.textContent).not.toContain('作品 4')
+    await unmount()
+  })
+
+  it('时长未知时只说第几集', () => {
+    expect(continueMeta({ ...ITEM, durationSec: 0 })).toBe('第 01 集')
+    expect(continueMeta({ ...ITEM, episode: null })).toBe('还剩 16 分钟')
   })
 
   it('点卡片回调 fileId', async () => {

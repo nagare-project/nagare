@@ -14,7 +14,7 @@ export function toSummary(media: SummaryMediaData): MediaSummary {
     studios: media.studios, nextAiring: media.nextAiring, recentAiring: media.recentAiring,
     relations: media.relations?.map(r => ({ type: r.type, media: toSummary(r.media) })),
     recommendations: media.recommendations?.map(toSummary), characters: media.characters,
-    episodeTitles: media.episodeTitles }
+    episodeTitles: media.episodeTitles, posterTones: media.posterTones, freshness: media.freshness }
 }
 export type DiscoverSections = { key: string; title: string; items: MediaSummary[]; error?: string }[]
 export async function fetchDiscover(signal?: AbortSignal): Promise<DiscoverSections> { return (await fetchDiscoverData(signal)).sections.map(section => ({ ...section, items: section.items.map(toSummary) })) }

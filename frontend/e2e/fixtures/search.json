@@ -1,0 +1,60 @@
+{
+  "query": "星屑的旅人",
+  "items": [
+    {
+      "title": "[TestSub] Hoshikuzu no Tabibito [01-03][1080p]",
+      "magnet": "magnet:?xt=urn:btih:1111111111111111111111111111111111111111",
+      "size": "4.2 GB",
+      "fansub": "TestSub",
+      "date": "2026-10-25T12:00:00Z",
+      "source": "garden",
+      "seeders": 12,
+      "infohash": "1111111111111111111111111111111111111111",
+      "group": "TestSub",
+      "resolution": "1080p",
+      "kind": "batch",
+      "episodeRange": {
+        "low": 1,
+        "high": 3
+      }
+    },
+    {
+      "title": "[TestSub] Hoshikuzu no Tabibito - 03 [1080p]",
+      "magnet": "magnet:?xt=urn:btih:2222222222222222222222222222222222222222",
+      "size": "1.4 GB",
+      "fansub": "TestSub",
+      "date": "2026-10-24T12:00:00Z",
+      "source": "garden",
+      "seeders": 8,
+      "infohash": "2222222222222222222222222222222222222222",
+      "episode": 3,
+      "group": "TestSub",
+      "resolution": "1080p",
+      "kind": "main"
+    },
+    {
+      "title": "[OtherSub] 星屑的旅人 第02话 [720p]",
+      "magnet": "magnet:?xt=urn:btih:3333333333333333333333333333333333333333",
+      "size": "600 MB",
+      "fansub": "OtherSub",
+      "date": "2026-10-17T12:00:00Z",
+      "source": "garden",
+      "seeders": 3,
+      "infohash": "3333333333333333333333333333333333333333",
+      "episode": 2,
+      "group": "OtherSub",
+      "resolution": "720p",
+      "kind": "main"
+    }
+  ],
+  "sources": [
+    {
+      "source": "garden",
+      "state": "ok",
+      "count": 3,
+      "rawCount": 3,
+      "dropped": 0,
+      "latencyMs": 42
+    }
+  ]
+}

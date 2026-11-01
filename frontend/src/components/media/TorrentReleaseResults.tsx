@@ -167,8 +167,9 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
       <div className="media-fansub-row" role="group" aria-label="选择字幕组">
         {groups.map(group => <button type="button" key={group.name} aria-pressed={active?.name === group.name}
           className={active?.name === group.name ? 'media-fansub-chip media-fansub-chip--active' : 'media-fansub-chip'}
-          aria-label={`字幕组 ${group.name}`} onClick={() => setChosen(group.name)}>
-          <span className="media-fansub-avatar" aria-hidden="true">{group.name.slice(0, 2)}</span><strong>{group.name}</strong>
+          onClick={() => setChosen(group.name)}>
+          {/* 名字就是可见文字（前面补一句「字幕组」）：另写 aria-label 的话，语音控制按看到的字点不到它 */}
+          <span className="media-fansub-avatar" aria-hidden="true">{group.name.slice(0, 2)}</span><strong><span className="visually-hidden">字幕组 </span>{group.name}</strong>
           <span>{group.items.length} 个版本{group.items.some(isBatchRelease) ? ' · 含合集' : ''}{group.name === remembered ? ' · 上次选择' : ''}</span>
         </button>)}
       </div>

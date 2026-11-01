@@ -1,31 +1,35 @@
 import { Link, useParams } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Icon } from '../components/ui/Icon'
 import { AssociationPanel } from '../components/library/AssociationPanel'
-import { LibraryEpisodeCards } from '../components/library/LibraryEpisodeCards'
-import { nextLibraryEpisode } from '../components/media/MediaPlayButton'
+import { EpisodeList } from '../components/library/EpisodeList'
+import { WorkHero } from '../components/library/WorkHero'
+import { MediaEntryLink } from '../components/media/MediaEntryLink'
+import { nextLibraryEpisode, primaryLabel } from '../components/media/MediaPlayButton'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { usePlayerStatus } from '../hooks/usePlayerStatus'
 import { clusterDisplayTitle } from '../lib/associations'
 import { playFile } from '../lib/endpoints'
 import { errorText } from '../lib/format'
+import { clusterWork } from '../lib/librarySeries'
+import { posterToneStyle } from '../lib/posterTones'
 import { mono } from '../theme'
-import type { LibraryCluster } from '../lib/endpoints'
 import '../components/library/library.css'
 
 /**
- * `/anime/$clusterKey` 单部作品页：横幅 + 海报 + 剧集列表。
+ * `/anime/$clusterKey` 媒体库里一个本地分组的页面（DESIGN.md「作品页」）：与目录作品页共用一套结构 ——
+ * hero（海报 + 标题 + 动作行）→ 对应作品 → 集数列表。没认出作品的没有海报，标题取自文件名，
+ * 主按钮是「认作品」（打开对应作品面板的选作品对话框）。
  *
- * 为什么要有这一页：媒体库改成海报网格之后，剧集列表就没有落脚处了。
- * seanime 也是这个结构（网格 → 详情页），原因是列表页一旦超过十来部，
- * 把每一集都摊在首页上会让「找到那部番」这件事本身变难。
+ * clusterKey 会随重新扫描变化（文件增删导致重新归簇），旧链接因此可能失效：那是正常的，给一条回得去的路。
  */
 export function AnimePage() {
   const { clusterKey } = useParams({ from: '/anime/$clusterKey' })
   const library = useLibrary()
   const player = usePlayerStatus()
-
+  const pickOpener = useRef<HTMLButtonElement>(null)
+  const [pickRequest, setPickRequest] = useState(0)
   const [pendingFileId, setPendingFileId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,15 +39,7 @@ export function AnimePage() {
     setError(null)
     try {
       const result = await playFile(fileId)
-      player.apply({
-        playing: true,
-        fileId,
-        title: result.title,
-        position: 0,
-        duration: 0,
-        paused: false,
-        danmaku: result.danmaku,
-      })
+      player.apply({ playing: true, fileId, title: result.title, position: 0, duration: 0, paused: false, danmaku: result.danmaku })
     } catch (err) {
       setError(errorText(err, '播放失败'))
     } finally {
@@ -55,9 +51,7 @@ export function AnimePage() {
   if (library.state.phase === 'loading') {
     return (
       <main className="lib-shell">
-        <p className="result result--dim" style={mono} role="status">
-          正在读取媒体库 …
-        </p>
+        <p className="result result--dim" style={mono} role="status">正在读取媒体库 …</p>
       </main>
     )
   }
@@ -74,20 +68,12 @@ export function AnimePage() {
 
   const cluster = library.state.data.clusters.find((c) => c.clusterKey === clusterKey)
   if (cluster === undefined) {
-    // 扫描后作品簇的 key 会变（文件增删导致重新归簇），旧链接因此可能失效。
-    // 这不是错误，给一条回得去的路就行。
     return (
       <main className="lib-shell">
         <div className="page-notice">
           <h2 className="page-notice-title">找不到这部作品</h2>
-          <p className="page-notice-copy">
-            它可能已经被移出媒体库，或者重新扫描后归到了别的分组里。
-          </p>
-          <p className="page-notice-actions">
-            <Link to="/library" className="btn btn--sm">
-              回到媒体库
-            </Link>
-          </p>
+          <p className="page-notice-copy">它可能已经被移出媒体库，或者重新扫描后归到了别的分组里。</p>
+          <p className="page-notice-actions"><Link to="/library" className="btn btn--sm">回到媒体库</Link></p>
         </div>
       </main>
     )
@@ -95,70 +81,50 @@ export function AnimePage() {
 
   const playing = player.status?.playing === true ? player.status : null
   const next = nextLibraryEpisode(cluster)
-
-
-  return (
-    <main className="lib-shell anime-shell">
-      <AnimeHero cluster={cluster} onPlay={next ? () => void handlePlay(next.fileId) : undefined} pending={pendingFileId !== null} resume={!!next?.progress?.positionSec && !next.progress.completed} />
-
-      {error !== null && (
-        <p className="result result--err" style={mono} role="status" aria-live="polite">
-          {error}
-        </p>
-      )}
-
-      {/* 同一个路由组件在作品之间切换时会复用：按分组重置面板状态 */}
-      <AssociationPanel key={cluster.clusterKey} cluster={cluster} onChanged={library.reload} />
-
-      <div className="anime-library-label"><Icon name="lists" size={18} />本地媒体库<span>{cluster.episodeCount} 集已入库</span></div>
-      <LibraryEpisodeCards cluster={cluster} next={next} pending={pendingFileId !== null} activeFileId={playing?.fileId} onPlay={item => void handlePlay(item.fileId)} />
-
-    </main>
-  )
-}
-
-/** 顶部横幅：封面模糊铺底 + 清晰海报 + 标题与元信息 */
-function AnimeHero({ cluster, onPlay, pending, resume }: { cluster: LibraryCluster; onPlay?: () => void; pending: boolean; resume: boolean }) {
-  // 记下的是哪个地址加载失败：改了对应作品之后封面换了地址，旧的失败不该把新图也藏起来
-  const [failedSrc, setFailedSrc] = useState<string>()
-  const { season, episodeCount, cover } = cluster
   const title = clusterDisplayTitle(cluster)
-  const hasCover = cover !== undefined && failedSrc !== cover
+  const work = clusterWork(cluster)
+  // 没认出：没认定过、也没自动认出（标为「不是目录里的作品」的算认过）
+  const unrecognized = cluster.association === undefined && cluster.matched === undefined
+  const tones = posterToneStyle(cluster.posterTones)
+  const pending = pendingFileId !== null
+  const playButton = next && (
+    <button type="button" className={unrecognized ? 'hero-btn hero-btn--heavy' : 'hero-btn hero-btn--solid'} disabled={pending} onClick={() => void handlePlay(next.fileId)}>
+      <Icon name="play" size={16} />{pending ? '正在启动…' : primaryLabel(next)}
+    </button>
+  )
 
   return (
-    <header className="anime-hero">
-      {hasCover && (
-        <div className="anime-hero-bg" aria-hidden="true">
-          <img src={cover} alt="" onError={() => setFailedSrc(cover)} />
-        </div>
-      )}
-      <div className="anime-hero-body">
-        <span className="anime-hero-art">
-          {hasCover ? (
-            <img src={cover} alt="" onError={() => setFailedSrc(cover)} />
-          ) : (
-            <span className="poster-art-blank" aria-hidden="true">
-              流
-            </span>
-          )}
-        </span>
-        <div className="anime-hero-text">
-          <Link to="/library" className="link anime-back">
-            <Icon name="left" size={16} />媒体库
-          </Link>
-          <h1 className="anime-title">{title}</h1>
-          <p className="anime-meta">
-            {season !== null ? `第 ${season} 季 · ` : ''}
-            {episodeCount} 集
-            {title !== cluster.title && ` · 文件夹：${cluster.title}`}
-          </p>
-          <div className="anime-hero-actions">
-            <button className="btn btn--primary" type="button" disabled={!onPlay || pending} onClick={onPlay}>
-              <Icon name="play" size={18} />{pending ? '正在启动…' : resume ? '继续观看' : '开始观看'}
-            </button>
-          </div>
-        </div>
+    <main className={playing !== null ? 'work-page work-page--with-bar' : 'work-page'} style={tones}>
+      <WorkHero
+        cover={cluster.cover}
+        showPoster={!unrecognized || cluster.cover !== undefined}
+        backdrop={cluster.cover}
+        backdropIsCover
+        toned={tones !== undefined}
+        title={title}
+        meta={[cluster.season !== null ? `第 ${cluster.season} 季` : null, `${cluster.episodeCount} 集`, title !== cluster.title ? `文件夹：${cluster.title}` : null]}
+        back={<Link to="/library" className="work-hero-back"><Icon name="left" size={16} />媒体库</Link>}
+        actions={
+          <>
+            {unrecognized && (
+              <button ref={pickOpener} type="button" className="hero-btn hero-btn--solid" aria-haspopup="dialog" onClick={() => setPickRequest((n) => n + 1)}>
+                <Icon name="search" size={16} />认作品
+              </button>
+            )}
+            {playButton}
+            {work && <MediaEntryLink id={work.anilistId} className="hero-btn hero-btn--light"><Icon name="info" size={16} />作品详情</MediaEntryLink>}
+          </>
+        }
+      />
+      <div className="work-body">
+        {error !== null && <p className="result result--err" style={mono} role="status" aria-live="polite">{error}</p>}
+        {/* 同一个路由组件在作品之间切换时会复用：按分组重置面板状态 */}
+        <AssociationPanel key={cluster.clusterKey} cluster={cluster} onChanged={library.reload} pickRequest={pickRequest} pickOpener={pickOpener} />
+        <section className="work-section" aria-labelledby="anime-episodes-heading">
+          <h2 id="anime-episodes-heading" className="work-section-title">本地剧集<small>{cluster.episodeCount} 集已入库</small></h2>
+          <EpisodeList cluster={cluster} next={next} pending={pending} {...(playing ? { activeFileId: playing.fileId } : {})} onPlay={(item) => void handlePlay(item.fileId)} />
+        </section>
       </div>
-    </header>
+    </main>
   )
 }

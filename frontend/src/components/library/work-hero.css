@@ -1,0 +1,117 @@
+/* ============================================================
+   作品页（/entry 与 /anime/$clusterKey 共用）：页面骨架 · hero · 动作行三档按钮 · 区块标题。
+   DESIGN.md「作品页」「海报色」。海报色由页面根元素的行内样式给（lib/posterTones.ts），
+   这里只用 var(--poster-tone*)，不从色相组装。
+   ============================================================ */
+
+/* 页面根：整宽，内容各自收在 --content-max 里（hero 的背景照片要铺满整宽） */
+.work-page { position: relative; isolation: isolate; display: flex; flex-direction: column; width: 100%; padding-bottom: var(--sp-xxxl); }
+.work-page--with-bar { padding-bottom: 7.5rem; }
+.work-body { display: flex; flex-direction: column; gap: var(--sp-xl); width: 100%; max-width: calc(var(--content-max) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
+
+/* ---------- hero ---------- */
+
+.work-hero { position: relative; padding: var(--sp-xl) 0 var(--sp-xl); }
+/* 背景照片向上铺到顶栏底下（顶栏在页面顶部是透明的） */
+.work-hero-bg { position: absolute; z-index: -1; inset: calc(-1 * var(--app-nav-h)) 0 0; overflow: hidden; pointer-events: none; }
+.work-hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: center 25%; opacity: 0.55; }
+.work-hero-bg--cover img { filter: blur(24px); opacity: 0.4; transform: scale(1.1); }
+.work-hero-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, var(--bg) 0%, rgba(0, 0, 0, 0.55) 45%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(90deg, rgba(0, 0, 0, 0.7), transparent 70%); }
+
+.work-hero-inner {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-areas: 'poster text' 'poster actions';
+  /* hero 底对齐：副标题多一行会把标题往上推 */
+  align-items: end;
+  gap: var(--sp-md) var(--sp-xl);
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+.work-hero--no-poster .work-hero-inner { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'text' 'actions'; }
+
+.work-hero-poster { position: relative; grid-area: poster; align-self: end; aspect-ratio: 7 / 10; overflow: hidden; border-radius: var(--radius-md); background: var(--bg-card); box-shadow: var(--shadow-poster); }
+.work-hero-poster--toned { box-shadow: var(--shadow-poster), 0 0 58px -40px var(--poster-tone); }
+/* 图片描边用 inset 阴影，不进盒模型 */
+.work-hero-poster::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); pointer-events: none; }
+.work-hero-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.work-hero-blank { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-tertiary); font-size: 44px; background: var(--bg-card); }
+
+/* hero 里的每段文字都带宽而软的阴影：压暗字底下那块画面 */
+.work-hero-text { grid-area: text; display: flex; flex-direction: column; gap: var(--sp-sm); min-width: 0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 3px 24px rgba(0, 0, 0, 0.72); }
+.work-hero-back { display: inline-flex; align-items: center; gap: var(--sp-xs); align-self: flex-start; min-height: 24px; color: var(--text-secondary); font-size: var(--type-label-size); text-decoration: none; border-radius: var(--radius-sm); }
+.work-hero-back:hover { color: var(--text); }
+.work-hero-romaji { color: var(--poster-tone-quiet); font-family: var(--type-romaji-family); font-size: var(--type-romaji-size); font-weight: var(--type-romaji-weight); letter-spacing: var(--type-romaji-tracking); text-transform: uppercase; overflow-wrap: anywhere; }
+/* 中文标题不参与 flex 收缩（CJK 的 min-content 是一个字） */
+.work-hero-title { flex: none; max-width: 22em; font-size: clamp(24px, 4vw, var(--type-h1-size)); font-weight: var(--type-h1-weight); letter-spacing: var(--type-h1-tracking); line-height: 1.25; overflow-wrap: anywhere; text-wrap: pretty; }
+.work-hero-native { color: var(--text-secondary); font-family: var(--font-jp); font-size: var(--type-body-sm-size); overflow-wrap: anywhere; }
+.work-hero-meta { color: var(--text-secondary); font-size: var(--type-label-size); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* ---------- 动作行：三档权重，一页只有一个实心（DESIGN.md「作品页」） ---------- */
+
+.work-hero-actions { grid-area: actions; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm); }
+.hero-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-sm);
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  text-shadow: none;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: background-color var(--dur-short) var(--ease-standard), border-color var(--dur-short) var(--ease-standard), filter var(--dur-short) var(--ease-standard);
+}
+.hero-btn:disabled { opacity: 0.35; cursor: default; }
+/* 实心：作品页唯一用 --poster-tone 做底的按钮 */
+.hero-btn--solid { background: var(--poster-tone); color: var(--poster-on-tone); font-weight: 650; }
+.hero-btn--solid:hover:not(:disabled) { filter: brightness(1.08); }
+/* 玻璃·重：次级入口 */
+.hero-btn--heavy { border-color: var(--glass-heavy-border); background: var(--glass-heavy); font-weight: 660; }
+/* 玻璃·轻：工具（磁力、作品详情、预告片…） */
+.hero-btn--light { border-color: var(--glass-light-border); background: var(--glass-light); color: rgba(255, 255, 255, 0.9); }
+.hero-btn--heavy:hover:not(:disabled), .hero-btn--light:hover:not(:disabled) { background: var(--glass-heavy); border-color: var(--glass-heavy-border); }
+
+/* 动作行旁边的一行说明（库里没有文件、正在启动…） */
+.work-hero-note { flex-basis: 100%; color: var(--text-secondary); font-size: var(--type-caption-size); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+
+/* ---------- 区块 ---------- */
+
+.work-section { display: flex; flex-direction: column; gap: var(--sp-md); min-width: 0; }
+/* 区块标题前一条海报色短线：海报色只做强调，正文永远是中性色 */
+.work-section-title { display: flex; align-items: center; gap: var(--sp-sm); font-size: clamp(20px, 2.5vw, var(--type-h2-size)); font-weight: var(--type-h2-weight); letter-spacing: var(--type-h2-tracking); }
+.work-section-title::before { content: ''; flex: none; width: 4px; height: 0.9em; border-radius: 2px; background: var(--poster-tone); }
+.work-section-title > small { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.work-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-sm) var(--sp-md); }
+
+/* 细条说明（离线、目录读不到时退化成本地页） */
+.work-strip { padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-secondary); font-size: var(--type-caption-size); }
+
+@media (max-width: 900px) {
+  .work-hero-inner { grid-template-columns: 160px minmax(0, 1fr); gap: var(--sp-md) var(--sp-lg); }
+}
+
+/* 手机：不堆叠，海报和文字并排、动作行横跨两列 */
+@media (max-width: 600px) {
+  .work-hero { padding: var(--sp-lg) 0; }
+  .work-hero-inner { grid-template-columns: 104px minmax(0, 1fr); grid-template-areas: 'poster text' 'actions actions'; gap: var(--sp-md); padding: 0 var(--sp-md); }
+  .work-hero--no-poster .work-hero-inner { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'text' 'actions'; }
+  .work-body { padding: 0 var(--sp-md); }
+  .hero-btn { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-btn { transition: none; }
+}

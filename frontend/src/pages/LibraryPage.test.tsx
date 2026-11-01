@@ -157,6 +157,18 @@ afterEach(() => {
   window.sessionStorage.clear()
 })
 
+/** 读屏念出来的文字：去掉 aria-hidden 的装饰（jsdom 没有可访问名称计算，这里近似） */
+function spoken(element: Element): string {
+  const copy = element.cloneNode(true) as Element
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove()
+  return copy.textContent ?? ''
+}
+/** 作品网格（列表名「媒体库」）里的每张卡：链接的名字就是卡片上的可见文字，作品名打头 */
+const works = (container: HTMLElement) => [...container.querySelectorAll<HTMLAnchorElement>('ul[aria-label="媒体库"] a')]
+/** 「还没认出的 N 组」：默认折叠的那一节 */
+const unrecognized = (container: HTMLElement) => container.querySelector<HTMLDetailsElement>('details.unrec')
+const filterButton = (container: HTMLElement, text: string) => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="按观看状态筛选"] button')].find((b) => b.textContent === text)!
+
 describe('LibraryPage（整页冒烟）', () => {
   it('低置信又没认过的作品标「待确认」；认过作品就不标，并改用作品名、两种名字都能搜到', async () => {
     const library = structuredClone(LIBRARY)
@@ -166,11 +178,19 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFetch(SETTINGS, library)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
 
-    const posters = [...container.querySelectorAll('.poster')]
-    const titleOf = (el: Element) => el.querySelector('.poster-title')?.textContent
-    expect(posters.map(titleOf)).toEqual(['Unsure Show', '认定的作品'])
-    expect(posters[0]!.querySelector('.poster-flag')?.textContent).toBe('待确认')
-    expect(posters[1]!.querySelector('.poster-flag')).toBeNull()
+    // 认过的进作品网格，不标「待确认」
+    expect(works(container)).toHaveLength(1)
+    expect(spoken(works(container)[0]!)).toMatch(/^认定的作品/)
+    expect(works(container)[0]!.textContent).not.toContain('待确认')
+    // 没认出的收进末尾默认折叠的一节，标「待确认」，主操作是认作品
+    const rest = unrecognized(container)!
+    expect(rest.querySelector('summary')?.textContent).toContain('还没认出的 1 组')
+    expect(rest.open).toBe(false)
+    const row = rest.querySelector('a')!
+    expect(row.textContent).toContain('Unsure Show')
+    expect(row.textContent).toContain('待确认')
+    expect(row.textContent).toContain('认作品')
+    expect(row.getAttribute('href')).toBe('/anime/unsure')
 
     const search = container.querySelector<HTMLInputElement>('input[aria-label="筛选媒体库"]')!
     for (const q of ['Chosen Folder', '认定的']) {
@@ -178,7 +198,8 @@ describe('LibraryPage（整页冒烟）', () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, q)
         search.dispatchEvent(new Event('input', { bubbles: true }))
       })
-      expect([...container.querySelectorAll('.poster')].map(titleOf)).toEqual(['认定的作品'])
+      expect(works(container).map((a) => spoken(a).startsWith('认定的作品'))).toEqual([true])
+      expect(unrecognized(container)).toBeNull()
     }
     await unmount()
   })
@@ -194,15 +215,26 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFetch(SETTINGS, library)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
 
-    const posters = [...container.querySelectorAll('.poster')]
+    const posters = works(container)
     expect(posters).toHaveLength(1)
-    expect(posters[0]!.querySelector('.poster-title')?.textContent).toBe('Re：从零开始的异世界生活 第四季')
-    expect(posters[0]!.querySelector('.poster-versions')?.textContent).toBe('2 个版本')
+    expect(spoken(posters[0]!)).toMatch(/^Re：从零开始的异世界生活 第四季/)
+    expect(posters[0]!.textContent).toContain('2 个版本')
     expect(posters[0]!.querySelector('img')?.getAttribute('src')).toBe('/art/cap/ani')
-    expect(posters[0]!.querySelector('a')?.getAttribute('href')).toBe('/entry?id=189046')
-    expect(container.querySelector('.section-count')?.textContent).toBe('1')
+    expect(posters[0]!.getAttribute('href')).toBe('/entry?id=189046')
+    expect(container.querySelector('#collection-heading')?.textContent).toBe('作品 1')
     expect(container.querySelector('.lib-identify')?.textContent).toContain('正在识别作品 1/2')
     expect(container.querySelector('.lib-identify')?.getAttribute('aria-live')).toBeNull()
+    await unmount()
+  })
+
+  it('后台还在认作品：没认出的先以灰色占位留在网格里，说「认作品中…」，不收进折叠的那一节', async () => {
+    const library = { ...structuredClone(LIBRARY), identify: { running: true, done: 0, total: 1 } }
+    stubFetch(SETTINGS, library)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    expect(works(container)).toHaveLength(1)
+    expect(works(container)[0]!.textContent).toContain('认作品中…')
+    expect(works(container)[0]!.querySelector('img')).toBeNull()
+    expect(unrecognized(container)).toBeNull()
     await unmount()
   })
 
@@ -228,12 +260,15 @@ describe('LibraryPage（整页冒烟）', () => {
     library.clusters[0]!.groups[0]!.items[0]!.progress = { positionSec: 1420, durationSec: 1420, completed: true }
     stubFetch(SETTINGS, library)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    const filters = Array.from(container.querySelectorAll<HTMLButtonElement>('.collection-filter'))
-    await act(async () => { filters.find((button) => button.textContent === '在看')!.click() })
-    expect(container.querySelector('.poster-title')?.textContent).toBe('葬送的芙莉莲')
-    await act(async () => { filters.find((button) => button.textContent === '已看完')!.click() })
-    expect(container.querySelector('.poster')).toBeNull()
-    expect(container.querySelector('.collection-empty')?.textContent).toContain('没有符合条件的作品')
+    await act(async () => { filterButton(container, '在看').click() })
+    expect(filterButton(container, '在看').getAttribute('aria-pressed')).toBe('true')
+    // 还没认出作品：在「还没认出」那一节里；网格是空的，所以那一节自己展开
+    expect(unrecognized(container)?.open).toBe(true)
+    expect(unrecognized(container)?.querySelector('a')?.textContent).toContain('葬送的芙莉莲')
+    await act(async () => { filterButton(container, '已看完').click() })
+    expect(works(container)).toHaveLength(0)
+    expect(unrecognized(container)).toBeNull()
+    expect(container.querySelector('[role=status].collection-empty')?.textContent).toContain('没有符合条件的作品')
     await unmount()
   })
 
@@ -254,20 +289,21 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(document.querySelector('.update-banner')).toBeNull()
 
     // 页头与 mpv 状态点
-    expect(container.querySelector('.page-title')?.textContent).toContain('媒体库')
+    expect(container.querySelector('h1')?.textContent).toContain('媒体库')
     expect(container.querySelector('.mpv-dot--ok')).not.toBeNull()
     expect(container.querySelector('.alert-warn')).toBeNull()
 
-    // 海报卡：标题 + 季 + 集数；置信度 0.93 不出「待确认」
-    const poster = container.querySelector('.poster')
-    expect(poster?.querySelector('.poster-title')?.textContent).toBe('葬送的芙莉莲')
-    expect(poster?.querySelector('.poster-meta')?.textContent).toContain('第 1 季')
-    expect(poster?.querySelector('.poster-meta')?.textContent).toContain('2 集')
+    // 还没认出作品的分组：标题 + 季 + 集数；置信度 0.93 不出「待确认」。网格里一部都没有时这一节自己展开
+    const rest = unrecognized(container)!
+    expect(rest.open).toBe(true)
+    const row = rest.querySelector('a')!
+    expect(row.textContent).toContain('葬送的芙莉莲')
+    expect(row.textContent).toContain('第 1 季 · 2 集')
     expect(container.textContent).not.toContain('待确认')
 
-    // 剧集列表【不】在库页上：它住在 /anime/$clusterKey，卡片链过去
-    expect(container.querySelectorAll('.ep-row')).toHaveLength(0)
-    expect(poster?.querySelector('a')?.getAttribute('href')).toBe('/anime/frieren')
+    // 剧集列表【不】在库页上：它住在 /anime/$clusterKey，这一行链过去
+    expect(container.querySelectorAll('li > button')).toHaveLength(0)
+    expect(row.getAttribute('href')).toBe('/anime/frieren')
 
     // 未在播放：不出现在播条
     expect(container.querySelector('.np-bar')).toBeNull()

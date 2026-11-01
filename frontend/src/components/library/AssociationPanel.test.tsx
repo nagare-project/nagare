@@ -319,4 +319,28 @@ describe('AssociationDialog（经面板打开）', () => {
     expect(api.fetchCatalogSearch).toHaveBeenCalledWith('长'.repeat(64), expect.any(AbortSignal))
     await unmount()
   })
+
+  it('面板外面（作品页 hero 的「认作品」）也能打开选作品对话框；关掉后焦点回到那个按钮', async () => {
+    api.fetchCatalogSearch.mockResolvedValue([])
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    const ref = { current: opener }
+    const { container, rerender, unmount } = await mount(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} pickRequest={0} pickOpener={ref} />)
+    const dialog = container.querySelector('dialog')!
+    expect(dialog.hasAttribute('open')).toBe(false)
+
+    await rerender(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} pickRequest={1} pickOpener={ref} />)
+    await settle()
+    expect(dialog.hasAttribute('open')).toBe(true)
+
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="关闭"]')!.click())
+    await settle()
+    expect(document.activeElement).toBe(opener)
+    // 同一个请求号重渲染不会再开一次
+    await rerender(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} pickRequest={1} pickOpener={ref} />)
+    expect(dialog.hasAttribute('open')).toBe(false)
+    opener.remove()
+    await unmount()
+  })
 })

@@ -8,7 +8,12 @@ import type { MediaSummary } from './types'
 import './media-list-editor.css'
 
 /** 收藏只保存账号服务支持的状态、评分与进度。 */
-export function MediaListEditor({ media, onOpenChange = () => {} }: { media: MediaSummary; onOpenChange?: (open: boolean) => void }) {
+export function MediaListEditor({ media, onOpenChange = () => {}, labelled = false }: {
+  media: MediaSummary
+  onOpenChange?: (open: boolean) => void
+  /** 作品页 hero 上的「加入追番」：带字的玻璃·重按钮（默认是卡片上的圆形图标按钮） */
+  labelled?: boolean
+}) {
   const collection = useCollection()
   const entry = collection.entries.find(e => e.anilistId === media.id)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -36,7 +41,9 @@ export function MediaListEditor({ media, onOpenChange = () => {} }: { media: Med
     finally { busy.current = false; setPending(false) }
   }
   return <>
-    <button ref={trigger} type="button" className="icon-button media-list-trigger" aria-label={`${entry ? '编辑收藏' : '加入列表'} ${media.title}`} onClick={open}><Icon name={entry ? 'edit' : 'plus'} size={18} /></button>
+    {labelled
+      ? <button ref={trigger} type="button" className="hero-btn hero-btn--heavy" aria-haspopup="dialog" onClick={open}><Icon name={entry ? 'edit' : 'plus'} size={16} />{entry ? `追番 · ${COLLECTION_LABELS[entryStatus(entry)]}` : '加入追番'}</button>
+      : <button ref={trigger} type="button" className="icon-button media-list-trigger" aria-label={`${entry ? '编辑收藏' : '加入列表'} ${media.title}`} onClick={open}><Icon name={entry ? 'edit' : 'plus'} size={18} /></button>}
     <dialog ref={dialog} className="media-list-editor" style={position ? { ...position, right: 'auto', bottom: 'auto', margin: 0 } : undefined}
       aria-label={`编辑收藏 ${media.title}`} onCancel={event => { if (pending) event.preventDefault() }}
       onClose={event => { event.stopPropagation(); trigger.current?.focus(); onOpenChange(false) }}

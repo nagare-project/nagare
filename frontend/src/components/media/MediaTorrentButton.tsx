@@ -1,15 +1,17 @@
 import { PlaybackSurface } from './PlaybackSurface'
-import { useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { FormEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { useTorrentPlayback } from '../torrent/TorrentPlayContext'
 import { addDownload, fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
 import type { MagnetSearchContext, SearchItem, SearchResult, SourceOutcome, SourcesData, TorrentPlayRequest } from '../../lib/endpoints'
+import { isBackdropEvent } from '../../lib/dialog'
 import { errorText } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import { catalogIdentity, defaultTorrentEpisode, extraKindsFor, playbackHints, seasonOfTitle } from './releaseEpisodes'
 import { releaseKey, TorrentReleaseResults } from './TorrentReleaseResults'
 import type { MediaSummary } from './types'
 import './media-play.css'
+import './media-drawer.css'
 
 /** 本机规则的结果（规则按作品名搜） */
 type LocalState =
@@ -40,9 +42,17 @@ interface PluginState {
  * 作品 ID 不参与找源：磁力始终来自用户自己装的插件与本机规则；ID 只随播放请求留在本机，
  * 用来校验弹幕匹配没有认成别的作品，从不拿它去 animego 换磁力。
  */
-export function MediaTorrentButton({ media, onOpenChange, inline = false }: { media: MediaSummary; onOpenChange?: (open: boolean) => void; inline?: boolean }) {
+export function MediaTorrentButton({ media, onOpenChange, inline = false, drawer = false }: {
+  media: MediaSummary
+  onOpenChange?: (open: boolean) => void
+  inline?: boolean
+  /** 作品页 hero 上的「磁力」：玻璃·轻按钮打开右侧抽屉（<600px 是底部面板），行为与弹窗一样 */
+  drawer?: boolean
+}) {
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  const downOnBackdrop = useRef(false)
+  const headingId = useId()
   const requestVersion = useRef(0)
   const pluginAbort = useRef<AbortController | null>(null)
   const pluginRequest = useRef(0)
@@ -167,7 +177,8 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
       ...catalogIdentity(media),
     }
     torrent.play(request, item.title, () => {
-      if (button.isConnected && !button.disabled) button.focus()
+      // 按钮在已经关上的弹窗 / 抽屉里时聚焦不了：还给打开它的那个按钮
+      if (button.isConnected && !button.disabled && !button.closest('dialog:not([open])')) button.focus()
       else trigger.current?.focus()
     })
     dialog.current?.close()
@@ -195,13 +206,26 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
   const items = local.phase === 'ready' ? [...local.result.items, ...(plugin?.items ?? [])] : []
   const outcomes = local.phase === 'ready' ? [...local.result.sources, ...(plugin?.outcomes ?? [])] : []
 
+  const closeOnBackdrop = drawer ? {
+    // 按下与松开都在抽屉之外才算点遮罩：在抽屉里拖选文字、松手落到遮罩上不关
+    onPointerDown: (event: ReactPointerEvent<HTMLDialogElement>) => { downOnBackdrop.current = dialog.current !== null && isBackdropEvent(dialog.current, event) },
+    onClick: (event: ReactMouseEvent<HTMLDialogElement>) => {
+      if (downOnBackdrop.current && dialog.current && isBackdropEvent(dialog.current, event)) dialog.current.close()
+      downOnBackdrop.current = false
+    },
+  } : { onClick: (event: ReactMouseEvent<HTMLDialogElement>) => { if (event.target === dialog.current) dialog.current.close() } }
+
   return <>
-    {!inline && <button type="button" className="discover-card-play discover-card-torrent" ref={trigger}
+    {!inline && !drawer && <button type="button" className="discover-card-play discover-card-torrent" ref={trigger}
       aria-label={`按字幕组查找磁力：${media.title}`}
       onClick={open}>
       <Icon name="download" size={18} />字幕组
     </button>}
-    <PlaybackSurface inline={inline} ref={dialog} className="media-play-dialog media-torrent-dialog" aria-label={`${media.title} 磁力资源`}
+    {drawer && <button type="button" className="hero-btn hero-btn--light" ref={trigger} aria-haspopup="dialog" onClick={open}>
+      <Icon name="download" size={16} />磁力<span className="visually-hidden">：按字幕组查找这部作品的发布</span>
+    </button>}
+    <PlaybackSurface inline={inline} ref={dialog} className={drawer ? 'media-drawer' : 'media-play-dialog media-torrent-dialog'}
+      {...(drawer ? { 'aria-labelledby': headingId } : { 'aria-label': `${media.title} 磁力资源` })}
       onClose={() => {
         requestVersion.current += 1
         pluginAbort.current?.abort()
@@ -212,14 +236,18 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
         trigger.current?.focus()
         onOpenChange?.(false)
       }}
-      onClick={event => { if (event.target === dialog.current) dialog.current.close() }}>
+      {...closeOnBackdrop}>
+      {drawer && <div className="media-drawer-head">
+        <div><p className="media-play-kicker">磁力边下边播</p><h2 id={headingId}>{media.title}</h2></div>
+        <button type="button" className="icon-button" aria-label="关闭磁力抽屉" onClick={() => dialog.current?.close()}><Icon name="close" /></button>
+      </div>}
       <div className="media-play-body">
-        {!inline && <button type="button" className="icon-button media-play-close" aria-label="关闭磁力资源" onClick={() => dialog.current?.close()}><Icon name="close" /></button>}
-        <p className="media-play-kicker">磁力边下边播</p>
-        <h2>{inline ? '字幕组与版本' : media.title}</h2>
+        {!inline && !drawer && <button type="button" className="icon-button media-play-close" aria-label="关闭磁力资源" onClick={() => dialog.current?.close()}><Icon name="close" /></button>}
+        {!drawer && <p className="media-play-kicker">磁力边下边播</p>}
+        {!drawer && <h2>{inline ? '字幕组与版本' : media.title}</h2>}
         <p className="media-play-hint">{isMovie ? '按字幕组列出这部作品的全部发布，选好字幕组再挑清晰度。' : '按字幕组列出这部作品的全部发布：合集在前，单集按集号排列。单集直接播放，合集在播放前展开文件列表挑要看的那一集。'}</p>
         <form className="media-release-search" onSubmit={submitSearch}>
-          <label className="media-torrent-query"><span>作品名称</span><input className="input" type="search" value={query} onChange={event => setQuery(event.target.value)} spellCheck={false} /></label>
+          <label className="media-torrent-query"><span>作品名称</span><input className="input" type="text" inputMode="search" value={query} onChange={event => setQuery(event.target.value)} spellCheck={false} /></label>
           <button type="submit" className="btn btn--primary" disabled={local.phase === 'searching'}><Icon name="search" size={18} />{local.phase === 'searching' ? '搜索中…' : local.phase === 'idle' ? '查找字幕组' : '重新搜索'}</button>
         </form>
         {plugin?.scope === 'episode' && <p className="media-play-hint" role="status">当前的 Nagare Source 只会按集号搜索，插件来源只列出了第 {plugin.episode} 集的发布；升级插件后可列出整部作品。</p>}

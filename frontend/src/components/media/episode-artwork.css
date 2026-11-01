@@ -1,0 +1,3 @@
+/* 逐集截图（EpisodeArtwork）：图片铺满方式与没有图时的占位。在线选集用 */
+.episode-artwork { display: block; width: 100%; height: 100%; object-fit: cover; }
+.episode-artwork-empty { display: grid; place-items: center; width: 100%; height: 100%; min-height: 80px; color: var(--text-secondary); font-size: 13px; background: var(--bg-elevated); }

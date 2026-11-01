@@ -30,6 +30,14 @@ const legacy = 'nagare:media-library:900'
 
 const started: PlayData = { title: '本地作品', danmaku: { state: 'none' } }
 const click = async (container: HTMLElement, selector: string) => act(async () => container.querySelector<HTMLButtonElement>(selector)!.click())
+/** 作品页集数列表里能播的行：名字就是可见文字，以「播放第 NN 集：」或「播放 文件名：」（附加内容）开头 */
+const rowButtons = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>('li > button')].filter(b => b.textContent?.startsWith('播放'))
+const episodeRows = (container: HTMLElement) => rowButtons(container).filter(b => /^播放第 \d+ 集：/.test(b.textContent ?? ''))
+const buttonNamed = (container: HTMLElement, prefix: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent?.startsWith(prefix))
+const press = async (container: HTMLElement, prefix: string) => act(async () => buttonNamed(container, prefix)!.click())
+const headings = (container: HTMLElement) => [...container.querySelectorAll('h2, h3')].map(h => h.textContent)
+/** 同一集的其他版本：每集一组，组名「第 NN 集的其他版本」 */
+const versionGroups = (container: HTMLElement) => [...container.querySelectorAll('[role=group]')].filter(g => g.getAttribute('aria-label')?.endsWith('的其他版本'))
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal')
 const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close')
 
@@ -63,14 +71,16 @@ describe('Discover 播放入口', () => {
     vi.mocked(fetchLibrary).mockResolvedValue(withClusters(associated))
     const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
     expect(fetchLibrary).toHaveBeenCalledOnce()
-    expect(container.querySelector('dialog')).toBeNull()
-    expect(container.querySelectorAll('.episode-card')).toHaveLength(4)
-    expect(container.querySelector('.episode-feature-meta')?.textContent).toContain('第 02 集 / 12')
-    expect(container.querySelector('.media-play-selection h3')?.textContent).toBe('目录里的作品名')
+    expect(container.querySelector('dialog:not(.media-description-dialog)')).toBeNull()
+    // 三集正片一行一集，片头收在附加内容里
+    expect(episodeRows(container)).toHaveLength(3)
+    expect(rowButtons(container)).toHaveLength(4)
+    expect(buttonNamed(container, '继续观看 第 02 集')).toBeDefined()
+    expect(headings(container)).toContain('目录里的作品名')
     const back = [...container.querySelectorAll('a')].find(a => a.textContent === '在媒体库中打开')
     expect(back?.getAttribute('href')).toBe('/anime/real-cluster')
     expect(playFile).not.toHaveBeenCalled()
-    await click(container, '.episode-feature')
+    await press(container, '继续观看 第 02 集')
     expect(playFile).toHaveBeenCalledExactlyOnceWith('ep2')
     expect(setAssociation).not.toHaveBeenCalled()
     await unmount()
@@ -81,8 +91,8 @@ describe('Discover 播放入口', () => {
     const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
     expect(setAssociation).toHaveBeenCalledExactlyOnceWith('real-cluster', { mode: 'manual', anilistId: 900 })
     expect(localStorage.getItem(legacy)).toBeNull()
-    expect(container.querySelectorAll('.episode-card')).toHaveLength(4)
-    await click(container, '.episode-feature')
+    expect(rowButtons(container)).toHaveLength(4)
+    await press(container, '继续观看 第 02 集')
     expect(setAssociation).toHaveBeenCalledOnce()
     await unmount()
   })
@@ -93,7 +103,7 @@ describe('Discover 播放入口', () => {
     const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
     expect(container.textContent).toContain('以前在这个浏览器里选的本地作品还没能同步到媒体库（作品目录暂不可用）')
     expect(localStorage.getItem(legacy)).toBe('real-cluster')
-    expect(container.querySelectorAll('.episode-card')).toHaveLength(4)
+    expect(rowButtons(container)).toHaveLength(4)
     await unmount()
   })
 
@@ -103,7 +113,7 @@ describe('Discover 播放入口', () => {
     const { container, unmount } = await mount(<MediaPlayButton media={{ ...media, title: cluster.title }} inline />)
     expect(localStorage.getItem(legacy)).toBeNull()
     expect(setAssociation).not.toHaveBeenCalled()
-    expect(container.querySelector('.episode-feature')).toBeNull()
+    expect(rowButtons(container)).toHaveLength(0)
     // 列表里能看到它对应了谁，但不能在这里改，要去它的作品页
     expect(container.querySelector('.media-play-choice--taken')?.textContent).toContain('已对应「别的作品」')
     expect(container.querySelector('.media-play-choice--taken a')?.getAttribute('href')).toBe('/anime/real-cluster')
@@ -114,9 +124,11 @@ describe('Discover 播放入口', () => {
   it('详情页未关联作品时由用户挑，不按名称自动关联；挑了只是看，点播放才认定', async () => {
     const { container, unmount } = await mount(<MediaPlayButton media={{ ...media, title: cluster.title }} inline />)
     expect(container.querySelector('.media-play-choice')).not.toBeNull()
-    expect(container.querySelector('.episode-feature')).toBeNull()
+    expect(rowButtons(container)).toHaveLength(0)
+    // 本地还没有这部作品的文件：说清楚怎么才能播
+    expect(container.textContent).toContain('把这部番的文件放进媒体库就能播')
     await click(container, '.media-play-choice')
-    expect(container.querySelectorAll('.episode-card')).toHaveLength(4)
+    expect(rowButtons(container)).toHaveLength(4)
     expect(setAssociation).not.toHaveBeenCalled()
     expect(playFile).not.toHaveBeenCalled()
     await unmount()
@@ -161,7 +173,7 @@ describe('Discover 播放入口', () => {
     vi.mocked(setAssociation).mockRejectedValueOnce(new ApiError('正在播放这部作品，停止播放后再改', 409))
     const { container, unmount } = await mount(<MediaPlayButton media={{ ...media, title: cluster.title }} inline />)
     await click(container, '.media-play-choice')
-    await click(container, '.episode-feature')
+    await press(container, '播放第 02 集')
     expect(stopPlayer).toHaveBeenCalledOnce()
     expect(setAssociation).toHaveBeenCalledTimes(2)
     expect(playFile).toHaveBeenCalledExactlyOnceWith('ep2')
@@ -196,7 +208,7 @@ describe('Discover 播放入口', () => {
     vi.mocked(playFile).mockRejectedValueOnce(new Error('未找到 mpv'))
     const { container, unmount } = await mount(<MediaPlayButton media={{ ...media, title: cluster.title }} inline />)
     await click(container, '.media-play-choice')
-    await click(container, '.episode-feature')
+    await press(container, '播放第 02 集')
     expect(container.querySelector('[role=alert]')?.textContent).toBe('未找到 mpv')
     expect(container.textContent).not.toContain('没能记住')
     await unmount()
@@ -255,12 +267,11 @@ describe('Discover 播放入口', () => {
     const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
     expect(container.querySelector('.media-play-choice')).toBeNull()
     expect(container.querySelector('.media-play-versions')?.textContent).toContain('2 个版本')
-    // 每个集号一张卡（不是两张），另一个版本挂在卡下面；进度在哪个版本上就以哪个为主
-    const cards = [...container.querySelectorAll('.episode-card-grid')[0]!.querySelectorAll('.episode-card')]
-    expect(cards).toHaveLength(3)
-    expect(container.querySelectorAll('.episode-card-versions')).toHaveLength(3)
-    expect(container.querySelector('.episode-feature-meta')?.textContent).toContain('第 02 集')
-    const alt = [...container.querySelectorAll<HTMLButtonElement>('.episode-card-versions button')].find(b => b.getAttribute('aria-label')?.includes('第 03 集'))!
+    // 每个集号一行（不是两行），另一个版本挂在那一行下面；进度在哪个版本上就以哪个为主
+    expect(episodeRows(container)).toHaveLength(3)
+    expect(versionGroups(container)).toHaveLength(3)
+    expect(buttonNamed(container, '继续观看 第 02 集')).toBeDefined()
+    const alt = buttonNamed(container, '播放第 03 集的其他版本：')!
     await act(async () => alt.click())
     expect(playFile).toHaveBeenCalledExactlyOnceWith('ep3-bd-cluster')
     expect(setAssociation).not.toHaveBeenCalled()
@@ -302,7 +313,7 @@ describe('Discover 播放入口', () => {
     vi.mocked(fetchLibrary).mockResolvedValue(withClusters(associated, auto))
     const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
     expect(container.querySelector('.media-play-selection')?.textContent).toContain('自动认出的本地作品')
-    const alt = [...container.querySelectorAll<HTMLButtonElement>('.episode-card-versions button')].find(b => b.getAttribute('aria-label')?.includes('第 03 集'))!
+    const alt = buttonNamed(container, '播放第 03 集的其他版本：')!
     await act(async () => alt.click())
     expect(setAssociation).toHaveBeenCalledExactlyOnceWith('auto-cluster', { mode: 'manual', anilistId: 900 })
     expect(playFile).toHaveBeenCalledExactlyOnceWith('ep3-auto-cluster')
@@ -348,6 +359,27 @@ describe('Discover 播放入口', () => {
     await click(container, '.btn--primary')
     expect(playFile).toHaveBeenCalledTimes(2)
     expect(container.textContent).toContain('已交给 mpv 播放')
+    await unmount()
+  })
+
+  it('作品页 hero 接管主按钮：报出「继续看第 2 集」，点它播这一集；内嵌的播放按钮不再画', async () => {
+    vi.mocked(fetchLibrary).mockResolvedValue(withClusters(associated))
+    const reported = vi.fn()
+    const { container, unmount } = await mount(<MediaPlayButton media={media} inline onPrimaryChange={reported} />)
+    const primary = reported.mock.lastCall?.[0]
+    expect(primary).toMatchObject({ label: '继续看第 2 集', busy: false })
+    expect(buttonNamed(container, '继续观看 第 02 集')).toBeUndefined()
+    await act(async () => primary.play())
+    expect(playFile).toHaveBeenCalledExactlyOnceWith('ep2')
+    await unmount()
+    // 卸载时撤掉 hero 上的按钮
+    expect(reported).toHaveBeenLastCalledWith(null)
+  })
+
+  it('作品页上本地没有可播的集时，hero 不出主按钮', async () => {
+    const reported = vi.fn()
+    const { unmount } = await mount(<MediaPlayButton media={media} inline onPrimaryChange={reported} />)
+    expect(reported).toHaveBeenLastCalledWith(null)
     await unmount()
   })
 

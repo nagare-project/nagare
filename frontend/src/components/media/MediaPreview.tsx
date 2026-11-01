@@ -44,12 +44,12 @@ export function MediaPreview({ media: initialMedia, children, className = 'btn',
   </>
 }
 
-export function TrailerPreview({ media }: { media: MediaSummary }) {
+export function TrailerPreview({ media, className = 'media-preview-link' }: { media: MediaSummary; className?: string }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   return <>
-    <button type="button" className="media-preview-link" ref={trigger} onClick={() => { setOpen(true); dialog.current?.showModal() }}>预告片</button>
+    <button type="button" className={className} ref={trigger} onClick={() => { setOpen(true); dialog.current?.showModal() }}>预告片</button>
     <dialog ref={dialog} className="media-trailer-dialog" aria-label={`${media.title} 预告片`}
       onClose={event => { event.stopPropagation(); setOpen(false); trigger.current?.focus() }}
       onClick={event => { if (event.target === dialog.current) dialog.current.close() }}>
