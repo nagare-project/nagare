@@ -97,6 +97,19 @@ test.describe('抽屉打开时（390px）', () => {
   })
 })
 
+test.describe('设置「关于」分区（390px）', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('关于与封面缓存（含清空确认）无 serious / critical 问题', async ({ page }) => {
+    await openApp(page, '/settings#about')
+    await expect(page.getByRole('heading', { name: '封面缓存' })).toBeVisible()
+    expect(await blockingViolations(page)).toEqual([])
+    await page.getByRole('button', { name: '清空封面缓存' }).click()
+    await expect(page.getByRole('button', { name: '取消' })).toBeFocused()
+    expect(await blockingViolations(page)).toEqual([])
+  })
+})
+
 test.describe('顶栏搜索展开时（1440px）', () => {
   test.use({ viewport: { width: 1440, height: VIEWPORT_HEIGHT } })
 

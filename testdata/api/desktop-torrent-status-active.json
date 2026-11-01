@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "data": {
+    "active": true,
+    "phase": "buffering",
+    "name": "[Sub] Frieren - 01-28 [1080p]",
+    "fileName": "[Sub] Frieren - 02 [1080p].mkv",
+    "infohash": "0123456789abcdef0123456789abcdef01234567",
+    "peers": 12,
+    "seeders": 9,
+    "downRate": 2400000,
+    "upRate": 48000,
+    "buffered": 0.625,
+    "progress": 0.031,
+    "cacheBytes": 104857600,
+    "seeding": true,
+    "error": "分片写盘失败：磁盘已满"
+  }
+}

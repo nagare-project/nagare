@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "data": {
+    "config": {
+      "enabled": false
+    },
+    "status": {
+      "phase": "failed",
+      "error": "插件进程启动后 10 秒内没有报告监听地址"
+    },
+    "sources": []
+  }
+}

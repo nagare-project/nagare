@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "data": {
+    "sources": [
+      {
+        "id": "fake",
+        "name": "Fake Source",
+        "homepage": "https://example.test",
+        "enabled": true,
+        "capabilities": {
+          "seeders": false,
+          "priority": 0
+        },
+        "hasSelfTest": true
+      }
+    ],
+    "rules": {
+      "remoteUrl": "",
+      "localDir": "/home/viewer/anime-rules",
+      "dir": "/home/viewer/anime-rules",
+      "loaded": 1,
+      "errors": [],
+      "lastLoadedAt": 1792065600000,
+      "lastSyncAt": null
+    }
+  }
+}

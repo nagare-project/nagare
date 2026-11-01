@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "data": {
+    "association": {
+      "mode": "manual",
+      "anilistId": 154587,
+      "title": "葬送的芙莉莲",
+      "setAt": 1792047600000,
+      "syncedElsewhere": [
+        {
+          "anilistId": 22,
+          "episodes": [
+            1,
+            2
+          ]
+        }
+      ]
+    }
+  }
+}

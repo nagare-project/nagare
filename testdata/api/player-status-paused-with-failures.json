@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "data": {
+    "playing": true,
+    "fileId": "[Sub] Frieren - 02 [1080p].mkv|3145728|1788249600000",
+    "title": "葬送的芙莉莲 第 2 集",
+    "position": 1200,
+    "duration": 1420.04,
+    "paused": true,
+    "danmaku": {
+      "state": "degraded",
+      "count": 120,
+      "reason": "弹幕只取回了一部分，稍后重新打开这一集会再试"
+    },
+    "playbackFailure": {
+      "fileId": "[Sub] Frieren - 01 [1080p].mkv|3145728|1788249600000",
+      "playbackId": "pb-0001",
+      "reason": "mpv 打不开这个文件：文件可能已损坏或不完整",
+      "at": 1792065600000
+    },
+    "sync": {
+      "state": "failed",
+      "fileId": "[Sub] Frieren - 01 [1080p].mkv|3145728|1788249600000",
+      "title": "葬送的芙莉莲",
+      "episode": 1,
+      "reason": "账号服务暂时连不上，这一集没有记成看完",
+      "recovery": "点「重试」现在补记，或等下次启动时自动补记",
+      "at": 1792065600000,
+      "pending": 2
+    }
+  }
+}

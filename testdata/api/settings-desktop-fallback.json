@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "data": {
+    "animego": {
+      "baseUrl": "https://catalog.example.test",
+      "email": "viewer@example.test",
+      "loggedIn": true
+    },
+    "arch": "amd64",
+    "background": {
+      "mode": "none"
+    },
+    "coverCache": null,
+    "dataDir": "/home/viewer/.config/nagare",
+    "desktop": {
+      "window": false,
+      "fallback": "没有找到 WebView2 运行时，界面改在浏览器里打开；装好运行时后重启 nagare 即可回到桌面窗口"
+    },
+    "logPath": "/home/viewer/.config/nagare/logs/nagare.log",
+    "mpv": {
+      "found": true,
+      "path": "/usr/bin/mpv",
+      "source": "path",
+      "version": "0.41.0"
+    },
+    "platform": "windows",
+    "player": {
+      "anime4k": "off"
+    },
+    "version": "0.7.0"
+  }
+}

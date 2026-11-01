@@ -31,6 +31,8 @@ type fakeSourcePluginRuntime struct {
 	// releaseEvents 是 /v1/releases 回放的事件（按作品搜全部发布）
 	releaseEvents []sourceplugin.ReleaseEvent
 	releaseErr    error
+	// sourcesErr 非空时 Sources 报错（插件就绪但列不出来源）
+	sourcesErr error
 
 	mu              sync.Mutex
 	requests        []sourceplugin.ResolveRequest
@@ -59,6 +61,9 @@ func (f *fakeSourcePluginRuntime) Stop() {
 func (f *fakeSourcePluginRuntime) Status() sourceplugin.Status { return f.status }
 
 func (f *fakeSourcePluginRuntime) Sources(context.Context) ([]sourceplugin.Source, error) {
+	if f.sourcesErr != nil {
+		return nil, f.sourcesErr
+	}
 	return append([]sourceplugin.Source(nil), f.sources...), nil
 }
 

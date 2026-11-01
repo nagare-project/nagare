@@ -283,6 +283,9 @@ func compareVersion(a, b [3]int) int {
 // InstallGuide 返回当前平台的 mpv 安装指引（设置页在 mpv 缺失时展示）。
 func InstallGuide() Guide { return installGuide(detectGOOS) }
 
+// InstallGuideFor 是指定平台的安装指引（goos 取 runtime.GOOS 的值）。
+func InstallGuideFor(goos string) Guide { return installGuide(goos) }
+
 func installGuide(goos string) Guide {
 	switch goos {
 	case "darwin":

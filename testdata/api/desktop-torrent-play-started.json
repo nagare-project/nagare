@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "data": {
+    "danmaku": {
+      "state": "loading"
+    },
+    "fileId": "torrent:0123456789abcdef0123456789abcdef01234567:1",
+    "needSelection": false,
+    "playbackId": "pb-0002",
+    "title": "葬送的芙莉莲 第 2 集"
+  }
+}

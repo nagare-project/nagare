@@ -90,6 +90,7 @@ const SETTINGS: SettingsData = {
     cacheBytes: 0,
     downloadDir: '/Users/you/Downloads/nagare',
     downloadDirIsDefault: true,
+    restartRequired: false,
   },
 }
 
@@ -256,7 +257,7 @@ describe('SearchPage（结果与交互）', () => {
     vi.mocked(searchMagnets).mockResolvedValue(RESULT)
     vi.mocked(fetchSettings).mockResolvedValue({
       ...SETTINGS,
-      torrent: { ...SETTINGS.torrent, enabled: false },
+      torrent: { ...SETTINGS.torrent!, enabled: false },
     })
     const { container, unmount } = await mountAt('/search?q=frieren')
 

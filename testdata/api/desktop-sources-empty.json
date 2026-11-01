@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "data": {
+    "sources": [],
+    "rules": {
+      "remoteUrl": "",
+      "localDir": "",
+      "dir": "/home/viewer/.config/nagare/rules",
+      "loaded": 0,
+      "errors": [],
+      "lastLoadedAt": null,
+      "lastSyncAt": null
+    }
+  }
+}
