@@ -21,7 +21,7 @@ function stubFetch(): ReturnType<typeof vi.fn> {
       url.pathname === '/api/catalog/search'
         ? { query: url.searchParams.get('q'), items: [FRIEREN] }
         : url.pathname === '/api/discover'
-          ? { sections: [{ key: 'trending', title: 'animego 上在看最多', items: [FRIEREN] }], fetchedAt: 1 }
+          ? { sections: [{ key: 'trending', title: '大家都在看', items: [FRIEREN] }], fetchedAt: 1 }
           : undefined
     if (data === undefined) {
       return new Response(JSON.stringify({ success: false, data: null, error: `未打桩 ${url.pathname}` }), { status: 404 })
@@ -30,6 +30,14 @@ function stubFetch(): ReturnType<typeof vi.fn> {
   })
   vi.stubGlobal('fetch', mock)
   return mock
+}
+
+/** 受控输入框：走原生 value setter 再派发 input 事件，React 才认这次改动 */
+async function typeInto(input: HTMLInputElement, text: string): Promise<void> {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
 }
 
 function searchCalls(mock: ReturnType<typeof vi.fn>): string[] {
@@ -75,7 +83,7 @@ describe('发现页的作品搜索（路由一层）', () => {
 
     expect(searchCalls(mock)).toContain('芙莉莲')
     expect(container.textContent).toContain('搜索「芙莉莲」')
-    expect(container.textContent).not.toContain('animego 上在看最多')
+    expect(container.textContent).not.toContain('大家都在看')
     // /discover 是 / 的别名：参数原样带过去，主导航里的「发现」是当前页
     const nav = [...container.querySelectorAll('nav[aria-label="主导航"] a')].find((a) => a.textContent === '发现')
     expect(nav?.getAttribute('aria-current')).toBe('page')
@@ -91,27 +99,35 @@ describe('发现页的作品搜索（路由一层）', () => {
     await unmount()
   })
 
-  it('提交把关键词写进地址栏；「清除」回到榜单', async () => {
+  it('顶栏搜索提交把关键词写进地址栏；结果页里改词再搜、「清除」回到榜单', async () => {
     const mock = stubFetch()
     const { router, container, unmount } = await mountAt('/discover')
 
-    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!
+    // 发现页本身不再放搜索框：搜索从顶栏的放大镜进
+    expect(container.querySelector('main input')).toBeNull()
+    const toggle = [...container.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === '搜索作品')!
+    await act(async () => toggle.click())
+    await typeInto(container.querySelector<HTMLInputElement>('header input[aria-label="作品名"]')!, '  芙莉莲 ')
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '  芙莉莲 ')
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>('.catalog-search button[type="submit"]')!.click()
+      container.querySelector<HTMLFormElement>('header form[role="search"]')!.requestSubmit()
     })
     await settle()
     expect(validated(router)).toMatchObject({ q: '芙莉莲' })
     expect(searchCalls(mock)).toContain('芙莉莲')
 
+    // 结果页顶部的搜索框可以直接改词
+    await typeInto(container.querySelector<HTMLInputElement>('main input[aria-label="搜索作品名"]')!, '葬送')
+    await act(async () => {
+      [...container.querySelectorAll<HTMLButtonElement>('main button')].find((b) => b.textContent === '搜索')!.click()
+    })
+    await settle()
+    expect(validated(router)).toMatchObject({ q: '葬送' })
+
     const clear = [...container.querySelectorAll('button')].find((b) => b.textContent === '清除')!
     await act(async () => clear.click())
     await settle()
     expect(validated(router)).not.toHaveProperty('q')
-    expect(container.textContent).toContain('animego 上在看最多')
+    expect(container.textContent).toContain('大家都在看')
     await unmount()
   })
 
@@ -120,7 +136,7 @@ describe('发现页的作品搜索（路由一层）', () => {
     const { router, container, unmount } = await mountAt('/discover?q=%20%20&genre=Sci-Fi')
 
     expect(searchCalls(mock)).toEqual([])
-    expect(container.textContent).toContain('animego 上在看最多')
+    expect(container.textContent).toContain('大家都在看')
     expect(validated(router).genre).toBe('Sci-Fi')
     await unmount()
   })

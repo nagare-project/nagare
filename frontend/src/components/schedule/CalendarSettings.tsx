@@ -5,6 +5,7 @@ import type { CalendarPreferences, ScheduleStatus } from './types'
 
 const STORAGE_KEY = 'nagare-calendar-preferences'
 export const STATUS_LABELS: Record<ScheduleStatus, string> = { watching: '在看', planning: '想看', completed: '看完', dropped: '弃番', untracked: '未收藏' }
+/** disableTransitions 只为兼容旧偏好留着（月历的封面已经不自动轮换），读进来原样写回 */
 const DEFAULTS: CalendarPreferences = { weekStartsOn: 1, statuses: ['watching', 'planning', 'completed', 'dropped', 'untracked'], indicateWatched: true, disableTransitions: false }
 
 export function useCalendarPreferences() {
@@ -50,7 +51,6 @@ export function CalendarSettings({ value, onChange }: { value: CalendarPreferenc
           statuses: e.target.checked ? [...value.statuses, status as ScheduleStatus] : value.statuses.filter(s => s !== status) })} />{label}
       </label>)}</div></fieldset>
       <div className="calendar-setting-switch"><span>标记已看剧集</span><Switch checked={value.indicateWatched} onChange={checked => onChange({ ...value, indicateWatched: checked })} label="标记已看剧集" /></div>
-      <div className="calendar-setting-switch"><span>关闭图片切换</span><Switch checked={value.disableTransitions} onChange={checked => onChange({ ...value, disableTransitions: checked })} label="关闭图片切换" /></div>
     </div>}
   </div>
 }

@@ -15,20 +15,14 @@ const BLOCKING = new Set(['serious', 'critical'])
  * 这些页面照样整页扫一遍，结果记在报告里（不挡合并）；外壳部分（顶栏、抽屉、展开的搜索）照样是硬门槛。
  *
  * TODO（界面重写的后续几步）：页面重写时把它从这里删掉，整页门槛就自动生效 —— 只许删，不许加。
- * 剩下的问题（2026-11 首次接入扫描时）：
- * - label-content-name-mismatch：作品卡封面链接（发现 / 季度 / 追番 / 作品页推荐）、媒体库海报、
- *   分组页剧集卡的播放按钮、放送表条目、季度页翻季箭头、作品页简介 / 预告片入口 —— aria-label 没有包含可见文字；
- * - target-size：发现页横幅的圆点与海报行的分页点、放送表月历里的条目 —— 点按区域小于 24px 且挨得太近。
+ * 发现 / 季度 / 放送表 / 我的追番已经重写、移出；剩下的问题（2026-11 首次接入扫描时）：
+ * - label-content-name-mismatch：媒体库海报、分组页剧集卡的播放按钮、作品页简介 / 预告片入口 ——
+ *   aria-label 没有包含可见文字。
  */
 const PAGE_LEVEL_PENDING = new Set<string>([
-  '/',
-  '/discover',
   '/library',
   '/anime/stardust',
   '/entry?id=1001',
-  '/lists',
-  '/schedule',
-  '/seasonal',
 ])
 
 async function blockingViolations(page: Page, include?: string): Promise<string[]> {
@@ -60,6 +54,37 @@ for (const width of [1440, 390] as const) {
     }
   })
 }
+
+test.describe('目录页的其他状态（1440px）', () => {
+  test.use({ viewport: { width: 1440, height: VIEWPORT_HEIGHT } })
+
+  test('发现页离线 + 媒体库为空：细条与「去添加」整页无 serious / critical 问题', async ({ page }) => {
+    await page.route('**/api/library', (route) => route.fulfill({ json: { success: true, data: { folders: [], clusters: [], continueWatching: [], scannedAt: null } } }))
+    await page.route('**/api/discover', async (route) => {
+      const response = await route.fetch()
+      const envelope = (await response.json()) as { data: Record<string, unknown> }
+      await route.fulfill({ response, json: { ...envelope, data: { ...envelope.data, freshness: { fetchedAt: new Date(Date.now() - 3600_000).toISOString(), stale: false, offline: true } } } })
+    })
+    await openApp(page, '/')
+    await expect(page.getByRole('link', { name: '去添加' })).toBeVisible()
+    expect(await blockingViolations(page)).toEqual([])
+  })
+
+  test('作品卡浮层打开时整页无 serious / critical 问题', async ({ page }) => {
+    await openApp(page, '/')
+    const card = page.getByRole('region', { name: '本季新番' }).getByRole('listitem').first()
+    await card.hover()
+    await expect(card.getByRole('button', { name: /^播放 / })).toBeVisible()
+    expect(await blockingViolations(page)).toEqual([])
+  })
+
+  test('放送表的日历设置展开时整页无 serious / critical 问题', async ({ page }) => {
+    await openApp(page, '/schedule')
+    await page.getByRole('button', { name: '日历设置' }).click()
+    await expect(page.getByRole('region', { name: '日历设置' })).toBeVisible()
+    expect(await blockingViolations(page)).toEqual([])
+  })
+})
 
 test.describe('抽屉打开时（390px）', () => {
   test.use({ viewport: { width: 390, height: 844 } })

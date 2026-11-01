@@ -1,15 +1,48 @@
-/* 季度浏览：标题 + 季度导航 + 筛选条 + 海报网格（网格与卡片沿用发现页样式） */
-.seasonal-shell { padding-bottom: 40px; }
-.seasonal-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
-.seasonal-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.seasonal-nav .btn { display: inline-flex; align-items: center; gap: 4px; }
-.seasonal-year .input { width: auto; padding-right: 28px; }
-.seasonal-filters { display: grid; gap: 10px; margin: 8px 0 20px; }
-.seasonal-chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.seasonal-chip { padding: 6px 12px; border: 1px solid var(--border-dim); border-radius: 999px; background: transparent; color: var(--fg-muted); font-size: 13px; cursor: pointer; }
-.seasonal-chip:hover { border-color: var(--border); color: inherit; }
-.seasonal-chip--active { border-color: var(--accent); background: var(--accent-dim); color: inherit; }
-.seasonal-chip-gap { width: 12px; }
-.seasonal-sort-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.seasonal-sort-row .input { width: auto; padding-right: 28px; }
-@media (max-width: 720px) { .seasonal-head { flex-direction: column; align-items: stretch; } }
+/* 季度浏览（`/seasonal`）：页头的季度导航 + 筛选条；页面骨架、网格、状态在 catalog/catalog.css */
+
+.seasonal-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm); }
+.seasonal-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background: var(--bg-fill);
+  color: var(--accent);
+  font-size: var(--type-label-size);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.seasonal-step:hover { background: var(--bg-fill-hover); }
+.seasonal-select {
+  height: 40px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-label-size);
+  font-variant-numeric: tabular-nums;
+}
+.seasonal-select:focus-visible { border-color: var(--accent); }
+
+.seasonal-filters { display: flex; flex-direction: column; gap: 12px; }
+.seasonal-chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm); }
+.seasonal-chip-gap { width: var(--sp-sm); }
+
+.seasonal-sort-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm) var(--sp-md); min-height: 40px; }
+.seasonal-count { color: var(--text-secondary); font-size: var(--type-label-size); font-variant-numeric: tabular-nums; }
+.seasonal-sort { display: inline-flex; align-items: center; gap: var(--sp-sm); margin-left: auto; color: var(--text-secondary); font-size: var(--type-label-size); }
+.seasonal-clear { font-size: var(--type-label-size); }
+
+/* 手机上类型标签横向一条（十九个标签换行会占半屏）；横向滚动容器里有 visually-hidden 时要 position: relative */
+@media (max-width: 600px) {
+  .seasonal-chip-row--scroll { position: relative; flex-wrap: nowrap; margin: 0 calc(-1 * var(--catalog-gutter)); padding: var(--sp-xs) var(--catalog-gutter); overflow-x: auto; scrollbar-width: none; }
+  .seasonal-chip-row--scroll::-webkit-scrollbar { display: none; }
+  .seasonal-sort { margin-left: 0; }
+}
+

@@ -1,22 +1,34 @@
-import { airingDistance, audienceColor } from './media-format'
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
+import { COLLECTION_LABELS, entryStatus } from '../../lib/media'
+import { posterToneStyle } from '../../lib/posterTones'
+import { Icon } from '../ui/Icon'
+import { useCollection } from './CollectionContext'
+import { DiscoverTrailer } from './DiscoverTrailer'
+import { airingDistance } from './media-format'
+import { MediaArtwork } from './MediaArtwork'
 import { MediaEntryLink } from './MediaEntryLink'
 import { MediaListEditor } from './MediaListEditor'
-import { useCollection } from './CollectionContext'
-import { COLLECTION_LABELS, entryStatus } from '../../lib/media'
-import { Icon } from '../ui/Icon'
-import { MediaArtwork } from './MediaArtwork'
-import { MediaPreview } from './MediaPreview'
 import { MediaPlayButton } from './MediaPlayButton'
+import { MediaPreview } from './MediaPreview'
 import { MediaTorrentButton } from './MediaTorrentButton'
 import { useMediaTrailer } from './useMediaTrailer'
-import { DiscoverTrailer } from './DiscoverTrailer'
-import { useDesktopLayout } from './useDesktopLayout'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
+import { cardMeta, cardStatus, usePopupLayout } from './posterCardParts'
 import type { MediaSummary } from './types'
+import './poster-card.css'
 
-/** 原版悬停层覆盖整张卡片，向上扩展 5%、左右各扩展 1.5%。 */
+/** 鼠标停在卡片上这么久才弹出浮层：扫过一排卡片时只看到抬起，不会一张张闪出来 */
+export const CARD_HOVER_INTENT_MS = 300
+/** 移开后浮层内容延迟卸载：快速移出再移入时不重建（预告片不会重新加载） */
+const POPUP_UNMOUNT_MS = 35
+
+/**
+ * 作品海报卡（发现 / 季度 / 我的追番 / 搜索结果 / 作品页的关联与推荐共用）。DESIGN.md「卡片 · 海报卡」：
+ * 3:4 封面 + 两行标题 +「2026 秋 · 12 集 · 已看 7」，整张卡是一个链接（点哪都进作品页）。
+ * 宽屏用鼠标停一会儿，浮出一张浮层卡：静音预告片、播放、磁力、加入追番。
+ * 海报色写在卡片根元素自己的行内样式里（lib/posterTones.ts），只用于悬停边框与浮层里的评分。
+ */
 export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }: { media: MediaSummary; showTrailer?: boolean; badge?: string }) {
   const collection = useCollection()
   const entry = collection.entries.find(item => item.anilistId === initialMedia.id)
@@ -32,65 +44,76 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
     return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key) }
   }, [menu])
   const [hovered, setHovered] = useState(false)
+  const [intent, setIntent] = useState(false)
   const [focused, setFocused] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [renderPopup, setRenderPopup] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const pointerFocus = useRef(false)
-  const desktop = useDesktopLayout()
+  const popupLayout = usePopupLayout()
   const reduced = useReducedMotionPreference()
-  const open = desktop && (hovered || focused || previewOpen)
+  const open = popupLayout && (intent || focused || previewOpen)
   const trailerId = useMediaTrailer(media, showTrailer && open && !previewOpen && !reduced)
-  const subtitle = media.titleEnglish?.toLowerCase() !== media.title.toLowerCase() ? media.titleEnglish : undefined
   const progress = media.episodes && media.watched ? Math.min(100, media.watched / media.episodes * 100) : 0
   const completed = media.episodes !== null && media.watched >= media.episodes
+  const status = cardStatus(media)
+  const meta = cardMeta(media)
+  useEffect(() => {
+    if (!hovered) return
+    const timer = setTimeout(() => setIntent(true), CARD_HOVER_INTENT_MS)
+    return () => clearTimeout(timer)
+  }, [hovered])
   useEffect(() => {
     clearTimeout(closeTimer.current)
     if (open) setRenderPopup(true)
-    else closeTimer.current = setTimeout(() => setRenderPopup(false), 35)
+    else closeTimer.current = setTimeout(() => setRenderPopup(false), POPUP_UNMOUNT_MS)
     return () => clearTimeout(closeTimer.current)
   }, [open])
-  return <li className="poster discover-card" data-hovered={open || undefined}
+
+  return <li className="poster-card" data-open={open || undefined} style={posterToneStyle(media.posterTones)}
     onContextMenu={event => { if ((event.target as Element).closest('dialog')) return; event.preventDefault(); setMenu({ left: Math.min(event.clientX, window.innerWidth - 216), top: Math.min(event.clientY, window.innerHeight - 112) }) }}
-    onPointerEnter={event => { if (event.pointerType !== 'touch') setHovered(true) }} onPointerLeave={() => setHovered(false)}
+    onPointerEnter={event => {
+      if (event.pointerType === 'touch') return
+      setHovered(true)
+      // 刚移开又移回来（浮层还没卸载）：直接接着开，不重新等，也不重建浮层里的预告片
+      if (renderPopup) setIntent(true)
+    }}
+    onPointerLeave={() => { setHovered(false); setIntent(false) }}
     onPointerDownCapture={() => { pointerFocus.current = true; setFocused(false) }}
     onKeyDownCapture={() => { pointerFocus.current = false; setFocused(true) }}
     onFocusCapture={() => { if (!pointerFocus.current) setFocused(true) }}
     onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
-    <MediaEntryLink id={media.id} className="discover-card-cover" aria-label={`打开作品 ${media.title}`}>
-      <MediaArtwork src={media.cover} title={media.title} reveal />
-      {progress > 0 && !completed && <span className="discover-card-progress"><span style={{ width: `${progress}%` }} /></span>}
-      {media.watched > 0 && <span className="discover-card-count">{media.watched}{media.episodes !== null && ` / ${media.episodes}`}</span>}
-      {badge && <span className="media-relation-badge">{badge}</span>}
-      {media.recentAiring ? <span className="discover-recent"><strong>{media.recentAiring.episode}<small>/{media.episodes ?? '—'}</small></strong><time dateTime={new Date(media.recentAiring.at * 1000).toISOString()}>{airingDistance(media.recentAiring.at)}</time></span> : (media.status === 'RELEASING' || media.status === 'NOT_YET_RELEASED') && <span className="discover-airing" data-status={media.status} aria-label={media.status === 'RELEASING' ? '放送中' : '尚未播出'}><Icon name="broadcast" size={16} /></span>}
-      {!!entry?.score && <span className="discover-personal-score"><Icon name="star" size={14} />{entry.score}</span>}
+    <MediaEntryLink id={media.id} className="poster-card-link">
+      {/* 封面上的角标只是视觉；同样的信息以文字放在链接里（下面的 visually-hidden），读屏不会漏 */}
+      <span className="poster-card-cover" aria-hidden="true">
+        <MediaArtwork src={media.cover} title={media.title} reveal />
+        {badge && <span className="poster-card-badge poster-card-badge--relation">{badge}</span>}
+        {status && <span className="poster-card-badge poster-card-badge--status" data-tone={status.tone}>{status.short}</span>}
+        {!!entry?.score && <span className="poster-card-badge poster-card-badge--score"><Icon name="star" size={12} />{entry.score}</span>}
+        {progress > 0 && !completed && <span className="poster-card-progress"><span style={{ width: `${progress}%` }} /></span>}
+      </span>
+      <span className="poster-card-body">
+        <span className="poster-card-title">{media.title}</span>
+        {meta && <span className="poster-card-meta">{meta}</span>}
+      </span>
+      {(badge || status || entry?.score) && <span className="visually-hidden">{[badge, status?.long, entry?.score ? `我的评分 ${entry.score}` : ''].filter(Boolean).join('，')}</span>}
     </MediaEntryLink>
-    <p className="discover-card-title"><MediaEntryLink id={media.id}>{media.title}</MediaEntryLink></p>
-    {(media.season || media.year) && <p className="discover-card-season">{media.season} {media.year}</p>}
-    <div className="discover-card-popup" data-state={open ? 'open' : 'closed'} aria-hidden={!open} inert={!open}>
-      {renderPopup && <div className="discover-card-popup-content">
-        <div>
-          <MediaEntryLink id={media.id} className="discover-card-banner" aria-label={`打开作品 ${media.title}`}>
-            <MediaArtwork src={media.banner ?? media.cover} title={media.title} />
-            <DiscoverTrailer videoId={trailerId} title={media.title} active={open && hovered && showTrailer && !reduced && !previewOpen} variant="card" />
-            <span className="discover-card-banner-gradient" />
-            {progress > 0 && !completed && <span className="discover-card-progress"><span style={{ width: `${progress}%` }} /></span>}
-            {media.watched > 0 && <span className="discover-card-count">{media.watched} / {media.episodes ?? '—'}</span>}
-            {(media.status === 'RELEASING' || media.status === 'NOT_YET_RELEASED') && <span className="discover-airing" data-status={media.status} aria-label={media.status === 'RELEASING' ? '放送中' : '尚未播出'}><Icon name="broadcast" size={16} /></span>}
-          </MediaEntryLink>
-          <h3 className="discover-card-popup-title"><MediaEntryLink id={media.id} className="discover-card-title-link">{media.title}</MediaEntryLink></h3>
-          {subtitle && <p className="discover-card-native">{subtitle}</p>}
-          <p className="discover-card-year"><Icon name="calendar" size={14} />{media.season} {media.year}{media.format && media.format !== 'TV' ? ` - ${media.format}` : ''}</p>
-          <div className="discover-card-play-row">
-            <MediaPlayButton media={media} onOpenChange={setPreviewOpen} />
-            <MediaTorrentButton media={media} onOpenChange={setPreviewOpen} />
-          </div>
-          {media.nextAiring && <p className="discover-card-next">第 {media.nextAiring.episode} 集 {airingDistance(media.nextAiring.at)}播出</p>}
-          {entry && entryStatus(entry) !== 'watching' && <p className="discover-card-status">{COLLECTION_LABELS[entryStatus(entry)]}</p>}
+    <div className="poster-card-popup" data-state={open ? 'open' : 'closed'} aria-hidden={!open} inert={!open}>
+      {renderPopup && <div className="poster-card-popup-content">
+        <MediaEntryLink id={media.id} className="poster-card-popup-banner" tabIndex={-1} aria-hidden="true">
+          <MediaArtwork src={media.banner ?? media.cover} title={media.title} />
+          <DiscoverTrailer videoId={trailerId} title={media.title} active={open && hovered && showTrailer && !reduced && !previewOpen} variant="card" />
+        </MediaEntryLink>
+        <h3 className="poster-card-popup-title"><MediaEntryLink id={media.id}>{media.title}</MediaEntryLink></h3>
+        <p className="poster-card-popup-meta">{[meta, media.nextAiring ? `第 ${media.nextAiring.episode} 集 ${airingDistance(media.nextAiring.at)}播出` : ''].filter(Boolean).join(' · ')}</p>
+        <div className="poster-card-popup-actions">
+          <MediaPlayButton media={media} onOpenChange={setPreviewOpen} />
+          <MediaTorrentButton media={media} onOpenChange={setPreviewOpen} />
         </div>
-        <footer className="discover-card-footer">
+        <footer className="poster-card-popup-footer">
           <MediaListEditor media={media} onOpenChange={setPreviewOpen} />
-          {!!media.score && <span className="discover-card-score" style={{ color: audienceColor(media.score) }} data-score={media.score >= 82 ? 'high' : 'normal'}><Icon name="heart" size={12} />{media.score / 10}</span>}
+          {entry && entryStatus(entry) !== 'watching' && <span className="poster-card-popup-status">{COLLECTION_LABELS[entryStatus(entry)]}</span>}
+          {!!media.score && <span className="poster-card-score"><Icon name="star" size={12} /><span className="visually-hidden">评分 </span>{(media.score / 10).toFixed(1)}</span>}
         </footer>
       </div>}
     </div>

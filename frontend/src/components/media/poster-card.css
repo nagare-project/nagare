@@ -1,0 +1,210 @@
+/* ============================================================
+   作品海报卡（DESIGN.md「卡片 · 海报卡」）：
+   --bg-card 底、--radius-md、1px --separator-opaque 边框；封面 3:4；
+   标题 14px / 600 两行截断；副标题 caption、--text-secondary、数字 tabular-nums；
+   悬停抬起 4px + --shadow-card-hover。整张卡是一个链接。
+   海报色（--poster-tone*）由卡片根元素的行内样式提供，没有时落回 tokens.css 的中性值。
+   ============================================================ */
+
+.poster-card { position: relative; min-width: 0; list-style: none; }
+
+.poster-card-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    transform var(--dur-medium) var(--ease-enter),
+    box-shadow var(--dur-medium) var(--ease-enter),
+    border-color var(--dur-medium) var(--ease-enter);
+}
+.poster-card-link:hover,
+.poster-card[data-open] .poster-card-link {
+  border-color: var(--poster-tone-mid);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-4px);
+}
+
+.poster-card-cover {
+  position: relative;
+  display: block;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+.poster-card-cover > img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--dur-medium) var(--ease-enter); }
+.poster-card-cover > img[data-loaded='true'] { opacity: 1; }
+.poster-card-cover > .poster-art-mark { color: var(--text-secondary); font-size: 2.2rem; font-weight: 300; }
+
+/* 压在封面上的角标：遮罩做底，只让文字带颜色（DESIGN.md 颜色规则 6） */
+.poster-card-badge {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--badge-scrim);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: var(--type-micro-size);
+  font-weight: var(--type-micro-weight);
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.poster-card-badge--relation { top: 8px; left: 8px; }
+.poster-card-badge--status { top: 8px; right: 8px; }
+.poster-card-cover:has(.poster-card-badge--relation) .poster-card-badge {
+  max-width: calc(50% - 12px);
+}
+.poster-card-badge--status[data-tone='info'] { color: var(--teal); }
+.poster-card-badge--status[data-tone='warning'] { color: var(--warning); }
+.poster-card-badge--status[data-tone='quiet'] { color: var(--text-secondary); }
+.poster-card-badge--score { right: 8px; bottom: 10px; }
+
+.poster-card-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: rgba(255, 255, 255, 0.2); }
+.poster-card-progress > span { display: block; height: 100%; background: var(--accent); }
+
+.poster-card-body { display: flex; flex-direction: column; gap: var(--sp-xs); padding: 10px 12px 12px; }
+.poster-card-title {
+  font-size: var(--type-label-size);
+  font-weight: 600;
+  line-height: 20px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.poster-card-meta {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 浮层卡（宽屏悬停一会儿，或键盘焦点进卡片） ---------- */
+.poster-card-popup {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border: 1px solid var(--popover-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-elevated);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity var(--dur-short) var(--ease-standard);
+}
+.poster-card-popup[data-state='open'] { opacity: 1; pointer-events: auto; }
+.poster-card-popup-content { display: flex; flex-direction: column; gap: var(--sp-sm); height: 100%; padding: var(--sp-sm); overflow: hidden; }
+/* 卡片矮的时候先让横幅图变矮，按钮与标题不被挤掉 */
+.poster-card-popup-banner {
+  position: relative;
+  display: block;
+  flex: 0 1 auto;
+  min-height: 48px;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+.poster-card-popup-banner > img { width: 100%; height: 100%; object-fit: cover; }
+.poster-card-popup-title {
+  flex: none;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* 浮层上的链接：悬停不提亮颜色，加下划线（DESIGN.md 颜色规则 8） */
+.poster-card-popup-title a { color: var(--text); text-decoration: none; border-radius: 4px; }
+.poster-card-popup-title a:hover { text-decoration: underline; text-underline-offset: 0.18em; }
+.poster-card-popup-meta { flex: none; color: var(--text-secondary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; line-height: 18px; }
+.poster-card-popup-actions { display: grid; flex: none; grid-template-columns: 1fr 1fr; gap: var(--sp-sm); }
+.poster-card-popup-actions .discover-card-play {
+  height: 36px;
+  margin-top: 0;
+  padding-inline: var(--sp-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-fill);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.poster-card-popup-actions .discover-card-play:hover { background: var(--bg-fill-hover); }
+/* 字用白：浮层上叠一层填充之后，--accent-on-elevated 写字不到 4.5:1；蓝色只留给图标（非文字 3:1） */
+.poster-card-popup-actions .discover-card-play svg { width: 16px; height: 16px; color: var(--accent-on-elevated); }
+.poster-card-popup-footer { display: flex; align-items: center; gap: var(--sp-sm); min-height: 32px; margin-top: auto; }
+.poster-card-popup-status { color: var(--text-secondary); font-size: var(--type-caption-size); }
+.poster-card-score {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  margin-left: auto;
+  color: var(--poster-tone);
+  font-family: var(--font-mono);
+  font-size: var(--type-caption-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ---------- 右键菜单（浮层：Level 2） ---------- */
+.media-context-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--popover-border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  box-shadow: var(--shadow-elevated);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.media-context-menu > a,
+.media-context-menu > button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-label-size);
+  text-decoration: none;
+  cursor: pointer;
+}
+.media-context-menu > :hover,
+.media-context-menu > :focus-visible { background: var(--bg-fill-hover); }
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-card-link, .poster-card-cover > img, .poster-card-popup { transition: none; }
+  .poster-card-link:hover,
+  .poster-card[data-open] .poster-card-link,
+  .poster-card-popup { transform: none; }
+}

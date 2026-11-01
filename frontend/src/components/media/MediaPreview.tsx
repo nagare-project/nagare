@@ -9,8 +9,13 @@ import { MediaDetails, MediaRelations, MediaExternalLinks } from './MediaDetails
 import { useMediaDetails } from './useMediaDetails'
 import './media-preview.css'
 
-/** 与原版详情窗口对齐；播放仍由用户明确关联实际本地文件。 */
-export function MediaPreview({ media: initialMedia, children, className = 'btn', onOpenChange, openSignal = 0 }: { media: MediaSummary; children: ReactNode; className?: string; openSignal?: number; onOpenChange?: (open: boolean) => void }) {
+/**
+ * 作品预览窗口（详情 + 播放 / 磁力 / 预告片）；播放仍由用户明确关联实际本地文件。
+ *
+ * 触发按钮默认念「预览 <作品名>」。按钮里已经有可见的文字（作品名、集号）时传 label={null}，
+ * 名字就取可见文字 —— 否则 aria-label 盖过可见文字，语音控制的用户念屏幕上的字点不到它（WCAG 2.5.3）。
+ */
+export function MediaPreview({ media: initialMedia, children, className = 'btn', onOpenChange, openSignal = 0, label }: { media: MediaSummary; children: ReactNode; className?: string; openSignal?: number; onOpenChange?: (open: boolean) => void; label?: string | null }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const titleId = useId()
@@ -19,7 +24,7 @@ export function MediaPreview({ media: initialMedia, children, className = 'btn',
   const media = detail.media ?? initialMedia
   useEffect(() => { if (openSignal > 0) trigger.current?.click() }, [openSignal])
   return <>
-    <button type="button" className={className} ref={trigger} onClick={() => { setOpen(true); dialog.current?.showModal(); onOpenChange?.(true) }} aria-label={`预览 ${media.title}`}>{children}</button>
+    <button type="button" className={className} ref={trigger} onClick={() => { setOpen(true); dialog.current?.showModal(); onOpenChange?.(true) }} aria-label={label === undefined ? `预览 ${media.title}` : label ?? undefined}>{children}</button>
     <dialog ref={dialog} className="media-preview" aria-labelledby={titleId} onClose={event => {
       // 内层预告片或本地选集关闭时，外层预览仍保持打开。
       if (event.target !== dialog.current) return

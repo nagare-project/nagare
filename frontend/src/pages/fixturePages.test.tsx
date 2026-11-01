@@ -5,13 +5,16 @@ import { act } from 'react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '../test/harness'
+import { installLocalStorage } from '../test/storage'
 import { DiscoverPage } from './DiscoverPage'
+import { EMPTY_LIBRARY_DISMISS_KEY } from '../components/catalog/EmptyLibraryStrip'
 import { ListsPage } from './ListsPage'
 import { SchedulePage } from './SchedulePage'
 import { MediaCard } from '../components/media/MediaCard'
 import { FAKE_DISCOVER, FAKE_LISTS } from '../lib/fixtures/library'
-import { DISCOVER_EXIT_MS } from '../components/media/useDiscoverCarousel'
 import { fetchCatalogSearch, fetchDiscover } from '../lib/media'
+import { fetchLibrary } from '../lib/endpoints'
+import type { LibraryData } from '../lib/endpoints'
 
 // jsdom 没有布局；这一组只验证页面内容，拖拽与分页在浏览器验收。
 vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
@@ -26,20 +29,22 @@ vi.mock('@tanstack/react-router', async importOriginal => {
 vi.mock('../lib/media', async importOriginal => {
   const original = await importOriginal<typeof import('../lib/media')>()
   const { FAKE_DISCOVER } = await import('../lib/fixtures/library')
-  return { ...original, fetchCatalogSearch: vi.fn(async (q: string) => q === '没有这部' ? [] : [FAKE_DISCOVER.trending[0]!]), fetchDiscover: vi.fn(async () => [
-    { key: 'trending', title: 'animego 上在看最多', items: FAKE_DISCOVER.trending },
+  return { ...original, fetchCatalogSearch: vi.fn(async (q: string) => q === '没有这部' ? [] : [FAKE_DISCOVER.trending[0]!]), fetchDiscover: vi.fn(async () => ({ sections: [
+    { key: 'trending', title: '大家都在看', items: FAKE_DISCOVER.trending },
     { key: 'recent', title: '最近已播出', items: FAKE_DISCOVER.recent },
     { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
     { key: 'pastSeason', title: '上季作品', items: FAKE_DISCOVER.pastSeason },
     { key: 'upcoming', title: '本季及下季待播', items: FAKE_DISCOVER.upcoming },
     { key: 'movies', title: '近期精选剧场版', items: FAKE_DISCOVER.movies },
-  ]) }
+  ] })) }
 })
 
 vi.mock('../lib/endpoints', async importOriginal => {
   const original = await importOriginal<typeof import('../lib/endpoints')>()
   const { fakeSchedule } = await import('../lib/fixtures/schedule')
-  return { ...original, fetchSchedule: vi.fn(async () => ({ fetchedAt: Date.now() / 1000, airings: fakeSchedule().events.map(e => ({
+  // 默认媒体库里有东西（发现页不出「去添加」那一条）；要测空库时单次覆盖
+  const library = { folders: [{ id: 'f1', path: '/番剧', addedAt: 1 }], clusters: [{ clusterKey: 'k', title: '作品', season: null, confidence: 1, episodeCount: 1, groups: [] }], continueWatching: [], scannedAt: 1 }
+  return { ...original, fetchLibrary: vi.fn(async () => library), fetchSchedule: vi.fn(async () => ({ fetchedAt: Date.now() / 1000, airings: fakeSchedule().events.map(e => ({
     anilistId: e.media.id, episode: e.episode, airingAt: Date.parse(e.airingAt) / 1000,
     title: e.media.title, cover: e.media.cover, format: e.media.format, inLibrary: false,
   })) })) }
@@ -53,39 +58,93 @@ vi.mock('../lib/endpoints', async importOriginal => {
  */
 const PAGE_MODULES = import.meta.glob('./*.tsx') as Record<string, () => Promise<unknown>>
 
+/** 发现页的海报行：用标题命名的 section（aria-labelledby 指向行标题） */
+function discoverRows(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll<HTMLElement>('section[aria-labelledby]')]
+}
+function rowTitle(row: HTMLElement): string | null | undefined {
+  return row.ownerDocument.getElementById(row.getAttribute('aria-labelledby')!)?.textContent
+}
+
 describe('假数据页面', () => {
-  it('我的列表：未登录时提供账号入口，不展示演示收藏', async () => {
+  it('我的追番：未登录时提供账号入口，不展示演示收藏', async () => {
     const { container, unmount } = await mount(<ListsPage />)
-    expect(container.querySelector('.page-title')?.textContent).toBe('我的列表')
-    expect(container.textContent).toContain('登录 animego 账号')
-    expect(container.querySelectorAll('.poster')).toHaveLength(0)
-    expect(container.querySelector('a')?.href).toContain('/settings#account')
+    expect(container.querySelector('h1')?.textContent).toBe('我的追番')
+    expect(container.textContent).toContain('登录后显示你的追番')
+    expect(container.querySelectorAll('li')).toHaveLength(0)
+    const login = [...container.querySelectorAll('a')].find(a => a.textContent === '去登录')
+    expect(login?.getAttribute('href')).toBe('/settings#account')
     await unmount()
   })
 
-  it('发现：板块顺序对齐 seanime，每块都有卡片', async () => {
+  it('发现：板块按后端给的顺序一行一行画，每行都有作品卡', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
-    const rows = [...container.querySelectorAll('.row')]
-    // 顺序照 seanime 的 anime 标签页；改这里之前先确认那边也改了
-    expect(rows.map((r) => r.querySelector('.row-title')?.textContent)).toEqual([
-      'animego 上在看最多', '最近已播出', '本季新番', '上季作品', '本季及下季待播', '近期精选剧场版',
+    const rows = discoverRows(container)
+    expect(rows.map(rowTitle)).toEqual([
+      '大家都在看', '最近已播出', '本季新番', '上季作品', '本季及下季待播', '近期精选剧场版',
     ])
     for (const row of rows) {
-      expect(row.querySelectorAll('.poster').length).toBeGreaterThan(0)
+      expect(row.querySelectorAll('li a[href^="/entry?id="]').length).toBeGreaterThan(0)
     }
     await unmount()
   })
 
-  it('发现：上游整段为空的板块不画（空行里那句「暂无某分类」是写给类型筛选的）', async () => {
-    vi.mocked(fetchDiscover).mockResolvedValueOnce([
-      { key: 'trending', title: 'animego 上在看最多', items: FAKE_DISCOVER.trending },
+  it('发现：上游整段为空、或读取失败的板块整块隐藏（空行里那句「暂无某分类」是写给类型筛选的）', async () => {
+    vi.mocked(fetchDiscover).mockResolvedValueOnce({ sections: [
+      { key: 'trending', title: '大家都在看', items: FAKE_DISCOVER.trending },
       { key: 'recent', title: '最近已播出', items: [] },
       { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
-    ])
+      { key: 'pastSeason', title: '上季作品', items: [], error: '上游超时' },
+    ] })
     const { container, unmount } = await mount(<DiscoverPage />)
-    const titles = [...container.querySelectorAll('.row-title')].map((el) => el.textContent)
-    expect(titles).toEqual(['animego 上在看最多', '本季新番'])
+    expect(discoverRows(container).map(rowTitle)).toEqual(['大家都在看', '本季新番'])
     expect(container.textContent).not.toContain('暂无「全部」分类')
+    expect(container.textContent).not.toContain('上游超时')
+    await unmount()
+  })
+
+  it('发现：本季、上季两行有「查看全部」，链到季度页', async () => {
+    const { container, unmount } = await mount(<DiscoverPage />)
+    const more = [...container.querySelectorAll('a')].filter(a => a.textContent?.startsWith('查看全部'))
+    expect(more.map(a => a.textContent)).toEqual(['查看全部：本季新番', '查看全部：上季作品'])
+    expect(more[0]?.getAttribute('href')).toBe('/seasonal')
+    expect(more[1]?.getAttribute('href')).toMatch(/^\/seasonal\?season=[A-Z]+&year=\d{4}$/)
+    await unmount()
+  })
+
+  it('发现：离线时在横幅上说「离线 · 更新于 …」，内容照常显示', async () => {
+    vi.mocked(fetchDiscover).mockResolvedValueOnce({ sections: [
+      { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
+    ], freshness: { fetchedAt: new Date(Date.now() - 2 * 3600_000).toISOString(), stale: false, offline: true } })
+    const { container, unmount } = await mount(<DiscoverPage />)
+    const status = [...container.querySelectorAll('[role="status"]')].find(el => el.textContent?.startsWith('离线'))
+    expect(status?.textContent).toBe('离线 · 更新于 2 小时前')
+    expect(discoverRows(container).map(rowTitle)).toEqual(['本季新番'])
+    await unmount()
+  })
+
+  it('发现：一份缓存都没有又连不上时，整页说明「媒体库照常可用」，给去媒体库与重试', async () => {
+    vi.mocked(fetchDiscover).mockRejectedValueOnce(new Error('无法连接到目录服务'))
+    const { container, unmount } = await mount(<DiscoverPage />)
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('连不上目录服务，媒体库照常可用')
+    expect(container.textContent).toContain('无法连接到目录服务')
+    expect([...container.querySelectorAll('a')].find(a => a.textContent === '去媒体库')?.getAttribute('href')).toBe('/library')
+    const retry = [...container.querySelectorAll('button')].find(b => b.textContent === '重试')!
+    await act(async () => retry.click())
+    await act(async () => { await Promise.resolve() })
+    expect(discoverRows(container).length).toBeGreaterThan(0)
+    await unmount()
+  })
+
+  it('发现：媒体库是空的时顶部一行「去添加」，关掉后不再出现', async () => {
+    installLocalStorage()
+    vi.mocked(fetchLibrary).mockResolvedValueOnce({ folders: [], clusters: [], continueWatching: [], scannedAt: null } as LibraryData)
+    const { container, unmount } = await mount(<DiscoverPage />)
+    expect(container.textContent).toContain('nagare 播放你自己的番剧文件')
+    expect([...container.querySelectorAll('a')].find(a => a.textContent === '去添加')?.getAttribute('href')).toBe('/library')
+    await act(async () => [...container.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === '关闭这条说明')!.click())
+    expect(container.textContent).not.toContain('nagare 播放你自己的番剧文件')
+    expect(window.localStorage.getItem(EMPTY_LIBRARY_DISMISS_KEY)).toBe('1')
     await unmount()
   })
 
@@ -96,9 +155,9 @@ describe('假数据页面', () => {
       await act(async () => { await Promise.resolve() })
       expect(container.textContent).toContain('搜索「芙莉莲」')
       expect(vi.mocked(fetchCatalogSearch)).toHaveBeenCalledWith('芙莉莲', expect.anything())
-      expect(container.querySelectorAll('.catalog-search-results .poster').length).toBeGreaterThan(0)
+      expect(container.querySelectorAll('.catalog-search-results li a[href^="/entry?id="]').length).toBeGreaterThan(0)
       // 榜单不显示
-      expect(container.textContent).not.toContain('animego 上在看最多')
+      expect(container.textContent).not.toContain('大家都在看')
       await unmount()
     } finally {
       discoverSearch = {}
@@ -117,39 +176,27 @@ describe('假数据页面', () => {
     }
   })
 
-  it('发现：hero 切换等待退场，未悬停时不加载预告片', async () => {
+  it('发现：横幅取本季已开播的作品，点圆点立刻换；没悬停时不加载预告片', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
-    const hero = container.querySelector('.hero')
+    const hero = container.querySelector('section[aria-roledescription="轮播"]')
     expect(hero).not.toBeNull()
-    expect(hero?.querySelector('.hero-title')?.textContent).not.toBe('')
+    const first = hero?.querySelector('h2')?.textContent
+    expect(FAKE_DISCOVER.thisSeason.map(item => item.title)).toContain(first)
 
     // 用户悬停前不请求外部预告片。
     expect(container.querySelector('iframe')).toBeNull()
 
-    const dots = [...container.querySelectorAll<HTMLButtonElement>('.hero-dot')]
+    const dots = [...hero!.querySelectorAll<HTMLButtonElement>('button')].filter(b => /^第 \d+ 部：/.test(b.getAttribute('aria-label') ?? ''))
     expect(dots.length).toBeGreaterThan(1)
-    const first = hero?.querySelector('.hero-title')?.textContent
-    await act(async () => dots.find(dot => dot.getAttribute('aria-label') !== first)!.click())
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, DISCOVER_EXIT_MS + 50)) })
-    await vi.waitFor(async () => {
-      await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-      expect(container.querySelector('.hero-title')?.textContent).not.toBe(first)
-    }, { timeout: 3000 })
+    await act(async () => dots.find(dot => !dot.getAttribute('aria-label')!.endsWith(first!))!.click())
+    expect(hero?.querySelector('h2')?.textContent).not.toBe(first)
     await unmount()
   })
 
-  it('发现：放送表标签展示近期日程，不重复独立月历', async () => {
+  it('发现：不再内嵌放送表（放送表在顶栏有自己的一页）', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
-    expect(container.querySelector('.discover-schedule')).toBeNull()
-    const scheduleTab = [...container.querySelectorAll<HTMLButtonElement>('.tab')].find(
-      (t) => t.textContent === '放送表',
-    )
-    await act(async () => scheduleTab?.click())
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 450)) })
-    expect(container.querySelectorAll('.schedule-agenda-day').length).toBeGreaterThan(1)
-    expect(container.querySelector('.schedule-calendar')).toBeNull()
-    // 内嵌时不该冒出第二个 <h1>
-    expect(container.querySelectorAll('.page-title')).toHaveLength(0)
+    expect(container.querySelector('[role="tablist"]')).toBeNull()
+    expect(container.querySelector('.schedule-agenda')).toBeNull()
     await unmount()
   })
 
@@ -282,11 +329,9 @@ describe('作品卡的信息分层', () => {
   })
 
   it('评分为 0 或缺席时不出徽标，而不是显示一个 0 分', async () => {
-    const { DiscoverPage } = await import('./DiscoverPage')
-    const { container, unmount } = await mount(<DiscoverPage />)
-    // 「即将播出」里那部是刻意造的半空条目：评分 0、集数未知
-    const scores = [...container.querySelectorAll('.poster-score')].map((e) => e.textContent)
-    expect(scores).not.toContain('0')
+    // 发现页作品卡（DiscoverCard）的同一条检查在 components/media/DiscoverInteractions.test.tsx
+    const { container, unmount } = await mount(<ul><MediaCard media={{ ...FAKE_LISTS.watching[0]!, score: 0 }} /></ul>)
+    expect(container.querySelector('.poster-score')).toBeNull()
     await unmount()
   })
 })

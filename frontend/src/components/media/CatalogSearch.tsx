@@ -9,7 +9,7 @@ import type { MediaSummary } from './types'
 export const MAX_QUERY_LENGTH = 64
 
 /**
- * 发现页顶部的作品搜索框。只在提交时搜：上游 animego 的搜索端点有限速且会打到 AniList，
+ * 作品搜索结果页（`/?q=`）顶部的搜索框，用来改关键词或清除。只在提交时搜：上游目录服务的搜索端点有限速且会打到 AniList，
  * 边打字边搜会把配额烧光（后端另有缓存与节流兜底）。
  */
 export function CatalogSearchForm({ query, onSearch }: { query: string; onSearch: (q: string) => void }) {
@@ -26,25 +26,27 @@ export function CatalogSearchForm({ query, onSearch }: { query: string; onSearch
         onSearch(text.trim())
       }}
     >
-      <span className="catalog-search-icon" aria-hidden="true">
-        <Icon name="search" size={18} />
+      <span className="catalog-search-field">
+        <span className="catalog-search-icon" aria-hidden="true">
+          <Icon name="search" size={18} />
+        </span>
+        <input
+          className="catalog-search-input"
+          type="search"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          placeholder="搜索作品名，如：葬送的芙莉莲"
+          aria-label="搜索作品名"
+          maxLength={MAX_QUERY_LENGTH}
+          enterKeyHint="search"
+          autoComplete="off"
+        />
       </span>
-      <input
-        className="input catalog-search-input"
-        type="search"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        placeholder="搜索作品名，如：葬送的芙莉莲"
-        aria-label="搜索作品名"
-        maxLength={MAX_QUERY_LENGTH}
-        enterKeyHint="search"
-        autoComplete="off"
-      />
-      <button type="submit" className="btn btn--sm btn--primary">
+      <button type="submit" className="btn btn--primary">
         搜索
       </button>
       {query !== '' && (
-        <button type="button" className="btn btn--sm" onClick={() => onSearch('')}>
+        <button type="button" className="btn" onClick={() => onSearch('')}>
           清除
         </button>
       )}
@@ -99,7 +101,7 @@ export function CatalogSearchResults({ query, run = 0 }: { query: string; run?: 
         </p>
       )}
       {state.phase === 'ready' && state.items.length > 0 && (
-        <ul className="poster-grid">
+        <ul className="catalog-grid">
           {state.items.map((media) => (
             <DiscoverCard key={media.id} media={media} />
           ))}

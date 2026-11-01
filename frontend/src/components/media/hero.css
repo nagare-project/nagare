@@ -1,46 +1,192 @@
-/* 位置与时序来自 seanime 的 DiscoverPageHeader。 */
-.hero { position: relative; height: 448px; flex: none; }
-.hero-bg { position: absolute; top: calc(-1 * var(--app-nav-h)); left: 0; right: 0; height: 560px; overflow: hidden; pointer-events: none; }
-.hero-bg > img { width: 100%; height: 100%; object-fit: cover; object-position: center; transition: transform 1s, opacity 1s; }
-.hero--transitioning .hero-bg > img { transform: scale(1.01) translateX(-2px); }
-.hero-bg:has(.hero-trailer--playing) > img { opacity: 0; }
-.hero-transition-shade { position: absolute; inset: 0; z-index: 2; background: var(--bg); opacity: 0; transition: opacity 1s; }
-.hero--transitioning .hero-transition-shade { opacity: .7; }
-.hero-gradient-top, .hero-gradient-left, .hero-gradient-rail, .hero-gradient-bottom { position: absolute; z-index: 2; pointer-events: none; }
-.hero-gradient-top { inset: 0 0 auto; height: 160px; opacity: .5; background: linear-gradient(var(--bg), transparent); }
-.hero-gradient-left { inset: 0 auto 0 0; width: min(100%, 1280px); opacity: .7; background: linear-gradient(90deg, var(--bg) 20%, transparent); }
-.hero-gradient-rail { inset: 0 auto 0 0; width: 160px; opacity: .7; background: linear-gradient(90deg, var(--bg), transparent); }
-.hero-gradient-bottom { inset: auto 0 0; height: 320px; background: linear-gradient(0deg, var(--bg) 10%, transparent); }
-.hero-trailer { position: absolute; inset: 0; opacity: 0; transition: opacity .5s; overflow: hidden; pointer-events: none; }
-.hero-trailer--playing { opacity: 1; }
-.hero-trailer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; transform: scale(1.8); pointer-events: none; }
-.hero-trailer-notice { position: absolute; right: 24px; bottom: 36px; z-index: 3; color: var(--fg-muted); font-size: 12px; }
-.hero-stage { position: absolute; top: 6px; left: 8px; height: 320px; max-width: calc(100% - 16px); }
-.hero-body { position: relative; z-index: 3; display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 24px; padding: 24px 12px 24px 24px; overflow: hidden; }
-.hero-art { position: relative; flex: none; display: block; width: 180px; height: 280px; overflow: hidden; border-radius: 8px; background: #15131d; box-shadow: 0 4px 6px #0002; }
-.hero-art img { width: 100%; height: 100%; object-fit: cover; transition: opacity 1s; }
-.hero--transitioning .hero-art img { opacity: .3; }
-.hero-text { min-width: 0; max-width: 512px; }
-.hero-title { max-width: 448px; padding-bottom: 4px; color: white; font-size: 30px; font-weight: 700; line-height: 32px; text-wrap: pretty; text-shadow: 0 1px 10px #0003; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.hero-native { margin-top: 6px; color: var(--fg-muted); font-size: 13px; }
-.hero-genres { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; color: #cacaca; font-size: 14px; font-weight: 600; }
-.hero-genres > span { padding-inline: 4px; }
-.hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 8px; color: var(--fg); font-size: 16px; line-height: 24px; }
-.hero-score { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
-.hero-score svg { color: #86efac; }
-.hero-desc { height: 77px; margin-top: 8px; margin-bottom: 16px; max-width: 512px; overflow-y: auto; scrollbar-width: thin; color: #aaa; font-size: 14px; line-height: 1.5; }
-.hero-preview { border-radius: 999px; height: 32px; padding-inline: 16px; border-color: #ffffff40; font-size: 14px; }
-.hero-dots { position: absolute; top: 0; left: 40px; z-index: 4; display: flex; align-items: center; gap: 8px; height: 6px; }
-.hero-dot { position: relative; width: 12px; height: 6px; padding: 0; border: 0; border-radius: 3px; background: #ffffff30; cursor: pointer; transition: width .3s, background-color .3s; }
-.hero-dot::before { content: ''; position: absolute; inset: -9px -3px; }
-.hero-dot:hover { background: #d1d5db; }
-.hero-dot--on { width: 24px; background: var(--fg-muted); }
-.hero-dot:focus-visible, .hero-pause:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
-.hero-pause { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; color: var(--fg-muted); border: 0; border-radius: 4px; background: transparent; cursor: pointer; opacity: 0; transition: opacity .15s; }
-.hero-dots:hover .hero-pause, .hero-pause:focus-visible, .hero-pause[aria-pressed=true] { opacity: 1; }
-@media (min-width: 1536px) { .hero-trailer iframe { transform: scale(2.5); } }
-@media (max-width: 1023px) { .hero { height: 0; } .hero-bg, .hero-stage, .hero-dots { display: none; } }
+/* ============================================================
+   发现页横幅（DESIGN.md「发现」「动效」）：
+   背景是作品横幅图（往上铺到顶栏底下），字压在图上 —— 每段文字带宽而软的 text-shadow，
+   按钮坐在一个面上（与作品页 hero「字底下没有可依赖的暗像素」是同一个问题）。
+   海报色只出现在小标题与评分数字上，写在 .hero 根元素的行内样式里（lib/posterTones.ts）。
+   ============================================================ */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  min-height: 520px;
+  padding: var(--sp-xxl) 0 var(--sp-xl);
+  color: var(--text);
+}
+
+/* 背景往上铺到顶栏底下（顶栏在页面顶部是透明的）；新版本条、后台提示条自带 z-index 压在它上面 */
+.hero-backdrop {
+  position: absolute;
+  z-index: -1;
+  top: calc(-1 * var(--app-nav-h));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  background: var(--bg-card);
+  pointer-events: none;
+}
+
+.hero-backdrop-image { position: absolute; inset: 0; animation: hero-fade var(--dur-long) var(--ease-enter); }
+.hero-backdrop-image > img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+/* 没有图时 MediaArtwork 画的首字：在横幅背景里没有意义 */
+.hero-backdrop-image > .poster-art-mark { display: none; }
+.hero-backdrop:has(.hero-trailer--playing) .hero-backdrop-image { opacity: 0; transition: opacity var(--dur-long) var(--ease-standard); }
+
+/* 压暗字底下那块画面：底边融进页面底色，左侧给文字留暗区 */
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, var(--bg) 0%, rgba(0, 0, 0, 0.55) 38%, rgba(0, 0, 0, 0) 72%),
+    linear-gradient(to right, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.35) 48%, rgba(0, 0, 0, 0) 78%);
+}
+
+.hero-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--catalog-gutter));
+  margin: 0 auto;
+  padding: 0 var(--catalog-gutter);
+}
+
+.hero-slide { display: flex; align-items: flex-end; gap: var(--sp-xl); animation: hero-fade var(--dur-long) var(--ease-enter); }
+
+.hero-art {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 200px;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-poster), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.hero-art img { width: 100%; height: 100%; object-fit: cover; }
+
+.hero-text {
+  min-width: 0;
+  max-width: 640px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 3px 24px rgba(0, 0, 0, 0.72);
+}
+
+.hero-kicker { color: var(--poster-tone); font-size: var(--type-label-size); font-weight: 600; transition: color var(--dur-tone) var(--ease-standard); }
+
+/* 标题是整块的、不参与 flex 收缩：中文一收缩就成了一字一行 */
+.hero-title {
+  margin-top: var(--sp-sm);
+  font-size: clamp(32px, 5vw, var(--type-display-size));
+  font-weight: var(--type-display-weight);
+  letter-spacing: var(--type-display-tracking);
+  line-height: 1.12;
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.hero-title a { color: inherit; text-decoration: none; border-radius: var(--radius-sm); }
+.hero-title a:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.12em; }
+
+.hero-native { margin-top: var(--sp-xs); color: var(--text-secondary); font-family: var(--font-jp); font-size: var(--type-body-sm-size); }
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-xs) 0;
+  margin-top: var(--sp-md);
+  color: var(--text-secondary);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+}
+.hero-meta > * + *::before { content: '·'; margin: 0 10px; color: var(--text-secondary); }
+.hero-score {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  color: var(--poster-tone);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  transition: color var(--dur-tone) var(--ease-standard);
+}
+
+.hero-desc {
+  max-width: 560px;
+  margin-top: var(--sp-md);
+  color: var(--text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.hero-actions { display: flex; flex-wrap: wrap; gap: var(--sp-sm); margin-top: var(--sp-lg); text-shadow: none; }
+.hero-actions .btn { height: var(--touch-min); padding: 0 20px; font-size: var(--type-label-size); }
+/* 第二个按钮坐在图上：用压在封面上的那层遮罩做面，而不是透明描边 */
+.hero-open {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--badge-scrim);
+  color: var(--text);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.hero-open:hover:not(:disabled) { background: rgba(0, 0, 0, 0.85); }
+
+/* ---------- 切换控件：圆点（点按区域 24px）+ 常驻的暂停按钮 ---------- */
+.hero-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm); }
+.hero-dots { display: flex; flex-wrap: wrap; align-items: center; }
+.hero-dot { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; cursor: pointer; }
+.hero-dot > span {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.45);
+  transition: width var(--dur-short) var(--ease-standard), background-color var(--dur-short) var(--ease-standard);
+}
+.hero-dot:hover > span { background: rgba(255, 255, 255, 0.8); }
+.hero-dot[aria-current='true'] > span { width: 18px; background: var(--accent); }
+.hero-pause {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  background: var(--badge-scrim);
+  color: var(--text);
+  cursor: pointer;
+}
+.hero-pause:hover { background: rgba(0, 0, 0, 0.9); }
+
+@keyframes hero-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 触屏：暂停按钮 44px 点按区域（DESIGN.md「动效」） */
+@media (pointer: coarse) {
+  .hero-pause { width: var(--touch-min); height: var(--touch-min); }
+}
+
+@media (max-width: 900px) {
+  .hero { min-height: 460px; }
+  .hero-art { display: none; }
+  .hero-desc { -webkit-line-clamp: 2; }
+}
+
+@media (max-width: 600px) {
+  .hero { min-height: 420px; padding-bottom: var(--sp-lg); }
+  .hero-meta { font-size: var(--type-caption-size); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .hero-bg > img, .hero-transition-shade, .hero-dot, .hero-trailer, .hero-pause, .hero-art img { transition: none; }
-  .hero--transitioning .hero-bg > img { transform: none; }
+  .hero-slide, .hero-backdrop-image { animation: none; }
+  .hero-dot > span, .hero-kicker, .hero-score { transition: none; }
 }
