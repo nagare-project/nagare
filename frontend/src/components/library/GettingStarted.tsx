@@ -115,7 +115,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
           desc={magnetDesc}
         >
           {magnetReady ? (
-            <Link to="/discover" className="btn btn--sm">去发现页选番</Link>
+            <Link to="/" className="btn btn--sm">去发现页选番</Link>
           ) : (
             <Link to="/settings" hash={hasMagnetSource ? 'torrent' : 'sources'} className="btn btn--sm">
               {hasMagnetSource ? '查看磁力播放设置' : '去设置来源'}

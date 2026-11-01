@@ -36,7 +36,7 @@ export function MediaDetails({ media, titleId, page = false, children }: { media
         <div className="media-preview-genres">
           {!!media.score && <span className="media-preview-score" style={{ color: audienceColor(media.score) }}><Icon name="heart" size={12} />{media.score / 10}</span>}
           {media.studios?.map(studio => <span className="media-detail-studio" key={studio}>{studio}</span>)}
-          {media.genres.map(genre => <a key={genre} href={`/discover?genre=${encodeURIComponent(genre)}`}>{genre}</a>)}
+          {media.genres.map(genre => <a key={genre} href={`/?genre=${encodeURIComponent(genre)}`}>{genre}</a>)}
         </div>
         {!!rankings.length && <div className="media-detail-rankings">{rankings.map((rank, index) => <span key={index}><Icon name="star" size={16} />#{rank.rank} {rank.year || '最高评分'} {rank.season ? ({ WINTER: '冬', SPRING: '春', SUMMER: '夏', FALL: '秋' } as Record<string, string>)[rank.season] : ''}</span>)}</div>}
         <button type="button" className="media-detail-description" aria-label="展开完整简介" onClick={() => description.current?.showModal()}>{media.description || '暂无简介。'}</button>

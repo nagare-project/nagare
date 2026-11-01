@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter, lazyRouteComponent } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent, redirect } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 import { RootLayout } from './components/RootLayout'
 import { AnimePage } from './pages/AnimePage'
@@ -18,10 +18,45 @@ const rootRoute = createRootRoute({
   component: RootLayout,
 })
 
-/** `/` 媒体库主页（M1 起取代 M0 的连接检查壳） */
+/** `/discover?q=` 时显示作品搜索结果；genre 是热门板块的初始类型筛选（从作品页的类型标签跳过来） */
+export interface DiscoverRouteParams {
+  q?: string
+  genre?: string
+}
+
+function validateDiscoverSearch(search: Record<string, unknown>): DiscoverRouteParams {
+  const out: DiscoverRouteParams = {}
+  const q = coerceQuery(search.q)
+  if (q !== undefined) out.q = q
+  if (typeof search.genre === 'string' && search.genre !== '') out.genre = search.genre
+  return out
+}
+
+/** `/` 第一屏是发现页（DESIGN.md「信息架构」）：顶栏的搜索也落在这里（?q=） */
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  validateSearch: validateDiscoverSearch,
+  component: lazyRouteComponent(() => import('./pages/DiscoverPage'), 'DiscoverPage'),
+})
+
+/**
+ * `/discover` 是 `/` 的别名：旧书签、作品页类型标签（`/discover?genre=`）照样能用。
+ * 参数校验与 `/` 共用一份，再原样带到 `/`（replace，后退不会回到这个跳板）。
+ */
+const discoverRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/discover',
+  validateSearch: validateDiscoverSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/', search, replace: true })
+  },
+})
+
+/** `/library` 媒体库（原先在 `/`，第一屏让给发现页后挪到这里） */
+const libraryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library',
   component: LibraryPage,
 })
 
@@ -38,23 +73,6 @@ const animeRoute = createRoute({
 
 /** 元数据目录与账号收藏。 */
 const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists', component: ListsPage })
-/** `/discover?q=` 时显示作品搜索结果；genre 是热门板块的初始类型筛选（从作品页的类型标签跳过来） */
-export interface DiscoverRouteParams {
-  q?: string
-  genre?: string
-}
-const discoverRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/discover',
-  validateSearch: (search: Record<string, unknown>): DiscoverRouteParams => {
-    const out: DiscoverRouteParams = {}
-    const q = coerceQuery(search.q)
-    if (q !== undefined) out.q = q
-    if (typeof search.genre === 'string' && search.genre !== '') out.genre = search.genre
-    return out
-  },
-  component: lazyRouteComponent(() => import('./pages/DiscoverPage'), 'DiscoverPage'),
-})
 const entryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/entry', validateSearch: (search: Record<string, unknown>) => ({ id: Number.isSafeInteger(Number(search.id)) && Number(search.id) > 0 ? Number(search.id) : 0 }), component: lazyRouteComponent(() => import('./pages/EntryPage'), 'EntryPage') })
 const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
 
@@ -82,7 +100,7 @@ const autoDlRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auto-
 
 /**
  * `/extensions` 扩展：nagare 的声明式规则系统提成一等页面（真数据）。
- * 设置页那份保留 —— 改配置的人会去设置里找。
+ * 入口在设置页的分类导航里（顶栏不再放它，DESIGN.md「桌面顶栏」）。
  */
 const extensionsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extensions', component: ExtensionsPage })
 
@@ -134,6 +152,7 @@ const settingsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  libraryRoute,
   animeRoute,
   listsRoute,
   discoverRoute,
