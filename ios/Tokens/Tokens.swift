@@ -101,7 +101,7 @@ enum NagareUIColor {
     static var toast: UIColor { UIColor(red: 18.0 / 255, green: 18.0 / 255, blue: 22.0 / 255, alpha: 0.94) }
     /// 全局提示胶囊的描边 · rgba(255, 255, 255, 0.12)
     static var toastBorder: UIColor { UIColor(red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, alpha: 0.12) }
-    /// 压在封面上的徽标底（配 blur(8px)），只让文字带颜色 · rgba(0, 0, 0, 0.75)
+    /// 压在封面上的徽标底（配 blur(8px)），只让文字带颜色；播放器进度条上的悬停时间也用它 · rgba(0, 0, 0, 0.75)
     static var badgeScrim: UIColor { UIColor(red: 0.0 / 255, green: 0.0 / 255, blue: 0.0 / 255, alpha: 0.75) }
 }
 

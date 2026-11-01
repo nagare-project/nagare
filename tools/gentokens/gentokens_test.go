@@ -205,6 +205,10 @@ func TestValidation(t *testing.T) {
 		{"界面元素不到 3", `"restricted": [`, `"ui": [{ "fg": "bg", "on": ["bg"], "use": "色块" }], "restricted": [`, "要 ≥ 3:1"},
 		{"限制已过时", `"fg": "bg", "on": ["bg"], "use": "黑在黑上"`, `"fg": "text", "on": ["bg"], "use": "白在黑上"`, "限制过时了"},
 		{"use 里的对比度与实算不符", `"use": "文字" }`, `"use": "文字（20.00:1）" }`, "实算出这个值"},
+		{"播放器字体缺平台", `"version": 1,`, `"version": 1, "fonts": [{ "name": "font-x", "families": ["A"], "player": { "darwin": "A", "windows": "B" }, "use": "缺 linux" }],`, "player.linux"},
+		{"播放器字体多出键", `"version": 1,`, `"version": 1, "fonts": [{ "name": "font-x", "families": ["A"], "player": { "darwin": "A", "windows": "B", "linux": "C", "ios": "D" }, "use": "多一个" }],`, "只认"},
+		{"播放器字体名截断 ASS 标签", `"version": 1,`, `"version": 1, "fonts": [{ "name": "font-x", "families": ["A"], "player": { "darwin": "A}", "windows": "B", "linux": "C" }, "use": "坏" }],`, "player.darwin"},
+		{"播放器字体名前缀", `"version": 1,`, `"version": 1, "fonts": [{ "name": "mono", "families": ["A"], "player": { "darwin": "A", "windows": "B", "linux": "C" }, "use": "坏" }],`, "font- 开头"},
 		{"阴影截断样式表", `"version": 1,`, `"version": 1, "shadows": [{ "name": "x", "value": "0 0 1px red; } body {", "use": "坏" }],`, "不能含"},
 		{"多余内容", `"use": "黑在黑上" }]
   }

@@ -1,35 +1,33 @@
--- 界面各模块共用的部分：配色、字体、状态表、可点区域的登记、重绘调度、屏幕提示、发给 nagare 的消息。
+-- 界面各模块共用的部分：设计 token、字体、状态表、可点区域的登记、重绘调度、屏幕提示、发给 nagare 的消息。
 --
 -- 各模块 require 'core' 拿到的是同一张表，状态 S 也就只有一份。
+-- 颜色、字号、圆角、间距、时长一律从 tokens.lua 取（由 design/tokens.json 生成，规则见 DESIGN.md），
+-- 各模块里不写颜色值。
 
 local mp = require 'mp'
+local T = require 'tokens'
 
 local M = {}
 
--- 配色照 nagare 网页（frontend/src/styles/global.css）：近黑表面 + 靛紫品牌色
-M.P = {
-	fg = "#E6E6E6",
-	strong = "#F2F2F2",
-	panel = "#101010",
-	card = "#0B0B0B",
-	accent = "#6152DF",
-	accent_text = "#C7C2FF",
-	warn = "#FDBA74",
-}
+M.T = T
 
-local function detect_font()
-	local platform = mp.get_property("platform")
-	if platform == nil then
-		platform = package.config:sub(1, 1) == "\\" and "windows" or "unix"
+-- 字体按平台取：ASS 的 \fn 只认一个字体名，没有回落链。mpv 0.36 之前没有 platform 属性，按路径分隔符猜
+local function platform()
+	local p = mp.get_property("platform")
+	if p == nil then
+		p = package.config:sub(1, 1) == "\\" and "windows" or "linux"
 	end
-	if platform == "windows" then
-		return "Microsoft YaHei UI"
-	elseif platform == "darwin" then
-		return "PingFang SC"
+	if p == "windows" or p == "darwin" then
+		return p
 	end
-	return "Noto Sans CJK SC"
+	return "linux" -- 其余（linux、freebsd……）都按 fontconfig 的那一套
 end
-M.FONT = detect_font()
+local PLATFORM = platform()
+M.FONT = T.font.cjk[PLATFORM] -- 界面的主字体（中文与拉丁字母都走它）
+M.MONO = T.font.mono[PLATFORM] -- 每秒跳动的数字：时间、缓冲速度、倒数（ASS 没有 tabular-nums）
+
+-- 压在画面上的文字描边宽（逻辑像素），颜色是 T.color.player_text_halo
+M.HALO = 1
 
 local TOAST_SECONDS = 2.2
 
@@ -54,6 +52,17 @@ end
 
 function M.scale()
 	return S.hidpi
+end
+
+-- 字号阶梯里的一档（T.type_scale 的键）→ 交给 Canvas:text 的选项：字号按界面缩放、字重、主字体。
+-- extra 里的字段（color、align、font……）覆盖进去；返回新表，不改 extra。
+function M.text_style(name, extra)
+	local t = T.type_scale[name]
+	local o = { size = t.size * S.hidpi, weight = t.weight, font = M.FONT }
+	for k, v in pairs(extra or {}) do
+		o[k] = v
+	end
+	return o
 end
 
 ------------------------------------------------------------------------

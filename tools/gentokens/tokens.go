@@ -50,8 +50,14 @@ type posterTone struct {
 type fontToken struct {
 	Name     string   `json:"name"`
 	Families []string `json:"families"`
-	Use      string   `json:"use"`
+	// Player 是播放器界面（mpv Lua）按平台用的字体：ASS 的 \fn 只认一个字体名，没有回落链，
+	// 所以每个平台点名一个系统自带的。键是 darwin / windows / linux；省略 = 播放器不用这一项。
+	Player map[string]string `json:"player"`
+	Use    string            `json:"use"`
 }
+
+// playerPlatforms 是 fonts[].player 必须给齐的平台（mpv 的 platform 属性的取值；其余平台按 linux 处理）。
+var playerPlatforms = []string{"darwin", "windows", "linux"}
 
 type typeStyle struct {
 	Name         string   `json:"name"`
@@ -250,6 +256,21 @@ func (v *validator) font(t fontToken) {
 		if strings.TrimSpace(fam) == "" || strings.ContainsAny(fam, `"';,`) {
 			v.fail("fonts.%s: 字体名 %q 不能为空，也不能带引号、逗号或分号", t.Name, fam)
 		}
+	}
+	if t.Player == nil {
+		return
+	}
+	if !strings.HasPrefix(t.Name, "font-") {
+		v.fail("fonts.%s: 带 player 的字体名要以 font- 开头（Lua 里去掉这个前缀作键）", t.Name)
+	}
+	for _, p := range playerPlatforms {
+		// 原样写进 ASS 的 \fn 标签：反斜杠、花括号会把标签截断
+		if name, ok := t.Player[p]; !ok || !fontNameRE.MatchString(name) {
+			v.fail("fonts.%s: player.%s 要给一个字体名（只能含字母、数字、空格与短横线）", t.Name, p)
+		}
+	}
+	if len(t.Player) != len(playerPlatforms) {
+		v.fail("fonts.%s: player 只认 %s 三个键", t.Name, strings.Join(playerPlatforms, " / "))
 	}
 }
 
