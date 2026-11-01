@@ -80,16 +80,36 @@ func DesktopLibmpvSpec(opts LaunchOptions, endpoint string, hidpi float64, self 
 //     iOS 上它只会叠在 SwiftUI 控制条下面。
 //   - ytdl=no：mpv 自带的 ytdl_hook 不归 load-scripts 管，遇到 http(s) 地址（NAS 流、本机流端点）会去起
 //     yt-dlp 子进程 —— iOS 起不了，只会白等一下再报错。
+//   - load-stats-overlay / load-console / …=no（iosBuiltinScripts）：mpv 0.41 编进去的其余 Lua 脚本也不归
+//     load-scripts 管，不关就是每次起播多 7 个 Lua 状态（R12 的内存预算），iPad 接外接键盘时 console 的
+//     按键绑定还会生效。
 //   - demuxer-max-bytes / demuxer-max-back-bytes：预读上限（iosDemuxerMaxBytes），本地文件与网络流一样。
 func iosEmbeddedOptions() []Option {
-	return []Option{
+	o := []Option{
 		stringOption("vo", "libmpv"),
 		flagOption("load-scripts", false),
 		flagOption("osc", false),
 		flagOption("ytdl", false),
+	}
+	for _, name := range iosBuiltinScripts {
+		o = append(o, flagOption(name, false))
+	}
+	return append(o,
 		stringOption("demuxer-max-bytes", iosDemuxerMaxBytes),
 		stringOption("demuxer-max-back-bytes", iosDemuxerMaxBackBytes),
-	}
+	)
+}
+
+// iosBuiltinScripts 是 mpv 0.41 编进二进制、各有一个开关的内置 Lua 脚本（mpv --list-options 里的 load-*，
+// 去掉 load-scripts 与 load-unsafe-playlists；load-osd-console 是 load-console 的旧名）。
+var iosBuiltinScripts = []string{
+	"load-stats-overlay",
+	"load-console",
+	"load-auto-profiles",
+	"load-select",
+	"load-commands",
+	"load-context-menu",
+	"load-positioning",
 }
 
 // IOSLibmpvSpec 把一次起播翻成 iOS 上进程内 libmpv 的选项（R5：Go 建并持有 mpv 句柄，Swift 接画面与交互）。

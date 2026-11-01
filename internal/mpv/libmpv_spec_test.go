@@ -14,7 +14,7 @@ import (
 
 // iOS 变体（R5 / R12）的完整输出，逐项钉死。与桌面窗口的差别：
 //   - 不加载任何脚本（load-scripts=no、没有 scripts）、mpv 自带的 osc 关掉 —— 控制条由 SwiftUI 画；
-//   - ytdl=no —— 自带的 ytdl_hook 不归 load-scripts 管，遇到 http(s) 地址会起 yt-dlp 子进程；
+//   - ytdl=no 与 7 个内置脚本的 load-*=no —— 它们都不归 load-scripts 管，ytdl_hook 遇到 http(s) 地址还会起子进程；
 //   - 不加载 thumbfast、不传 script-opts —— iOS 起不了子进程，缩略图由 Swift 另做；
 //   - 预读一律 64MiB 向前 / 16MiB 向后，网络流那份 256MiB 就地换掉；
 //   - 着色器照传：Anime4K 默认关（设置的零值），用户在 iOS 上打开画质增强才有。
@@ -26,6 +26,13 @@ func TestIOSLibmpvSpecGolden(t *testing.T) {
 		libFlag("load-scripts", "no"),
 		libFlag("osc", "no"),
 		libFlag("ytdl", "no"),
+		libFlag("load-stats-overlay", "no"),
+		libFlag("load-console", "no"),
+		libFlag("load-auto-profiles", "no"),
+		libFlag("load-select", "no"),
+		libFlag("load-commands", "no"),
+		libFlag("load-context-menu", "no"),
+		libFlag("load-positioning", "no"),
 	}
 	budget := []LibmpvOption{
 		libStr("demuxer-max-bytes", "64MiB"),
@@ -204,6 +211,9 @@ func TestIOSLibmpvSpecInvariants(t *testing.T) {
 			assert.Equal(t, "no", only("load-scripts").String, "配置目录里的 Lua 界面与 thumbfast 一个都不自动加载")
 			assert.Equal(t, "no", only("osc").String, "控制条由 SwiftUI 画，mpv 自带的不能叠在上面")
 			assert.Equal(t, "no", only("ytdl").String, "ytdl_hook 会起 yt-dlp 子进程，iOS 起不了")
+			for _, name := range iosBuiltinScripts {
+				assert.Equal(t, "no", only(name).String, "内置脚本 %s 不归 load-scripts 管，要单独关", name)
+			}
 			assert.Equal(t, iosDemuxerMaxBytes, only("demuxer-max-bytes").String)
 			assert.Equal(t, iosDemuxerMaxBackBytes, only("demuxer-max-back-bytes").String)
 
@@ -233,7 +243,8 @@ func keysAndValues(m []KeyValue) []string {
 // 着色器、请求头……）两边一字不差 —— 以后往 NewLaunchSpec 里加的选项自动同时到两边，不会「Mac 改了 iOS 忘改」。
 func TestIOSAndDesktopShareLaunchSpec(t *testing.T) {
 	t.Setenv("NAGARE_DESKTOP_MPV_LOG", "")
-	differs := []string{"script-opts", "scripts", "load-scripts", "osc", "ytdl", "demuxer-max-bytes", "demuxer-max-back-bytes"}
+	differs := append([]string{"script-opts", "scripts", "load-scripts", "osc", "ytdl", "demuxer-max-bytes", "demuxer-max-back-bytes"},
+		iosBuiltinScripts...)
 	strip := func(in []LibmpvOption) []LibmpvOption {
 		return slices.DeleteFunc(slices.Clone(in), func(o LibmpvOption) bool { return slices.Contains(differs, o.Name) })
 	}
@@ -251,12 +262,22 @@ func TestIOSAndDesktopShareLaunchSpec(t *testing.T) {
 	}
 }
 
-// iOS 变体不改调用方的起播参数（script-opts 是在副本上去掉的）。
+// iOS 变体不改调用方的起播参数（script-opts 是在副本上去掉的），也不动包级的网络流缓存参数（桌面仍是 256MiB）。
 func TestIOSLibmpvSpecDoesNotMutateInput(t *testing.T) {
 	opts := LaunchOptions{MediaPath: "/v/a.mkv", ConfigDir: "/cfg", ScriptOpts: []string{"thumbfast-mpv_path=/usr/bin/mpv", "x=1"}}
 	_, err := IOSLibmpvSpec(opts, "/run/mpv.sock")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"thumbfast-mpv_path=/usr/bin/mpv", "x=1"}, opts.ScriptOpts)
+
+	volume := 55
+	sink, want := kitchenSinkLaunch(&volume), kitchenSinkLaunch(&volume)
+	sink.MediaPath, want.MediaPath = "http://127.0.0.1:8823/stream/cap/nas/0", "http://127.0.0.1:8823/stream/cap/nas/0"
+	desktopArgs := buildArgs(want, "/run/mpv.sock")
+	_, err = IOSLibmpvSpec(sink, "/run/mpv.sock")
+	require.NoError(t, err)
+	assert.Equal(t, want, sink, "起播参数的每个字段都原样留着")
+	assert.Equal(t, desktopArgs, buildArgs(want, "/run/mpv.sock"), "iOS 换掉预算后，桌面的网络流参数照旧")
+	assert.Contains(t, desktopArgs, "--demuxer-max-bytes=256MiB")
 }
 
 // libmpv 在 mpv_initialize 里才解析 mpv.conf，会盖过之前设的 Init 选项（见 LibmpvSpec.Init）。iOS 多带 / 换掉的
