@@ -642,6 +642,7 @@ func buildHandlers(configDir string, svc *services, cancel context.CancelFunc, m
 		Catalog:         svc.lists,
 		RemoteArt:       api.NewRemoteArt(animego.DefaultBaseURL, 4096),
 		AnimegoBaseURL:  animego.DefaultBaseURL,
+		CatalogCacheDir: filepath.Join(configDir, "cache", "catalog"),
 		MPV:             svc.mpv,
 		EmbeddedMPV:     svc.embeddedMPV,
 		Desktop:         desktopStatus(svc.window, svc.windowFallback),
