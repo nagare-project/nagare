@@ -36,6 +36,12 @@ interface ObjectNode {
   readonly optional: readonly string[]
 }
 
+/**
+ * 所有带可选字段的对象节点（构造时登记）。只看「检查时走到过的节点」的话，挂在一个永远为空的数组下、
+ * 或者挂在从没出现过的可选字段下的对象，连同它的可选字段一起漏查 —— 所以没走到过的节点本身也算没覆盖。
+ */
+const objectsWithOptional: ObjectNode[] = []
+
 interface UnionNode {
   readonly size: number
 }
@@ -72,6 +78,9 @@ export class CheckContext {
   /** 检查过的对象里从没出现过的可选字段、从没命中过的联合分支 */
   uncovered(): string[] {
     const out: string[] = []
+    for (const node of objectsWithOptional) {
+      if (!this.objects.has(node)) out.push(`（从没被检查到的对象，可选字段：${node.optional.join('、')}）`)
+    }
     for (const [node, info] of this.objects) {
       for (const key of node.optional) if (!info.seen.has(key)) out.push(`${info.path}.${key}`)
     }
@@ -164,6 +173,7 @@ export function obj<R extends Shape, O extends Shape>(required: R, optional: O):
 export function obj(required: Shape, optional?: Shape): AnySchema {
   const opt: Shape = optional ?? {}
   const node: ObjectNode = { optional: Object.keys(opt) }
+  if (node.optional.length > 0) objectsWithOptional.push(node)
   return {
     check(value, path, ctx) {
       if (!isPlainObject(value)) {

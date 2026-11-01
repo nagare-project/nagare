@@ -241,6 +241,11 @@ describe('TorrentCard · 重启提示', () => {
     expect(notice?.textContent).toContain('重启 nagare 后生效')
   })
 
+  it('设置载荷里 restartRequired=true（改过端口还没重启就刷新了页面）时，一打开就提示', async () => {
+    const { container } = await mountCard({ ...SETTINGS, restartRequired: true })
+    expect(container.querySelector('.torrent-restart[role="alert"]')?.textContent).toContain('重启 nagare 后生效')
+  })
+
   it('restartRequired=false 时不出重启提示', async () => {
     const { container } = await mountCard()
     await submit(container)

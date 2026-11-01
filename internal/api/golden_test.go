@@ -31,7 +31,12 @@ func TestGolden(t *testing.T) {
 	for _, c := range cases {
 		require.NotContains(t, names, c.name, "黄金用例重名")
 		names = append(names, c.name)
-		t.Run(c.name, func(t *testing.T) { apigolden.Assert(t, c.name, c.run(t)) })
+		t.Run(c.name, func(t *testing.T) {
+			body := c.run(t)
+			// 替身里的会话凭证是 placeholder-*：哪天某个处理器开始回显凭证，-update 不能把它烤进黄金文件
+			require.NotContains(t, string(body), "placeholder-", "响应里出现了会话凭证")
+			apigolden.Assert(t, c.name, body)
+		})
 	}
 	apigolden.AssertOwned(t, ownedByAPI, names)
 }

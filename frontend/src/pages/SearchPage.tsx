@@ -170,7 +170,7 @@ function busyMagnet(state: TorrentPlayState): PlayControl['busy'] {
   }
 }
 
-/** 只有明确读到 enabled=false 才禁用：设置还没加载完时别把按钮锁死 */
+/** 设置读到了、而磁力引擎没起来（enabled=false，或这个构建根本没有磁力）才禁用：设置还没加载完时别把按钮锁死 */
 function isEngineDown(state: SettingsState): boolean {
   return state.phase === 'ready' && state.data.torrent?.enabled !== true
 }
