@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "data": {
+    "animego": {
+      "baseUrl": "https://catalog.example.test",
+      "email": "",
+      "loggedIn": false
+    },
+    "arch": "arm64",
+    "background": {
+      "mode": "window"
+    },
+    "dataDir": "/Users/viewer/Library/Application Support/nagare",
+    "desktop": {
+      "window": true
+    },
+    "logPath": "/Users/viewer/Library/Application Support/nagare/logs/nagare.log",
+    "mpv": {
+      "cli": {
+        "path": "/Applications/Nagare.app/Contents/MacOS/mpv",
+        "source": "bundled",
+        "version": "0.41.0"
+      },
+      "embedded": true,
+      "found": true,
+      "source": "embedded"
+    },
+    "platform": "darwin",
+    "player": {
+      "anime4k": "fast"
+    },
+    "version": "0.7.0"
+  }
+}

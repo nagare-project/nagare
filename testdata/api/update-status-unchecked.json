@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "current": "0.7.0",
+    "latest": "",
+    "available": false,
+    "url": "",
+    "checkedAt": null,
+    "error": "",
+    "selfUpdate": {
+      "supported": false,
+      "channel": "unknown",
+      "reason": "这个版本不带一键更新，请到下载页手动更新",
+      "target": ""
+    }
+  }
+}

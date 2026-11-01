@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "data": {
+    "dir": "/home/you/Downloads/nagare",
+    "downloads": [
+      {
+        "id": "0123456789abcdef0123456789abcdef01234567",
+        "magnet": "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
+        "title": "[Sub] Frieren - 01-28 [1080p]",
+        "name": "Frieren S01",
+        "root": "/home/viewer/Downloads/nagare",
+        "state": "downloading",
+        "size": 32212254720,
+        "addedAt": 1792051200000,
+        "bytesDone": 3221225472,
+        "peers": 14,
+        "seeders": 11,
+        "downRate": 3200000
+      },
+      {
+        "id": "89abcdef0123456789abcdef0123456789abcdef",
+        "torrentUrl": "https://releases.example.test/bocchi.torrent",
+        "title": "[ANi] Bocchi the Rock! - 01",
+        "name": "[ANi] Bocchi the Rock! - 01.mp4",
+        "root": "/home/viewer/Downloads/nagare",
+        "state": "done",
+        "size": 629145600,
+        "paths": [
+          "/home/viewer/Downloads/nagare/[ANi] Bocchi the Rock! - 01.mp4"
+        ],
+        "addedAt": 1792047600000,
+        "completedAt": 1792049400000,
+        "bytesDone": 629145600,
+        "peers": 0,
+        "seeders": 0,
+        "downRate": 0
+      },
+      {
+        "id": "fedcba9876543210fedcba9876543210fedcba98",
+        "magnet": "magnet:?xt=urn:btih:fedcba9876543210fedcba9876543210fedcba98",
+        "title": "没人分享的老番",
+        "root": "/home/viewer/Downloads/nagare",
+        "state": "failed",
+        "error": "等了 10 分钟仍然没有找到分享者",
+        "addedAt": 1792044000000,
+        "bytesDone": 0,
+        "peers": 0,
+        "seeders": 0,
+        "downRate": 0
+      }
+    ]
+  }
+}

@@ -76,6 +76,7 @@ const SETTINGS: SettingsData = {
     cacheBytes: 0,
     downloadDir: '/Users/you/Downloads/nagare',
     downloadDirIsDefault: true,
+    restartRequired: false,
   },
 }
 
@@ -653,7 +654,7 @@ describe('LibraryPage（整页冒烟）', () => {
   })
 
   it('有磁力来源但引擎没起来时不能说「已就绪」，要指向磁力播放设置', async () => {
-    stubFirstRun({ ...SETTINGS, torrent: { ...SETTINGS.torrent, enabled: false } }, SETTINGS.mpv, true)
+    stubFirstRun({ ...SETTINGS, torrent: { ...SETTINGS.torrent!, enabled: false } }, SETTINGS.mpv, true)
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     await settle()

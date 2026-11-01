@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "data": {
+    "files": [
+      {
+        "index": 0,
+        "name": "[Sub] Frieren - 01 [1080p].mkv",
+        "path": "Frieren/01.mkv",
+        "sizeBytes": 1073741824,
+        "episode": 1
+      },
+      {
+        "index": 1,
+        "name": "NCOP.mkv",
+        "path": "Frieren/Extras/NCOP.mkv",
+        "sizeBytes": 67108864,
+        "episode": null
+      }
+    ],
+    "needSelection": true
+  }
+}

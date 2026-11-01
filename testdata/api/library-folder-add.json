@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "data": {
+    "folder": {
+      "id": "f-0a1b2c3d",
+      "path": "/media/anime",
+      "addedAt": 1792065600000
+    },
+    "stats": {
+      "videos": 1,
+      "clusters": 1
+    }
+  }
+}

@@ -202,6 +202,8 @@ export interface PlayData {
  */
 export interface SyncFailure {
   state: 'failed'
+  /** 没记上的那个文件（只有它自己后来回写成功才清掉这条留痕） */
+  fileId?: string
   title?: string
   episode?: number
   reason?: string
@@ -212,14 +214,17 @@ export interface SyncFailure {
   pending?: number
 }
 
-/** 正在播放时的完整状态 */
+/**
+ * 正在播放时的完整状态。
+ * position / duration / paused 是 0 或 false 时后端不发（刚起播、没暂停的常态），缺席按 0 / false 读。
+ */
 export interface PlayingStatus {
   playing: true
   fileId: string
   title: string
-  position: number
-  duration: number
-  paused: boolean
+  position?: number
+  duration?: number
+  paused?: boolean
   danmaku: DanmakuStatus
   sync?: SyncFailure
   playbackFailure?: PlaybackFailure
@@ -317,8 +322,8 @@ export interface SettingsData {
   logPath: string
   mpv: MpvInfo
   animego: AnimegoInfo
-  /** 磁力边下边播的当前配置与缓存占用（M3） */
-  torrent: TorrentSettings
+  /** 磁力边下边播的当前配置与缓存占用（M3）；不带磁力的构建（移动端）没有这一项 */
+  torrent?: TorrentSettings
   /** 播放器设置（画质增强） */
   player: PlayerSettings
   /** 后台形态（界面顶部「关掉标签页不会退出」提示条据此措辞） */
@@ -815,8 +820,15 @@ export interface PluginSource {
   capabilities: string[]
 }
 
+/** GET /api/source-plugin 里的已存配置：没填过的路径后端不发（缺席按空串读） */
+export interface SourcePluginConfigView {
+  enabled: boolean
+  executable?: string
+  root?: string
+}
+
 export interface SourcePluginView {
-  config: SourcePluginConfig
+  config: SourcePluginConfigView
   status: SourcePluginStatus
   sources: PluginSource[]
   sourcesError?: string
@@ -1125,13 +1137,12 @@ export interface TorrentSettings {
   downloadDir: string
   /** 设置里没填，用的是默认目录（用户「下载」文件夹下的 nagare） */
   downloadDirIsDefault: boolean
-}
-
-/** POST /api/torrent/config 的 data 载荷：配置全量 + 是否需要重启才生效 */
-export interface TorrentConfigData extends TorrentSettings {
-  /** 端口 / 映射类改动要重启 nagare 才生效 */
+  /** 端口 / 映射类改动要重启 nagare 才生效（改过、还没重启时为 true） */
   restartRequired: boolean
 }
+
+/** POST /api/torrent/config 的 data 载荷：与设置载荷里的 torrent 一项同形（配置全量 + 是否需要重启才生效） */
+export type TorrentConfigData = TorrentSettings
 
 /** POST /api/torrent/config 的 body：字段均可选，缺席表示不改 */
 export interface TorrentConfigPatch {
@@ -1187,6 +1198,9 @@ export interface DownloadTask {
   name?: string
   /** 这条任务的下载目录 */
   root: string
+  /** 发起时给的磁力链接或 .torrent 地址（二选一） */
+  magnet?: string
+  torrentUrl?: string
   state: DownloadState
   /** failed 时的原因（中文，可直接展示） */
   error?: string
@@ -1267,5 +1281,7 @@ export const fetchCatalogSearchData = (q: string, signal?: AbortSignal) =>
   apiFetch<CatalogSearchData>(`/api/catalog/search?q=${encodeURIComponent(q)}`, { signal })
 export const fetchCollection = () => apiFetch<CollectionData>('/api/lists')
 export const saveCollection = (id: number, data: CollectionEdit) => apiFetch<CollectionEntry>(`/api/lists/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: data.status, currentEpisode: data.progress, score: data.score }) })
-export const deleteCollection = (id: number) => apiFetch(`/api/lists/${id}`, { method: 'DELETE' })
+/** DELETE /api/lists/{id} 的 data 载荷 */
+export interface CollectionDeleteData { deleted: boolean }
+export const deleteCollection = (id: number) => apiFetch<CollectionDeleteData>(`/api/lists/${id}`, { method: 'DELETE' })
 export const fetchSchedule = (signal?: AbortSignal) => apiFetch<ScheduleData>('/api/schedule', { signal })
