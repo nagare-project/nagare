@@ -3,6 +3,7 @@ package player
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/nagare-project/nagare/internal/store"
@@ -21,6 +22,9 @@ const (
 	// syncRetryWindow：只补发最近一个月里看完的。更早的「看完未同步」多半是登录之前看的 ——
 	// 补发会先把作品加进追番列表，把很久以前看的番一股脑塞进列表不是用户要的。
 	syncRetryWindow = 30 * 24 * time.Hour
+	// syncHoldTTL：被规则挡下的集，补发隔这么久再试一次（总集数、集号偏移可能补上了）；
+	// 还是挡下就再出一次横幅 —— 每周至多一次，不是每次启动都弹。
+	syncHoldTTL = 7 * 24 * time.Hour
 )
 
 // SyncRetryResult 是一轮补发的结果（POST /api/player/sync/retry 的载荷）。
@@ -46,6 +50,13 @@ type pendingSync struct {
 // 开机自启时网络还没好是常事，不是要用户处理的事。被规则挡下、登录过期这类要用户知道的才进横幅；
 // 一轮结束后横幅说的那一集记上了就撤掉，否则把「还有几集没记上」更新成现在的数。
 func (m *Manager) RetryPendingSyncs(ctx context.Context) SyncRetryResult {
+	// 退出时（StopRetrying）在跑的这一轮跟着停：HTTP 服务关闭时不取消在途请求的 ctx
+	if m.retryLife.Err() != nil {
+		return SyncRetryResult{Remaining: len(m.pendingSyncs())}
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer context.AfterFunc(m.retryLife, cancel)()
 	select {
 	case m.retrySem <- struct{}{}:
 	case <-ctx.Done():
@@ -63,18 +74,27 @@ func (m *Manager) RetryPendingSyncs(ctx context.Context) SyncRetryResult {
 	return res
 }
 
-// retryPass 跑一轮补发（调用方持 retrySem）。
+// StopRetrying 在退出时调：在跑的补发立刻停下（没补的留到下次启动），之后的补发调用直接返回。
+func (m *Manager) StopRetrying() { m.endRetries() }
+
+// retryPass 跑一轮补发（调用方持 retrySem）。只有真去写了（或者写不成）的集占单轮名额；
+// 某部作品的集号偏移一时查不到时，这一轮跳过它剩下的集（结果一样，还白打上游）。
 func (m *Manager) retryPass(ctx context.Context) SyncRetryResult {
 	var res SyncRetryResult
 	if m.opts.Client == nil || !m.opts.Client.LoggedIn() {
 		res.Reason = "还没有登录账号：到设置里登录之后再点「重试」，或等下次启动时自动补记"
 		return res
 	}
-	for i, c := range m.pendingSyncs() {
-		if i >= syncRetryMax {
+	attempted := 0
+	deferred := map[int]bool{}
+	for _, c := range m.pendingSyncs() {
+		if attempted >= syncRetryMax {
 			break
 		}
-		if i > 0 && !sleepCtx(ctx, m.retryPace) {
+		if deferred[c.binding.AnilistID] {
+			continue
+		}
+		if attempted > 0 && !sleepCtx(ctx, m.retryPace) {
 			return res
 		}
 		r := m.retryOne(ctx, c)
@@ -82,9 +102,14 @@ func (m *Manager) retryPass(ctx context.Context) SyncRetryResult {
 			// 退出或网页不等了：这一集算不上失败，留到下次
 			return res
 		}
+		if r.kind != syncSkipped {
+			attempted++
+		}
 		switch r.kind {
 		case syncDone:
 			res.Synced++
+		case syncLater:
+			deferred[c.binding.AnilistID] = true
 		case syncHeld:
 			m.reportSync(c.fileID, c.binding, r.reason, r.recovery)
 		case syncOffline:
@@ -100,7 +125,12 @@ func (m *Manager) retryPass(ctx context.Context) SyncRetryResult {
 }
 
 // retryOne 补发一集：与收尾同样的检查与写法，同样的时限；别处正在写这一集就交给它。
+// 列表是这一轮开头取的，前面几集每集最多等十秒 —— 这期间媒体库可能重扫过（集号、类型、关联都可能变），
+// 所以轮到它时再核对一次缓存的匹配是否仍然站得住。
 func (m *Manager) retryOne(ctx context.Context, c pendingSync) syncResult {
+	if b, ok := m.retryTarget(c.fileID); !ok || b != c.binding {
+		return syncResult{}
+	}
 	ctx, cancel := context.WithTimeout(ctx, markWatchedTimeout)
 	defer cancel()
 	return m.syncEntry(ctx, c.fileID, c.binding, false)
@@ -109,11 +139,12 @@ func (m *Manager) retryOne(ctx context.Context, c pendingSync) syncResult {
 // pendingSyncs 列出补发会去试的集，最早看完的在前：最近 syncRetryWindow 里看完、还没记到账号、
 // 缓存的匹配今天仍然站得住（retryTarget），且没有按这条匹配被规则挡下过。
 func (m *Manager) pendingSyncs() []pendingSync {
-	since := time.Now().Add(-syncRetryWindow).UnixMilli()
+	now := time.Now()
+	since := now.Add(-syncRetryWindow).UnixMilli()
 	var out []pendingSync
 	for _, e := range m.opts.Store.PendingSyncs(since) {
 		b, ok := m.retryTarget(e.FileID)
-		if !ok || e.Progress.SyncHold.Holds(b.AnilistID, b.Episode) {
+		if !ok || holdStands(e.Progress.SyncHold, b, now) {
 			continue
 		}
 		out = append(out, pendingSync{fileID: e.FileID, binding: b})
@@ -136,7 +167,10 @@ func (m *Manager) retryTarget(fileID string) (store.Binding, bool) {
 	}
 	item, inLibrary := m.opts.LibraryItem(fileID)
 	if !inLibrary {
-		return b, true // 磁力、在线候选：播放路径对它们也只认缓存的匹配
+		// 磁力、在线候选本来就不在媒体库里，播放路径对它们也只认缓存的匹配。其余不在媒体库里的
+		// 是本地文件此刻不在（外接盘没插、文件删了或挪了）：查不到它的作品关联（可能标过「不是
+		// 目录里的作品」），也核对不了集号与类型 —— 不补，等它回到媒体库里再说。
+		return b, streamFileID(fileID)
 	}
 	if episodeNumber(item) != b.Episode {
 		return store.Binding{}, false
@@ -184,7 +218,22 @@ func (m *Manager) stillHeld(fileID string) bool {
 		return false
 	}
 	b, ok := m.retryTarget(fileID)
-	return ok && p.SyncHold.Holds(b.AnilistID, b.Episode)
+	return ok && holdStands(p.SyncHold, b, time.Now())
+}
+
+// holdStands：按匹配 b 回写被挡下过，且还没到再试一次的时候（syncHoldTTL）。
+func holdStands(h store.SyncHold, b store.Binding, now time.Time) bool {
+	return h.Holds(b.AnilistID, b.Episode) && now.Sub(time.UnixMilli(h.At)) < syncHoldTTL
+}
+
+// streamFileID：不在媒体库里的媒体源的 FileID —— 磁力（torrentstream 的 torrentFileID：「t:」+ infohash）
+// 与在线候选（remoteFileIDPrefix + 摘要）。本地文件的 FileID 是「文件名|大小|修改时间」。
+func streamFileID(fileID string) bool {
+	if strings.HasPrefix(fileID, "t:") {
+		return true
+	}
+	rest, ok := strings.CutPrefix(fileID, remoteFileIDPrefix)
+	return ok && !strings.Contains(rest, "|")
 }
 
 // sleepCtx 睡 d；ctx 先结束返回 false。

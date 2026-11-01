@@ -118,6 +118,8 @@ func (m *Manager) syncEntry(ctx context.Context, fileID string, b store.Binding,
 		return syncResult{}
 	}
 	m.recordSynced(fileID, place.Episode)
+	// 横幅说的是别的集时，「还有几集没记上」少了这一集；它说的那一集若已不再欠着也一并撤掉
+	m.settleSyncBanner(m.pendingSyncs())
 	if place.Episode != b.Episode {
 		log.Printf("player: 已回写 animego：anilistId=%d 第%d集（文件里是第%d集）", b.AnilistID, place.Episode, b.Episode)
 	} else {
@@ -206,7 +208,7 @@ func (m *Manager) recordHold(fileID string, b store.Binding) {
 	if !ok || p.Synced {
 		return
 	}
-	p.SyncHold = store.SyncHold{AnilistID: b.AnilistID, Episode: b.Episode}
+	p.SyncHold = store.SyncHold{AnilistID: b.AnilistID, Episode: b.Episode, At: time.Now().UnixMilli()}
 	if err := m.opts.Store.SetProgress(fileID, p); err != nil {
 		log.Printf("player: 记录回写被挡下失败：%v", err)
 	}
@@ -234,12 +236,22 @@ func classifySyncErr(err error) syncResult {
 		case animego.ErrAuthExpired:
 			return syncResult{kind: syncHalt, reason: "登录已过期", recovery: "到设置里重新登录，然后点「重试」"}
 		case animego.ErrBadRequest:
-			// 400 说的是「这一次请求的内容不对」：这一集再试也一样。403 / 404 这类说的是接口整体
-			// 不让用，可能是服务端变了 —— 停下、不挡这一集，升级之后还能再补。
-			if ae.Status == http.StatusBadRequest {
+			// 服务端拒收的是这一集（请求内容不对、作品或订阅不存在、冲突）：再试多半也一样，挡下它，
+			// 别让它排在最前面把后面几集的补发一轮轮堵住。403 这类说的是账号或接口整体不让用 ——
+			// 停下、不挡这一集，问题解决之后还能再补。
+			if perEntryRejection(ae.Status) {
 				return syncResult{kind: syncHeld, reason: "回写失败：" + err.Error(), recovery: "可以到 animego 网站上手动标记这一集"}
 			}
 		}
 	}
 	return syncResult{kind: syncHalt, reason: "回写失败：" + err.Error(), recovery: "可以到 animego 网站上手动标记这一集"}
+}
+
+// perEntryRejection：服务端这个 4xx 拒收的是这一条请求本身，而不是整个接口。
+func perEntryRejection(status int) bool {
+	switch status {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity:
+		return true
+	}
+	return false
 }

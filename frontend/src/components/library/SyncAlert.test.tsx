@@ -42,12 +42,12 @@ describe('SyncAlert', () => {
     await unmount()
   })
 
-  it('几集都没记上时说出个数和「下次启动会自动补记」', async () => {
+  it('有待补记的集时说出个数和「下次启动会自动补上」', async () => {
     const { container, unmount } = await mount(
       <SyncAlert status={statusWith({ ...FAILED, pending: 3 })} onRetry={vi.fn(async () => {})} />,
     )
     const text = container.textContent ?? ''
-    expect(text).toContain('共有 3 集还没记上')
+    expect(text).toContain('共有 3 集等着补记')
     expect(text).toContain('下次启动')
     // 恢复动作不再说「重看这一集才会再试」
     expect(text).not.toContain('重看')

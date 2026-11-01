@@ -48,7 +48,7 @@ export function SyncAlert({ status, onRetry }: SyncAlertProps) {
       )}
       {pending > 0 && (
         <span className="alert-warn-recovery lib-sync-retry">
-          {pending > 1 && <span>共有 {pending} 集还没记上，下次启动 nagare 时会自动补记。</span>}
+          <span>共有 {pending} 集等着补记，下次启动 nagare 时会自动补上。</span>
           <button type="button" className="btn btn--sm" onClick={() => void handleRetry()} disabled={busy}>
             {busy ? '重试中 …' : '重试'}
           </button>

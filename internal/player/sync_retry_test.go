@@ -210,6 +210,120 @@ func TestRetryNeverWritesWhenTheOffsetIsUnknown(t *testing.T) {
 	m.RetryPendingSyncs(context.Background())
 	assert.Equal(t, 1, lookups, "挡下过的匹配不该再拿去查、再弹横幅")
 	assert.Nil(t, m.Status().Sync)
+
+	// 一周之后再试一次（总集数、偏移可能补上了）：还是算不出来就再说一次，仍然不写
+	p = progressOf(t, st, "s2e38")
+	p.SyncHold.At = time.Now().Add(-8 * 24 * time.Hour).UnixMilli()
+	require.NoError(t, st.SetProgress("s2e38", p))
+	m.RetryPendingSyncs(context.Background())
+	assert.Equal(t, 2, lookups)
+	assert.Empty(t, client.markedSnapshot())
+	require.NotNil(t, m.Status().Sync)
+}
+
+// 不在媒体库里的本地文件（外接盘没插、文件挪走了）查不到作品关联（可能标过「不是目录里的作品」），
+// 也核对不了集号 —— 不补；磁力与在线候选本来就不在媒体库里，照补。
+func TestRetrySkipsLocalFilesMissingFromTheLibrary(t *testing.T) {
+	client := &retryClient{loggedIn: true}
+	m, st := retryHarness(t, client)
+	addPending(t, st, "[Sub] Show - 03.mkv|1024|1700000000000", 42, 3, time.Hour)
+	addPending(t, st, "t:0123456789abcdef0123456789abcdef01234567/2", 42, 4, time.Hour)
+	addPending(t, st, remoteFileIDPrefix+"9f86d081884c7d659a2feaa0c55ad015", 42, 5, time.Hour)
+	// 文件名恰好叫 remote 的本地文件不能被当成在线候选
+	addPending(t, st, "remote|2048|1700000000000", 42, 6, time.Hour)
+	m.opts.LibraryItem = func(string) (library.Item, bool) { return library.Item{}, false }
+
+	res := m.RetryPendingSyncs(context.Background())
+
+	assert.Equal(t, SyncRetryResult{Synced: 2}, res)
+	assert.ElementsMatch(t, []string{"42/4", "42/5"}, client.markedSnapshot())
+}
+
+// 某部作品的集号偏移一直查不到：它的十几集不能占满单轮名额、把后面别的作品堵住；
+// 这一轮只问它一次，剩下的直接跳过。
+func TestRetryDoesNotLetOneUnplaceableShowStarveTheRest(t *testing.T) {
+	client := &retryClient{loggedIn: true}
+	m, st := retryHarness(t, client)
+	for i := 13; i <= 25; i++ {
+		addPending(t, st, fmt.Sprintf("s2e%d", i), 9, i, time.Duration(200-i)*time.Minute)
+	}
+	addPending(t, st, "other", 77, 2, time.Minute)
+	m.opts.GroupEpisodes = func(id string) []int {
+		if id == "other" {
+			return []int{1, 2}
+		}
+		return seq(13, 25)
+	}
+	lookups := map[int]int{}
+	m.opts.EpisodeSpace = func(_ context.Context, id int) (EpisodeSpace, error) {
+		lookups[id]++
+		if id == 9 {
+			return EpisodeSpace{OffsetUnavailable: true}, nil
+		}
+		return EpisodeSpace{Total: 12}, nil
+	}
+
+	res := m.RetryPendingSyncs(context.Background())
+
+	assert.Equal(t, []string{"77/2"}, client.markedSnapshot())
+	assert.Equal(t, 1, res.Synced)
+	assert.Equal(t, 13, res.Remaining)
+	assert.Equal(t, 1, lookups[9])
+}
+
+// 退出时在跑的补发停下，之后的补发调用什么都不发。
+func TestStopRetryingEndsRetries(t *testing.T) {
+	client := &retryClient{loggedIn: true}
+	m, st := retryHarness(t, client)
+	addPending(t, st, "a", 42, 3, time.Hour)
+
+	m.StopRetrying()
+	res := m.RetryPendingSyncs(context.Background())
+
+	assert.Empty(t, client.markedSnapshot())
+	assert.Equal(t, 1, res.Remaining)
+}
+
+// 横幅上「还有几集」要跟着收尾的成功变：别的集看完记上了，计数就少一集。
+func TestPlaybackSuccessUpdatesThePendingCount(t *testing.T) {
+	client := &retryClient{loggedIn: true}
+	m, st := retryHarness(t, client)
+	addPending(t, st, "x", 42, 3, time.Hour)
+	addPending(t, st, "y", 42, 4, time.Minute)
+	m.reportSync("x", store.Binding{AnilistID: 42, Episode: 3, Title: "某番"}, "服务暂不可达", "点「重试」")
+	require.Equal(t, 2, m.Status().Sync.Pending)
+
+	m.syncWatched(&session{item: library.Item{FileID: "y"}, binding: store.Binding{AnilistID: 42, Episode: 4, Title: "某番"}})
+
+	got := m.Status().Sync
+	require.NotNil(t, got, "x 还没记上")
+	assert.Equal(t, "x", got.FileID)
+	assert.Equal(t, 1, got.Pending)
+}
+
+// 服务端拒收的是这一集（400 / 404 / 409 / 422）：挡下它，别让它一轮轮堵在最前面；
+// 403、限流、连不上、登录过期是整体的问题，停下不挡。
+func TestClassifySyncErrSeparatesPerEpisodeRejections(t *testing.T) {
+	cases := []struct {
+		err  *animego.Error
+		want syncKind
+	}{
+		{&animego.Error{Kind: animego.ErrBadRequest, Status: 400}, syncHeld},
+		{&animego.Error{Kind: animego.ErrBadRequest, Status: 404}, syncHeld},
+		{&animego.Error{Kind: animego.ErrBadRequest, Status: 409}, syncHeld},
+		{&animego.Error{Kind: animego.ErrBadRequest, Status: 422}, syncHeld},
+		{&animego.Error{Kind: animego.ErrBadRequest, Status: 403}, syncHalt},
+		{&animego.Error{Kind: animego.ErrDecode}, syncHalt},
+		{&animego.Error{Kind: animego.ErrAuthExpired, Status: 401}, syncHalt},
+		{&animego.Error{Kind: animego.ErrRateLimited, Status: 429}, syncOffline},
+		{&animego.Error{Kind: animego.ErrUnavailable, Status: 502}, syncOffline},
+	}
+	for _, tc := range cases {
+		got := classifySyncErr(tc.err)
+		assert.Equal(t, tc.want, got.kind, "%v %d", tc.err.Kind, tc.err.Status)
+		assert.NotEmpty(t, got.reason)
+		assert.NotEmpty(t, got.recovery)
+	}
 }
 
 // 偏移这次没查到（网络）：同样不写，但这是一时的 —— 留着下次再试，补发时不出横幅。

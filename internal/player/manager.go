@@ -192,8 +192,11 @@ type Manager struct {
 	syncing map[string]chan struct{}
 
 	// retrySem 让补发同一时刻只跑一轮（容量 1）；retryPace 是补发两集之间的间隔（测试调小）。
-	retrySem  chan struct{}
-	retryPace time.Duration
+	// retryLife 在退出时（StopRetrying → endRetries）结束，在跑的补发随之停下。
+	retrySem   chan struct{}
+	retryPace  time.Duration
+	retryLife  context.Context
+	endRetries context.CancelFunc
 }
 
 // New 构造 Manager。
@@ -201,7 +204,8 @@ func New(opts Options) *Manager {
 	if opts.Launch == nil {
 		opts.Launch = mpv.Launch
 	}
-	return &Manager{opts: opts, retrySem: make(chan struct{}, 1), retryPace: syncRetryPace}
+	life, end := context.WithCancel(context.Background())
+	return &Manager{opts: opts, retrySem: make(chan struct{}, 1), retryPace: syncRetryPace, retryLife: life, endRetries: end}
 }
 
 // completionRatio：观看进度超过时长的九成视为看完（与网页端习惯一致）。

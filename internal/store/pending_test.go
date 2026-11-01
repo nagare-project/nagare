@@ -31,7 +31,7 @@ func TestPendingSyncsOldestFirst(t *testing.T) {
 // 「挡下过」要能落盘读回；没有挡下时文件里不出现这个字段（零值不写）。
 func TestSyncHoldRoundTrip(t *testing.T) {
 	s, path := newStore(t)
-	require.NoError(t, s.SetProgress("held", Progress{Completed: true, SyncHold: SyncHold{AnilistID: 9, Episode: 38}}))
+	require.NoError(t, s.SetProgress("held", Progress{Completed: true, SyncHold: SyncHold{AnilistID: 9, Episode: 38, At: 1}}))
 	require.NoError(t, s.SetProgress("plain", Progress{Completed: true}))
 
 	raw, err := os.ReadFile(path)
