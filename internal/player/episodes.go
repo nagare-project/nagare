@@ -30,7 +30,7 @@ type EpisodeSpace struct {
 }
 
 // placement 是这一集该怎么回写：Episode > 0 就写这个作品集号；否则 Reason 说明为什么不写，
-// Retry 表示是一时查不到造成的（重看这一集看完时会再试）。
+// Retry 表示是一时查不到造成的（留着，下次启动或点「重试」时补发会再试，见 sync_retry.go）。
 type placement struct {
 	Episode int
 	Reason  string
@@ -109,7 +109,7 @@ func placeWithoutTotal(episode int, numbers []int, space EpisodeSpace, startsAtO
 }
 
 // placeEpisode 查出作品的集号空间并换算。查不到总集数（animego 暂不可达）时：组里有第 1 集，
-// 编号多半就是作品集号，照写；否则先不写，重看这一集看完时再试。
+// 编号多半就是作品集号，照写；否则先不写，留给补发再试。
 func (m *Manager) placeEpisode(ctx context.Context, fileID string, anilistID, episode int) placement {
 	if m.opts.EpisodeSpace == nil {
 		return placement{Episode: episode}
