@@ -30,6 +30,8 @@ recipe_libjpeg() {
     -DWITH_TOOLS=OFF -DWITH_TESTS=OFF -DREQUIRE_SIMD=ON
 }
 
+# COPYING 里三份许可证原文都有（MPL-1.1、GPL-2.0、LGPL-2.1）：只随包带选用的 LGPL-2.1（配方里从 COPYING 截出来）
+uchardet_licenses="COPYING.LGPL-2.1"
 recipe_uchardet() {
   # BUILD_SHARED_LIBS=OFF（cmake_install 已给）时它只编一个静态库
   cmake_install "$SRC" -DBUILD_BINARY=OFF
@@ -37,6 +39,17 @@ recipe_uchardet() {
   local pc="$DEST$PREFIX/lib/pkgconfig/uchardet.pc"
   sed -i '' -e 's/-lstdc++/-lc++/g' "$pc"
   if grep -q -- '-lstdc++' "$pc"; then die "uchardet.pc 里还有 -lstdc++"; fi
+  local lic="$SRC/COPYING.LGPL-2.1"
+  {
+    echo "uchardet is tri-licensed under MPL-1.1, GPL-2.0-or-later and LGPL-2.1-or-later (see COPYING in its source)."
+    echo "This build is distributed under the GNU Lesser General Public License, version 2.1 or later:"
+    echo
+    awk 'f || /^[[:space:]]*GNU LESSER GENERAL PUBLIC LICENSE[[:space:]]*$/ { f = 1; print }' "$SRC/COPYING"
+  } > "$lic"
+  grep -q 'Version 2.1, February 1999' "$lic" || die "从 uchardet 的 COPYING 里截不出 LGPL-2.1 原文"
+  if grep -qE '^[[:space:]]*GNU GENERAL PUBLIC LICENSE[[:space:]]*$' "$lic"; then
+    die "截出来的 uchardet 许可证里混进了 GPL 原文"
+  fi
 }
 
 recipe_luajit() {
@@ -60,8 +73,10 @@ recipe_luajit() {
   if grep -q -- '-Wl,-E' "$pc"; then die "luajit.pc 里还有 -Wl,-E"; fi
   local info="$DEST$PREFIX/share/nagare-libmpv"
   mkdir -p "$info"
+  # 不带 -DLUAJIT_DISABLE_JIT 再预处理一次：证明光凭 iOS 的目标参数（TARGET_OS_IPHONE → LJ_OS_NOJIT）
+  # JIT 就已经关了，不是只靠这里多给的那个宏
   # shellcheck disable=SC2046 # arch_flags 故意按空白拆开
-  clang $(arch_flags "$ARCH") -DLUAJIT_DISABLE_JIT -I"$SRC/src" -dM -E -x c "$SRC/src/lj_arch.h" \
+  clang $(arch_flags "$ARCH") -I"$SRC/src" -dM -E -x c "$SRC/src/lj_arch.h" \
     | grep -E '^#define (LJ_HASJIT|LJ_TARGET_IOS|LJ_OS_NOJIT|LJ_HASFFI) ' | sort > "$info/luajit-jit.txt"
   grep -qx '#define LJ_HASJIT 0' "$info/luajit-jit.txt" || die "LuaJIT 的 JIT 没有关掉：$(cat "$info/luajit-jit.txt")"
 }
