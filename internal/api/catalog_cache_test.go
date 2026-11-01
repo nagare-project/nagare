@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,6 +114,13 @@ func TestCatalogDiskConcurrentReadsStayConsistent(t *testing.T) {
 		sum += info.Size()
 	}
 	require.NotEmpty(t, onDisk)
+	var orphans []string // 盘上有、账上没有：不受管，总量少算、永远淘汰不到
+	for name := range onDisk {
+		if _, ok := d.index[name]; !ok {
+			orphans = append(orphans, name)
+		}
+	}
+	require.Empty(t, orphans, "盘上的文件都要在索引里")
 	require.Len(t, d.index, len(onDisk))
 	for name, e := range d.index {
 		size, ok := onDisk[name]
@@ -120,4 +129,48 @@ func TestCatalogDiskConcurrentReadsStayConsistent(t *testing.T) {
 	}
 	require.Equal(t, sum, d.total)
 	require.LessOrEqual(t, d.total, d.maxBytes)
+}
+
+// 读的时候文件不在、打开失败之后到划账之前，同键的另一次写入（后台刷新、另一个页面的读取）把新文件
+// 落了盘：新文件要留在账上。以前照「刚才不在」直接划掉，盘上的新文件成了孤儿 —— 总量少算、
+// 永远淘汰不到，上面的压力用例约 1.5% 的概率撞上（索引比盘上少一个文件）。
+func TestCatalogDiskMissingReadKeepsConcurrentWrite(t *testing.T) {
+	dir := t.TempDir()
+	d, err := newCatalogDisk(dir, catalogDiskMaxBytes)
+	require.NoError(t, err)
+	const key = "detail:7"
+	name := catalogDiskName(key)
+	path := filepath.Join(dir, name)
+	raced := false
+	d.open = func(p string) (*os.File, error) {
+		f, err := os.Open(p)
+		if errors.Is(err, fs.ErrNotExist) {
+			raced = true
+			d.store(key, map[string]string{"title": "新"}, diskT0)
+		}
+		return f, err
+	}
+
+	_, _, ok := d.load(key)
+	require.False(t, ok, "这一次打开时盘上还没有")
+	require.True(t, raced, "要在打开失败之后才写入")
+	info, err := os.Stat(path)
+	require.NoError(t, err, "同键写入已经落盘")
+	d.mu.Lock()
+	entry, indexed := d.index[name]
+	total := d.total
+	d.mu.Unlock()
+	require.True(t, indexed, "落了盘的文件要留在账上")
+	require.Equal(t, info.Size(), entry.size)
+	require.Equal(t, info.Size(), total)
+
+	// 真的不在了（缓存目录被清过）：照样从账上划掉
+	d.open = os.Open
+	require.NoError(t, os.Remove(path))
+	_, _, ok = d.load(key)
+	require.False(t, ok)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	require.NotContains(t, d.index, name)
+	require.Zero(t, d.total)
 }

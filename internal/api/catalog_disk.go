@@ -80,6 +80,8 @@ type catalogDisk struct {
 	dir      string
 	maxBytes int64
 	now      func() time.Time
+	// open 打开盘上的文件来读（测试换掉它，好把「打开失败」与同键写入的先后钉死）。
+	open func(path string) (*os.File, error)
 
 	mu    sync.Mutex
 	index map[string]catalogDiskEntry // 文件名 → 大小与最近使用时间
@@ -95,7 +97,7 @@ func newCatalogDisk(dir string, maxBytes int64) (*catalogDisk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("读取目录缓存目录: %w", err)
 	}
-	d := &catalogDisk{dir: dir, maxBytes: maxBytes, now: time.Now, index: map[string]catalogDiskEntry{}}
+	d := &catalogDisk{dir: dir, maxBytes: maxBytes, now: time.Now, open: os.Open, index: map[string]catalogDiskEntry{}}
 	for _, it := range items {
 		name := it.Name()
 		if strings.HasPrefix(name, catalogDiskTempPrefix) {
@@ -130,12 +132,12 @@ func catalogDiskName(key string) string {
 func (d *catalogDisk) load(key string) (json.RawMessage, time.Time, bool) {
 	name := catalogDiskName(key)
 	path := filepath.Join(d.dir, name)
-	f, err := os.Open(path)
+	f, err := d.open(path)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			log.Printf("目录缓存：读取 %s 失败：%v", key, err)
 		}
-		d.forget(name)
+		d.forgetIfMissing(name)
 		return nil, time.Time{}, false
 	}
 	data, err := io.ReadAll(io.LimitReader(f, catalogDiskMaxEntry+1))
@@ -220,9 +222,17 @@ func (d *catalogDisk) discard(key, reason string) {
 	d.forgetLocked(name)
 }
 
-func (d *catalogDisk) forget(name string) {
+// forgetIfMissing 在读的时候发现文件不在（被淘汰了、用户清过缓存目录）之后把它从账上划掉 ——
+// 但要在锁里重新确认它还不在：从打开失败到这里没有持锁，同键的另一次写入（后台刷新、
+// 另一个页面的读取）可能已经在锁里把新文件改名到位、记进了索引。照「刚才不在」直接划掉的话，
+// 盘上那个新文件就成了不受管的孤儿：总量少算、淘汰永远轮不到它。改名与记账都在这把锁里，
+// 锁里看到的盘面与索引是一致的。
+func (d *catalogDisk) forgetIfMissing(name string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if _, err := os.Lstat(filepath.Join(d.dir, name)); !errors.Is(err, fs.ErrNotExist) {
+		return // 还在（或者看不清）：留在账上，总量仍按它算
+	}
 	d.forgetLocked(name)
 }
 
