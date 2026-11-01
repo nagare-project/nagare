@@ -153,6 +153,17 @@ test.describe('窄屏抽屉（390px）', () => {
     await expect(menu).toBeFocused()
   })
 
+  test('窗口拉宽到完整顶栏时，开着的抽屉自己关掉', async ({ page }) => {
+    await openApp(page, '/library')
+    await page.getByRole('button', { name: '打开导航' }).click()
+    const drawer = page.getByRole('dialog', { name: '导航菜单' })
+    await expect(drawer).toBeVisible()
+    await page.setViewportSize({ width: 1280, height: 844 })
+    await expect(drawer).toBeHidden()
+    await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible()
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe('hidden')
+  })
+
   test('在抽屉里按下、拖到暗处松手不关', async ({ page }) => {
     await openApp(page, '/library')
     await page.getByRole('button', { name: '打开导航' }).click()

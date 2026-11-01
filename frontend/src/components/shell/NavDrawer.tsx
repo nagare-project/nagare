@@ -5,6 +5,9 @@ import { Icon } from '../ui/Icon'
 import { isBackdropEvent } from '../../lib/dialog'
 import { PRIMARY_NAV, navActiveOptions } from './navItems'
 
+/** 完整顶栏的最小宽度（DESIGN.md 的 --bp-nav；断点用不了 CSS 变量，与 navigation.css 的 1023px 对应） */
+const FULL_NAV_MIN_WIDTH = 1024
+
 interface NavDrawerProps {
   id: string
   open: boolean
@@ -34,6 +37,19 @@ export function NavDrawer({ id, open, onClose, menuButton }: NavDrawerProps) {
     } else if (!open && element.open) {
       element.close()
     }
+  }, [open])
+
+  // 窗口拉宽到完整顶栏（≥1024px）时抽屉没有意义了：关掉；☰ 此时已隐藏，不还焦点
+  useEffect(() => {
+    if (!open || typeof window.matchMedia !== 'function') return
+    const wide = window.matchMedia(`(min-width: ${FULL_NAV_MIN_WIDTH}px)`)
+    const onChange = () => {
+      if (!wide.matches) return
+      restoreFocus.current = false
+      dialog.current?.close()
+    }
+    wide.addEventListener('change', onChange)
+    return () => wide.removeEventListener('change', onChange)
   }, [open])
 
   // 地址变了而抽屉还开着：只可能是前进 / 后退（点抽屉里的链接会先关抽屉）
