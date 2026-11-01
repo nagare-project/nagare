@@ -3,12 +3,15 @@ package artcache
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"hash/crc32"
 	"image"
 	"image/color"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"io"
+	"io/fs"
 	"math"
 	"testing"
 
@@ -179,6 +182,76 @@ func TestSampleHueSkipsTransparentPixels(t *testing.T) {
 	assert.InDelta(t, 0, hueDiff(hueGreen, hue), 0.5, "得到 %.2f", hue)
 }
 
+// 子图的 Bounds().Min 不是原点：采样坐标要从 Min 起算，只看子图里的像素。
+func TestDominantHueRespectsBoundsOrigin(t *testing.T) {
+	full := paint(200, 200, func(x, y int) color.NRGBA {
+		if x >= 100 && y >= 100 {
+			return green
+		}
+		return red
+	})
+	hue, ok := dominantHue(full.SubImage(image.Rect(100, 100, 200, 200)))
+	require.True(t, ok)
+	assert.InDelta(t, 0, hueDiff(hueGreen, hue), 0.5, "得到 %.2f", hue)
+}
+
+// 半透明：alpha 过半的像素按反预乘后的颜色采样，不到一半的跳过。
+func TestSampleHueSemiTransparent(t *testing.T) {
+	img := paint(100, 100, func(x, _ int) color.NRGBA {
+		if x < 40 {
+			return color.NRGBA{0, 0, 255, 0xa0} // 六成多不透明的蓝：参与，色相不因预乘变化
+		}
+		return color.NRGBA{255, 0, 0, 0x60} // 不到一半的红：跳过
+	})
+	hue, reason := sample(t, encodePNG(t, img))
+	require.Empty(t, reason)
+	assert.InDelta(t, 0, hueDiff(hueBlue, hue), 0.5, "得到 %.2f", hue)
+}
+
+// 读的过程中出 I/O 错误（*fs.PathError）是「以后再试」，不是「这张图解不了」。
+func TestSampleHueIOErrorIsNotADecodeFailure(t *testing.T) {
+	pathErr := &fs.PathError{Op: "read", Path: "cover.img", Err: errors.New("模拟的磁盘错误")}
+	// 嗅探格式时就读失败：标准库会把它说成「不认识的格式」，这里必须认出是 I/O 错误
+	_, reason, err := sampleHue(failingReader{err: pathErr})
+	assert.Empty(t, reason)
+	assert.ErrorIs(t, err, pathErr.Err)
+
+	// 文件头读完、像素数据读到一半出错
+	full := encodePNG(t, paint(64, 64, func(x, y int) color.NRGBA { return color.NRGBA{uint8(x * 4), uint8(y * 4), 90, 255} }))
+	_, reason, err = sampleHue(&brokenAfter{data: full, limit: len(full) / 2, err: pathErr})
+	assert.Empty(t, reason)
+	assert.ErrorIs(t, err, pathErr.Err)
+}
+
+// brokenAfter 先正常给出前 limit 个字节，之后每次读都报 err。
+type brokenAfter struct {
+	data  []byte
+	limit int
+	pos   int64
+	err   error
+}
+
+func (b *brokenAfter) Read(p []byte) (int, error) {
+	if b.pos >= int64(b.limit) {
+		return 0, b.err
+	}
+	n := copy(p, b.data[b.pos:b.limit])
+	b.pos += int64(n)
+	return n, nil
+}
+
+func (b *brokenAfter) Seek(off int64, whence int) (int64, error) {
+	if whence == io.SeekStart {
+		b.pos = off
+	}
+	return b.pos, nil
+}
+
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error)       { return 0, r.err }
+func (r failingReader) Seek(int64, int) (int64, error) { return 0, nil }
+
 func TestSampleHueRejectsUnsupportedAndBroken(t *testing.T) {
 	// WebP 的文件头（RIFF....WEBPVP8 ）：标准库没有解码器 → 不支持，不是 I/O 错误
 	webp := append([]byte("RIFF\x24\x00\x00\x00WEBPVP8 \x18\x00\x00\x00"), make([]byte, 24)...)
@@ -196,20 +269,26 @@ func TestSampleHueRejectsUnsupportedAndBroken(t *testing.T) {
 
 // 像素上限只看文件头：声称 4000 万像素以上的图不解码（这里的「图」只有一个 IHDR）。
 func TestSampleHuePixelCap(t *testing.T) {
-	_, reason := sample(t, pngHeaderOnly(8001, 5000))
+	_, reason := sample(t, pngHeaderOnly(8001, 5000, 8))
 	assert.Equal(t, reasonTooLarge, reason, "4000.5 万像素")
 
 	// 恰好 4000 万像素放行，进了解码才因为没有像素数据失败
-	_, reason = sample(t, pngHeaderOnly(8000, 5000))
+	_, reason = sample(t, pngHeaderOnly(8000, 5000, 8))
 	assert.Equal(t, reasonDecode, reason)
+
+	// 16 位色深每像素 8 字节：3000 万像素就要 240MB，按解码后的字节数拒绝
+	_, reason = sample(t, pngHeaderOnly(6000, 5000, 16))
+	assert.Equal(t, reasonTooLarge, reason)
+	_, reason = sample(t, pngHeaderOnly(5000, 4000, 16))
+	assert.Equal(t, reasonDecode, reason, "2000 万像素的 16 位图放行")
 }
 
 // pngHeaderOnly 是只有签名 + IHDR 的 PNG：DecodeConfig 读得出尺寸，Decode 必然失败。
-func pngHeaderOnly(w, h uint32) []byte {
+func pngHeaderOnly(w, h uint32, depth byte) []byte {
 	ihdr := make([]byte, 13)
 	binary.BigEndian.PutUint32(ihdr[0:], w)
 	binary.BigEndian.PutUint32(ihdr[4:], h)
-	ihdr[8], ihdr[9] = 8, 6 // 8 位 RGBA
+	ihdr[8], ihdr[9] = depth, 6 // RGBA
 	var buf bytes.Buffer
 	buf.WriteString("\x89PNG\r\n\x1a\n")
 	_ = binary.Write(&buf, binary.BigEndian, uint32(len(ihdr)))

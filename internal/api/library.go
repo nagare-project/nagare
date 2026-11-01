@@ -83,6 +83,7 @@ type ViewCluster struct {
 
 	// PosterTones 是按 Cover 那张封面的色相算好的 sRGB 色阶；没有封面或还没算出时为 null。
 	PosterTones *artcache.PosterTones `json:"posterTones"`
+	coverSource string                // Cover 那张图的原始地址：只在服务端取色用，不序列化
 }
 
 // ViewContinue 是「继续观看」的一张卡片。
@@ -101,6 +102,7 @@ type ViewContinue struct {
 	UpdatedAt    int64   `json:"updatedAt"`
 
 	PosterTones *artcache.PosterTones `json:"posterTones"`
+	coverSource string                // 同 ViewCluster.coverSource
 }
 
 // ViewDropGroup 是「本次扫描按同一个原因跳过了哪些东西」的投影。
@@ -388,7 +390,28 @@ func (s *LibraryService) SubtitlePath(fileID string) string {
 }
 
 // View 组装 GET /api/library 的完整视图（进度与匹配结果实时从 store 取）。
+//
+// 海报色在放开媒体库的锁之后才查：要读封面缓存目录（stat、读边车），不该让重扫等这些磁盘操作。
 func (s *LibraryService) View() LibraryView {
+	view, tones := s.viewLocked()
+	if tones == nil {
+		return view
+	}
+	for i := range view.Clusters {
+		if c := &view.Clusters[i]; c.Cover != "" {
+			c.PosterTones = tonesFor(tones, c.coverSource)
+		}
+	}
+	for i := range view.ContinueWatching {
+		if c := &view.ContinueWatching[i]; c.Cover != "" {
+			c.PosterTones = tonesFor(tones, c.coverSource)
+		}
+	}
+	return view
+}
+
+// viewLocked 是 View 持锁的那一半：组装视图，带出取色来源（海报色由 View 在锁外补上）。
+func (s *LibraryService) viewLocked() (LibraryView, PosterToneSource) {
 	// 一次性取快照：千集规模下逐条目加锁读会把 store 的互斥锁打成热点。
 	snap := s.st.Snapshot()
 	progress, bindings, assocs := snap.Progress, snap.Bindings, snap.Associations
@@ -455,9 +478,7 @@ func (s *LibraryService) View() LibraryView {
 		} else {
 			vc.Matched = matchedWork(c.Items, bindings)
 		}
-		if vc.Cover != "" {
-			vc.PosterTones = tonesFor(tones, coverSource)
-		}
+		vc.coverSource = coverSource
 		for _, g := range c.Groups {
 			vg := ViewGroup{GroupKey: g.GroupKey, Label: g.Label, SortMode: g.SortMode, Items: []ViewItem{}}
 			for _, it := range g.Items {
@@ -484,11 +505,11 @@ func (s *LibraryService) View() LibraryView {
 		}
 		view.Clusters = append(view.Clusters, vc)
 	}
-	view.ContinueWatching = s.continueWatching(prefix, tones, progress, bindings, assocs)
+	view.ContinueWatching = s.continueWatching(prefix, progress, bindings, assocs)
 	if identify.Running || identify.Error != "" {
 		view.Identify = &identify
 	}
-	return view
+	return view, tones
 }
 
 // identifySnapshot 取后台识别的进度。在拿 s.mu 之前调用：识别器的锁不该嵌进媒体库的锁里。
@@ -507,7 +528,6 @@ func (s *LibraryService) identifySnapshot() IdentifyStatus {
 // 调用方必须已持有 s.mu 读锁（本函数读 s.clusters）。
 func (s *LibraryService) continueWatching(
 	prefix string,
-	tones PosterToneSource,
 	progress map[string]store.Progress,
 	bindings map[string]store.Binding,
 	assocs map[string]store.Association,
@@ -556,10 +576,6 @@ func (s *LibraryService) continueWatching(
 				cover = associatedCover(prefix, ce.cluster.ClusterKey, a, cover)
 				coverSource = associatedCoverSource(a, coverSource)
 			}
-			var posterTones *artcache.PosterTones
-			if cover != "" {
-				posterTones = tonesFor(tones, coverSource)
-			}
 			if title == "" {
 				title = clusterTitle(ce.cluster)
 			}
@@ -573,7 +589,7 @@ func (s *LibraryService) continueWatching(
 				PositionSec:  p.PositionSec,
 				DurationSec:  p.DurationSec,
 				UpdatedAt:    p.UpdatedAt,
-				PosterTones:  posterTones,
+				coverSource:  coverSource,
 			})
 		}
 	}

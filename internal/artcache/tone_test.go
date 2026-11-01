@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image/color"
 	"net/http"
 	"net/http/httptest"
@@ -175,12 +176,12 @@ func TestPosterTonesRetriesIOFailureLater(t *testing.T) {
 	assert.EqualValues(t, 1, calls.Load(), "重试时间没到")
 	assert.NoFileExists(t, path+toneSidecarSuffix)
 
+	// 过了重试时间、读盘恢复正常（换回真正的取色函数）：这次就算出来了
 	now = now.Add(toneRetryAfter + time.Second)
 	sampleHueFile = prev
-	c.PosterTones(toneTestURL)
+	assert.Nil(t, c.PosterTones(toneTestURL), "重新排队，这一次仍是 null")
 	c.toneWG.Wait()
-	assert.EqualValues(t, 1, calls.Load())
-	require.NotNil(t, c.PosterTones(toneTestURL), "过了重试时间，换回正常读盘就算出来了")
+	require.NotNil(t, c.PosterTones(toneTestURL))
 }
 
 // 新下载的封面落盘就排队取色。
@@ -215,8 +216,8 @@ func TestDownloadPrefersDecodableFormats(t *testing.T) {
 	assert.Equal(t, "image/jpeg,image/png;q=0.9,image/*;q=0.1", accept.Load())
 }
 
-// 解码器 panic 不带走进程：记成「解不了」，不再重算。
-func TestPosterTonesSurvivesDecoderPanic(t *testing.T) {
+// 取色时 panic 不带走进程：按读盘失败处理（不写边车，过了重试间隔再试）。
+func TestPosterTonesSurvivesPanic(t *testing.T) {
 	c := newTestCache(t)
 	var calls atomic.Int32
 	prev := sampleHueFile
@@ -229,8 +230,20 @@ func TestPosterTonesSurvivesDecoderPanic(t *testing.T) {
 
 	assert.Nil(t, c.PosterTones(toneTestURL))
 	c.toneWG.Wait()
-	assert.Equal(t, reasonDecode, readSidecar(t, path).Reason)
+	assert.NoFileExists(t, path+toneSidecarSuffix, "panic 可能出在自己的代码里，不能记成永久的「解不了」")
 	assert.Nil(t, c.PosterTones(toneTestURL))
 	c.toneWG.Wait()
-	assert.EqualValues(t, 1, calls.Load())
+	assert.EqualValues(t, 1, calls.Load(), "重试间隔内不再试")
+}
+
+// 内存表满了只清算好的结果，失败记录留着：否则重试间隔形同虚设。
+func TestRememberToneKeepsFailuresWhenFull(t *testing.T) {
+	c := newTestCache(t)
+	c.rememberTone("failed", toneResult{failedAt: c.now()})
+	for i := range maxToneMemo {
+		c.rememberTone(fmt.Sprintf("ok-%d", i), toneResult{})
+	}
+	_, known := c.memoTone("failed")
+	assert.True(t, known)
+	assert.Less(t, len(c.toneMemo), maxToneMemo)
 }

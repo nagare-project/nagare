@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	// 只注册标准库的三种解码器：不加依赖，也不解 WebP / AVIF。
 	_ "image/gif"
 	_ "image/jpeg"
@@ -36,6 +37,9 @@ const (
 	// 8MB 的文件上限挡不住「一张压得很小的超大 PNG」，解开就是几百 MB 内存。
 	// 封面通常不到一百万像素，4000 万已经极宽松。
 	maxTonePixels = 40_000_000
+	// maxToneDecodeBytes 是解码后像素缓冲的上限：4000 万像素 × 4 字节。16 位色深的 PNG
+	// 每像素 8 字节，同样的像素数要翻倍内存，所以按估算的字节数再卡一道（实际等于 2000 万像素）。
+	maxToneDecodeBytes = maxTonePixels * 4
 
 	// maxPendingTones 是排队等取色的封面数上限。超出的这一次不排，下次拼响应时还会再排。
 	maxPendingTones = 512
@@ -83,13 +87,15 @@ func (c *Cache) PosterTones(rawURL string) *PosterTones {
 	if tones, known := c.memoTone(path); known {
 		return tones
 	}
-	if tones, found := readToneSidecar(path); found {
-		c.rememberTone(path, toneResult{tones: tones})
-		return copyTones(tones)
-	}
+	// 先看封面在不在：没缓存的封面（常态）只花一次 stat，不再去读一个必然不存在的边车
 	if st, err := os.Stat(path); err != nil || st.Size() == 0 {
 		return nil
 	}
+	if tones, found, _ := readToneSidecar(path); found {
+		c.rememberTone(path, toneResult{tones: tones})
+		return copyTones(tones)
+	}
+	// 边车不在或读不了：交给后台，读不了的原因由 computeTone 记日志（只记一次，算完就进内存）
 	c.scheduleTone(path)
 	return nil
 }
@@ -125,7 +131,12 @@ func (c *Cache) rememberTone(path string, m toneResult) {
 	c.toneMu.Lock()
 	defer c.toneMu.Unlock()
 	if len(c.toneMemo) >= maxToneMemo {
-		clear(c.toneMemo)
+		// 满了就丢掉算好的结果（之后从边车读回来），但留着失败记录：清掉它们等于取消了重试间隔
+		for k, v := range c.toneMemo {
+			if v.failedAt.IsZero() {
+				delete(c.toneMemo, k)
+			}
+		}
 	}
 	c.toneMemo[path] = m
 }
@@ -156,13 +167,11 @@ func (c *Cache) scheduleTone(path string) {
 		defer func() { <-c.toneSem }()
 		defer func() {
 			// 后台 goroutine 里的 panic 会带走整个进程（包括正在放的片子）。标准库解码器不该 panic，
-			// 但封面来自外部，这里兜一层：记成「解不了」写进边车，不再重算。
+			// 但封面来自外部，这里兜一层。不写边车：panic 也可能出在我们自己的代码里，
+			// 写成永久的「解不了」就要等算法版本号变了才会重算。按读盘失败处理，隔一段时间再试。
 			if r := recover(); r != nil {
-				log.Printf("artcache: 封面取色时解码器异常（%s）：%v", filepath.Base(path), r)
-				if err := writeToneSidecar(path, toneSidecar{Version: toneAlgoVersion, Reason: reasonDecode}); err != nil {
-					log.Printf("artcache: 写取色结果失败（%s）：%v", filepath.Base(path), err)
-				}
-				c.rememberTone(path, toneResult{})
+				log.Printf("artcache: 封面取色时异常（%s），%v 后再试：%v", filepath.Base(path), toneRetryAfter, r)
+				c.rememberTone(path, toneResult{failedAt: c.now()})
 			}
 		}()
 		c.computeTone(path)
@@ -171,9 +180,13 @@ func (c *Cache) scheduleTone(path string) {
 
 // computeTone 取色、写边车、记进内存。日志里只有封面文件名（URL 的哈希），不出现 URL。
 func (c *Cache) computeTone(path string) {
-	if tones, found := readToneSidecar(path); found {
+	tones, found, err := readToneSidecar(path)
+	if found {
 		c.rememberTone(path, toneResult{tones: tones})
 		return
+	}
+	if err != nil {
+		log.Printf("artcache: 读取色结果失败（%s），重算：%v", filepath.Base(path), err)
 	}
 	hue, reason, err := sampleHueFile(path)
 	if err != nil {
@@ -182,7 +195,6 @@ func (c *Cache) computeTone(path string) {
 		return
 	}
 	sc := toneSidecar{Version: toneAlgoVersion}
-	var tones *PosterTones
 	if reason == "" {
 		h := roundHue(hue)
 		ladder := LadderFor(h)
@@ -197,24 +209,25 @@ func (c *Cache) computeTone(path string) {
 	c.rememberTone(path, toneResult{tones: tones})
 }
 
-// readToneSidecar 读边车。found = false：没有、读不了、格式不对或算法版本旧了 —— 都按「要重算」处理。
-func readToneSidecar(coverPath string) (tones *PosterTones, found bool) {
+// readToneSidecar 读边车。found = false：没有、读不了、格式不对或算法版本旧了 —— 都按「要重算」处理；
+// err 只在「文件在但读不了」时非空（不存在是常态，不算错误）。
+func readToneSidecar(coverPath string) (tones *PosterTones, found bool, err error) {
 	raw, err := os.ReadFile(coverPath + toneSidecarSuffix)
 	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			log.Printf("artcache: 读取色结果失败（%s），将重算：%v", filepath.Base(coverPath), err)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, false, nil
 		}
-		return nil, false
+		return nil, false, err
 	}
 	var sc toneSidecar
 	if err := json.Unmarshal(raw, &sc); err != nil || sc.Version != toneAlgoVersion {
-		return nil, false
+		return nil, false, nil
 	}
 	if sc.Hue == nil {
-		return nil, true
+		return nil, true, nil
 	}
 	ladder := LadderFor(*sc.Hue)
-	return &ladder, true
+	return &ladder, true, nil
 }
 
 // writeToneSidecar 原子落盘：先写临时文件再改名，读的一方永远看不到半个 JSON。
@@ -254,10 +267,11 @@ func sampleHueFromFile(path string) (float64, toneReason, error) {
 }
 
 // sampleHue 先只读文件头核对格式与尺寸，再整张解码、交给 dominantHue。
-func sampleHue(r io.ReadSeeker) (float64, toneReason, error) {
+func sampleHue(src io.ReadSeeker) (float64, toneReason, error) {
+	r := &readErrTracker{ReadSeeker: src}
 	cfg, format, err := image.DecodeConfig(r)
 	if err != nil {
-		reason, ioErr := decodeFailure(err)
+		reason, ioErr := r.classify(err)
 		return 0, reason, ioErr
 	}
 	switch format {
@@ -269,7 +283,8 @@ func sampleHue(r io.ReadSeeker) (float64, toneReason, error) {
 	if cfg.Width <= 0 || cfg.Height <= 0 {
 		return 0, reasonDecode, nil
 	}
-	if int64(cfg.Width)*int64(cfg.Height) > maxTonePixels {
+	pixels := int64(cfg.Width) * int64(cfg.Height)
+	if pixels > maxTonePixels || pixels*bytesPerPixel(cfg.ColorModel) > maxToneDecodeBytes {
 		return 0, reasonTooLarge, nil
 	}
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
@@ -277,7 +292,7 @@ func sampleHue(r io.ReadSeeker) (float64, toneReason, error) {
 	}
 	img, _, err := image.Decode(r)
 	if err != nil {
-		reason, ioErr := decodeFailure(err)
+		reason, ioErr := r.classify(err)
 		return 0, reason, ioErr
 	}
 	hue, ok := dominantHue(img)
@@ -287,15 +302,48 @@ func sampleHue(r io.ReadSeeker) (float64, toneReason, error) {
 	return hue, "", nil
 }
 
-// decodeFailure 区分「文件读不了」（I/O，返回 error 以便重试）与「文件内容解不了」（确定的结果）。
-func decodeFailure(err error) (toneReason, error) {
-	var pe *fs.PathError
-	switch {
-	case errors.As(err, &pe):
-		return "", err
-	case errors.Is(err, image.ErrFormat):
-		return reasonUnsupported, nil
-	default:
-		return reasonDecode, nil
+// bytesPerPixel 估算解码后每个像素占几个字节（按标准库各解码器产出的图像类型）。
+func bytesPerPixel(m color.Model) int64 {
+	switch m {
+	case color.GrayModel:
+		return 1
+	case color.Gray16Model:
+		return 2
+	case color.RGBA64Model, color.NRGBA64Model:
+		return 8
+	case color.YCbCrModel, color.CMYKModel:
+		return 4 // YCbCr 4:4:4 最多 3 字节；CMYK 4 字节，按 4 算留余量
 	}
+	if _, ok := m.(color.Palette); ok {
+		return 1
+	}
+	return 4
+}
+
+// classify 区分「文件读不了」（I/O，返回 error 以便重试）与「文件内容解不了」（确定的结果）。
+//
+// 不能只看解码器返回的错误：image.DecodeConfig 嗅探格式时读失败，返回的是 ErrFormat（「不认识的格式」），
+// 磁盘错误就被当成「不支持」写进边车、永远不再算。所以在读取这一层记下真正的读错误。
+func (r *readErrTracker) classify(err error) (toneReason, error) {
+	if r.err != nil {
+		return "", r.err
+	}
+	if errors.Is(err, image.ErrFormat) {
+		return reasonUnsupported, nil
+	}
+	return reasonDecode, nil
+}
+
+// readErrTracker 记下第一个读错误（io.EOF 是正常的文件结尾，不算）。
+type readErrTracker struct {
+	io.ReadSeeker
+	err error
+}
+
+func (r *readErrTracker) Read(p []byte) (int, error) {
+	n, err := r.ReadSeeker.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) && r.err == nil {
+		r.err = err
+	}
+	return n, err
 }
