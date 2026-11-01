@@ -16,7 +16,7 @@ export function MissingEpisodeCards({ media, cluster, unassociated = false }: { 
   const [details, setDetails] = useState<EpisodeMetadata>()
   if (!episodes.length && cluster) return null
   return <section className="missing-episodes" aria-label={unassociated ? '剧集资料' : '未入库剧集'}>
-    <div className="missing-episodes-heading"><h3><Icon name="lists" size={22} />{unassociated ? '剧集资料' : '未入库剧集'}</h3>{!cluster && <a href="/" className="link">添加本地文件夹<Icon name="right" size={14} /></a>}</div>
+    <div className="missing-episodes-heading"><h3><Icon name="lists" size={22} />{unassociated ? '剧集资料' : '未入库剧集'}</h3>{!cluster && <a href="/library" className="link">添加本地文件夹<Icon name="right" size={14} /></a>}</div>
     <p className="missing-episodes-hint">{unassociated ? '选择并关联本地作品后，可查看剧集的入库情况。' : episodes.length ? '以下剧集尚未添加到本地媒体库：' : '暂无已播出的剧集资料。'}</p>
     <ul className="episode-card-grid missing-episode-grid">{episodes.map(episode => <li className="missing-episode" key={episode.episode}>
       <span className="episode-card-art"><EpisodeArtwork image={episode.image} banner={media.banner} cover={media.cover} /></span>

@@ -1,0 +1,5 @@
+{
+  "config": { "enabled": false, "executable": "", "root": "" },
+  "status": { "phase": "disabled" },
+  "sources": []
+}

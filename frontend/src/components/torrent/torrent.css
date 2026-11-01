@@ -10,7 +10,7 @@
 
 .tsb-bar {
   position: fixed;
-  inset-inline: var(--rail-w) 0;
+  inset-inline: 0;
   bottom: 0;
   z-index: 20;
   display: flex;
@@ -220,7 +220,7 @@
 }
 
 .ep-item:focus-visible {
-  outline: 2px solid var(--brand-hot);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 2px;
 }
 

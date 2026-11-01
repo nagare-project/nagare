@@ -76,8 +76,18 @@ describe('发现页的作品搜索（路由一层）', () => {
     expect(searchCalls(mock)).toContain('芙莉莲')
     expect(container.textContent).toContain('搜索「芙莉莲」')
     expect(container.textContent).not.toContain('animego 上在看最多')
-    const nav = [...container.querySelectorAll('.app-top-links a')].find((a) => a.textContent === '发现')
+    // /discover 是 / 的别名：参数原样带过去，主导航里的「发现」是当前页
+    const nav = [...container.querySelectorAll('nav[aria-label="主导航"] a')].find((a) => a.textContent === '发现')
     expect(nav?.getAttribute('aria-current')).toBe('page')
+    await unmount()
+  })
+
+  it('/discover 跳到 /（replace），q 与 genre 原样保留', async () => {
+    stubFetch()
+    const { router, unmount } = await mountAt('/discover?q=芙莉莲&genre=Sci-Fi')
+
+    expect(router.state.location.pathname).toBe('/')
+    expect(validated(router)).toMatchObject({ q: '芙莉莲', genre: 'Sci-Fi' })
     await unmount()
   })
 

@@ -117,7 +117,7 @@ function DownloadRow({ task, busy, onRemove }: { task: DownloadTask; busy: boole
       )}
       {task.error && <p className="result result--err">{task.error}</p>}
       <div className="download-actions">
-        {task.state === 'done' && <a className="btn btn--sm" href="/">去媒体库</a>}
+        {task.state === 'done' && <a className="btn btn--sm" href="/library">去媒体库</a>}
         <button type="button" className={active ? 'btn btn--sm btn--danger' : 'btn btn--sm'} disabled={busy} onClick={onRemove}>
           {busy ? '处理中…' : removeLabel}
         </button>

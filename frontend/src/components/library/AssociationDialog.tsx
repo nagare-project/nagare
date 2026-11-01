@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { MouseEvent, PointerEvent } from 'react'
 import type { LibraryCluster } from '../../lib/endpoints'
+import { isBackdropEvent } from '../../lib/dialog'
 import { errorText } from '../../lib/format'
 import { fetchCatalogSearch } from '../../lib/media'
 import { Icon } from '../ui/Icon'
@@ -30,13 +30,6 @@ interface Props {
 }
 
 const clampQuery = (text: string) => [...text].slice(0, MAX_QUERY_LENGTH).join('')
-
-/** 点在对话框框体之外（遮罩上）。框体内的滚动条也算 target === dialog，所以按坐标判断 */
-function onBackdrop(dialog: HTMLDialogElement, event: MouseEvent | PointerEvent): boolean {
-  if (event.target !== dialog) return false
-  const r = dialog.getBoundingClientRect()
-  return event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom
-}
 
 /**
  * 选择作品分组对应的目录作品。只在提交时搜：目录搜索有限速（后端另有缓存与节流兜底），
@@ -142,11 +135,11 @@ export function AssociationDialog({ cluster, open, onClose, onChoose, onLateErro
         onClose()
       }}
       onPointerDown={(event) => {
-        downOnBackdrop.current = dialog.current !== null && onBackdrop(dialog.current, event)
+        downOnBackdrop.current = dialog.current !== null && isBackdropEvent(dialog.current, event)
       }}
       onClick={(event) => {
         // 按下和松开都在遮罩上才算点遮罩：在输入框里拖选文字、松手落到遮罩上不该关掉
-        if (downOnBackdrop.current && dialog.current && onBackdrop(dialog.current, event)) dialog.current.close()
+        if (downOnBackdrop.current && dialog.current && isBackdropEvent(dialog.current, event)) dialog.current.close()
         downOnBackdrop.current = false
       }}
     >

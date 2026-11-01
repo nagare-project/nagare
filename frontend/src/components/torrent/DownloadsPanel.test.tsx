@@ -46,7 +46,9 @@ describe('磁力任务页的下载列表', () => {
     expect(items[1]?.textContent).toContain('还没连上分享这个种子的人')
     expect(items[2]?.textContent).toContain('已完成')
     expect(items[2]?.textContent).toContain('/Users/you/Downloads/nagare/剧场版.mkv')
-    expect(items[2]?.querySelector('a[href="/"]')).not.toBeNull()
+    // 下完的任务给一个去媒体库的入口（媒体库在 /library）
+    const toLibrary = [...(items[2]?.querySelectorAll('a') ?? [])].find((a) => a.textContent === '去媒体库')
+    expect(toLibrary?.getAttribute('href')).toBe('/library')
     expect(items[3]?.textContent).toContain('私有站')
     await unmount()
   })
