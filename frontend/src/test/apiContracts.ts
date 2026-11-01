@@ -18,6 +18,7 @@ import type {
   animegoLogin, rescanLibrary,
 } from '../lib/endpoints'
 import type { EpisodeOffset } from '../lib/episodeOffset'
+import type { SyncRetryResult } from '../lib/syncRetry'
 import type { EpisodeMetadata } from '../components/media/types'
 import { arr, bool, exact, int, lazy, lit, nullable, num, obj, str, union, type Schema } from './contract'
 
@@ -71,7 +72,7 @@ const danmaku = exact<DanmakuStatus>()(obj(
 export const playData = exact<PlayData>()(obj({ title: str, danmaku }, { fileId: str, playbackId: str }))
 const syncFailure = exact<SyncFailure>()(obj(
   { state: lit('failed') },
-  { fileId: str, title: str, episode: int, reason: str, recovery: str, at: int },
+  { fileId: str, title: str, episode: int, reason: str, recovery: str, at: int, pending: int },
 ))
 const playbackFailure = exact<PlaybackFailure>()(obj({ fileId: str, reason: str, at: int }, { playbackId: str }))
 const playingStatus = exact<PlayingStatus>()(obj(
@@ -82,6 +83,7 @@ export const playerStatus = exact<PlayerStatus>()(union(
   playingStatus,
   obj({ playing: lit(false) }, { sync: syncFailure, playbackFailure }),
 ))
+export const syncRetryResult = exact<SyncRetryResult>()(obj({ synced: int, remaining: int }, { reason: str }))
 const anime4k = lit('off', 'fast', 'hq')
 export const playerConfigResult = exact<PlayerConfigResult>()(obj({ anime4k, applied: bool }, { applyError: str }))
 

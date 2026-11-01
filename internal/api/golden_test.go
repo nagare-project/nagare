@@ -136,6 +136,16 @@ func systemGoldenCases() []goldenCase {
 		{"player-stop", func(t *testing.T) []byte {
 			return newGoldenEnv(t, goldenOptions{}).call(t, http.StatusOK, http.MethodPost, "/api/player/stop", "")
 		}},
+		{"player-sync-retry", func(t *testing.T) []byte {
+			env := newGoldenEnv(t, goldenOptions{})
+			env.player.retryRes = player.SyncRetryResult{Synced: 1, Remaining: 1, Reason: "账号服务限流中，稍后再试"}
+			return env.call(t, http.StatusOK, http.MethodPost, "/api/player/sync/retry", "")
+		}},
+		{"player-sync-retry-done", func(t *testing.T) []byte {
+			env := newGoldenEnv(t, goldenOptions{})
+			env.player.retryRes = player.SyncRetryResult{Synced: 2}
+			return env.call(t, http.StatusOK, http.MethodPost, "/api/player/sync/retry", "")
+		}},
 		{"player-config", func(t *testing.T) []byte {
 			env := newGoldenEnv(t, goldenOptions{})
 			env.player.playing = true
@@ -167,7 +177,8 @@ func goldenPlaybackFailure() *player.PlaybackFailure {
 func goldenSyncFailure() *player.SyncInfo {
 	return &player.SyncInfo{
 		State: "failed", FileID: "[Sub] Frieren - 01 [1080p].mkv|3145728|1788249600000", Title: "葬送的芙莉莲", Episode: 1,
-		Reason: "账号服务暂时连不上，这一集没有记成看完", Recovery: "重看这一集并看完时会再试一次", At: goldenNow.UnixMilli(),
+		Reason: "账号服务暂时连不上，这一集没有记成看完", Recovery: "点「重试」现在补记，或等下次启动时自动补记", At: goldenNow.UnixMilli(),
+		Pending: 2,
 	}
 }
 

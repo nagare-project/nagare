@@ -38,6 +38,8 @@ const CONTRACTS: Record<string, Contract> = {
   'player-status-playing': okEnvelope(c.playerStatus),
   'player-status-paused-with-failures': okEnvelope(c.playerStatus),
   'player-stop': okEnvelope(emptyObject),
+  'player-sync-retry': okEnvelope(c.syncRetryResult),
+  'player-sync-retry-done': okEnvelope(c.syncRetryResult),
   'player-config': okEnvelope(c.playerConfigResult),
   'player-config-apply-error': okEnvelope(c.playerConfigResult),
   'auth-login': okEnvelope(c.loginData),
