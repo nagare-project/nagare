@@ -56,7 +56,11 @@ mkv mp4 avi webm mov m4v flv wmv ts rmvb 都在内）。verify.sh 核对这三�
 - **mpv**：`HAVE_GPL 0`；mpv 在 `Copyright` 里列出的「GPL only」文件一个都不能出现在实际编译的源文件里
   （verify.sh 每次从 `Copyright` 现读这张清单，清单读不出来也算失败）。
 - **其余组件**：选用的许可证不能是 GPL；依据为 `lock` 的，必须是 `versions.lock` 那一列或它的「OR」选项之一；
-  用到却没写、写了却没用到，都算失败。随包的许可证原文里不能有 GPL 的。
+  用到却没写、写了却没用到，都算失败。随包的许可证原文里不能有 GPL 的（文件名与标题行都看）——
+  uchardet 的 `COPYING` 把 MPL / GPL / LGPL 三份原文放在一个文件里，配方从里面只截出 LGPL-2.1 那份随包。
+- **对应源码包**：[`check-source-bundle.sh`](check-source-bundle.sh) 解开 CI 打的源码包，核对用到的每份上游源码都在、
+  sha256 对，脚本 / 补丁 / 版本锁都在，并用包里的脚本与源码算三个目标的缓存键，必须与仓库算的一致
+  （缓存键覆盖全部配方、构建助手、补丁、源码锁与工具链）。
 
 ## 本地构建
 
@@ -84,7 +88,9 @@ scripts/ios/libmpv/manifest.sh out
 - 静态：三个切片齐全（真机 arm64、模拟器 arm64 + x86_64），平台（`LC_BUILD_VERSION`）对，minos ≤ 15.0，
   是动态库、装载名对、没有 `LC_RPATH`、只依赖系统库、只导出 `mpv_*`（宿主要用的 API 一个不少），
   framework 的 Info.plist / 头文件 / module map / 签名；上面「许可证」一节的全部检查；没有 TLS；
-  VideoToolbox 硬解的组件都在；LuaJIT 的 `LJ_HASJIT` 是 0。另外列出每个切片引用的
+  VideoToolbox / `ios-gl` / OpenGL render API / AudioUnit 的源文件与配置都编进去了、对应的系统 framework
+  真的链接上了（链接时去掉了没用到的 framework，所以在就说明有代码用它）；LuaJIT 的 `LJ_HASJIT` 是 0
+  （光凭 iOS 的目标参数就是 0，另外还显式关了一次）。另外列出每个切片引用的
   「需要声明理由的 API」（`stat` 一类、`mach_absolute_time`）—— App 的 `PrivacyInfo.xcprivacy` 要覆盖它们。
 - `--simulator`：新建一台 iOS 模拟器，编链接了模拟器切片的 [`tests/sim_test.m`](tests/sim_test.m)，经
   `xcrun simctl spawn` 在模拟器里跑：初始化与版本、扫描器认的每个扩展名各解一段（视频与音频都要解出东西）、
@@ -92,6 +98,7 @@ scripts/ios/libmpv/manifest.sh out
   render API 在 EAGLContext（OpenGL ES）上画 30 帧并读回像素。本机架构那一片全套必过；Apple Silicon 上装了
   Rosetta 时 x86_64 那一片也跑全套（CI 就是这样，Intel 开发机用的正是这一片）。
 
-模拟器里的 VideoToolbox 起不来（`hwaccel initialisation returned error`，回落到软解），所以 VideoToolbox 解码与
-它接到 OpenGL ES 上（`ios-gl`）这两项在模拟器里只警告；真机切片在 CI 上也只能做静态检查（runner 跑不了 iOS
-真机程序）。这两件事要等 App 接上之后在 iPhone / iPad 上过。
+模拟器里的 VideoToolbox 起不来（`hwaccel initialisation returned error`，回落到软解）：mpv 必须真的去试了
+VideoToolbox（日志里看得到，否则算失败），但「用上了」与「接到 OpenGL ES 上」（`ios-gl`）这两项在模拟器里只警告；
+真机切片在 CI 上也只能做静态检查（runner 跑不了 iOS 真机程序）。这两件事要等 App 接上之后在 iPhone / iPad 上过。
+App 那边起 mpv 时要设 `ytdl=no`（iOS 起不了子进程，内置的 ytdl_hook 会白白报错）。
