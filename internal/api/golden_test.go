@@ -83,7 +83,11 @@ func systemGoldenCases() []goldenCase {
 				d.BackgroundMode = ""
 			}})
 			setGoldenPlatform(t, "windows", "amd64")
+			env.h.SetCoverCache(nil) // 封面缓存没建起来（目录不可写）：coverCache 为 null
 			return env.call(t, http.StatusOK, http.MethodGet, "/api/settings", "")
+		}},
+		{"cover-cache-clear", func(t *testing.T) []byte {
+			return newGoldenEnv(t, goldenOptions{}).call(t, http.StatusOK, http.MethodPost, "/api/cover-cache/clear", "")
 		}},
 		{"mpv-detect-found", func(t *testing.T) []byte {
 			return newGoldenEnv(t, goldenOptions{}).call(t, http.StatusOK, http.MethodPost, "/api/mpv/detect", "")

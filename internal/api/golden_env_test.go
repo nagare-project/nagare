@@ -111,6 +111,7 @@ func newGoldenEnv(t *testing.T, opts goldenOptions) *goldenEnv {
 	env.h = New(deps)
 	env.h.SetCatalogArtPrefix(goldenArtPrefix)
 	env.h.SetPosterTones(goldenTones{})
+	env.h.SetCoverCache(goldenCoverCache())
 	env.h.catalog.cache.now = clock
 	env.h.catalog.sleep = func(context.Context, time.Duration) error { return nil }
 	env.h.lists.cache.now = clock
