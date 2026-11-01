@@ -2,6 +2,11 @@
 --
 -- 坐标一律是 OSD 像素（overlay 的 res_x/res_y 设成 osd-dimensions），所以 \fs 也是像素。
 -- 图标在 24×24 的格子里定义，全部是填充形状（ASS 的绘图只会填充，没有描边），画的时候缩放平移。
+--
+-- 颜色选项（color、border_color）可以直接给 tokens.lua 的颜色项 { color = "#RRGGBB", opacity = 0..1 }，
+-- 也可以给 "#RRGGBB" 字符串；opacity 选项与颜色项自带的不透明度相乘（颜色项 × 这一处再淡一些）。
+
+local T = require 'tokens'
 
 local M = {}
 
@@ -18,6 +23,14 @@ end
 
 local function num(v)
 	return string.format("%.1f", v)
+end
+
+-- 颜色项或 "#RRGGBB" → "#RRGGBB" 与最终的不透明度
+local function paint(color, opacity)
+	if type(color) == "table" then
+		return color.color, (color.opacity or 1) * (opacity or 1)
+	end
+	return color or T.color.text.color, opacity or 1
 end
 
 -- 文字转义：反斜杠后插一个零宽字符，花括号转义，换行换成 \N
@@ -149,10 +162,21 @@ function M.wrap(s, size, max_w, max_lines)
 				add({ text = ch, em = char_em(cp), cp = cp, single = true })
 			end
 		else
-			local carry = (NO_LINE_START[w.cp] and #line > 1) and table.remove(line) or nil
+			-- 不能放行首的标点：把前面的字一起挪到下一行。前一个也是这类标点（「重试」，）时接着往前挪，
+			-- 挪到第一个能放行首的字为止，整行至少留一个
+			local carry = {}
+			if NO_LINE_START[w.cp] then
+				while #line > 1 do
+					local prev = table.remove(line)
+					table.insert(carry, 1, prev)
+					if not NO_LINE_START[prev.cp] then
+						break
+					end
+				end
+			end
 			newline()
-			if carry then
-				add(carry)
+			for _, c in ipairs(carry) do
+				add(c)
 			end
 			add(w)
 		end
@@ -326,16 +350,17 @@ local function fill_tags(color, opacity)
 	return "{\\an7\\pos(0,0)\\bord0\\shad0\\blur0\\1c&H" .. hex(color) .. "&\\1a&H" .. alpha(opacity) .. "&\\p1}"
 end
 
--- 原样画一段已经在屏幕坐标里的路径
+-- 原样画一段已经在屏幕坐标里的路径。color 是颜色项或 "#RRGGBB"（省略 = 主文字色）
 function Canvas:shape(path, color, opacity)
-	self:push(fill_tags(color or "#FFFFFF", opacity or 1) .. path .. "{\\p0}")
+	local c, a = paint(color, opacity)
+	self:push(fill_tags(c, a) .. path .. "{\\p0}")
 end
 
 function Canvas:rect(x1, y1, x2, y2, o)
 	o = o or {}
 	if o.border_color then
 		local b = o.border or 1
-		self:shape(rrect_path(x1, y1, x2, y2, o.radius), o.border_color, o.border_opacity or 1)
+		self:shape(rrect_path(x1, y1, x2, y2, o.radius), o.border_color, o.border_opacity)
 		self:shape(rrect_path(x1 + b, y1 + b, x2 - b, y2 - b, math.max(0, (o.radius or 0) - b)), o.color, o.opacity)
 	else
 		self:shape(rrect_path(x1, y1, x2, y2, o.radius), o.color, o.opacity)
@@ -345,8 +370,9 @@ end
 -- 只画边框：填充全透明，靠 ASS 的 \bord 描边（叠一层透明形状盖不掉下面的填充）
 function Canvas:stroke_rect(x1, y1, x2, y2, o)
 	o = o or {}
+	local c, a = paint(o.color, o.opacity)
 	self:push("{\\an7\\pos(0,0)\\bord" .. num(o.width or 1) .. "\\shad0\\blur0\\1a&HFF&\\3c&H"
-		.. hex(o.color or "#FFFFFF") .. "&\\3a&H" .. alpha(o.opacity or 1) .. "&\\p1}"
+		.. hex(c) .. "&\\3a&H" .. alpha(a) .. "&\\p1}"
 		.. rrect_path(x1, y1, x2, y2, o.radius) .. "{\\p0}")
 end
 
@@ -355,11 +381,17 @@ function Canvas:circle(cx, cy, r, o)
 	self:shape(circle_path(cx, cy, r), o.color, o.opacity)
 end
 
--- 竖直方向的渐变遮罩：ASS 画不了渐变，切成若干条叠出来。
+-- 竖直方向的渐变遮罩：ASS 画不了渐变，切成若干条叠出来。tone 是最深那一边的颜色项（颜色与不透明度），
+-- dark 是最深的那一边（"top" 或 "bottom"），另一边渐变到全透明。
 -- 条与条的边界一律落在整像素上、首尾相接不重叠：overlay 的分辨率就是 OSD 像素，整数坐标正好是像素边，
 -- 不会被抗锯齿。哪怕重叠一点（以前每条多盖 0.6 像素防缝），重叠处的透明度叠两次，每道拼缝就是一条
 -- 看得见的深色横纹。条数至少每 4 像素一条，渐变的台阶小到看不出来。
-function Canvas:scrim(x1, y1, x2, y2, top_opacity, bottom_opacity, bands)
+function Canvas:scrim(x1, y1, x2, y2, tone, dark, bands)
+	local color, deepest = paint(tone)
+	local top_opacity, bottom_opacity = deepest, 0
+	if dark == "bottom" then
+		top_opacity, bottom_opacity = 0, deepest
+	end
 	local top, bottom = math.floor(y1 + 0.5), math.floor(y2 + 0.5)
 	local height = bottom - top
 	if height <= 0 then
@@ -374,7 +406,7 @@ function Canvas:scrim(x1, y1, x2, y2, top_opacity, bottom_opacity, bands)
 			local t = ((prev + edge) / 2 - top) / height
 			local op = top_opacity + (bottom_opacity - top_opacity) * t
 			if op > 0.004 then
-				self:shape(rrect_path(left, prev, right, edge, 0), "#000000", op)
+				self:shape(rrect_path(left, prev, right, edge, 0), color, op)
 			end
 			prev = edge
 		end
@@ -388,19 +420,23 @@ function Canvas:icon(name, x, y, size, color, opacity)
 	end
 end
 
--- 文字。o.align 用 ASS 的数字键盘方位（7 左上、5 居中、9 右上、4 左中、6 右中……）
+-- 文字。o.align 用 ASS 的数字键盘方位（7 左上、5 居中、9 右上、4 左中、6 右中……）；
+-- o.weight 是 100–900 的字重（ASS 的 \b 直接认字重）；o.outline 是描边宽，颜色是 o.halo（省略 =
+-- 播放器的文字描边色）。字号与字重一般由 core.text_style 从字号阶梯取。
 function Canvas:text(x, y, s, o)
 	o = o or {}
+	local fg, fg_a = paint(o.color, o.opacity)
+	local halo, halo_a = paint(o.halo or T.color.player_text_halo)
 	local tags = {
 		"{\\an", tostring(o.align or 7),
 		"\\pos(", num(x), ",", num(y), ")",
-		"\\fs", num(o.size or 16),
-		"\\b", o.bold and "1" or "0",
+		"\\fs", num(o.size or T.type_scale.body.size),
+		"\\b", tostring(o.weight or T.type_scale.body.weight),
 		"\\bord", num(o.outline or 0),
-		"\\3c&H000000&\\3a&H", alpha(o.outline_opacity or 0.5), "&",
+		"\\3c&H", hex(halo), "&\\3a&H", alpha(halo_a), "&",
 		"\\shad0\\blur", num(o.blur or 0),
-		"\\1c&H", hex(o.color or "#E6E6E6"), "&",
-		"\\1a&H", alpha(o.opacity or 1), "&",
+		"\\1c&H", hex(fg), "&",
+		"\\1a&H", alpha(fg_a), "&",
 	}
 	if o.font and o.font ~= "" then
 		tags[#tags + 1] = "\\fn" .. o.font

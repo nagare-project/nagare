@@ -107,6 +107,22 @@ func TestDeclaredContrastPairs(t *testing.T) {
 	assert.True(t, declared["text error-on-elevated bg-elevated"])
 }
 
+// 播放器界面（core.lua）直接取 T.font.cjk / T.font.mono 的当前平台那一项，没有兜底：
+// tokens.json 里这两项丢了 player，生成照样通过，界面脚本却会在加载时报错。
+func TestRepoPlayerFontsPresent(t *testing.T) {
+	f, err := decodeTokens(readFile(t, filepath.Join(repoRoot, tokensPath)))
+	require.NoError(t, err)
+	found := map[string]bool{}
+	for _, font := range f.Fonts {
+		if font.Player != nil {
+			found[font.Name] = true
+		}
+	}
+	for _, name := range []string{"font-cjk", "font-mono"} {
+		assert.True(t, found[name], "播放器界面要用 %s 的 player 字体（core.lua 的 FONT / MONO）", name)
+	}
+}
+
 // 公开仓库里的设计文档与 token 不出现其他产品的品牌名。
 func TestNoForeignBrandInDesignFiles(t *testing.T) {
 	for _, rel := range append([]string{tokensPath}, outputPaths...) {
@@ -205,6 +221,10 @@ func TestValidation(t *testing.T) {
 		{"界面元素不到 3", `"restricted": [`, `"ui": [{ "fg": "bg", "on": ["bg"], "use": "色块" }], "restricted": [`, "要 ≥ 3:1"},
 		{"限制已过时", `"fg": "bg", "on": ["bg"], "use": "黑在黑上"`, `"fg": "text", "on": ["bg"], "use": "白在黑上"`, "限制过时了"},
 		{"use 里的对比度与实算不符", `"use": "文字" }`, `"use": "文字（20.00:1）" }`, "实算出这个值"},
+		{"播放器字体缺平台", `"version": 1,`, `"version": 1, "fonts": [{ "name": "font-x", "families": ["A"], "player": { "darwin": "A", "windows": "B" }, "use": "缺 linux" }],`, "player.linux"},
+		{"播放器字体多出键", `"version": 1,`, `"version": 1, "fonts": [{ "name": "font-x", "families": ["A"], "player": { "darwin": "A", "windows": "B", "linux": "C", "ios": "D" }, "use": "多一个" }],`, "player.ios 不认识"},
+		{"播放器字体名截断 ASS 标签", `"version": 1,`, `"version": 1, "fonts": [{ "name": "font-x", "families": ["A"], "player": { "darwin": "A}", "windows": "B", "linux": "C" }, "use": "坏" }],`, "player.darwin"},
+		{"播放器字体名前缀", `"version": 1,`, `"version": 1, "fonts": [{ "name": "mono", "families": ["A"], "player": { "darwin": "A", "windows": "B", "linux": "C" }, "use": "坏" }],`, "font- 开头"},
 		{"阴影截断样式表", `"version": 1,`, `"version": 1, "shadows": [{ "name": "x", "value": "0 0 1px red; } body {", "use": "坏" }],`, "不能含"},
 		{"多余内容", `"use": "黑在黑上" }]
   }

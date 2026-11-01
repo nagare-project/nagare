@@ -1,8 +1,9 @@
 # 播放器界面
 
 mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，样式照方案 B「影院」：底部大区域、居中的
-白色大播放键、两端带时间的粗进度条，无边框窗口由界面自己画标题与窗口按钮。配色与网页一致
-（近黑表面 + 靛紫品牌色，见 `frontend/src/styles/global.css`）。
+白色大播放键、两端带时间的粗进度条，无边框窗口由界面自己画标题与窗口按钮。颜色、字号、圆角、间距、
+转圈的时长全部来自设计系统（仓库根目录的 `DESIGN.md`，数值在 `design/tokens.json`，生成到
+`scripts/nagare/tokens.lua`），见下面「样子」。
 
 ## nagare 一律用自己的 mpv 配置目录
 
@@ -31,13 +32,14 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
 | `internal/mpv/ui/mpv.conf` | 关掉 mpv 自带的进度提示与屏幕文字（`osd-level=0`，界面用自己的提示）；硬件解码 `hwdec=auto-safe`；关掉 mpv 自己的续播 |
 | `internal/mpv/ui/input.conf` | 快捷键（见下表），没列出的键保留 mpv 默认 |
 | `internal/mpv/ui/scripts/nagare/main.lua` | 控制条布局、自动隐藏、鼠标与按键分区、缓冲提示、屏幕提示、与 nagare 的消息 |
-| `internal/mpv/ui/scripts/nagare/core.lua` | 各模块共用的状态表、配色与字体、可点区域的登记、重绘调度、屏幕提示 |
+| `internal/mpv/ui/scripts/nagare/core.lua` | 各模块共用的状态表、按平台取字体、字号阶梯（`text_style`）、可点区域的登记、重绘调度、屏幕提示 |
+| `internal/mpv/ui/scripts/nagare/tokens.lua` | 设计 token（颜色、字号阶梯、字体、间距、圆角、时长），由 `go generate ./...` 从 `design/tokens.json` 生成，不要手改 |
 | `internal/mpv/ui/scripts/nagare/tracks.lua` | 认出弹幕轨、弹幕开关、字幕与音轨菜单 |
 | `internal/mpv/ui/scripts/nagare/seekbar.lua` | 进度条：缓冲范围、章节缝、悬停时间与缩略图、拖动跳转 |
 | `internal/mpv/ui/scripts/nagare/upnext.lua` | 上一集 / 下一集的请求，播完时的「下一集」卡片与下一集没能打开时的出错卡片（见「同一个窗口里切集」） |
 | `internal/mpv/ui/scripts/nagare/embed.lua` | 嵌进 nagare 桌面窗口时与宿主之间的 `user-data` 约定、边框、屏幕缩放（见「嵌进 nagare 的桌面窗口」） |
 | `internal/mpv/ui/scripts/nagare/menu.lua` | 右键菜单与控制条按钮弹出的菜单（子菜单、悬停展开、键盘上下选择） |
-| `internal/mpv/ui/scripts/nagare/draw.lua` | 圆角矩形、渐变遮罩、文字、矢量图标 → ASS 绘图指令 |
+| `internal/mpv/ui/scripts/nagare/draw.lua` | 圆角矩形、渐变遮罩、文字、矢量图标 → ASS 绘图指令（颜色选项直接收 token 的颜色项） |
 | `internal/mpv/ui/scripts/thumbfast.lua` | 进度条缩略图的生成（[po5/thumbfast](https://github.com/po5/thumbfast)，MPL-2.0，原样未改） |
 | `internal/mpv/ui/script-opts/thumbfast.conf` | thumbfast 的设置：192 宽、网络流不生成、闲置 10 分钟收掉缩略图进程 |
 | `internal/mpv/ui.go` | 内置配置的同步 |
@@ -58,6 +60,30 @@ mpv 窗口里的控制条、右键菜单、屏幕提示由 nagare 自己画，�
   生成缩略图要读流里别的位置，磁力下等于多一个读位置和播放抢带宽。
 - 坐标是 OSD 像素（`osd-dimensions`），尺寸乘 `display-hidpi-scale`（读不到时用宿主给的 `user-data/nagare/hidpi`，都没有按 1）。窗口逻辑宽度不到 760 时进入窄窗口模式，收起音量条、快退快进、倍速与 ⏮ ⏭。宽一些的窗口里 ⏮ ⏭ 放不下（会压到右边那一组按钮）时也不画；右键菜单与 Shift+N / Shift+P、PgDn / PgUp 照样能用。
 - 模块之间共用的状态都在 `core.lua` 的 `S` 里：各模块 `require 'core'` 拿到的是同一张表。可点区域每次重绘重新登记，后登记的在上层（「下一集」卡片的按钮压在控制条之上）。
+- 界面是目录脚本（`scripts/nagare/main.lua`），mpv 把脚本目录放进 `package.path`，所以 `require 'tokens'`、`require 'draw'` 都从这个目录找 —— 命令行 mpv 自动加载与 libmpv 下 `scripts=<配置目录>/scripts/nagare` 点名加载是同一条路。**各模块里不写颜色值**：颜色、字号、圆角从 `tokens.lua` 取（`core.T`），缺什么先加进 `design/tokens.json` 再 `go generate ./...`。按钮的点击区、控件位置这类只属于播放器的几何尺寸留在各模块里（点击区不小于 `T.layout.touch_min`）。
+- 字号阶梯的字重直接写进 ASS 的 `\b`（`\b500`、`\b600`，libass 认 100–900 的字重），不再是粗 / 不粗两档。
+
+## 样子
+
+照 `DESIGN.md` 的规则落到画面上。播放器与网页不同的地方是：控制条底下是画面，不是固定的底色，
+所以有几个只给播放器的 token（`player-*`，只输出到 Lua）。
+
+| 部分 | 怎么画 |
+|---|---|
+| 顶部、底部的渐变遮罩 | `player-scrim-top`（0.75 黑，往下到透明）、`player-scrim-bottom`（0.85 黑，往上到透明） |
+| 标题 / 副标题 | `h2`（24 / 600）主文字色；副标题 `label`（14 / 500）次要文字色；都带 `player-text-halo` 描边（弹幕密、画面亮时也看得清） |
+| 图标按钮（音量、窗口按钮、字幕、更多、全屏、快退快进、上一集下一集） | 主文字色（白）的图标；悬停垫一个 `bg-fill-hover` 的圆 / 圆角面（`radius-sm`） |
+| 大播放键 | 白色实心圆 + 黑色（`bg`）图标，悬停时图标变 `accent` |
+| 开着的开关 | 画质增强的图标变 `accent`；「弹」字开关开着是 `accent-fill` 底 + 白字（白字在 `accent` 上不到 4.5:1），关着是次要文字色的描边框 + 字 |
+| 进度条 | 底轨 `player-track`，能直接拖过去的部分 `player-buffered`，已播 `accent`，章节缝 `bg`，圆点白 |
+| 时间 | 两端与悬停提示的时间用等宽字体（`font-mono` 的播放器那一列：macOS Menlo、Windows Consolas、Linux monospace）—— 界面主字体的数字是比例宽的，每秒一跳会左右抖；`caption` 一档，播到哪是主文字色，总长是次要文字色，带描边。悬停提示是 `badge-scrim` 胶囊 |
+| 右键菜单与按钮弹出的菜单 | 浮层：`bg-elevated` 底、`radius-md`、`popover-border` 描边；字 `label`（14 / 500），右边的快捷键 `caption` 次要文字色；悬停是 `bg-fill-hover` 底；选中是 `accent-dim` 底 + `accent-on-elevated` 的对勾（字仍是白的）；「弹幕 开」的小字是 `accent-on-elevated` |
+| 「下一集」卡片 | 浮层卡：`bg-elevated`、`radius-md`、`popover-border`；小标题 `label` —— 「下一集」「正在准备」是只读信息 `teal`，出错是 `warning`；标题 `h2`；小字 `caption` 次要文字色；主按钮 `accent-fill`（悬停 `accent-fill-hover`）+ 白字，次按钮是三级描边按钮（`separator` 描边、次要文字色，悬停变 `accent-on-elevated`）；倒数的弧 `accent` |
+| 屏幕提示 | 全局提示的胶囊：`toast` 底 + `toast-border`、`radius-full`；主文字 `label`，小字 `caption` 次要文字色 |
+| 缓冲转圈 | 整圈 `player-track`、转的那段白；一整圈 `spin`（1 秒）；「正在缓冲」`body-sm`，速度 `caption` 等宽次要文字色 |
+
+字体按平台取（`fonts` 里的 `player` 一列）：macOS PingFang SC、Windows Microsoft YaHei UI、Linux Noto Sans CJK SC。
+ASS 的 `\fn` 只认一个字体名，没有回落链；系统里没有这个字体时 libass 退到系统默认字体。
 
 ## 和 nagare 之间的消息
 
@@ -203,7 +229,7 @@ Windows 的宿主也在 `internal/desktop`（默认构建就有，纯 Go）：�
 - 「取消」/ Esc：nagare 停掉定时器、收起卡片，窗口停在最后一帧不关。往回拖进度条也会取消倒计时。
 - 下一集要先准备时（准备超过 0.4 秒才发，本地文件通常不出）nagare 发 `phase: preparing`：卡片换成「正在准备 · 第 5 集」加一个转圈，只有「取消」。
 - 磁力合集里切集就要准备：下一集的文件先下到能起播（头 8MB），这期间正在播的这一集照常能播、能拖进度条（它的流地址一直有效）。点「取消」、或下一集缓冲不上来时，种子回到这一集，按它当前的读位置接着下载；没切成的原因（例如「下一集缓冲太慢，分享者太少」）照常出在屏幕提示或出错卡片上。细节见 [m3-torrent-streaming.md](m3-torrent-streaming.md) 的「合集里换集」。
-- 停在最后一帧自动接下一集却没打开时，nagare 发 `phase: error`：卡片换成出错卡片，不倒数、一直留着。小标题是 `title`（「下一集没能打开」，用网页提示条的橙色），下面是第几集和 `reason`（原因与恢复办法）；`reason` 按卡片宽度折行，最多 5 行，窗口矮时更少（卡片不压到进度条），再长以「…」结尾。按钮是「重试」（`upnext-retry`）与「关闭窗口」（`upnext-close`）；Enter 是重试，Esc 发 `upnext-cancel`：nagare 收起卡片，窗口停在最后一帧（暂停）不关。失败时如果已经没有下一集了，窗口照最后一集的规矩关掉。
+- 停在最后一帧自动接下一集却没打开时，nagare 发 `phase: error`：卡片换成出错卡片，不倒数、一直留着。小标题是 `title`（「下一集没能打开」，警示色 `warning`），下面是第几集和 `reason`（原因与恢复办法）；`reason` 按卡片宽度折行，最多 5 行，窗口矮时更少（卡片不压到进度条），再长以「…」结尾。按钮是「重试」（`upnext-retry`）与「关闭窗口」（`upnext-close`）；Enter 是重试，Esc 发 `upnext-cancel`：nagare 收起卡片，窗口停在最后一帧（暂停）不关。失败时如果已经没有下一集了，窗口照最后一集的规矩关掉。
 - 卡片放在右下角、进度条上方，右边与进度条对齐，窄窗口时收窄；卡片显示期间控制条一直露着。卡片上只有两个按钮接管左键，点卡片别处照旧能拖窗口。卡片显示时接管 Esc（取消）与 Enter（倒计时是立即播放，出错是重试；准备中不接管 Enter，Enter 照旧是全屏），右键菜单开着时让给菜单。
 
 ## 快捷键

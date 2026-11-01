@@ -2,15 +2,22 @@
 --
 -- 菜单项：{ label, hint, checked, items（子菜单：表或返回表的函数）, action, separator }
 -- 只有最深一层能被键盘操作；鼠标悬停到带子菜单的项上就展开下一层。
+--
+-- 样子是浮层（DESIGN.md「层级与阴影」的 Level 2）：bg_elevated 底 + 弹层描边，悬停是底色变化
+-- （bg_fill_hover，浮层里不提亮文字），选中是 accent_dim 底 + 对勾；浮层上的蓝字用 accent_on_elevated。
 
 local draw = require 'draw'
+local T = require 'tokens'
 
 local M = {}
 
 local levels = {} -- 已展开的各层：{ items, x1, y1, x2, y2, hover, rows }
-local env = { w = 0, h = 0, scale = 1, font = "", palette = nil }
+local env = { w = 0, h = 0, scale = 1, font = "" }
 
-local ITEM_H, SEP_H, PAD, RADIUS, GAP, MIN_W = 34, 9, 6, 10, 4, 200
+-- 行高、分隔行高、内边距、最小宽度（逻辑像素）。行的圆角与菜单圆角同心：菜单圆角减内边距
+local ITEM_H, SEP_H, PAD, MIN_W = 34, 9, 6, 200
+local RADIUS, GAP = T.radius.md, T.space.xs
+local LABEL, HINT, ARROW = T.type_scale.label, T.type_scale.caption, T.type_scale.body
 
 function M.is_open()
 	return #levels > 0
@@ -30,7 +37,7 @@ end
 -- 量出一层的尺寸并定好每一行的位置
 local function measure(items)
 	local s = env.scale
-	local size = 14 * s
+	local size = LABEL.size * s
 	local width = MIN_W * s
 	local height = PAD * 2 * s
 	for _, it in ipairs(items) do
@@ -39,7 +46,7 @@ local function measure(items)
 		else
 			local w = draw.text_width(it.label, size) + 24 * s
 			if it.hint then
-				w = w + draw.text_width(it.hint, 12 * s) + 24 * s
+				w = w + draw.text_width(it.hint, HINT.size * s) + 24 * s
 			end
 			if it.items or it.checked ~= nil then
 				w = w + 24 * s
@@ -64,7 +71,7 @@ end
 
 -- 把 (x, y) 起、w×h 的框挪进窗口里
 local function clamp(x, y, w, h)
-	local margin = 8 * env.scale
+	local margin = T.space.sm * env.scale
 	x = math.max(margin, math.min(x, env.w - w - margin))
 	y = math.max(margin, math.min(y, env.h - h - margin))
 	return x, y
@@ -81,7 +88,7 @@ local function push_level(items, x, y, place)
 	elseif place == "submenu" then
 		-- 右边放不下就放到上一层左边
 		local parent = levels[#levels]
-		if x + w > env.w - 8 * env.scale and parent then
+		if x + w > env.w - T.space.sm * env.scale and parent then
 			x = parent.x1 - GAP * env.scale - w
 		end
 	end
@@ -95,7 +102,7 @@ end
 function M.open(items, x, y, opts)
 	opts = opts or {}
 	env.w, env.h = opts.w or env.w, opts.h or env.h
-	env.scale, env.font, env.palette = opts.scale or 1, opts.font or "", opts.palette
+	env.scale, env.font = opts.scale or 1, opts.font or ""
 	levels = {}
 	push_level(items, x, y, opts.place or "cursor")
 end
@@ -226,40 +233,42 @@ function M.key(name)
 	end
 end
 
+-- 字号阶梯里的一档 → Canvas:text 的选项
+local function text_opts(t, align, color)
+	return { align = align, size = t.size * env.scale, weight = t.weight, color = color, font = env.font }
+end
+
 function M.render(canvas)
-	local s, p = env.scale, env.palette
+	local s = env.scale
 	for _, level in ipairs(levels) do
 		canvas:rect(level.x1, level.y1, level.x2, level.y2, {
-			color = p.panel, opacity = 0.97, radius = RADIUS * s,
-			border = math.max(1, s), border_color = "#FFFFFF", border_opacity = 0.1,
+			color = T.color.bg_elevated, radius = RADIUS * s,
+			border = math.max(1, s), border_color = T.color.popover_border,
 		})
 		for i, it in ipairs(level.items) do
 			local r = level.rows[i]
 			if it.separator then
 				local cy = (r.y1 + r.y2) / 2
-				canvas:rect(level.x1 + 12 * s, cy, level.x2 - 12 * s, cy + math.max(1, s), { color = "#FFFFFF", opacity = 0.08 })
+				canvas:rect(level.x1 + 12 * s, cy, level.x2 - 12 * s, cy + math.max(1, s), { color = T.color.separator })
 			else
 				local x1, x2 = level.x1 + PAD * s, level.x2 - PAD * s
 				local hovered = level.hover == i or level.open_index == i
-				local color = p.fg
+				local row_radius = (RADIUS - PAD) * s
+				-- 选中项：轻蓝底 + 对勾（字仍是白的：浮层蓝字叠在轻蓝底上不到 4.5:1）
 				if it.checked then
-					canvas:rect(x1, r.y1, x2, r.y2, { color = p.accent, opacity = 0.16, radius = 6 * s })
-					color = p.accent_text
+					canvas:rect(x1, r.y1, x2, r.y2, { color = T.color.accent_dim, radius = row_radius })
 				elseif hovered then
-					canvas:rect(x1, r.y1, x2, r.y2, { color = "#FFFFFF", opacity = 0.08, radius = 6 * s })
+					canvas:rect(x1, r.y1, x2, r.y2, { color = T.color.bg_fill_hover, radius = row_radius })
 				end
 				local cy = (r.y1 + r.y2) / 2
-				canvas:text(x1 + 12 * s, cy, it.label, { align = 4, size = 14 * s, color = color, font = env.font })
+				canvas:text(x1 + 12 * s, cy, it.label, text_opts(LABEL, 4, T.color.text))
 				local right = x2 - 12 * s
 				if it.items then
-					canvas:text(right, cy, "›", { align = 6, size = 16 * s, color = p.fg, opacity = 0.55, font = env.font })
+					canvas:text(right, cy, "›", text_opts(ARROW, 6, T.color.text_secondary))
 				elseif it.checked then
-					canvas:icon("check", right - 16 * s, cy - 8 * s, 16 * s, p.accent_text, 1)
+					canvas:icon("check", right - 16 * s, cy - 8 * s, 16 * s, T.color.accent_on_elevated)
 				elseif it.hint then
-					canvas:text(right, cy, it.hint, {
-						align = 6, size = 12 * s, font = env.font,
-						color = it.hint_accent and p.accent_text or p.fg, opacity = it.hint_accent and 1 or 0.55,
-					})
+					canvas:text(right, cy, it.hint, text_opts(HINT, 6, it.hint_accent and T.color.accent_on_elevated or T.color.text_secondary))
 				end
 			end
 		end
