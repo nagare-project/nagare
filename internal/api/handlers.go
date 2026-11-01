@@ -1,5 +1,8 @@
 // Package api 实现 /api/* 业务端点，经 httpserver.Options.RegisterAPI 挂进
 // 鉴权链之内 —— 这里的每个路由天然带 Host 白名单 + token + CSRF 三层防护。
+//
+// 磁力、来源插件与磁力源规则的端点不在这里，在子包 api/sources，只由桌面版的 main 注册：
+// 本包不依赖 torrentstream / sourceplugin / rules / rulesync / anacrolix（CI 守着这条依赖图）。
 package api
 
 import (
@@ -9,7 +12,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/nagare-project/nagare/internal/animego"
 	errs "github.com/nagare-project/nagare/internal/errors"
@@ -19,8 +21,8 @@ import (
 	"github.com/nagare-project/nagare/internal/store"
 )
 
-// maxBodyBytes 是请求体上限（本地 API，1MB 足够）。
-const maxBodyBytes = 1 << 20
+// MaxBodyBytes 是请求体上限（本地 API，1MB 足够）。api/sources 用同一个值。
+const MaxBodyBytes = 1 << 20
 
 // PlayerAPI 是处理器需要的播放能力子集。
 type PlayerAPI interface {
@@ -56,19 +58,11 @@ type Deps struct {
 	// 设置载荷里的 mpv 据此报「已就绪 · 内置」，界面不再提示安装。
 	EmbeddedMPV bool
 	// Desktop 报告桌面窗口此刻的状态（设置页的「播放窗口」一行）；nil = 这次运行没有桌面窗口可谈。
-	Desktop      func() DesktopView
-	Version      string
-	Sources      *SourcesService
-	SourcePlugin *SourcePluginService
-	// Torrent 是磁力边下边播引擎；nil 表示引擎启动失败，磁力端点整体降级
-	// （返回 503 并在设置页显示原因），其余功能不受影响。
-	Torrent TorrentAPI
-	// TorrentCacheDir 展示给用户：分片落在哪，清空缓存清的是哪个目录。
-	TorrentCacheDir string
-	// Downloads 是磁力下载（完整下到下载目录、下完进媒体库）；nil 时下载端点报 503。
-	Downloads DownloadsAPI
-	// DefaultDownloadDir 是设置里没填下载目录时用的目录。
-	DefaultDownloadDir string
+	Desktop func() DesktopView
+	Version string
+	// TorrentSettings 给设置载荷的 torrent 一项（磁力引擎、下载目录、tracker 的视图），
+	// 由 api/sources 提供（sources.Handler.TorrentSettings）；nil = 这个构建没有磁力，设置载荷里不出这一项。
+	TorrentSettings func() map[string]any
 	// EpisodeSpaces 查作品的集号空间（与播放管线共用一份缓存）；nil 时集号偏移端点报 503。
 	EpisodeSpaces *EpisodeSpaces
 	// Shutdown 触发整个进程退出（主进程的根 cancel）；nil 表示不支持从界面退出。
@@ -122,31 +116,18 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shutdown", h.shutdown)
 	mux.HandleFunc("POST /api/animego/login", h.login)
 	mux.HandleFunc("POST /api/animego/logout", h.logout)
-	mux.HandleFunc("GET /api/search", h.search)
-	mux.HandleFunc("GET /api/search/plugin", h.searchPlugin)
-	mux.HandleFunc("GET /api/sources", h.sources)
-	mux.HandleFunc("POST /api/sources/reload", h.sourcesReload)
-	mux.HandleFunc("POST /api/sources/sync", h.sourcesSync)
-	mux.HandleFunc("POST /api/sources/config", h.sourcesConfig)
-	mux.HandleFunc("POST /api/sources/{id}/enabled", h.sourceEnabled)
-	mux.HandleFunc("POST /api/sources/{id}/selfcheck", h.sourceSelfCheck)
-	mux.HandleFunc("GET /api/source-plugin", h.sourcePluginView)
-	mux.HandleFunc("POST /api/source-plugin/config", h.sourcePluginConfig)
-	mux.HandleFunc("POST /api/source-plugin/candidates", h.sourcePluginCandidates)
-	mux.HandleFunc("POST /api/source-plugin/play", h.sourcePluginPlay)
-	mux.HandleFunc("POST /api/torrent/play", h.torrentPlay)
-	mux.HandleFunc("GET /api/torrent/status", h.torrentStatus)
-	mux.HandleFunc("POST /api/torrent/stop", h.torrentStop)
-	mux.HandleFunc("POST /api/torrent/cache/clear", h.torrentCacheClear)
-	mux.HandleFunc("POST /api/torrent/config", h.torrentConfig)
-	mux.HandleFunc("GET /api/downloads", h.downloadsList)
-	mux.HandleFunc("POST /api/downloads", h.downloadsAdd)
-	mux.HandleFunc("DELETE /api/downloads/{id}", h.downloadsRemove)
+	// /api/search*、/api/sources*、/api/source-plugin/*、/api/torrent/*、/api/downloads 由 api/sources 注册
 }
+
+// DecodeBody 是给子包（api/sources）用的 decodeBody：请求体限长与错误措辞全站一份。
+func DecodeBody(w http.ResponseWriter, r *http.Request, out any) bool { return decodeBody(w, r, out) }
+
+// WriteErr 是给子包（api/sources）用的 writeErr：分类错误到状态码的映射全站一份。
+func WriteErr(w http.ResponseWriter, err error) { writeErr(w, err) }
 
 // decodeBody 解析 JSON 请求体（限长）。失败返回 false 且已写响应。
 func decodeBody(w http.ResponseWriter, r *http.Request, out any) bool {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
+	body, err := io.ReadAll(io.LimitReader(r.Body, MaxBodyBytes))
 	if err != nil {
 		httpserver.WriteError(w, http.StatusBadRequest, "读取请求体失败")
 		return false
@@ -356,84 +337,4 @@ func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
 		log.Printf("api: 清除 animego 会话失败：%v", err)
 	}
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
-}
-
-// ── 磁力源：搜索与规则管理 ──
-
-// search 聚合本机规则的结果；带 episode 时再向来源插件要 BT 候选（只要 torrent，
-// 不会触发浏览器嗅探），让只装了插件、没配规则的用户也能在磁力选集里看到资源。
-// title 是同一部作品的其他写法（原名、英文名）：本机规则与插件都按「q + 这些写法」各搜一次再合并。
-func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
-	params := r.URL.Query()
-	q := params.Get("q")
-	titles := append([]string{q}, params["title"]...)
-	view := h.deps.Sources.SearchTitles(r.Context(), titles)
-	if episode, err := strconv.Atoi(params.Get("episode")); err == nil && episode > 0 && episode <= maxEpisodeNumber {
-		anilist, _ := strconv.Atoi(params.Get("anilist"))
-		year, _ := strconv.Atoi(params.Get("year"))
-		// 与本端点其余可选参数一样宽松：不合法的连续编号当作没给
-		absolute, _ := optionalEpisodeParam(params.Get("absolute"))
-		h.deps.SourcePlugin.appendPluginTorrents(r.Context(), &view, pluginTorrentQuery{Titles: titles, Episode: episode, Absolute: absolute, AnilistID: anilist, Year: year})
-	}
-	httpserver.WriteJSON(w, http.StatusOK, view)
-}
-
-func (h *Handler) sources(w http.ResponseWriter, _ *http.Request) {
-	httpserver.WriteJSON(w, http.StatusOK, h.deps.Sources.View())
-}
-
-func (h *Handler) sourcesReload(w http.ResponseWriter, _ *http.Request) {
-	n, errsList := h.deps.Sources.Load()
-	if errsList == nil {
-		errsList = []string{}
-	}
-	httpserver.WriteJSON(w, http.StatusOK, map[string]any{"loaded": n, "errors": errsList})
-}
-
-func (h *Handler) sourcesSync(w http.ResponseWriter, r *http.Request) {
-	rep, err := h.deps.Sources.Sync(r.Context())
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	httpserver.WriteJSON(w, http.StatusOK, rep)
-}
-
-func (h *Handler) sourcesConfig(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RemoteURL *string `json:"remoteUrl"`
-		LocalDir  *string `json:"localDir"`
-	}
-	if !decodeBody(w, r, &req) {
-		return
-	}
-	view, err := h.deps.Sources.SetConfig(req.RemoteURL, req.LocalDir)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	httpserver.WriteJSON(w, http.StatusOK, view)
-}
-
-func (h *Handler) sourceEnabled(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Enabled bool `json:"enabled"`
-	}
-	if !decodeBody(w, r, &req) {
-		return
-	}
-	if err := h.deps.Sources.SetEnabled(r.PathValue("id"), req.Enabled); err != nil {
-		writeErr(w, err)
-		return
-	}
-	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
-}
-
-func (h *Handler) sourceSelfCheck(w http.ResponseWriter, r *http.Request) {
-	out, err := h.deps.Sources.SelfCheck(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	httpserver.WriteJSON(w, http.StatusOK, out)
 }

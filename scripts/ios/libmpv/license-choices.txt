@@ -1,0 +1,27 @@
+# iOS 版 libmpv 里每个组件按哪个许可证分发。App Store 的条款与 GPL 冲突，这里一个 GPL 都不能有。
+# verify.sh 用 tools/xcf.py licenses 逐项核对：这次构建用到的每份源码都要有一行，且只能有用到的。
+#
+# 格式：名字（versions.lock 的第一列） | 选用的许可证（SPDX） | 依据 | 说明
+#   依据 = lock    选用的许可证必须是 versions.lock 那一列本身，或它的「OR」选项之一
+#   依据 = config  由构建配置决定（versions.lock 记的是 macOS 版的 GPL / LGPLv3 构建），verify.sh 另外核对配置
+#
+# 整体：LGPL-2.1-or-later（mpv 与 FFmpeg 都是 LGPLv2.1+，其余都是更宽松的许可证）。
+
+mpv                       | LGPL-2.1-or-later             | config | -Dgpl=false；Copyright 列的「GPL only」文件一个都不编
+ffmpeg                    | LGPL-2.1-or-later             | config | 不加 --enable-gpl / --enable-version3 / --enable-nonfree（不带 TLS，没有要求 v3 的组件）
+dav1d                     | BSD-2-Clause                  | lock   |
+zimg                      | WTFPL                         | lock   |
+freetype                  | FTL                           | lock   | 双许可证选 FTL，不选 GPL-2.0
+fribidi                   | LGPL-2.1-or-later             | lock   |
+harfbuzz                  | MIT-Modern-Variant            | lock   |
+libass                    | ISC                           | lock   |
+lcms2                     | MIT                           | lock   | 不编 GPL-3.0 的 fastfloat / threaded 插件（与 macOS 同一个配方）
+libplacebo                | LGPL-2.1-or-later             | lock   |
+libplacebo/glad           | MIT                           | lock   | 构建时生成 OpenGL 加载器
+libplacebo/jinja          | BSD-3-Clause                  | lock   | 只在构建时运行（glad 的模板引擎），不进二进制
+libplacebo/markupsafe     | BSD-3-Clause                  | lock   | 同上
+libplacebo/fast_float     | MIT                           | lock   | 三许可证选 MIT（头文件库）
+libplacebo/Vulkan-Headers | MIT                           | lock   | 双许可证选 MIT；只在编译期用到类型定义
+libjpeg-turbo             | IJG AND BSD-3-Clause AND Zlib | lock   |
+uchardet                  | LGPL-2.1-or-later             | lock   | 三许可证选 LGPL-2.1
+luajit                    | MIT                           | lock   |

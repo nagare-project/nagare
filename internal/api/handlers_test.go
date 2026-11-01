@@ -18,24 +18,17 @@ import (
 	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/mpv"
 	"github.com/nagare-project/nagare/internal/player"
-	"github.com/nagare-project/nagare/internal/rules"
-	"github.com/nagare-project/nagare/internal/rulesync"
-	"github.com/nagare-project/nagare/internal/sourceplugin"
 	"github.com/nagare-project/nagare/internal/store"
 )
 
 // fakePlayer 是 PlayerAPI 替身。
 type fakePlayer struct {
-	playRes     player.PlayResult
-	playErr     error
-	lastItem    library.Item
-	lastSub     string
-	lastPath    string
-	lastHeaders map[string]string
-	lastAnilist int
-	lastAlts    []string
-	stopped     bool
-	status      player.Status
+	playRes  player.PlayResult
+	playErr  error
+	lastItem library.Item
+	lastSub  string
+	stopped  bool
+	status   player.Status
 	// playing / refreshErr 决定 RefreshShaders 的结果；refreshes 记调了几次
 	playing    bool
 	refreshErr error
@@ -48,13 +41,6 @@ type fakePlayer struct {
 func (f *fakePlayer) Play(_ context.Context, src player.MediaSource, sub string) (player.PlayResult, error) {
 	f.record("player.play")
 	f.lastItem, f.lastSub = src.Item(), sub
-	if withHeaders, ok := src.(interface{ HTTPHeaders() map[string]string }); ok {
-		f.lastPath = src.MPVPath()
-		f.lastHeaders = withHeaders.HTTPHeaders()
-	}
-	if hinted, ok := src.(interface{ MatchHints() (int, []string) }); ok {
-		f.lastAnilist, f.lastAlts = hinted.MatchHints()
-	}
 	result := f.playRes
 	if result.FileID == "" {
 		result.FileID = f.lastItem.FileID
@@ -105,16 +91,11 @@ func TestWriteErrIgnoresClientCancellation(t *testing.T) {
 }
 
 type testEnv struct {
-	mux     *http.ServeMux
-	store   *store.Store
-	lib     *LibraryService
-	player  *fakePlayer
-	auth    *fakeAuth
-	sources *SourcesService
-	plugin  *fakeSourcePluginRuntime
-	torrent *fakeTorrent
-	// downloads 是磁力下载的替身（见 downloads_test.go）。
-	downloads *fakeDownloads
+	mux    *http.ServeMux
+	store  *store.Store
+	lib    *LibraryService
+	player *fakePlayer
+	auth   *fakeAuth
 	// calls 是跨替身的调用顺序记录。
 	calls *[]string
 	// mpvDetect 是注入给 mpv.Runtime 的探测函数，测试改它再打 /api/mpv/detect 翻转状态。
@@ -123,24 +104,14 @@ type testEnv struct {
 	shutdown chan struct{}
 }
 
+// newEnv 造一个只有 internal/api 端点的环境（磁力 / 来源插件 / 规则的端点在 api/sources，测试也在那边）。
 func newEnv(t *testing.T) *testEnv {
 	t.Helper()
-	return newEnvWith(t, true)
+	return newEnvDeps(t, nil)
 }
 
-// newEnvNoTorrent 造一个磁力引擎缺席的环境（引擎启动失败时的降级形态）。
-func newEnvNoTorrent(t *testing.T) *testEnv {
-	t.Helper()
-	return newEnvWith(t, false)
-}
-
-func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
-	t.Helper()
-	return newEnvDeps(t, withTorrent, nil)
-}
-
-// newEnvDeps 同 newEnvWith，构造 Handler 之前再让 mod 改一下 Deps（nil 表示不改）。
-func newEnvDeps(t *testing.T, withTorrent bool, mod func(*Deps)) *testEnv {
+// newEnvDeps 同 newEnv，构造 Handler 之前再让 mod 改一下 Deps（nil 表示不改）。
+func newEnvDeps(t *testing.T, mod func(*Deps)) *testEnv {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "state.json"))
 	require.NoError(t, err)
@@ -154,36 +125,22 @@ func newEnvDeps(t *testing.T, withTorrent bool, mod func(*Deps)) *testEnv {
 	env.mpvDetect = func(string) (mpv.Info, error) {
 		return mpv.Info{Path: "/usr/bin/mpv", Version: "0.41.0", Source: mpv.SourcePath}, nil
 	}
-	env.sources = NewSourcesService(st, &rules.Fetcher{}, &rulesync.Syncer{}, filepath.Join(t.TempDir(), "rules"))
-	env.plugin = &fakeSourcePluginRuntime{status: sourceplugin.Status{Phase: "disabled"}}
-	pluginService := NewSourcePluginService(st, env.plugin, "test")
 	calls := []string{}
 	env.calls = &calls
 	record := func(op string) { calls = append(calls, op) }
 	env.player.log = record
 	deps := Deps{
-		Store:           st,
-		Lib:             env.lib,
-		Player:          env.player,
-		Auth:            env.auth,
-		AnimegoBaseURL:  "https://example.test",
-		MPV:             mpv.NewRuntimeWith(func(e string) (mpv.Info, error) { return env.mpvDetect(e) }, ""),
-		Version:         "test",
-		Sources:         env.sources,
-		SourcePlugin:    pluginService,
-		Shutdown:        func() { env.shutdown <- struct{}{} },
-		DataDir:         "/data/nagare",
-		LogPath:         "/data/nagare/logs/nagare.log",
-		BackgroundMode:  "dock",
-		TorrentCacheDir: "/data/nagare/cache/torrent",
-
-		DefaultDownloadDir: "/home/you/Downloads/nagare",
-	}
-	env.downloads = &fakeDownloads{}
-	deps.Downloads = env.downloads
-	if withTorrent {
-		env.torrent = &fakeTorrent{log: record}
-		deps.Torrent = env.torrent
+		Store:          st,
+		Lib:            env.lib,
+		Player:         env.player,
+		Auth:           env.auth,
+		AnimegoBaseURL: "https://example.test",
+		MPV:            mpv.NewRuntimeWith(func(e string) (mpv.Info, error) { return env.mpvDetect(e) }, ""),
+		Version:        "test",
+		Shutdown:       func() { env.shutdown <- struct{}{} },
+		DataDir:        "/data/nagare",
+		LogPath:        "/data/nagare/logs/nagare.log",
+		BackgroundMode: "dock",
 	}
 	if mod != nil {
 		mod(&deps)
