@@ -84,6 +84,27 @@ export interface LibraryGroup {
   items: LibraryItem[]
 }
 
+/**
+ * 一部作品的海报色阶：服务端按封面色相、固定的明度与彩度算好并做完 sRGB 色域映射的最终颜色
+ * （DESIGN.md「海报色」一节）。客户端直接用这些 #rrggbb，不自己算颜色；
+ * 字段为 null 或缺省时用 tokens.css 里 :root 上的中性值。
+ * 以行内样式写在使用它的元素自身（卡片根、作品页 hero 根），不在 CSS 里从色相组装。
+ */
+export interface PosterTones {
+  /** OKLCH 色相角（度，一位小数），调试用；界面只用下面的颜色 */
+  hue: number
+  /** --poster-tone：强调文字、图标、悬停态、主按钮的底 */
+  tone: string
+  /** --poster-tone-quiet：压低一档的小标签，最后一档能写字的颜色 */
+  quiet: string
+  /** --poster-tone-mid：边框、分隔线（非文字，只在 --bg 上 ≥ 3:1） */
+  mid: string
+  /** --poster-tone-low：tint 底、chip 填充（纯装饰） */
+  low: string
+  /** --poster-on-tone：以 tone 为底的主按钮上的字 */
+  onTone: string
+}
+
 /** 一个「作品簇」：同一部番的所有文件归到一起 */
 export interface LibraryCluster {
   clusterKey: string
@@ -103,6 +124,8 @@ export interface LibraryCluster {
   /** 没认过时，自动匹配到的作品（扫描后的后台识别或播放前的匹配）；还没认出来时缺省 */
   matched?: LibraryMatch
   groups: LibraryGroup[]
+  /** cover 那张封面的海报色阶；没有封面、颜色还没算出或封面是灰的时为 null */
+  posterTones?: PosterTones | null
 }
 
 /** 「继续观看」的一张卡片（看过一点、又没看完的条目，按最近观看倒序） */
@@ -116,6 +139,7 @@ export interface ContinueItem {
   positionSec: number
   durationSec: number
   updatedAt: number
+  posterTones?: PosterTones | null
 }
 
 /** 后台作品识别的进度：正在识别（或重扫后已排上队）、或上一轮暂停时才有 */
@@ -1211,13 +1235,15 @@ export interface SummaryMediaData {
   episodeTitles?: { episode: number; title: string }[]
   /** 只在作品详情（GET /api/anime/{id}）的顶层出现 */
   freshness?: CatalogFreshness
+  /** 封面的海报色阶；null / 缺省 = 用中性色 */
+  posterTones?: PosterTones | null
 }
 export interface DiscoverData { sections: { key: string; title: string; items: SummaryMediaData[]; error?: string }[]; fetchedAt: number; freshness?: CatalogFreshness }
 export type CollectionStatus = 'watching' | 'plan_to_watch' | 'completed' | 'dropped'
 export interface CollectionEntry { anilistId: number; status: CollectionStatus; currentEpisode: number; score: number | null; media: SummaryMediaData; lastWatchedAt?: number }
 export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] }
 export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
-export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; format?: string; inLibrary: boolean }[]; fetchedAt: number; freshness?: CatalogFreshness }
+export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; posterTones?: PosterTones | null; format?: string; inLibrary: boolean }[]; fetchedAt: number; freshness?: CatalogFreshness }
 export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
 export type SeasonName = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL'
 export interface SeasonalData { season: SeasonName; year: number; items: SummaryMediaData[]; fetchedAt: number; freshness?: CatalogFreshness }

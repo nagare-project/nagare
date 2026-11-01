@@ -35,6 +35,27 @@
 
 作品预览、Discover 悬停卡片与作品页现已接入磁力选集：只展示已播出集数，也允许手填目标集；搜索词可编辑，资源仍只来自用户配置的本机规则。搜索页和作品入口共用一份播放会话，换页后保留缓冲与停止入口，种子内选集和重试继续携带 `episodeHint`。未配置源、源规则异常、源连接失败、零结果、引擎不可用与长时间零 peer 分开显示。首版要求用户显式选择资源，不自动猜字幕语言或把第一条结果当成最优版本。
 
+## 海报色 `posterTones`（2026-11-01）
+
+目录的每个作品投影（`SummaryMedia`：发现、季度、详情及其关联与推荐、搜索、收藏里的 `media`）、放送表的每一条、
+媒体库的分组（`clusters[]`）与继续观看（`continueWatching[]`）都带一个 `posterTones` 字段：
+
+```json
+"posterTones": { "hue": 264.1, "tone": "#…", "quiet": "#…", "mid": "#…", "low": "#…", "onTone": "#…" }
+```
+
+- 五个颜色依次对应 `--poster-tone` / `-quiet` / `-mid` / `-low` / `--poster-on-tone`（DESIGN.md「海报色」一节），
+  是**最终的 sRGB 值**：服务端按固定的 OKLCH 明度 / 彩度和封面色相算好，并做完色域映射（CSS Color 4 的二分降彩度，
+  不逐通道裁剪）。客户端直接用，不自己算颜色；`hue` 只给调试和原型用。
+- **字段总是存在，取不到时是 `null`**：封面还没缓存、颜色还在后台算、封面是灰的、不是 JPEG / PNG / GIF（WebP、AVIF）、
+  文件损坏或超过 4000 万像素（16 位色深的 PNG 解码后内存翻倍，上限折半）。`null` 时用 `tokens.css` 里 `:root` 的中性值。没有封面（`cover` 为空）时一定是 `null`。
+- 颜色只从**已经缓存在本机**的封面上取（`internal/artcache`），拼响应不发网络请求、不等解码：封面下载落盘后立刻在后台排队取色；
+  响应时发现封面在、结果不在就排一次，这一次给 `null`，下一次就有颜色。同一时刻只解码一张封面。
+- 结果存在封面旁边的 `<封面>.tone.json`（算法版本 + 色相或「没有颜色」的原因），每张封面只算一次；
+  色阶的明度 / 彩度改了不必重算。读封面出 I/O 错误（或取色过程异常）时不写结果，十分钟后再试。
+- 对比度由 `internal/artcache/ladder_test.go` 在全部 3600 个色相（接口的色相精度是 0.1°）上按最终 sRGB 值钉住：
+  `tone`、`quiet` 在 `#000000` / `#1c1c1e` / `#2c2c2e` 上 ≥ 4.5:1，`mid` 在 `#000000` 上 ≥ 3:1，`onTone` 在 `tone` 上 ≥ 4.5:1。
+
 ## `GET /api/seasonal`
 
 参数 `season`（WINTER / SPRING / SUMMER / FALL，不分大小写）与 `year`（1990–2100）。响应 `{ season, year, items: SummaryMedia[], fetchedAt, freshness? }`，items 是目录服务 `/api/anime/seasonal` 一页 200 条的投影，按 `seasonal:<季>:<年>` 缓存十分钟并合并同键在途请求；放送快照已在缓存时补 `nextAiring` / `recentAiring`。参数不合法返回 400。
