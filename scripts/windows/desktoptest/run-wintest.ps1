@@ -501,18 +501,46 @@ Step '全屏' {
     Add-Step 'Enter 进全屏、mpv 改 fullscreen=no 退出（属性→窗口）' ($ok3 -and $ok4) '' ''
 }
 
+# 直接问 mpv 此刻的 window-maximized（遥控状态里的是 mpv 最近一次报来的，可能早就过时了）；问不到是 $null
+function Live-Maximized { try { return (Mpv '["get_property","window-maximized"]').data } catch { return $null } }
+
+# 最大化这一组没过时报出两边此刻的真实状态：宿主的、mpv 报来的、直接问 mpv 的、两个窗口的大小、最近的同步事件
+function Win-Diag([string]$what) {
+    $s = State
+    $live = Live-Maximized
+    if ($null -eq $live) { $live = '问不到' }
+    $cc = if ($s.childClient) { $s.childClient -join 'x' } else { '?' }
+    $log = @($s.winlog | Select-Object -Last 16) -join ' | '
+    return ("$what；宿主 maximized=$($s.maximized) fullscreen=$($s.fullscreen)；mpv 报来的 window-maximized=$(Prop $s 'window-maximized')、直接问到的=$live；" +
+            "客户区 $($s.client -join 'x')、mpv 子窗口 $cc；最近的同步：$log")
+}
+
+# mpv 的子窗口跟上了宿主的客户区：它处理完了宿主改大小的那一下（那一下会把 mpv 的 window-maximized 改成假）
+function Child-Settled($s) { return ($s.childClient -and $s.client -and $s.childClient[0] -eq $s.client[0] -and $s.childClient[1] -eq $s.client[1]) }
+
 Step '最大化' {
     Ctl '/winop' @{ op = 'maximize' } | Out-Null
-    $ok = Wait-Until { $s = State; $s.maximized -and (Prop $s 'window-maximized') -eq $true } 5
+    $ok = Wait-Until { $s = State; $s.maximized -and (Prop $s 'window-maximized') -eq $true -and (Live-Maximized) -eq $true } 5
+    $d = if ($ok) { '' } else { Win-Diag '5 秒内没等到' }
     $shot = Snap 'maximized' -Full
-    Add-Step '窗口最大化，写回 mpv 的 window-maximized' $ok '' $shot
+    Add-Step '窗口最大化，写回 mpv 的 window-maximized' $ok $d $shot
     Ctl '/winop' @{ op = 'restore' } | Out-Null
-    $ok2 = Wait-Until { -not (State).maximized } 5
-    Mpv '["set_property","window-maximized",true]' | Out-Null
-    $ok3 = Wait-Until { (State).maximized } 5
+    # 只等到 mpv 的子窗口跟上还原后的大小（它处理完那次 WM_SIZE，不会再把接下来的请求盖成假），然后马上请求：
+    # 宿主还原时刚把 window-maximized=假 写过去，mpv 取这次改动、发通知常要几十到几百毫秒，请求的真在那之前到，
+    # 两下就合并成「没变」、宿主一个通知都收不到（修之前 CI 上 80 轮丢了 23 次）—— 这正是要守的那条：宿主改完窗口
+    # 后要读回来对，一直读到 mpv 把它写的值报回来。
+    $ok2 = Wait-Until { $s = State; -not $s.maximized -and (Child-Settled $s) } 5
+    $d = if ($ok2) { '' } else { Win-Diag '还原后 5 秒没等到窗口还原、mpv 的子窗口跟上' }
+    $ok3 = $false
+    if ($ok2) {
+        Mpv '["set_property","window-maximized",true]' | Out-Null
+        $ok3 = Wait-Until { (State).maximized } 5
+        if (-not $ok3) { $d = Win-Diag 'mpv 请求最大化之后 5 秒窗口没有最大化' }
+    }
     Ctl '/winop' @{ op = 'restore' } | Out-Null
-    Wait-Until { -not (State).maximized } 5 | Out-Null
-    Add-Step '还原；mpv 请求最大化落到窗口上' ($ok2 -and $ok3) '' ''
+    # 下一步（mpv 请求最小化）不能撞上还原那次 WM_SIZE：它同样会把 window-minimized 改回假
+    [void](Wait-Until { $s = State; -not $s.maximized -and (Child-Settled $s) } 5)
+    Add-Step '还原；mpv 请求最大化落到窗口上' ($ok2 -and $ok3) $d ''
 }
 
 Step '最小化' {

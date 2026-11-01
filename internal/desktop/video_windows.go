@@ -125,6 +125,7 @@ func (a *app) seedSession(s *videoSession) {
 		c.send("observe_property", id, name)
 		id++
 	}
+	a.settleChild(s) // 子窗口建好、第一次显示时的 WM_SIZE 可能比这里写的晚到（窗口本来就最大化着时会被盖掉）
 }
 
 // attachChild（界面线程）：mpv 的子窗口找到了。
@@ -133,6 +134,9 @@ func (a *app) attachChild(s *videoSession) {
 		return
 	}
 	a.layout()
+	if s.sync != nil {
+		a.settleChild(s) // 见 seedSession（还没连上 IPC 时由 seedSession 安排）
+	}
 	if a.mode == modeVideo {
 		a.focusVideo()
 	}
@@ -155,9 +159,16 @@ func (a *app) onProperty(s *videoSession, name string, data json.RawMessage) {
 	if json.Unmarshal(data, &v) != nil {
 		return
 	}
-	acts, writes := s.sync.fromMpv(name, v, a.hostState())
+	host := a.hostState()
+	acts, writes := s.sync.fromMpv(name, v, host)
+	if testHooks.trace != nil {
+		traceWin("mpv 报 %s=%v（宿主 %+v）→ 动作 %v、写回 %v", name, v, host, acts, writes)
+	}
 	s.write(writes)
 	a.apply(acts)
+	if len(writes) > 0 {
+		a.settleChild(s) // 刚写过去的值同样可能与紧跟着的请求合并掉（winstate.go 开头）
+	}
 }
 
 // ───────────────────────── 会话 ─────────────────────────
@@ -176,7 +187,8 @@ type videoSession struct {
 	enabling atomic.Bool
 	killed   atomic.Bool
 
-	sync *windowSync // 界面线程
+	sync *windowSync    // 界面线程
+	rec  reconcileState // 界面线程（winsync_windows.go）
 
 	mu    sync.Mutex
 	props map[string]json.RawMessage // 最近一次的属性值（给测试遥控看）
