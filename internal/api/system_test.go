@@ -86,7 +86,7 @@ func TestBackgroundModeViewDefaultsToNone(t *testing.T) {
 
 // 桌面窗口：background.mode 是 window（界面在窗口里说「关闭窗口」），其余字段与以前一样。
 func TestSettingsBackgroundModeForDesktopWindow(t *testing.T) {
-	env := newEnvDeps(t, false, func(d *Deps) {
+	env := newEnvDeps(t, func(d *Deps) {
 		d.BackgroundMode = "window"
 		d.EmbeddedMPV = true
 	})
@@ -153,7 +153,7 @@ func TestMPVDetectWithoutRuntime(t *testing.T) {
 // 桌面窗口（EmbeddedMPV）：播放用进程内 libmpv，命令行 mpv 找不找得到都报已就绪、带 embedded，
 // 不给安装指引 —— 引导、媒体库的红点与横幅都只认 found。
 func TestSettingsEmbeddedMPV(t *testing.T) {
-	env := newEnvDeps(t, true, func(d *Deps) { d.EmbeddedMPV = true })
+	env := newEnvDeps(t, func(d *Deps) { d.EmbeddedMPV = true })
 	env.mpvDetect = func(string) (mpv.Info, error) { return mpv.Info{}, errors.New("未找到 mpv") }
 	rec := env.do(t, http.MethodPost, "/api/mpv/detect", "")
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -176,7 +176,7 @@ func TestSettingsEmbeddedMPV(t *testing.T) {
 
 // 桌面窗口 + 探测到 .app 内置的命令行 mpv：照旧报 embedded，另在 cli 里给出缩略图用的那个 mpv。
 func TestSettingsEmbeddedMPVWithBundledCLI(t *testing.T) {
-	env := newEnvDeps(t, true, func(d *Deps) { d.EmbeddedMPV = true })
+	env := newEnvDeps(t, func(d *Deps) { d.EmbeddedMPV = true })
 	env.mpvDetect = func(string) (mpv.Info, error) {
 		return mpv.Info{Path: "/Applications/Nagare.app/Contents/MacOS/mpv", Version: "0.41.0", Source: mpv.SourceBundled}, nil
 	}
@@ -197,15 +197,41 @@ func TestSettingsEmbeddedMPVWithBundledCLI(t *testing.T) {
 func TestSettingsDesktopView(t *testing.T) {
 	assert.Equal(t, DesktopView{}, getSettings(t, newEnv(t)).Desktop)
 
-	env := newEnvDeps(t, true, func(d *Deps) {
+	env := newEnvDeps(t, func(d *Deps) {
 		d.Desktop = func() DesktopView { return DesktopView{Fallback: "这台电脑上没有可用的 WebView2 运行时"} }
 	})
 	s := getSettings(t, env)
 	assert.False(t, s.Desktop.Window)
 	assert.Equal(t, "这台电脑上没有可用的 WebView2 运行时", s.Desktop.Fallback)
 
-	on := newEnvDeps(t, true, func(d *Deps) { d.Desktop = func() DesktopView { return DesktopView{Window: true} } })
+	on := newEnvDeps(t, func(d *Deps) { d.Desktop = func() DesktopView { return DesktopView{Window: true} } })
 	assert.True(t, getSettings(t, on).Desktop.Window)
+}
+
+// torrent 一项来自 Deps.TorrentSettings（桌面版接 api/sources）：接了就原样放进载荷，没接（不带磁力的构建）就不出这一项。
+func TestSettingsTorrentItemComesFromHook(t *testing.T) {
+	settingsKeys := func(env *testEnv) map[string]json.RawMessage {
+		t.Helper()
+		rec := env.do(t, http.MethodGet, "/api/settings", "")
+		require.Equal(t, http.StatusOK, rec.Code)
+		var keys map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(decode(t, rec).Data, &keys))
+		return keys
+	}
+
+	without := settingsKeys(newEnv(t))
+	assert.NotContains(t, without, "torrent")
+	assert.Contains(t, without, "mpv", "其余各项照常")
+
+	calls := 0
+	with := settingsKeys(newEnvDeps(t, func(d *Deps) {
+		d.TorrentSettings = func() map[string]any {
+			calls++
+			return map[string]any{"enabled": true, "cacheDir": "/data/nagare/cache/torrent"}
+		}
+	}))
+	assert.JSONEq(t, `{"enabled":true,"cacheDir":"/data/nagare/cache/torrent"}`, string(with["torrent"]))
+	assert.Equal(t, 1, calls, "每次请求现取一次（重启提示、缓存占用都是实时的）")
 }
 
 // 不是桌面窗口时照旧：没有 embedded 字段，找不到就给安装指引。

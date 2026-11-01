@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/nagare-project/nagare/internal/api"
+	"github.com/nagare-project/nagare/internal/api/sources"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/player"
 	"github.com/nagare-project/nagare/internal/torrentstream"
@@ -27,7 +27,7 @@ func teardownOnCancel(
 	p *player.Manager,
 	engine *torrentstream.Engine,
 	downloads *torrentstream.Downloader,
-	plugin *api.SourcePluginService,
+	plugin *sources.SourcePluginService,
 ) <-chan struct{} {
 	stopped := make(chan struct{})
 	go func() {

@@ -17,8 +17,9 @@ const shutdownDelay = 100 * time.Millisecond
 
 // settings 是设置页的一次性载荷（M4 阶段 A 契约）：
 // version / platform / arch / dataDir / logPath / mpv / animego / torrent / background。
+// torrent 一项由 api/sources 提供（Deps.TorrentSettings）；没接磁力的构建里不出这一项。
 func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
-	httpserver.WriteJSON(w, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"version":    h.deps.Version,
 		"platform":   runtime.GOOS,
 		"arch":       runtime.GOARCH,
@@ -26,7 +27,6 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 		"logPath":    h.deps.LogPath,
 		"mpv":        mpvView(h.deps.MPV, h.deps.EmbeddedMPV),
 		"player":     playerView(h.deps.Store.PlayerConfig()),
-		"torrent":    torrentView(h.deps.Store.TorrentConfig(), h.deps.Torrent, h.deps.TorrentCacheDir, h.deps.DefaultDownloadDir),
 		"background": map[string]any{"mode": backgroundModeView(h.deps.BackgroundMode)},
 		"desktop":    desktopView(h.deps.Desktop),
 		"animego": map[string]any{
@@ -34,7 +34,11 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 			"email":    h.deps.Store.AnimegoSession().Email,
 			"baseUrl":  h.deps.AnimegoBaseURL,
 		},
-	})
+	}
+	if h.deps.TorrentSettings != nil {
+		payload["torrent"] = h.deps.TorrentSettings()
+	}
+	httpserver.WriteJSON(w, http.StatusOK, payload)
 }
 
 // DesktopView 是桌面窗口（internal/desktop）的状态：播放在不在 nagare 自己的窗口里；退回了浏览器模式时
