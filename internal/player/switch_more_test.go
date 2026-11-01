@@ -67,15 +67,22 @@ func TestSwitchNetworkPrematureEOFClosesWithoutCountdown(t *testing.T) {
 	assert.Equal(t, int32(1), h.ends.Load())
 }
 
-// keep-open 开着、到尾时下一集已经不在了（重扫过）：照常关窗，这一集记为看完。
+// keep-open 开着、到尾时下一集已经不在了（重扫过）：由 nagare 关窗，这一集记为看完。
+//
+// 生产上邻居只在窗口的事件循环里改，改完当场 syncKeepOpen；「keep-open 还开着、下一集却没了」只在
+// 关 keep-open 失败时出现，这里照此让假 mpv 拒绝 keep-open=no。不这样的话，测试从循环外改邻居，
+// 循环里稍后处理的 ready / 弹幕编排会先把 keep-open 关掉：真 mpv 这时会自己结束文件、退出，
+// 假 mpv 不会，窗口就永远等不到收尾（满载时约 1% 的概率）。
 func TestSwitchEOFWithVanishedNextCloses(t *testing.T) {
 	h := newNavHarness(t, nil, 2)
+	h.fake.FailOn("set_property", "keep-open", "no")
 	_, pb := h.startPlaying(t, 0)
-	eventually(t, func() bool { return count(h.fake, "set_property", "keep-open", "yes") == 1 }, "要开 keep-open")
-	pb.episode().setNav(Neighbors{}) // 下一集刚被重扫掉，keep-open 还没来得及关
+	awaitKeepOpen(t, h.fake)
+	pb.episode().setNav(Neighbors{}) // 下一集刚被重扫掉，keep-open 没能关上
 
 	reachEnd(t, h.fake, 1439, 1440)
-	awaitWindowEnd(t, pb)
+	awaitWindowEnd(t, pb, h.fake)
+	assert.Equal(t, 1, count(h.fake, "quit"), "keep-open 还开着：要由 nagare 关窗")
 	assert.Empty(t, upNextCards(t, h.fake))
 	p, ok := h.st.Progress(h.eps[0].FileID)
 	require.True(t, ok)
