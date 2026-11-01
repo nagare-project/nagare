@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nagare-project/nagare/internal/artcache"
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/library"
 	"github.com/nagare-project/nagare/internal/store"
@@ -79,6 +80,9 @@ type ViewCluster struct {
 	// 界面据此显示「自动匹配：X」并让用户一键确认或更换。
 	Matched *ViewMatch  `json:"matched,omitempty"`
 	Groups  []ViewGroup `json:"groups"`
+
+	// PosterTones 是按 Cover 那张封面的色相算好的 sRGB 色阶；没有封面或还没算出时为 null。
+	PosterTones *artcache.PosterTones `json:"posterTones"`
 }
 
 // ViewContinue 是「继续观看」的一张卡片。
@@ -95,6 +99,8 @@ type ViewContinue struct {
 	PositionSec  float64 `json:"positionSec"`
 	DurationSec  float64 `json:"durationSec"`
 	UpdatedAt    int64   `json:"updatedAt"`
+
+	PosterTones *artcache.PosterTones `json:"posterTones"`
 }
 
 // ViewDropGroup 是「本次扫描按同一个原因跳过了哪些东西」的投影。
@@ -202,6 +208,8 @@ type LibraryService struct {
 	artPrefix string
 	// mediaPrefix 形如 /media/<能力段>；空串表示浏览器内播放不可用。
 	mediaPrefix string
+	// tones 给封面取海报色（poster_tones.go）；nil 时视图里一律是 null。
+	tones PosterToneSource
 
 	// onRescan 在每次重扫完成后调用（启动后台作品识别）；identifyStatus 给视图取识别进度。
 	// 都由启动流程注入一次（SetIdentify）。
@@ -391,6 +399,7 @@ func (s *LibraryService) View() LibraryView {
 
 	prefix := s.artPrefix
 	mediaPrefix := s.mediaPrefix
+	tones := s.tones
 	view := LibraryView{
 		Folders:          []ViewFolder{},
 		Clusters:         []ViewCluster{},
@@ -428,21 +437,26 @@ func (s *LibraryService) View() LibraryView {
 		// 匹配回来的都是同一张图，取第一个有的即可，不必挑「代表集」。
 		// 认定过作品时只看与它一致的匹配（后台匹配迟到时可能写回一条指向别处的）。
 		a, hasAssoc := assocs[c.ClusterKey]
+		coverSource := "" // vc.Cover 那张图的原始地址，取海报色用
 		for _, it := range c.Items {
 			b := bindings[it.FileID]
 			if hasAssoc && b.AnilistID != a.AnilistID {
 				continue
 			}
 			if u := artURL(prefix, it.FileID, b); u != "" {
-				vc.Cover = u
+				vc.Cover, coverSource = u, b.CoverURL
 				break
 			}
 		}
 		if hasAssoc {
 			vc.Association = toViewAssociation(a)
 			vc.Cover = associatedCover(prefix, c.ClusterKey, a, vc.Cover)
+			coverSource = associatedCoverSource(a, coverSource)
 		} else {
 			vc.Matched = matchedWork(c.Items, bindings)
+		}
+		if vc.Cover != "" {
+			vc.PosterTones = tonesFor(tones, coverSource)
 		}
 		for _, g := range c.Groups {
 			vg := ViewGroup{GroupKey: g.GroupKey, Label: g.Label, SortMode: g.SortMode, Items: []ViewItem{}}
@@ -470,7 +484,7 @@ func (s *LibraryService) View() LibraryView {
 		}
 		view.Clusters = append(view.Clusters, vc)
 	}
-	view.ContinueWatching = s.continueWatching(prefix, progress, bindings, assocs)
+	view.ContinueWatching = s.continueWatching(prefix, tones, progress, bindings, assocs)
 	if identify.Running || identify.Error != "" {
 		view.Identify = &identify
 	}
@@ -493,6 +507,7 @@ func (s *LibraryService) identifySnapshot() IdentifyStatus {
 // 调用方必须已持有 s.mu 读锁（本函数读 s.clusters）。
 func (s *LibraryService) continueWatching(
 	prefix string,
+	tones PosterToneSource,
 	progress map[string]store.Progress,
 	bindings map[string]store.Binding,
 	assocs map[string]store.Association,
@@ -535,9 +550,15 @@ func (s *LibraryService) continueWatching(
 				b = store.Binding{}
 			}
 			title, cover := b.Title, artURL(prefix, it.FileID, b)
+			coverSource := b.CoverURL
 			if a, ok := assocs[ce.cluster.ClusterKey]; ok {
 				title = a.Title
 				cover = associatedCover(prefix, ce.cluster.ClusterKey, a, cover)
+				coverSource = associatedCoverSource(a, coverSource)
+			}
+			var posterTones *artcache.PosterTones
+			if cover != "" {
+				posterTones = tonesFor(tones, coverSource)
 			}
 			if title == "" {
 				title = clusterTitle(ce.cluster)
@@ -552,6 +573,7 @@ func (s *LibraryService) continueWatching(
 				PositionSec:  p.PositionSec,
 				DurationSec:  p.DurationSec,
 				UpdatedAt:    p.UpdatedAt,
+				PosterTones:  posterTones,
 			})
 		}
 	}
