@@ -1,0 +1,136 @@
+{
+  "folders": [
+    {
+      "id": "folder-1",
+      "path": "/Users/you/Movies/Anime",
+      "addedAt": 1756500000
+    }
+  ],
+  "clusters": [
+    {
+      "clusterKey": "stardust",
+      "title": "星屑的旅人",
+      "season": 1,
+      "confidence": 0.95,
+      "episodeCount": 3,
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "groups": [
+        {
+          "groupKey": "main",
+          "label": "正片",
+          "sortMode": "episode",
+          "items": [
+            {
+              "fileId": "file-1",
+              "fileName": "[TestSub] Hoshikuzu no Tabibito - 01 [1080p].mkv",
+              "episode": 1,
+              "kind": "main",
+              "resolution": "1080p",
+              "sizeBytes": 1400000000,
+              "progress": {
+                "positionSec": 1420,
+                "durationSec": 1420,
+                "completed": true
+              }
+            },
+            {
+              "fileId": "file-2",
+              "fileName": "[TestSub] Hoshikuzu no Tabibito - 02 [1080p].mkv",
+              "episode": 2,
+              "kind": "main",
+              "resolution": "1080p",
+              "sizeBytes": 1400000000,
+              "progress": {
+                "positionSec": 610,
+                "durationSec": 1420,
+                "completed": false
+              }
+            },
+            {
+              "fileId": "file-3",
+              "fileName": "[TestSub] Hoshikuzu no Tabibito - 03 [1080p].mkv",
+              "episode": 3,
+              "kind": "main",
+              "resolution": "1080p",
+              "sizeBytes": 1400000000,
+              "progress": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "clusterKey": "night-train",
+      "title": "夜行列车",
+      "season": 1,
+      "confidence": 0.9,
+      "episodeCount": 2,
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "groups": [
+        {
+          "groupKey": "main",
+          "label": "正片",
+          "sortMode": "episode",
+          "items": [
+            {
+              "fileId": "file-4",
+              "fileName": "[TestSub] Yakou Ressha - 01 [1080p].mkv",
+              "episode": 1,
+              "kind": "main",
+              "resolution": "1080p",
+              "sizeBytes": 1400000000,
+              "progress": null
+            },
+            {
+              "fileId": "file-5",
+              "fileName": "[TestSub] Yakou Ressha - 02 [1080p].mkv",
+              "episode": 2,
+              "kind": "main",
+              "resolution": "1080p",
+              "sizeBytes": 1400000000,
+              "progress": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "clusterKey": "unknown-folder",
+      "title": "未整理的文件",
+      "season": null,
+      "confidence": 0.4,
+      "episodeCount": 1,
+      "groups": [
+        {
+          "groupKey": "main",
+          "label": "正片",
+          "sortMode": "episode",
+          "items": [
+            {
+              "fileId": "file-6",
+              "fileName": "random_video_0001.mp4",
+              "episode": null,
+              "kind": "main",
+              "resolution": "1080p",
+              "sizeBytes": 1400000000,
+              "progress": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "continueWatching": [
+    {
+      "fileId": "file-2",
+      "title": "星屑的旅人",
+      "episode": 2,
+      "episodeCount": 3,
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "positionSec": 610,
+      "durationSec": 1420,
+      "updatedAt": "@now-3600"
+    }
+  ],
+  "scannedAt": "@nowms"
+}

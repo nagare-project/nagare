@@ -67,3 +67,7 @@ todos.md
 
 # CI 的 Windows 冒烟 job 下载缓存（scripts/windows/fetch-*.sh）
 /.build-cache/
+
+# Playwright 冒烟测试的产物（frontend/e2e）
+frontend/test-results/
+frontend/playwright-report/

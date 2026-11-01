@@ -54,7 +54,7 @@
 .discover-card-cover img[data-loaded=true] { opacity: 1; transform: scale(1); }
 .discover-card[data-hovered] .discover-card-cover img { transform: scale(1.1); transition-duration: .2s; }
 .discover-card-title { margin-top: 8px; font-size: 16px; line-height: 24px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.discover-card-season { color: #71717a; font-size: 14px; line-height: 24px; }
+.discover-card-season { color: var(--text-secondary); font-size: 14px; line-height: 24px; }
 .discover-card-progress { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: #ffffff30; }
 .discover-card-progress > span { display: block; height: 100%; background: var(--brand); }
 .discover-card-count { position: absolute; bottom: 0; left: 0; background: #09090b66; border-radius: 0 8px 0 8px; padding: 2px 6px; color: #ddd; font-size: 16px; font-weight: 600; }

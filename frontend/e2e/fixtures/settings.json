@@ -1,0 +1,24 @@
+{
+  "version": "0.0.0-smoke",
+  "platform": "darwin",
+  "arch": "arm64",
+  "dataDir": "/Users/you/Library/Application Support/nagare",
+  "logPath": "/Users/you/Library/Application Support/nagare/logs/nagare.log",
+  "mpv": { "found": true, "version": "0.41.0", "path": "/opt/homebrew/bin/mpv", "source": "path" },
+  "player": { "anime4k": "off" },
+  "background": { "mode": "dock" },
+  "desktop": { "window": false },
+  "torrent": {
+    "enabled": true,
+    "seeding": false,
+    "trackers": [],
+    "useDefaultTrackers": true,
+    "defaultTrackers": ["udp://tracker.example.invalid:6969/announce"],
+    "portForwarding": true,
+    "listenPort": 6881,
+    "cacheDir": "/Users/you/Library/Application Support/nagare/cache/torrent",
+    "cacheBytes": 0,
+    "downloadDir": "/Users/you/Downloads/nagare",
+    "downloadDirIsDefault": true
+  }
+}

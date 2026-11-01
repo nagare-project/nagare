@@ -91,7 +91,8 @@ export function SettingsPage() {
           <QuitCard platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined} onQuit={() => setHasQuit(true)} />
         </div>
         <div className="settings-section" hidden={section.id !== 'account'}>
-          {settings.state.phase === 'ready' && <AccountCard animego={settings.state.data.animego} onReload={settings.reload} />}
+          {/* 设置载荷缺了账号一项（接口数据不可全信）时不让整页崩掉：账号分区说明原因，其余分区照常 */}
+          {settings.state.phase === 'ready' && (settings.state.data.animego ? <AccountCard animego={settings.state.data.animego} onReload={settings.reload} /> : <section className="panel settings-card"><p className="result result--warn" role="status">没有读到账号状态，账号设置暂时不可用。重启 nagare 后再试。</p></section>)}
         </div>
         <div className="settings-section" hidden={section.id !== 'player'}>
           {settings.state.phase === 'ready' && <MpvCard mpv={settings.state.data.mpv} desktop={settings.state.data.desktop} onReload={settings.reload} />}

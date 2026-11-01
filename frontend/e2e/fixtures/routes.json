@@ -1,0 +1,19 @@
+{
+  "GET /api/settings": "settings.json",
+  "GET /api/update": "update.json",
+  "GET /api/library": "library.json",
+  "GET /api/player/status": "player-status.json",
+  "POST /api/play": "play.json",
+  "GET /api/discover": "discover.json",
+  "GET /api/seasonal": "seasonal.json",
+  "GET /api/schedule": "schedule.json",
+  "GET /api/lists": "lists.json",
+  "GET /api/catalog/search": "catalog-search.json",
+  "GET /api/anime/{id}": "anime.json",
+  "GET /api/anime/{id}/episodes": "anime-episodes.json",
+  "GET /api/anime/{id}/episode-offset": "anime-episode-offset.json",
+  "GET /api/sources": "sources.json",
+  "GET /api/source-plugin": "source-plugin.json",
+  "GET /api/torrent/status": "torrent-status.json",
+  "GET /api/downloads": "downloads.json"
+}

@@ -45,7 +45,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
   const plugin = useSourcePlugin()
 
   const mpv = settings.phase === 'ready' ? settings.data.mpv : null
-  const loggedIn = settings.phase === 'ready' && settings.data.animego.loggedIn
+  const loggedIn = settings.phase === 'ready' && settings.data.animego?.loggedIn === true
   const rules = sources.state.phase === 'ready' ? sources.state.data : null
   // 「磁力可用」有两条来路：来源插件就绪且公布了启用的 BT 来源（安装包捆的那份首次运行
   // 就是这样），或者配了规则仓库且真的加载出了源。只看地址非空会把「填了地址但同步失败」

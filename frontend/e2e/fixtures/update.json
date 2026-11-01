@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "current": "0.0.0-smoke",
+  "latest": "0.9.0",
+  "available": true,
+  "url": "https://github.com/nagare-project/nagare/releases/tag/v0.9.0",
+  "checkedAt": "@nowms",
+  "error": "",
+  "selfUpdate": { "supported": true, "channel": "app-bundle", "target": "/Applications/Nagare.app" }
+}
