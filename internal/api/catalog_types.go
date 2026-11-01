@@ -1,5 +1,7 @@
 package api
 
+import "github.com/nagare-project/nagare/internal/artcache"
+
 // SummaryMedia 是 API 投影；组件通过适配器维持自己的 MediaSummary 契约。
 type SummaryMedia struct {
 	AnilistID       int                `json:"anilistId"`
@@ -30,6 +32,9 @@ type SummaryMedia struct {
 	EpisodeTitles   []EpisodeTitleView `json:"episodeTitles,omitempty"`
 	// Freshness 只在作品详情（GET /api/anime/{id}）的顶层出现，嵌套的关联 / 推荐不带
 	Freshness *Freshness `json:"freshness,omitempty"`
+
+	// PosterTones 是按封面色相算好的 sRGB 色阶；null = 界面用中性色（见 poster_tones.go）。
+	PosterTones *artcache.PosterTones `json:"posterTones"`
 }
 
 // Freshness 只在目录数据不是刚从上游取回时出现：来自磁盘（上次运行留下的）、已过缓存时限、或上游连不上。
@@ -77,6 +82,8 @@ type AiringView struct {
 	Cover     string `json:"cover,omitempty"`
 	Format    string `json:"format,omitempty"`
 	InLibrary bool   `json:"inLibrary"`
+
+	PosterTones *artcache.PosterTones `json:"posterTones"`
 }
 type ScheduleView struct {
 	Airings   []AiringView `json:"airings"`

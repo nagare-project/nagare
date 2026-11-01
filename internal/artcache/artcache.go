@@ -45,6 +45,15 @@ type Cache struct {
 	// 十几张图，其中同一部番的多个条目共用一个 URL。
 	mu       sync.Mutex
 	inflight map[string]chan struct{}
+
+	// 海报取色（tone.go）：内存里的结果、排队中的封面、同时解码一张的信号量。
+	// toneWG 让测试能等后台取色做完再收拾临时目录。
+	toneMu      sync.Mutex
+	toneMemo    map[string]toneResult
+	tonePending map[string]bool
+	toneSem     chan struct{}
+	toneWG      sync.WaitGroup
+	now         func() time.Time
 }
 
 // New 构造缓存；dir 会被创建（0700，与配置目录同权限）。
@@ -66,7 +75,11 @@ func New(dir string) (*Cache, error) {
 			CheckRedirect: checkRedirect,
 			Transport:     &http.Transport{DialContext: dialContext},
 		},
-		inflight: map[string]chan struct{}{},
+		inflight:    map[string]chan struct{}{},
+		toneMemo:    map[string]toneResult{},
+		tonePending: map[string]bool{},
+		toneSem:     make(chan struct{}, 1),
+		now:         time.Now,
 	}, nil
 }
 
@@ -122,6 +135,8 @@ func (c *Cache) getUnvalidated(ctx context.Context, rawURL string) (string, erro
 	if err := c.download(ctx, rawURL, path); err != nil {
 		return "", err
 	}
+	// 新封面落盘就排队取色：等下一次拼目录响应时，颜色多半已经算好了
+	c.scheduleTone(path)
 	return path, nil
 }
 
@@ -131,7 +146,9 @@ func (c *Cache) download(ctx context.Context, rawURL, dest string) error {
 	if err != nil {
 		return fmt.Errorf("构造封面请求: %w", err)
 	}
-	req.Header.Set("Accept", "image/*")
+	// 优先要 JPEG / PNG：取色只用标准库的解码器，图床按 Accept 换成 WebP 就取不到颜色了。
+	// 其他格式仍然收（界面照样能显示），只是没有海报色。
+	req.Header.Set("Accept", "image/jpeg,image/png;q=0.9,image/*;q=0.1")
 
 	resp, err := c.hc.Do(req)
 	if err != nil {

@@ -535,6 +535,9 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		apiHandler.SetCatalogArtPrefix("/art/" + srv.ArtCapability())
 		srv.SetArtHandler(api.NewArtHandler(svc.store, art, apiHandler.RemoteArtwork()))
 		svc.lib.SetArtPrefix("/art/" + srv.ArtCapability())
+		// 海报色从同一份封面缓存里取（只读已缓存的封面，不额外出站）
+		apiHandler.SetPosterTones(art)
+		svc.lib.SetPosterTones(art)
 	}
 
 	// 本地媒体流（浏览器内播放）。决议 A5 原本不做这件事，用户 2026-09-03

@@ -26,6 +26,8 @@ func newTestCache(t *testing.T) *Cache {
 
 	c, err := New(t.TempDir())
 	require.NoError(t, err)
+	// 下载成功会在后台排队取色：等它做完，临时目录才删得干净（Cleanup 后注册先执行）
+	t.Cleanup(c.toneWG.Wait)
 	return c
 }
 

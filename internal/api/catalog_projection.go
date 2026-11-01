@@ -31,6 +31,9 @@ func catalogTitle(r animego.CatalogMedia) string {
 func (s *DiscoverService) summary(r animego.CatalogMedia) SummaryMedia {
 	m := SummaryMedia{AnilistID: r.AnilistID, Title: catalogTitle(r), TitleNative: r.TitleNative, TitleRomaji: r.TitleRomaji, TitleEnglish: r.TitleEnglish,
 		Cover: s.art.Register(r.CoverImageURL), Banner: s.art.Register(r.BannerImageURL), Year: r.SeasonYear, Season: map[string]string{"WINTER": "冬", "SPRING": "春", "SUMMER": "夏", "FALL": "秋"}[r.Season], Episodes: r.Episodes, Score: int(math.Round(r.AverageScore)), Genres: append([]string{}, r.Genres...), Description: plainDescription(firstText(r.DescriptionCn, r.Description)), Status: r.Status, Format: r.Format, Duration: r.Duration, Source: r.Source, StartDate: r.StartDate, Studios: append([]string{}, r.Studios...)}
+	if m.Cover != "" {
+		m.PosterTones = s.posterTones(r.CoverImageURL)
+	}
 	id, site := r.TrailerID, r.TrailerSite
 	if r.Trailer != nil {
 		id, site = r.Trailer.ID, r.Trailer.Site
