@@ -86,9 +86,12 @@ scripts/ios/libmpv/manifest.sh out
   framework 的 Info.plist / 头文件 / module map / 签名；上面「许可证」一节的全部检查；没有 TLS；
   VideoToolbox 硬解的组件都在；LuaJIT 的 `LJ_HASJIT` 是 0。另外列出每个切片引用的
   「需要声明理由的 API」（`stat` 一类、`mach_absolute_time`）—— App 的 `PrivacyInfo.xcprivacy` 要覆盖它们。
-- `--simulator`：新建一台 iOS 模拟器，用本机架构对应的模拟器切片编 [`tests/sim_test.m`](tests/sim_test.m)，经
+- `--simulator`：新建一台 iOS 模拟器，编链接了模拟器切片的 [`tests/sim_test.m`](tests/sim_test.m)，经
   `xcrun simctl spawn` 在模拟器里跑：初始化与版本、扫描器认的每个扩展名各解一段（视频与音频都要解出东西）、
   回环地址上的 http 能播而 https 被拒、Lua（LuaJIT，`jit.status()` 为 false，`jit.on()` 被拒）、
-  render API 在 EAGLContext（OpenGL ES）上画 30 帧并读回像素（软解必过；VideoToolbox 为可选项）。
+  render API 在 EAGLContext（OpenGL ES）上画 30 帧并读回像素。本机架构那一片全套必过；Apple Silicon 上装了
+  Rosetta 时 x86_64 那一片也跑全套（CI 就是这样，Intel 开发机用的正是这一片）。
 
-真机切片在 CI 上只能做静态检查（runner 跑不了 iOS 真机程序）：真机上的验证要等 App 接上之后在 iPhone / iPad 上过。
+模拟器里的 VideoToolbox 起不来（`hwaccel initialisation returned error`，回落到软解），所以 VideoToolbox 解码与
+它接到 OpenGL ES 上（`ios-gl`）这两项在模拟器里只警告；真机切片在 CI 上也只能做静态检查（runner 跑不了 iOS
+真机程序）。这两件事要等 App 接上之后在 iPhone / iPad 上过。
