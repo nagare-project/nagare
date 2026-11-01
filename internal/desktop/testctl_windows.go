@@ -21,13 +21,42 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+// winTraceKeep 是遥控留着的窗口状态同步事件条数（只留最近的，测试失败时报出来）。
+const winTraceKeep = 48
+
+// winTrace 是 testHooks.trace 记下的事件（界面线程写，遥控的 HTTP goroutine 读）。
+var winTrace struct {
+	mu    sync.Mutex
+	start time.Time
+	lines []string
+}
+
+func recordWinTrace(line string) {
+	winTrace.mu.Lock()
+	defer winTrace.mu.Unlock()
+	line = fmt.Sprintf("%6dms %s", time.Since(winTrace.start).Milliseconds(), line)
+	winTrace.lines = append(winTrace.lines, line)
+	if n := len(winTrace.lines); n > winTraceKeep {
+		winTrace.lines = append([]string(nil), winTrace.lines[n-winTraceKeep:]...)
+	}
+}
+
+func winTraceSnapshot() []string {
+	winTrace.mu.Lock()
+	defer winTrace.mu.Unlock()
+	return append([]string(nil), winTrace.lines...)
+}
 
 func init() {
 	testHooks.noRuntime = os.Getenv("NAGARE_DESKTOP_TEST_NO_WEBVIEW2") == "1"
 	testHooks.failWeb = os.Getenv("NAGARE_DESKTOP_TEST_FAIL_WEBVIEW2") == "1"
 	testHooks.logMenus = true
+	winTrace.start = time.Now()
+	testHooks.trace = recordWinTrace
 	addr := os.Getenv("NAGARE_DESKTOP_TEST_ADDR")
 	if addr == "" {
 		return
@@ -125,12 +154,17 @@ func fillState(out map[string]any) {
 		out["ipcInput"] = ipcInput
 		out["sessionId"] = a.sessionID
 		out["quitting"] = a.quitting
+		out["winlog"] = winTraceSnapshot()
 		if s := a.session; s != nil {
 			child := s.child.Load()
 			out["child"] = child != 0
 			out["childEnabled"] = child != 0 && boolCall(pIsWindowEnabled, child)
 			out["childHung"] = child != 0 && boolCall(pIsHungAppWindow, child)
 			out["childRect"] = windowRect(child)
+			if child != 0 {
+				cc := clientRect(child)
+				out["childClient"] = []int32{cc.width(), cc.height()}
+			}
 			out["focusIsChild"] = child != 0 && focus == child
 			out["mpvPid"] = s.pid.Load()
 			out["killedByWatchdog"] = s.killed.Load()

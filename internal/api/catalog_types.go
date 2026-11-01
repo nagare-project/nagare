@@ -28,6 +28,16 @@ type SummaryMedia struct {
 	Recommendations []SummaryMedia     `json:"recommendations,omitempty"`
 	Characters      []Character        `json:"characters,omitempty"`
 	EpisodeTitles   []EpisodeTitleView `json:"episodeTitles,omitempty"`
+	// Freshness 只在作品详情（GET /api/anime/{id}）的顶层出现，嵌套的关联 / 推荐不带
+	Freshness *Freshness `json:"freshness,omitempty"`
+}
+
+// Freshness 只在目录数据不是刚从上游取回时出现：来自磁盘（上次运行留下的）、已过缓存时限、或上游连不上。
+// 界面据此显示「离线 · 更新于 …」。
+type Freshness struct {
+	FetchedAt string `json:"fetchedAt"` // RFC 3339：这份数据真正从上游取回的时间
+	Stale     bool   `json:"stale"`     // 超过缓存时限，后台正在刷新（稍后重新请求可拿到新的）
+	Offline   bool   `json:"offline"`   // 最近一次向上游刷新失败，仍在显示上一份
 }
 type Airing struct {
 	Episode int   `json:"episode"`
@@ -57,6 +67,7 @@ type SectionView struct {
 type DiscoverView struct {
 	Sections  []SectionView `json:"sections"`
 	FetchedAt int64         `json:"fetchedAt"`
+	Freshness *Freshness    `json:"freshness,omitempty"`
 }
 type AiringView struct {
 	AnilistID int    `json:"anilistId"`
@@ -70,4 +81,5 @@ type AiringView struct {
 type ScheduleView struct {
 	Airings   []AiringView `json:"airings"`
 	FetchedAt int64        `json:"fetchedAt"`
+	Freshness *Freshness   `json:"freshness,omitempty"`
 }

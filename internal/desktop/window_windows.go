@@ -153,6 +153,11 @@ func (a *app) layout() {
 	}
 	if s := a.session; s != nil {
 		if child := s.child.Load(); child != 0 {
+			if testHooks.trace != nil {
+				if c := clientRect(child); uintptr(c.width()) != w || uintptr(c.height()) != h {
+					traceWin("mpv 子窗口 %dx%d → %dx%d（异步）", c.width(), c.height(), w, h)
+				}
+			}
 			pSetWindowPos.Call(child, 0, 0, 0, w, h, swpNoZOrder|swpNoActivate|swpNoOwnerZOrder|swpAsyncWindowPos)
 		}
 	}
@@ -304,7 +309,13 @@ func (a *app) hostState() hostWindow {
 // hostChanged：顶层窗口的状态变了（用户点了标题栏、Win+↑、宿主执行了 mpv 的请求），写回 mpv。
 func (a *app) hostChanged() {
 	if s := a.session; s != nil && s.sync != nil {
-		s.write(s.sync.fromHost(a.hostState()))
+		host := a.hostState()
+		writes := s.sync.fromHost(host)
+		if testHooks.trace != nil {
+			traceWin("宿主 %+v → 写给 mpv %v", host, writes)
+		}
+		s.write(writes)
+		a.settleChild(s)
 	}
 }
 
@@ -381,6 +392,7 @@ func topProc(hwnd uintptr, m uint32, w, l uintptr) (r uintptr) {
 	a := ui
 	switch m {
 	case wmSize:
+		traceWin("宿主 WM_SIZE type=%d %dx%d", w, loword(l), hiword(l))
 		a.layout()
 		if w != sizeMinimized {
 			a.hostChanged()
