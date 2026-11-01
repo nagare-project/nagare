@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { m } from 'motion/react'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
@@ -9,7 +8,7 @@ const API_GENRES = ['', 'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fant
 export const genreQuery = (label: string) => API_GENRES[GENRES.indexOf(label)] ?? label
 export const genreLabel = (query: string) => GENRES[API_GENRES.indexOf(query)] ?? '全部'
 
-/** 原版类型栏：内容宽度标签、滑动选中背景、500px 翻页与惯性拖拽。 */
+/** 类型标签条（DESIGN.md「标签与徽标 · 类型标签」）：横向一条，可拖动、可点两端箭头翻页；选中的那个是蓝色。 */
 export function DiscoverGenres({ title, value, onChange }: { title: string; value: string; onChange: (value: string) => void }) {
   const id = useId()
   const scroll = useRef<HTMLDivElement>(null)
@@ -66,7 +65,7 @@ export function DiscoverGenres({ title, value, onChange }: { title: string; valu
       onPointerLeave={() => { if (!drag.current.moved) finish(true) }}
       onClickCapture={event => { if (drag.current.moved) { event.preventDefault(); event.stopPropagation(); drag.current.moved = false } }}>
       <nav className="discover-genres" aria-label={`${title}类型`}>
-        {GENRES.map(genre => <button key={genre} type="button" aria-pressed={value === genre} onClick={() => onChange(genre)}
+        {GENRES.map(genre => <button key={genre} type="button" className="catalog-chip" aria-pressed={value === genre} onClick={() => onChange(genre)}
           onFocus={event => {
             const element = scroll.current!
             const left = event.currentTarget.offsetLeft
@@ -74,15 +73,14 @@ export function DiscoverGenres({ title, value, onChange }: { title: string; valu
               element.scrollTo({ left: left - element.clientWidth / 2, behavior: reduced ? 'instant' : 'smooth' })
             }
           }}>
-          {value === genre && <m.span className="discover-genre-pill" layoutId={`genre-${id}`} transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 38 }} />}
-          <span>{genre}</span>
+          {genre}
         </button>)}
       </nav>
     </div>
     {(['start', 'end'] as const).map(side => <button key={side} type="button" className={`discover-genre-arrow discover-genre-arrow--${side}`}
       aria-label={`${title}类型向${side === 'start' ? '前' : '后'}翻页`} aria-controls={id} disabled={edges[side]}
       onClick={() => { cancelAnimationFrame(frame.current); scroll.current?.scrollBy({ left: side === 'start' ? -500 : 500, behavior: reduced ? 'instant' : 'smooth' }) }}>
-      <Icon name={side === 'start' ? 'left' : 'right'} size={28} />
+      <Icon name={side === 'start' ? 'left' : 'right'} size={20} />
     </button>)}
   </div>
 }

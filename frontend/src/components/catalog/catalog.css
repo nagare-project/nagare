@@ -1,0 +1,156 @@
+/* ============================================================
+   目录类页面（发现 / 季度 / 放送表 / 我的追番）共用的版式与状态（DESIGN.md「布局」「状态表」）。
+   颜色、尺寸、动效一律取 tokens.css 的 token 名，不用 global.css 里的旧别名。
+   ============================================================ */
+
+:root { --catalog-gutter: var(--gutter); }
+@media (max-width: 600px) { :root { --catalog-gutter: 16px; } }
+
+/* 内容最宽 1400px、居中、两侧留白；不写满屏 min-height（.app-main 是 flex 列，main 自己撑满） */
+.catalog-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xl);
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--catalog-gutter));
+  margin: 0 auto;
+  padding: var(--sp-lg) var(--catalog-gutter) var(--sp-xxxl);
+}
+
+/* 页头：标题 + 右侧控件；标题不参与收缩（中文一收缩就成了一字一行），放不下时控件整组换行 */
+.catalog-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-md) var(--sp-lg); }
+.catalog-title {
+  flex: none;
+  font-size: clamp(24px, 4vw, var(--type-h1-size));
+  font-weight: var(--type-h1-weight);
+  letter-spacing: var(--type-h1-tracking);
+  line-height: 1.2;
+}
+.catalog-subline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-xs) var(--sp-md); margin-top: var(--sp-sm); color: var(--text-secondary); font-size: var(--type-body-sm-size); }
+
+/* 作品网格：桌面 6 列 → ≤900px 3 列 → ≤600px 2 列 */
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--sp-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 900px) { .catalog-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+
+/* ---------- 状态：离线细条 ---------- */
+.freshness-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  min-height: 28px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--badge-scrim);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.freshness-note-dot { width: 6px; height: 6px; flex: none; border-radius: var(--radius-full); background: var(--text-secondary); }
+.freshness-note[data-offline] .freshness-note-dot { background: var(--warning); }
+/* 数据变新之后留下的空位：等高、不可见，下面的内容不往上跳 */
+.freshness-note--cleared { visibility: hidden; background: none; }
+
+/* ---------- 状态：整块的空 / 出错 ---------- */
+.catalog-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-sm);
+  max-width: 32rem;
+  margin: var(--sp-xxl) auto;
+  text-align: center;
+}
+.catalog-notice-title { font-size: var(--type-h3-size); font-weight: var(--type-h3-weight); letter-spacing: var(--type-h3-tracking); }
+.catalog-notice-body { color: var(--text-secondary); font-size: var(--type-body-sm-size); line-height: 1.6; }
+.catalog-notice-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-sm); margin-top: var(--sp-sm); }
+.catalog-notice-actions .btn { height: var(--touch-min); padding: 0 20px; }
+
+/* ---------- 状态：加载骨架（静态，不闪） ---------- */
+.poster-skeleton { display: flex; flex-direction: column; gap: var(--sp-sm); overflow: hidden; border: 1px solid var(--separator-opaque); border-radius: var(--radius-md); background: var(--bg-card); list-style: none; }
+.poster-skeleton-art { display: block; aspect-ratio: 3 / 4; background: var(--bg-elevated); }
+.poster-skeleton-line { display: block; height: 12px; margin: 0 12px; border-radius: var(--radius-full); background: var(--bg-fill-hover); }
+.poster-skeleton-line--short { width: 50%; margin-bottom: 14px; }
+
+/* ---------- 发现页顶部：媒体库是空的 ---------- */
+.library-strip {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--catalog-gutter));
+  margin: 0 auto;
+  padding: var(--sp-sm) var(--catalog-gutter);
+}
+.library-strip-text { flex: 1; min-width: 0; color: var(--text); font-size: var(--type-label-size); }
+.library-strip-link { color: var(--accent); font-weight: 600; text-decoration: none; border-radius: 4px; }
+.library-strip-link:hover { color: var(--accent-hover); text-decoration: underline; text-underline-offset: 0.18em; }
+.library-strip-close { width: 32px; height: 32px; color: var(--text-secondary); }
+@media (pointer: coarse) { .library-strip-close { width: var(--touch-min); height: var(--touch-min); } }
+
+/* ---------- 分段（我的追番的四档、季度的四季） ---------- */
+.catalog-segments { display: inline-flex; flex-wrap: wrap; gap: var(--sp-xs); padding: var(--sp-xs); border-radius: var(--radius-full); background: var(--bg-card); }
+.catalog-segments .tab {
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: var(--type-label-size);
+  font-weight: 500;
+}
+.catalog-segments .tab:hover { background: var(--bg-fill); color: var(--text); }
+.catalog-segments .tab--on { background: var(--bg-elevated); color: var(--text); font-weight: 600; }
+.catalog-segments .tab-count { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); }
+@media (pointer: coarse) { .catalog-segments .tab { height: var(--touch-min); } }
+
+/* ---------- 类型标签（DESIGN.md「标签与徽标」）：--bg-fill 底、--text-secondary 字；选中是蓝色家族 ---------- */
+.catalog-chip {
+  flex: none;
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-fill);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-standard), color var(--dur-short) var(--ease-standard);
+}
+.catalog-chip:hover { background: var(--bg-fill-hover); color: var(--text); }
+.catalog-chip[aria-pressed='true'] { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+@media (pointer: coarse) { .catalog-chip { min-height: var(--touch-min); padding-inline: 16px; } }
+@media (prefers-reduced-motion: reduce) { .catalog-chip { transition: none; } }
+
+/* ---------- 横向一排的前后翻页箭头（海报行、即将播出） ---------- */
+.row-arrow {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-fill);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-standard), color var(--dur-short) var(--ease-standard);
+}
+.row-arrow:hover:not(:disabled) { background: var(--bg-fill-hover); color: var(--text); }
+.row-arrow:disabled { opacity: 0.35; cursor: default; }
+@media (pointer: coarse) { .row-arrow { width: var(--touch-min); height: var(--touch-min); } }
+@media (prefers-reduced-motion: reduce) { .row-arrow { transition: none; } }

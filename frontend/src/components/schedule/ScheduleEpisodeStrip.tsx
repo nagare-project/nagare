@@ -1,68 +1,47 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { posterToneStyle } from '../../lib/posterTones'
 import { Icon } from '../ui/Icon'
 import { MediaArtwork } from '../media/MediaArtwork'
 import { MediaPreview } from '../media/MediaPreview'
 import { useReducedMotionPreference } from '../media/useReducedMotionPreference'
 import type { ScheduleEpisode } from './types'
 
-/** seanime 的宽幅剧集卡：逐卡翻页，指示条与真实滚动位置同步。 */
-export function ScheduleEpisodeStrip({ title, items, missing = false, now }: { title: string; items: ScheduleEpisode[]; missing?: boolean; now: Date }) {
+/**
+ * 即将播出的剧集：宽幅卡片横向一条。不自动滚动（DESIGN.md「动效」：除发现页横幅外不做自动轮播），
+ * 手指 / 触控板横滑，或点标题右边的前后箭头整屏翻。
+ */
+export function ScheduleEpisodeStrip({ title, items, now }: { title: string; items: ScheduleEpisode[]; now: Date }) {
   const row = useRef<HTMLUListElement>(null)
-  const [positions, setPositions] = useState<number[]>([0])
-  const [active, setActive] = useState(0)
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const [paused, setPaused] = useState(false)
-  const [visible, setVisible] = useState(false)
+  const rowId = useId()
+  const headingId = useId()
+  const [edges, setEdges] = useState({ start: true, end: true })
   const reduced = useReducedMotionPreference()
   useEffect(() => {
     const element = row.current
     if (!element) return
-    const measure = () => {
-      const max = Math.max(0, element.scrollWidth - element.clientWidth)
-      const cards = [...element.children] as HTMLElement[]
-      const stops = [...new Set(cards.map(card => Math.min(max, card.offsetLeft - (cards[0]?.offsetLeft ?? 0))))]
-      setPositions(stops.length ? stops : [0])
-    }
-    measure()
-    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    resize?.observe(element)
-    const visibility = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([entry]) => setVisible(entry?.isIntersecting ?? false))
-    visibility?.observe(element)
-    window.addEventListener('resize', measure)
-    return () => { resize?.disconnect(); visibility?.disconnect(); window.removeEventListener('resize', measure) }
-  }, [items])
-  useEffect(() => {
-    const element = row.current
-    if (!element) return
-    const sync = () => setActive(positions.reduce((best, position, i) => Math.abs(position - element.scrollLeft) < Math.abs(positions[best]! - element.scrollLeft) ? i : best, 0))
+    const sync = () => setEdges({ start: element.scrollLeft < 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 })
     sync()
     element.addEventListener('scroll', sync, { passive: true })
-    return () => element.removeEventListener('scroll', sync)
-  }, [positions])
-  useEffect(() => {
-    if (hovered || focused || paused || reduced || !visible || positions.length < 2) return
-    const timer = setInterval(() => { if (!document.hidden) row.current?.scrollTo({ left: positions[(active + 1) % positions.length], behavior: 'smooth' }) }, 5000)
-    return () => clearInterval(timer)
-  }, [hovered, focused, paused, reduced, visible, active, positions])
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync)
+    resize?.observe(element)
+    return () => { element.removeEventListener('scroll', sync); resize?.disconnect() }
+  }, [items])
   if (!items.length) return null
-  return <section className="schedule-strip" aria-label={title} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-    onFocusCapture={() => setFocused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}>
-    <header className="schedule-section-heading"><div><h2>{missing && <Icon name="lists" size={28} />}{title}</h2>
-      {!missing && <p>按本机时区显示近期放送安排</p>}</div>
-      {positions.length > 1 && <div className="schedule-strip-dots" aria-label={`${title}翻页`}>
-        {positions.map((left, i) => <button type="button" key={left} className={active === i ? 'schedule-strip-dot schedule-strip-dot--on' : 'schedule-strip-dot'} aria-label={`${title}第 ${i + 1} 页`} aria-pressed={active === i}
-          onClick={() => row.current?.scrollTo({ left, behavior: reduced ? 'instant' : 'smooth' })} />)}
-        {!reduced && <button type="button" className="schedule-strip-pause" aria-label={`${paused ? '播放' : '暂停'}${title}轮播`} aria-pressed={paused} onClick={() => setPaused(!paused)}><Icon name={paused ? 'play' : 'pause'} size={13} /></button>}
+  const page = (dir: -1 | 1) => row.current?.scrollBy({ left: dir * row.current.clientWidth, behavior: reduced ? 'instant' : 'smooth' })
+  return <section className="schedule-strip" aria-labelledby={headingId}>
+    <header className="schedule-section-heading">
+      <div><h2 id={headingId}>{title}</h2><p>按本机时区显示</p></div>
+      {!(edges.start && edges.end) && <div className="schedule-strip-arrows">
+        <button type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={rowId} disabled={edges.start} onClick={() => page(-1)}><Icon name="left" size={18} /></button>
+        <button type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={rowId} disabled={edges.end} onClick={() => page(1)}><Icon name="right" size={18} /></button>
       </div>}
     </header>
-    <ul className="schedule-strip-row" ref={row}>{items.map(({ event, extraCount }) => <li className="schedule-episode" key={event.id}>
-      <MediaPreview media={event.media} className="schedule-episode-hit">
-        <span className="schedule-episode-art"><MediaArtwork src={event.media.banner ?? event.media.cover} title={event.media.title} />
-          <span className="schedule-episode-hover"><Icon name="info" size={34} /></span></span>
+    <ul className="schedule-strip-row" ref={row} id={rowId}>{items.map(({ event, extraCount }) => <li className="schedule-episode" key={event.id} style={posterToneStyle(event.media.posterTones)}>
+      <MediaPreview media={event.media} label={null} className="schedule-episode-hit">
+        <span className="schedule-episode-art" aria-hidden="true"><MediaArtwork src={event.media.banner ?? event.media.cover} title={event.media.title} /></span>
         <span className="schedule-episode-title">{event.media.title}</span>
         <span className="schedule-episode-meta"><span>第 {event.episode} 集{!!extraCount && ` 及另外 ${extraCount} 集`}</span>
-          <time dateTime={event.airingAt}>{missing ? new Date(event.airingAt).toLocaleDateString('sv-SE') : timeUntil(event.airingAt, now)}</time>
+          <time dateTime={event.airingAt}>{timeUntil(event.airingAt, now)}</time>
         </span>
       </MediaPreview>
     </li>)}</ul>

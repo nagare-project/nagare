@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import './trailer.css'
 
 const YOUTUBE_ORIGIN = 'https://www.youtube-nocookie.com'
 export const TRAILER_HOVER_MS = 1000

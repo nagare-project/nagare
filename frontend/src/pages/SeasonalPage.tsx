@@ -1,21 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { useMemo } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { CatalogNotice, PosterSkeletons } from '../components/catalog/CatalogStates'
+import { FreshnessNote } from '../components/catalog/FreshnessNote'
+import { RouteLink } from '../components/catalog/RouteLink'
+import { SEASONS, SEASON_LABEL, adjacentSeason, currentSeason } from '../components/catalog/season'
 import { DiscoverCard } from '../components/media/DiscoverCard'
 import { GENRES, genreQuery } from '../components/media/DiscoverGenres'
-import { Result, Tab, Tabs } from '../components/ui'
-import { Icon } from '../components/ui/Icon'
-import { fetchSeasonal } from '../lib/media'
-import type { SeasonName } from '../lib/media'
-import { errorText } from '../lib/format'
 import type { MediaSummary } from '../components/media/types'
-import '../components/library/library.css'
+import { Tab, Tabs } from '../components/ui'
+import { Icon } from '../components/ui/Icon'
+import { useCatalogResource } from '../hooks/useCatalogResource'
+import type { SeasonName } from '../lib/endpoints'
+import { fetchSeasonal } from '../lib/media'
+import '../components/catalog/catalog.css'
 import '../components/media/media.css'
-import '../components/media/discover.css'
 import './seasonal.css'
 
-/** 季度顺序与 animego 一致：冬（1–3 月）→ 春 → 夏 → 秋。 */
-export const SEASONS: readonly SeasonName[] = ['WINTER', 'SPRING', 'SUMMER', 'FALL']
-const SEASON_LABEL: Record<SeasonName, string> = { WINTER: '冬', SPRING: '春', SUMMER: '夏', FALL: '秋' }
+export { SEASONS, adjacentSeason, currentSeason } from '../components/catalog/season'
+
 const FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const
 const FORMAT_LABEL: Record<string, string> = { TV: 'TV', TV_SHORT: '短篇', MOVIE: '剧场版', OVA: 'OVA', ONA: 'ONA', SPECIAL: '特别篇' }
 const STATUSES = ['RELEASING', 'FINISHED', 'NOT_YET_RELEASED'] as const
@@ -27,20 +29,7 @@ const MIN_YEAR = 1990
 
 export interface SeasonalSearch { season?: SeasonName; year?: number; genre?: string; format?: string; status?: string; sort?: SortKey; [key: string]: unknown }
 
-/** 当前所处的季度（本地时间），用作默认值与年份下拉的上限。 */
-export function currentSeason(now = new Date()): { season: SeasonName; year: number } {
-  return { season: SEASONS[Math.floor(now.getMonth() / 3)]!, year: now.getFullYear() }
-}
-
-/** 相邻季度，跨年回绕：冬 <年> 的上一季是秋 <年-1>。 */
-export function adjacentSeason(season: SeasonName, year: number, dir: -1 | 1): { season: SeasonName; year: number } {
-  const next = SEASONS.indexOf(season) + dir
-  if (next < 0) return { season: 'FALL', year: year - 1 }
-  if (next >= SEASONS.length) return { season: 'WINTER', year: year + 1 }
-  return { season: SEASONS[next]!, year }
-}
-
-/** 客户端筛选与排序：animego 一季只有一页（≤200 条），没必要为筛选再请求。 */
+/** 客户端筛选与排序：一季只有一页（≤200 条），没必要为筛选再请求。 */
 export function applySeasonalFilters(items: MediaSummary[], search: SeasonalSearch): MediaSummary[] {
   let list = items
   const genre = search.genre ? genreQuery(search.genre) : ''
@@ -56,79 +45,6 @@ export function applySeasonalFilters(items: MediaSummary[], search: SeasonalSear
   return sorted
 }
 
-export function SeasonalPage() {
-  const search = useSearch({ strict: false }) as SeasonalSearch
-  const navigate = useNavigate()
-  const fallback = currentSeason()
-  const season = search.season ?? fallback.season
-  const year = search.year ?? fallback.year
-  const [items, setItems] = useState<MediaSummary[]>()
-  const [error, setError] = useState<string>()
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    const abort = new AbortController()
-    setItems(undefined)
-    setError(undefined)
-    void fetchSeasonal(season, year, abort.signal)
-      .then(next => { if (!abort.signal.aborted) setItems(next) })
-      .catch(err => { if (!abort.signal.aborted) setError(errorText(err, '季度目录加载失败')) })
-    return () => abort.abort()
-  }, [season, year, attempt])
-
-  const filtered = useMemo(() => (items ? applySeasonalFilters(items, search) : []), [items, search])
-  const years = useMemo(() => Array.from({ length: fallback.year + 1 - MIN_YEAR + 1 }, (_, i) => fallback.year + 1 - i), [fallback.year])
-  const go = (next: Partial<SeasonalSearch>) => void navigate({ to: '/seasonal', search: prune({ ...search, season, year, ...next }) })
-  const prev = adjacentSeason(season, year, -1)
-  const next = adjacentSeason(season, year, 1)
-  const hasFilters = Boolean(search.genre || search.format || search.status)
-
-  return <main className="lib-shell seasonal-shell">
-    <header className="page-head seasonal-head">
-      <h1 className="page-title">{year} 年 {SEASON_LABEL[season]}季新番</h1>
-      <nav className="seasonal-nav" aria-label="季度导航">
-        <Link to="/seasonal" search={prune({ ...search, ...prev })} className="btn btn--sm" aria-label={`上一季：${prev.year} 年${SEASON_LABEL[prev.season]}季`}><Icon name="left" size={16} />{prev.year} {SEASON_LABEL[prev.season]}</Link>
-        <Tabs value={season} onChange={value => go({ season: value as SeasonName })} label="季度">
-          {SEASONS.map(value => <Tab key={value} value={value}>{SEASON_LABEL[value]}季</Tab>)}
-        </Tabs>
-        <label className="seasonal-year"><span className="visually-hidden">年份</span>
-          <select className="input" value={year} onChange={event => go({ year: Number(event.target.value) })} aria-label="年份">
-            {years.map(value => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
-        <Link to="/seasonal" search={prune({ ...search, ...next })} className="btn btn--sm" aria-label={`下一季：${next.year} 年${SEASON_LABEL[next.season]}季`}>{next.year} {SEASON_LABEL[next.season]}<Icon name="right" size={16} /></Link>
-      </nav>
-    </header>
-
-    <section className="seasonal-filters" aria-label="筛选">
-      <div className="seasonal-chip-row" role="group" aria-label="类型">
-        {GENRES.map(label => <button type="button" key={label} className={(search.genre ?? '全部') === label ? 'seasonal-chip seasonal-chip--active' : 'seasonal-chip'} aria-pressed={(search.genre ?? '全部') === label}
-          onClick={() => go({ genre: label === '全部' ? undefined : label })}>{label}</button>)}
-      </div>
-      <div className="seasonal-chip-row" role="group" aria-label="格式与状态">
-        {FORMATS.map(value => <button type="button" key={value} className={search.format === value ? 'seasonal-chip seasonal-chip--active' : 'seasonal-chip'} aria-pressed={search.format === value}
-          onClick={() => go({ format: search.format === value ? undefined : value })}>{FORMAT_LABEL[value]}</button>)}
-        <span className="seasonal-chip-gap" aria-hidden="true" />
-        {STATUSES.map(value => <button type="button" key={value} className={search.status === value ? 'seasonal-chip seasonal-chip--active' : 'seasonal-chip'} aria-pressed={search.status === value}
-          onClick={() => go({ status: search.status === value ? undefined : value })}>{STATUS_LABEL[value]}</button>)}
-      </div>
-      <div className="seasonal-sort-row">
-        <span className="result result--dim" role="status">{items ? `${filtered.length} 部${hasFilters ? `（共 ${items.length} 部）` : ''}` : ''}</span>
-        <label>排序 <select className="input" value={search.sort ?? 'score'} onChange={event => go({ sort: event.target.value as SortKey })} aria-label="排序">
-          {SORTS.map(value => <option key={value} value={value}>{SORT_LABEL[value]}</option>)}
-        </select></label>
-        {hasFilters && <button type="button" className="link" onClick={() => go({ genre: undefined, format: undefined, status: undefined })}>清除筛选</button>}
-      </div>
-    </section>
-
-    {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={() => setAttempt(value => value + 1)}>重新加载</button></p>}
-    {!items && !error && <Result live>正在读取 {year} 年{SEASON_LABEL[season]}季…</Result>}
-    {items && (filtered.length === 0
-      ? <Result>{items.length === 0 ? '这一季暂时没有作品。' : '没有符合筛选的作品。'}</Result>
-      : <ul className="poster-grid">{filtered.map(media => <DiscoverCard key={media.id} media={media} />)}</ul>)}
-  </main>
-}
-
 /** 去掉未定义的键，地址栏只留真正设置了的参数；默认排序也不写。 */
 function prune(search: SeasonalSearch): SeasonalSearch {
   const out: SeasonalSearch = {}
@@ -139,4 +55,74 @@ function prune(search: SeasonalSearch): SeasonalSearch {
   if (search.status) out.status = search.status
   if (search.sort && search.sort !== 'score') out.sort = search.sort
   return out
+}
+
+/** 季度浏览（`/seasonal`）：年份 + 季度、类型 / 格式 / 状态筛选、排序都在地址栏，可分享可回退 */
+export function SeasonalPage() {
+  const search = useSearch({ strict: false }) as SeasonalSearch
+  const navigate = useNavigate()
+  const fallback = currentSeason()
+  const season = search.season ?? fallback.season
+  const year = search.year ?? fallback.year
+  const resource = useCatalogResource(`${season}-${year}`, signal => fetchSeasonal(season, year, signal), { fallbackError: '季度目录读取失败' })
+  const items = resource.data?.items
+  const filtered = useMemo(() => (items ? applySeasonalFilters(items, search) : []), [items, search])
+  const years = useMemo(() => Array.from({ length: fallback.year + 1 - MIN_YEAR + 1 }, (_, i) => fallback.year + 1 - i), [fallback.year])
+  const go = (next: Partial<SeasonalSearch>) => void navigate({ to: '/seasonal', search: prune({ ...search, season, year, ...next }) })
+  const prev = adjacentSeason(season, year, -1)
+  const next = adjacentSeason(season, year, 1)
+  const hasFilters = Boolean(search.genre || search.format || search.status)
+  const clearFilters = () => go({ genre: undefined, format: undefined, status: undefined })
+
+  return <main className="catalog-page">
+    <header className="catalog-head">
+      <h1 className="catalog-title">{year} 年{SEASON_LABEL[season]}季新番</h1>
+      <nav className="seasonal-nav" aria-label="季度导航">
+        <RouteLink to="/seasonal" search={prune({ ...search, ...prev })} className="seasonal-step"><Icon name="left" size={16} /><span className="visually-hidden">上一季：</span>{prev.year} {SEASON_LABEL[prev.season]}</RouteLink>
+        <div className="catalog-segments">
+          <Tabs value={season} onChange={value => go({ season: value as SeasonName })} label="季度">
+            {SEASONS.map(value => <Tab key={value} value={value}>{SEASON_LABEL[value]}季</Tab>)}
+          </Tabs>
+        </div>
+        <label><span className="visually-hidden">年份</span>
+          <select className="seasonal-select" value={year} onChange={event => go({ year: Number(event.target.value) })}>
+            {years.map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <RouteLink to="/seasonal" search={prune({ ...search, ...next })} className="seasonal-step"><span className="visually-hidden">下一季：</span>{next.year} {SEASON_LABEL[next.season]}<Icon name="right" size={16} /></RouteLink>
+      </nav>
+    </header>
+
+    <section className="seasonal-filters" aria-label="筛选">
+      <div className="seasonal-chip-row seasonal-chip-row--scroll" role="group" aria-label="类型">
+        {GENRES.map(label => <button type="button" key={label} className="catalog-chip" aria-pressed={(search.genre ?? '全部') === label}
+          onClick={() => go({ genre: label === '全部' ? undefined : label })}>{label}</button>)}
+      </div>
+      <div className="seasonal-chip-row" role="group" aria-label="格式与状态">
+        {FORMATS.map(value => <button type="button" key={value} className="catalog-chip" aria-pressed={search.format === value}
+          onClick={() => go({ format: search.format === value ? undefined : value })}>{FORMAT_LABEL[value]}</button>)}
+        <span className="seasonal-chip-gap" aria-hidden="true" />
+        {STATUSES.map(value => <button type="button" key={value} className="catalog-chip" aria-pressed={search.status === value}
+          onClick={() => go({ status: search.status === value ? undefined : value })}>{STATUS_LABEL[value]}</button>)}
+      </div>
+      <div className="seasonal-sort-row">
+        <span className="seasonal-count" role="status">{items ? `${filtered.length} 部${hasFilters ? `（共 ${items.length} 部）` : ''}` : ''}</span>
+        <FreshnessNote freshness={resource.data?.freshness} refreshing={resource.refreshing} />
+        <label className="seasonal-sort">排序
+          <select className="seasonal-select" value={search.sort ?? 'score'} onChange={event => go({ sort: event.target.value as SortKey })}>
+            {SORTS.map(value => <option key={value} value={value}>{SORT_LABEL[value]}</option>)}
+          </select>
+        </label>
+        {hasFilters && <button type="button" className="link seasonal-clear" onClick={clearFilters}>清除筛选</button>}
+      </div>
+    </section>
+
+    {resource.loading && <PosterSkeletons label={`正在读取 ${year} 年${SEASON_LABEL[season]}季`} />}
+    {resource.error && <CatalogNotice tone="error" title="季度目录读取失败" actions={<button type="button" className="btn" onClick={resource.retry}>重试</button>}>{resource.error}</CatalogNotice>}
+    {items && (filtered.length > 0
+      ? <ul className="catalog-grid">{filtered.map(media => <DiscoverCard key={media.id} media={media} />)}</ul>
+      : items.length === 0
+        ? <CatalogNotice title="这一季暂时没有作品">目录里还没有这一季的条目，换一季看看。</CatalogNotice>
+        : <CatalogNotice title="没有符合筛选的作品" actions={<button type="button" className="btn" onClick={clearFilters}>清除筛选</button>}>放宽类型、格式或状态的条件再看看。</CatalogNotice>)}
+  </main>
 }
