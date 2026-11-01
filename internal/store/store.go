@@ -310,6 +310,30 @@ func (s *Store) Binding(fileID string) (Binding, bool) {
 	return b, ok
 }
 
+// CoverURLs 列出媒体库用得到的封面原始地址（去重）：匹配结果里的封面与手动认定的作品封面。
+// 封面缓存淘汰时把它们排到最后（离线时媒体库还要显示）。只拷出地址，不像 Snapshot 那样复制整份状态。
+func (s *Store) CoverURLs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	seen := make(map[string]bool, len(s.data.Bindings))
+	out := make([]string, 0, len(s.data.Bindings))
+	add := func(u string) {
+		if u != "" && !seen[u] {
+			seen[u] = true
+			out = append(out, u)
+		}
+	}
+	for _, b := range s.data.Bindings {
+		add(b.CoverURL)
+	}
+	for _, a := range s.data.Associations {
+		if a.Mode == AssociationManual {
+			add(a.CoverURL)
+		}
+	}
+	return out
+}
+
 // SetProgress 保存进度。
 func (s *Store) SetProgress(fileID string, p Progress) error {
 	s.mu.Lock()

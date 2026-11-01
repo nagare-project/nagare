@@ -6,6 +6,7 @@ import type { FormEvent } from 'react'
 import { AddFolderForm } from '../components/library/AddFolderForm'
 import { SourcesCard } from '../components/search/SourcesCard'
 import { AboutCard } from '../components/settings/AboutCard'
+import { CoverCacheCard } from '../components/settings/CoverCacheCard'
 import { MpvCard } from '../components/settings/MpvCard'
 import { PlaybackCard } from '../components/settings/PlaybackCard'
 import { QuitCard, QuitNotice } from '../components/settings/QuitCard'
@@ -104,6 +105,9 @@ export function SettingsPage() {
         </div>
         <div className="settings-section" hidden={section.id !== 'about'}>
           {settings.state.phase === 'ready' && <AboutCard settings={settings.state.data} />}
+          {settings.state.phase === 'ready' && settings.state.data.coverCache != null && (
+            <CoverCacheCard cache={settings.state.data.coverCache} onReload={settings.reload} />
+          )}
         </div>
       </div>
     </main>

@@ -323,6 +323,20 @@ export interface SettingsData {
   background: BackgroundInfo
   /** 桌面窗口的状态；旧后端没有这个字段 */
   desktop?: DesktopInfo
+  /** 封面缓存的占用；这次运行没有封面缓存时为 null，旧后端没有这个字段 */
+  coverCache?: CoverCacheInfo | null
+}
+
+/** 封面缓存（发现页、媒体库的海报图）的占用；超过 maxBytes 时后台从最久没用的开始删 */
+export interface CoverCacheInfo {
+  bytes: number
+  count: number
+  maxBytes: number
+}
+
+/** POST /api/cover-cache/clear 的结果：清完之后的占用；skipped 是正在显示、这次没删掉的张数 */
+export interface CoverCacheClearResult extends CoverCacheInfo {
+  skipped: number
 }
 
 // ---------- 播放器设置 ----------
@@ -451,6 +465,10 @@ export function pausePlayer(paused: boolean): Promise<void> {
 
 export function fetchSettings(): Promise<SettingsData> {
   return apiFetch<SettingsData>('/api/settings')
+}
+
+export function clearCoverCache(): Promise<CoverCacheClearResult> {
+  return requestJson<CoverCacheClearResult>('/api/cover-cache/clear', 'POST')
 }
 
 export function animegoLogin(email: string, password: string): Promise<{ user: { email: string } }> {

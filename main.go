@@ -25,7 +25,6 @@ import (
 	"github.com/nagare-project/nagare/internal/animego"
 	"github.com/nagare-project/nagare/internal/api"
 	"github.com/nagare-project/nagare/internal/api/sources"
-	"github.com/nagare-project/nagare/internal/artcache"
 	"github.com/nagare-project/nagare/internal/config"
 	"github.com/nagare-project/nagare/internal/desktop"
 	"github.com/nagare-project/nagare/internal/httpserver"
@@ -527,18 +526,8 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		srv.SetStreamHandler(svc.torrent.Handler())
 	}
 
-	// 封面端点。起不来只是界面没图（走无图版式），不阻断启动 ——
-	// 它和播放、扫描、搜索都没有关系。
-	if art, err := artcache.New(filepath.Join(configDir, "cache", "art")); err != nil {
-		log.Printf("封面缓存不可用（界面将不显示封面）：%v", err)
-	} else {
-		apiHandler.SetCatalogArtPrefix("/art/" + srv.ArtCapability())
-		srv.SetArtHandler(api.NewArtHandler(svc.store, art, apiHandler.RemoteArtwork()))
-		svc.lib.SetArtPrefix("/art/" + srv.ArtCapability())
-		// 海报色从同一份封面缓存里取（只读已缓存的封面，不额外出站）
-		apiHandler.SetPosterTones(art)
-		svc.lib.SetPosterTones(art)
-	}
+	// 封面端点与封面缓存（artcache.go）。起不来只是界面没图，不阻断启动。
+	artStopped := setupArtCache(ctx, configDir, srv, apiHandler, svc)
 
 	// 本地媒体流（浏览器内播放）。决议 A5 原本不做这件事，用户 2026-09-03
 	// 要求接上；正常播放路径仍是 mpv，这条只是补一个「手边没有 mpv 时」的出路。
@@ -596,6 +585,7 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	}
 
 	<-stopped
+	waitArtCache(artStopped)
 	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("HTTP 服务异常退出：%w", err)
 	}

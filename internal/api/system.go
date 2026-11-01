@@ -17,6 +17,7 @@ const shutdownDelay = 100 * time.Millisecond
 
 // settings 是设置页的一次性载荷（M4 阶段 A 契约）：
 // version / platform / arch / dataDir / logPath / mpv / animego / torrent / background。
+// 另有 coverCache：封面缓存的占用（cover_cache.go），这次运行没有封面缓存时为 null。
 // torrent 一项由 api/sources 提供（Deps.TorrentSettings）；没接磁力的构建里不出这一项。
 func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 	payload := map[string]any{
@@ -29,6 +30,7 @@ func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 		"player":     playerView(h.deps.Store.PlayerConfig()),
 		"background": map[string]any{"mode": backgroundModeView(h.deps.BackgroundMode)},
 		"desktop":    desktopView(h.deps.Desktop),
+		"coverCache": h.coverCacheView(),
 		"animego": map[string]any{
 			"loggedIn": h.deps.Auth.LoggedIn(),
 			"email":    h.deps.Store.AnimegoSession().Email,

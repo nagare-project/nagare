@@ -10,15 +10,17 @@
 //
 // 调用方【不】把 URL 交给客户端 —— 客户端只给作品键，URL 由服务端从自己的
 // store 里查出来。这样客户端侧压根没有「让 nagare 去请求任意地址」的入口。
+//
+// 缓存有总量上限（MaxBytes），超过时在后台按最近使用淘汰，媒体库与离线目录在用的封面最后才删
+// （evict.go）；使用记录见 index.go。
 package artcache
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -54,14 +56,30 @@ type Cache struct {
 	toneSem     chan struct{}
 	toneWG      sync.WaitGroup
 	now         func() time.Time
+
+	// 上限与淘汰（index.go / evict.go）。maxBytes / maxEntries 构造后不变（测试在用之前改小）。
+	idx        coverIndex
+	maxBytes   int64
+	maxEntries int
+	evictCh    chan struct{}
+	pinMu      sync.Mutex
+	pinned     func() []string
 }
 
-// New 构造缓存；dir 会被创建（0700，与配置目录同权限）。
+// File 是 Open 交出去的封面文件：Close 之前它不会被淘汰或清空。
+type File interface {
+	io.ReadSeekCloser
+	Stat() (fs.FileInfo, error)
+}
+
+// New 构造缓存；dir 会被创建（0700，与配置目录同权限）。已有的封面按目录与 index.json 对账后接着用
+// （上次没写完的临时文件、没有主人的取色边车顺手删掉）。淘汰要等 Run 起来才做。
 func New(dir string) (*Cache, error) {
+	dir = filepath.Clean(dir) // coverName 按 filepath.Dir 比对目录，要与 Path 拼出来的一致
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("创建封面缓存目录: %w", err)
 	}
-	return &Cache{
+	c := &Cache{
 		dir: dir,
 		hc: &http.Client{
 			Timeout: fetchTimeout,
@@ -80,22 +98,62 @@ func New(dir string) (*Cache, error) {
 		tonePending: map[string]bool{},
 		toneSem:     make(chan struct{}, 1),
 		now:         time.Now,
-	}, nil
+		idx:         coverIndex{entries: map[string]coverEntry{}, inUse: map[string]int{}},
+		maxBytes:    MaxBytes,
+		maxEntries:  maxCacheEntries,
+		evictCh:     make(chan struct{}, 1),
+	}
+	if err := c.loadIndex(); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 // Path 返回某个 URL 的缓存文件路径（不保证存在）。
 func (c *Cache) Path(rawURL string) string {
-	sum := sha256.Sum256([]byte(rawURL))
-	return filepath.Join(c.dir, hex.EncodeToString(sum[:])+".img")
+	return filepath.Join(c.dir, coverFileName(rawURL))
 }
 
 // Get 返回本地缓存文件路径，必要时先下载。
 // 失败一律返回 error —— 调用方（HTTP 处理器）据此回 404 并让界面走无图版式。
+//
+// 返回的路径随时可能被淘汰；要把文件内容转发出去用 Open，它在 Close 之前护住文件。
 func (c *Cache) Get(ctx context.Context, rawURL string) (string, error) {
 	if err := validateURL(rawURL); err != nil {
 		return "", err
 	}
-	return c.getUnvalidated(ctx, rawURL)
+	path, err := c.getUnvalidated(ctx, rawURL)
+	if err == nil {
+		c.touch(path)
+	}
+	return path, err
+}
+
+// Open 取回封面（必要时先下载）并打开，供 /art 端点转发；记一次使用。
+// 返回的文件在 Close 之前不会被淘汰或清空 —— 调用方必须 Close。
+func (c *Cache) Open(ctx context.Context, rawURL string) (File, error) {
+	if err := validateURL(rawURL); err != nil {
+		return nil, err
+	}
+	return c.openUnvalidated(ctx, rawURL)
+}
+
+// openUnvalidated 是 Open 去掉入口校验的那一半（理由同 getUnvalidated）。
+func (c *Cache) openUnvalidated(ctx context.Context, rawURL string) (File, error) {
+	for attempt := 0; ; attempt++ {
+		path, err := c.getUnvalidated(ctx, rawURL)
+		if err != nil {
+			return nil, err
+		}
+		f, err := c.openTracked(path)
+		if err == nil {
+			return f, nil
+		}
+		// 下载完（或命中）到打开之间被淘汰 / 清空了：再取一次，只重来一次
+		if !errors.Is(err, fs.ErrNotExist) || attempt > 0 {
+			return nil, fmt.Errorf("打开封面: %w", err)
+		}
+	}
 }
 
 // getUnvalidated 是 Get 去掉入口校验的那一半：命中缓存 / 合并并发 / 下载。
@@ -188,7 +246,8 @@ func (c *Cache) download(ctx context.Context, rawURL, dest string) error {
 	if err := os.Chmod(tmpName, 0o600); err != nil {
 		return fmt.Errorf("设置封面权限: %w", err)
 	}
-	if err := os.Rename(tmpName, dest); err != nil {
+	// 改名与记账在同一把锁里（见 index.go 的 coverIndex），超限时通知后台淘汰
+	if err := c.commitFile(tmpName, dest, n); err != nil {
 		return fmt.Errorf("落盘封面: %w", err)
 	}
 	return nil
