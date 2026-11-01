@@ -57,7 +57,7 @@
   /* ---- 海报色阶：没有色相时的中性值。有色相时由服务端算好 sRGB，直接写在使用它的元素上 ---- */
   --poster-tone: #b1b1b1; /* oklch(76% 0.085 h)；作品页强调文字、图标、悬停态、主按钮的底 */
   --poster-tone-quiet: #989898; /* oklch(68% 0.07 h)；压低一档的小标签；色阶里最后一档能写字的颜色 */
-  --poster-tone-mid: #696969; /* oklch(52% 0.07 h)；边框、分隔线（非文字，≥3:1） */
+  --poster-tone-mid: #696969; /* oklch(52% 0.07 h)；边框、分隔线（非文字；只在 --bg 上 ≥3:1，卡片与浮层上要用就先在 contrast 里声明并换更亮一档） */
   --poster-tone-low: #1f1f1f; /* oklch(24% 0.045 h)；tint 底、chip 填充（纯装饰） */
   --poster-on-tone: #0b0b0b; /* oklch(15% 0.03 h)；以 poster-tone 为底的主按钮上的字 */
 

@@ -161,7 +161,7 @@ enum NagarePosterTone {
     static let posterTone = Color(UIColor(red: 177.0 / 255, green: 177.0 / 255, blue: 177.0 / 255, alpha: 1))
     /// oklch(68% 0.07 h)；压低一档的小标签；色阶里最后一档能写字的颜色
     static let posterToneQuiet = Color(UIColor(red: 152.0 / 255, green: 152.0 / 255, blue: 152.0 / 255, alpha: 1))
-    /// oklch(52% 0.07 h)；边框、分隔线（非文字，≥3:1）
+    /// oklch(52% 0.07 h)；边框、分隔线（非文字；只在 --bg 上 ≥3:1，卡片与浮层上要用就先在 contrast 里声明并换更亮一档）
     static let posterToneMid = Color(UIColor(red: 105.0 / 255, green: 105.0 / 255, blue: 105.0 / 255, alpha: 1))
     /// oklch(24% 0.045 h)；tint 底、chip 填充（纯装饰）
     static let posterToneLow = Color(UIColor(red: 31.0 / 255, green: 31.0 / 255, blue: 31.0 / 255, alpha: 1))
