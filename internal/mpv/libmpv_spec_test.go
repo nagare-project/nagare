@@ -14,6 +14,7 @@ import (
 
 // iOS 变体（R5 / R12）的完整输出，逐项钉死。与桌面窗口的差别：
 //   - 不加载任何脚本（load-scripts=no、没有 scripts）、mpv 自带的 osc 关掉 —— 控制条由 SwiftUI 画；
+//   - ytdl=no —— 自带的 ytdl_hook 不归 load-scripts 管，遇到 http(s) 地址会起 yt-dlp 子进程；
 //   - 不加载 thumbfast、不传 script-opts —— iOS 起不了子进程，缩略图由 Swift 另做；
 //   - 预读一律 64MiB 向前 / 16MiB 向后，网络流那份 256MiB 就地换掉；
 //   - 着色器照传：Anime4K 默认关（设置的零值），用户在 iOS 上打开画质增强才有。
@@ -24,6 +25,7 @@ func TestIOSLibmpvSpecGolden(t *testing.T) {
 		libStr("vo", "libmpv"),
 		libFlag("load-scripts", "no"),
 		libFlag("osc", "no"),
+		libFlag("ytdl", "no"),
 	}
 	budget := []LibmpvOption{
 		libStr("demuxer-max-bytes", "64MiB"),
@@ -178,7 +180,7 @@ func iosShapes() map[string]LaunchOptions {
 	}
 }
 
-// 不管起播参数长什么样，iOS 上都不加载 Lua 界面与 thumbfast、不出 mpv 自带的 osc、预读按预算、不自己加着色器；
+// 不管起播参数长什么样，iOS 上都不加载 Lua 界面与 thumbfast、不出 mpv 自带的 osc、不起 ytdl、预读按预算、不自己加着色器；
 // 桌面窗口开发用的 mpv 日志（NAGARE_DESKTOP_MPV_LOG）也不带过来。
 func TestIOSLibmpvSpecInvariants(t *testing.T) {
 	t.Setenv("NAGARE_DESKTOP_MPV_LOG", "/tmp/desktop-mpv.log")
@@ -201,6 +203,7 @@ func TestIOSLibmpvSpecInvariants(t *testing.T) {
 			assert.Equal(t, "libmpv", only("vo").String)
 			assert.Equal(t, "no", only("load-scripts").String, "配置目录里的 Lua 界面与 thumbfast 一个都不自动加载")
 			assert.Equal(t, "no", only("osc").String, "控制条由 SwiftUI 画，mpv 自带的不能叠在上面")
+			assert.Equal(t, "no", only("ytdl").String, "ytdl_hook 会起 yt-dlp 子进程，iOS 起不了")
 			assert.Equal(t, iosDemuxerMaxBytes, only("demuxer-max-bytes").String)
 			assert.Equal(t, iosDemuxerMaxBackBytes, only("demuxer-max-back-bytes").String)
 
@@ -230,7 +233,7 @@ func keysAndValues(m []KeyValue) []string {
 // 着色器、请求头……）两边一字不差 —— 以后往 NewLaunchSpec 里加的选项自动同时到两边，不会「Mac 改了 iOS 忘改」。
 func TestIOSAndDesktopShareLaunchSpec(t *testing.T) {
 	t.Setenv("NAGARE_DESKTOP_MPV_LOG", "")
-	differs := []string{"script-opts", "scripts", "load-scripts", "osc", "demuxer-max-bytes", "demuxer-max-back-bytes"}
+	differs := []string{"script-opts", "scripts", "load-scripts", "osc", "ytdl", "demuxer-max-bytes", "demuxer-max-back-bytes"}
 	strip := func(in []LibmpvOption) []LibmpvOption {
 		return slices.DeleteFunc(slices.Clone(in), func(o LibmpvOption) bool { return slices.Contains(differs, o.Name) })
 	}

@@ -78,12 +78,15 @@ func DesktopLibmpvSpec(opts LaunchOptions, endpoint string, hidpi float64, self 
 //     界面与 thumbfast 都在那里；控制条由 SwiftUI 画（D4），thumbfast 还要起子进程，而 iOS 起不了。
 //   - osc=no：mpv 自带的控制条也关掉。libmpvProfile 默认把它打开，那是给桌面「界面没加载起来」兜底的；
 //     iOS 上它只会叠在 SwiftUI 控制条下面。
+//   - ytdl=no：mpv 自带的 ytdl_hook 不归 load-scripts 管，遇到 http(s) 地址（NAS 流、本机流端点）会去起
+//     yt-dlp 子进程 —— iOS 起不了，只会白等一下再报错。
 //   - demuxer-max-bytes / demuxer-max-back-bytes：预读上限（iosDemuxerMaxBytes），本地文件与网络流一样。
 func iosEmbeddedOptions() []Option {
 	return []Option{
 		stringOption("vo", "libmpv"),
 		flagOption("load-scripts", false),
 		flagOption("osc", false),
+		flagOption("ytdl", false),
 		stringOption("demuxer-max-bytes", iosDemuxerMaxBytes),
 		stringOption("demuxer-max-back-bytes", iosDemuxerMaxBackBytes),
 	}
