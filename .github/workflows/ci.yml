@@ -68,9 +68,19 @@ jobs:
           fi
       - name: go vet
         run: go vet ./...
+      - name: 设计 token 的生成物是最新的（design/tokens.json → CSS / Swift / Lua / DESIGN.md 数值表）
+        # 改了 tokens.json 却忘了 go generate，或者手改了生成物，这里拦下。生成器自己的黄金测试在 go test 里。
+        # 新生成、还没提交的文件 git diff 看不见，另用 git status 查一遍。
+        run: |
+          go generate ./...
+          git diff --exit-code
+          untracked=$(git status --porcelain --untracked-files=all -- design DESIGN.md frontend/src/styles ios internal/mpv/ui)
+          if [ -n "$untracked" ]; then
+            echo "go generate 产生了没提交的文件：" && echo "$untracked" && exit 1
+          fi
       - name: internal/api 依赖图守卫（磁力 / 来源插件 / 规则引擎只经 internal/api/sources 进来）
         # 不 import internal/api/sources 的构建（iOS）靠这条依赖图把整套磁力代码排除在二进制之外；
-        # 按 linux / darwin / windows / ios 四个目标各查一次，并先自检正则确实认得出这些包
+        # 按 linux / darwin / windows / ios / android 各目标查一次，并先自检正则确实认得出这些包
         run: scripts/ci/check-api-deps.sh
       - name: Windows 资源（rsrc_windows_*.syso）与 packaging/windows/winres.json 一致
         # .syso 入库、由 go build 自动链进 nagare.exe；改了 winres.json 或图标却忘了重新生成，这里拦下

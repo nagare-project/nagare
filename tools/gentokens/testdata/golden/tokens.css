@@ -1,0 +1,54 @@
+/* 由 tools/gentokens 从 design/tokens.json 生成，不要手改。
+   改 token：编辑 design/tokens.json，再在仓库根目录运行 go generate ./...（CI 检查生成文件是最新的）。
+   规则与用法见仓库根目录的 DESIGN.md。
+
+   本文件还没有接入页面：现有界面仍用 global.css 里的旧 token，界面按 DESIGN.md 重写时再引入，
+   届时删掉旧 token。在那之前不要在组件里引用这里的变量（--bg 等与 global.css 同名、取值不同）。 */
+
+:root {
+  /* ---- 颜色 ---- */
+  --bg: #000000; /* 页面底色 */
+  --text-secondary: rgba(235, 235, 245, 0.6); /* 次要文字 */
+  --accent: #0a84ff; /* 可点击（在 bg 上 5.76:1，写进 use 的对比度要与实算一致） */
+  --text-tertiary: rgba(235, 235, 245, 0.3); /* 占位符 */
+  --glass: rgba(9, 9, 11, 0.78); /* 只给网页的毛玻璃 */
+  --teal: #5ac8fa; /* 只读信息，固定值 */
+
+  /* ---- 海报色阶：没有色相时的中性值。有色相时由服务端算好 sRGB，直接写在使用它的元素上 ---- */
+  --poster-tone: #b1b1b1; /* oklch(76% 0.085 h)；强调文字 */
+  --poster-tone-low: #1f1f1f; /* oklch(24% 0.045 h)；填充 */
+
+  /* ---- 字体 ---- */
+  --font-cjk: "PingFang SC", system-ui, sans-serif; /* 中文回落链 */
+  --font-latin: Sora, var(--font-cjk); /* 拉丁显示字体 */
+
+  /* ---- 字号阶梯 ---- */
+  --type-body-size: 16px; /* 正文 */
+  --type-body-weight: 400;
+  --type-body-tracking: 0;
+  --type-wordmark-size: 20px; /* 字标 */
+  --type-wordmark-weight: 700;
+  --type-wordmark-tracking: -0.01em;
+  --type-wordmark-family: var(--font-latin);
+  --type-web-only-size: 13px; /* 不进 Swift，所以不用填 iOS 样式 */
+  --type-web-only-weight: 600;
+  --type-web-only-tracking: 0.1em;
+
+  /* ---- 间距 ---- */
+  --sp-sm: 8px; /* 基础单位 */
+  --sp-xxl: 48px; /* 只给网页 */
+
+  /* ---- 圆角 ---- */
+  --radius-md: 12px; /* 卡片 */
+
+  /* ---- 动效 ---- */
+  --dur-toast-in: 260ms; /* 提示进场 */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* 默认缓动 */
+
+  /* ---- 阴影 ---- */
+  --shadow-focus: 0 0 0 3px rgba(10, 132, 255, 0.4); /* 焦点 */
+
+  /* ---- 布局（断点用不了自定义属性，只写在 DESIGN.md 里） ---- */
+  --nav-h: 64px; /* 顶栏高度 */
+  --touch-min: 44px; /* 触控目标 */
+}
