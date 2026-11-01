@@ -566,7 +566,9 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 		serveErr <- srv.Serve(ln)
 		cancel() // 服务意外退出时也要让托盘 / 主循环收工
 	}()
-	stopped := teardownOnCancel(ctx, srv, svc.player, svc.torrent, svc.downloads, svc.sourcePlugin)
+	// 收尾完成 = 播放、磁力等停好之后，封面缓存的索引也刷完（最多等 artCacheFlushWait）。
+	// macOS ⌘Q 走 NSTerminateLater 时 tray.Run 不返回，进程在 Done 关闭后由系统结束，所以要并进同一个信号
+	stopped := afterArtCache(teardownOnCancel(ctx, srv, svc.player, svc.torrent, svc.downloads, svc.sourcePlugin), artStopped)
 
 	configPath, _ := config.Path()
 	log.Printf("nagare %s 已启动：http://127.0.0.1:%d/（token 见 %s）", version, port, configPath)
@@ -604,7 +606,6 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	}
 
 	<-stopped
-	waitArtCache(artStopped)
 	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("HTTP 服务异常退出：%w", err)
 	}

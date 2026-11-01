@@ -176,6 +176,31 @@ func TestEvictSurvivesPinnedPanic(t *testing.T) {
 	assert.Equal(t, []int{2, 3, 4, 5, 6, 7, 8, 9, 10}, cachedURLs(t, c, 11))
 }
 
+// 「哪些封面在用」问一次记 30 秒：删不掉的封面让每次下载都触发淘汰时，不能每轮都重读离线目录。
+func TestPinnedNamesAreCachedBriefly(t *testing.T) {
+	c, clk := newCappedCache(t, t.TempDir(), 1000)
+	var calls atomic.Int32
+	c.SetPinned(func() []string {
+		calls.Add(1)
+		return []string{coverURL(0)}
+	})
+	assert.True(t, c.pinnedNames()[coverFileName(coverURL(0))])
+	c.pinnedNames()
+	assert.EqualValues(t, 1, calls.Load(), "30 秒内不重复问")
+
+	for range 31 {
+		clk.tick()
+	}
+	c.pinnedNames()
+	assert.EqualValues(t, 2, calls.Load(), "过期之后重新问")
+
+	c.SetPinned(func() []string { panic("boom") })
+	assert.Empty(t, c.pinnedNames(), "换了回调：旧结果作废；panic 时按都不在用")
+	c.SetPinned(func() []string { calls.Add(1); return nil })
+	c.pinnedNames()
+	assert.EqualValues(t, 3, calls.Load(), "panic 的结果不记下来")
+}
+
 func TestEvictRemovesSidecarWithCover(t *testing.T) {
 	c, clk := newCappedCache(t, t.TempDir(), 1000)
 	for i := 0; i < 11; i++ {
@@ -345,16 +370,21 @@ func TestToneSidecarNotWrittenForEvictedCover(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, removeDone, res)
 
-	gone, err := c.writeSidecarIfCover(path, toneSidecar{Version: toneAlgoVersion})
+	gone, err := c.storeToneIfCover(path, toneSidecar{Version: toneAlgoVersion}, nil)
 	require.NoError(t, err)
 	assert.True(t, gone)
 	assert.NoFileExists(t, path+toneSidecarSuffix)
+	_, known := c.memoTone(path)
+	assert.False(t, known)
 
 	calls := countSampler(t)
 	c.computeTone(path) // 封面已经不在：静默返回
 	assert.EqualValues(t, 1, calls.Load())
-	_, known := c.memoTone(path)
+	_, known = c.memoTone(path)
 	assert.False(t, known, "封面不在时不记失败，免得再下载回来后十分钟内没有颜色")
+	c.idx.mu.Lock()
+	assert.Empty(t, c.idx.inUse, "取色期间登记的「正在使用」要放掉")
+	c.idx.mu.Unlock()
 }
 
 // Run：下载落盘超限 → 后台淘汰；ctx 结束时最后刷一次索引再返回。
@@ -390,7 +420,6 @@ func TestConcurrentOpenCommitEvictClear(t *testing.T) {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	var opened atomic.Int32
 	var commitErr atomic.Value
 	put := func(url string, size int) {
 		if err := commitCover(c, clk, url, size); err != nil {
@@ -409,9 +438,8 @@ func TestConcurrentOpenCommitEvictClear(t *testing.T) {
 	worker(func(i int) { put(coverURL(i%60), 50+i%7) })
 	worker(func(i int) { put(coverURL(60+i%40), 30) })
 	worker(func(i int) {
-		f, err := c.openTracked(c.Path(coverURL(i % 60)))
-		if err == nil {
-			opened.Add(1)
+		// 打不开（还没落盘、刚被淘汰或清空）是正常的：这里要的是与其余操作交错，不是每次都打得开
+		if f, err := c.openTracked(c.Path(coverURL(i % 60))); err == nil {
 			buf := make([]byte, 8)
 			_, _ = f.Read(buf)
 			_ = f.Close()
@@ -434,7 +462,6 @@ func TestConcurrentOpenCommitEvictClear(t *testing.T) {
 	c.toneWG.Wait()
 
 	assert.Nil(t, commitErr.Load())
-	assert.Positive(t, opened.Load())
 	assertIndexMatchesDir(t, c)
 }
 

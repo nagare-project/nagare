@@ -64,6 +64,9 @@ type Cache struct {
 	evictCh    chan struct{}
 	pinMu      sync.Mutex
 	pinned     func() []string
+	pinGen     int             // SetPinned 一次加一，作废旧回调的缓存结果
+	pinCache   map[string]bool // 上一次问到的在用封面（文件名），见 pinnedNames
+	pinAt      time.Time
 }
 
 // File 是 Open 交出去的封面文件：Close 之前它不会被淘汰或清空。
@@ -114,21 +117,6 @@ func (c *Cache) Path(rawURL string) string {
 	return filepath.Join(c.dir, coverFileName(rawURL))
 }
 
-// Get 返回本地缓存文件路径，必要时先下载。
-// 失败一律返回 error —— 调用方（HTTP 处理器）据此回 404 并让界面走无图版式。
-//
-// 返回的路径随时可能被淘汰；要把文件内容转发出去用 Open，它在 Close 之前护住文件。
-func (c *Cache) Get(ctx context.Context, rawURL string) (string, error) {
-	if err := validateURL(rawURL); err != nil {
-		return "", err
-	}
-	path, err := c.getUnvalidated(ctx, rawURL)
-	if err == nil {
-		c.touch(path)
-	}
-	return path, err
-}
-
 // Open 取回封面（必要时先下载）并打开，供 /art 端点转发；记一次使用。
 // 返回的文件在 Close 之前不会被淘汰或清空 —— 调用方必须 Close。
 func (c *Cache) Open(ctx context.Context, rawURL string) (File, error) {
@@ -138,27 +126,32 @@ func (c *Cache) Open(ctx context.Context, rawURL string) (File, error) {
 	return c.openUnvalidated(ctx, rawURL)
 }
 
+// openAttempts：下载完（或命中）到打开之间被淘汰 / 清空了就重新取，最多这么多次。
+// 缓存塞满了在用的封面时，刚下好的不在用的那张最先被淘汰，一次重试可能不够。
+const openAttempts = 3
+
 // openUnvalidated 是 Open 去掉入口校验的那一半（理由同 getUnvalidated）。
 func (c *Cache) openUnvalidated(ctx context.Context, rawURL string) (File, error) {
-	for attempt := 0; ; attempt++ {
-		path, err := c.getUnvalidated(ctx, rawURL)
-		if err != nil {
+	var err error
+	for attempt := 0; attempt < openAttempts; attempt++ {
+		var path string
+		if path, err = c.getUnvalidated(ctx, rawURL); err != nil {
 			return nil, err
 		}
-		f, err := c.openTracked(path)
-		if err == nil {
+		var f *coverFile
+		if f, err = c.openTracked(path); err == nil {
 			return f, nil
 		}
-		// 下载完（或命中）到打开之间被淘汰 / 清空了：再取一次，只重来一次
-		if !errors.Is(err, fs.ErrNotExist) || attempt > 0 {
-			return nil, fmt.Errorf("打开封面: %w", err)
+		if !errors.Is(err, fs.ErrNotExist) {
+			break
 		}
 	}
+	return nil, fmt.Errorf("打开封面: %w", err)
 }
 
-// getUnvalidated 是 Get 去掉入口校验的那一半：命中缓存 / 合并并发 / 下载。
+// getUnvalidated 是 Open 的前一半去掉入口校验：命中缓存 / 合并并发 / 下载，返回缓存文件路径。
 // 拆出来是为了让并发合并这条路径可测 —— httptest 起的是 http://，
-// 过不了 validateURL 的 https 门槛。生产路径只经 Get，不直接调它。
+// 过不了 validateURL 的 https 门槛。生产路径只经 Open，不直接调它。
 func (c *Cache) getUnvalidated(ctx context.Context, rawURL string) (string, error) {
 	path := c.Path(rawURL)
 	if st, err := os.Stat(path); err == nil && st.Size() > 0 {
@@ -222,7 +215,7 @@ func (c *Cache) download(ctx context.Context, rawURL, dest string) error {
 		return fmt.Errorf("封面响应不是图片：%q", ct)
 	}
 
-	tmp, err := os.CreateTemp(c.dir, ".dl-*")
+	tmp, err := os.CreateTemp(c.dir, dlTempPrefix+"*")
 	if err != nil {
 		return fmt.Errorf("创建封面临时文件: %w", err)
 	}

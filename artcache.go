@@ -44,11 +44,18 @@ func setupArtCache(ctx context.Context, configDir string, srv *httpserver.Server
 	return done
 }
 
-// waitArtCache 退出时等封面缓存刷完索引，最多 artCacheFlushWait。
-func waitArtCache(done <-chan struct{}) {
-	select {
-	case <-done:
-	case <-time.After(artCacheFlushWait):
-		log.Print("封面缓存的索引没能在退出前写完（只影响淘汰顺序，下次启动按目录重建）")
-	}
+// afterArtCache 返回一个在 stopped 关闭、且封面缓存刷完索引（最多等 artCacheFlushWait）之后才关闭的通道。
+// 所有「收尾完成」的等待方（托盘的 Done、桌面窗口的消息循环、run 末尾）都等它。
+func afterArtCache(stopped, art <-chan struct{}) <-chan struct{} {
+	all := make(chan struct{})
+	go func() {
+		defer close(all)
+		<-stopped
+		select {
+		case <-art:
+		case <-time.After(artCacheFlushWait):
+			log.Print("封面缓存的索引没能在退出前写完（只影响淘汰顺序，下次启动按目录重建）")
+		}
+	}()
+	return all
 }

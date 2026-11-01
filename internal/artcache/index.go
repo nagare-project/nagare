@@ -55,7 +55,8 @@ type coverEntry struct {
 //
 // mu 同时充当文件锁：落盘新封面（改名 + 记账）、淘汰（检查 + 删文件 + 记账）、写取色边车（确认封面还在 + 写）
 // 都在它里面做，所以淘汰不会删掉一个刚改名到位、还没记进索引的封面，也不会在边车写到一半时把封面删掉、
-// 留下一个没有主人的边车。持有 mu 时不去拿 Cache 的其他锁（inflight 的 mu、toneMu）。
+// 留下一个没有主人的边车。持有 mu 时唯一会去拿的别的锁是 toneMu（storeToneIfCover），toneMu 那一侧
+// 从不回头拿 mu；inflight 的 mu 与 pinMu 都不在 mu 里面拿。
 type coverIndex struct {
 	mu      sync.Mutex
 	entries map[string]coverEntry // 文件名（<sha256>.img）→ 大小与最近使用
@@ -280,53 +281,74 @@ type coverFile struct {
 // Close 关文件并解除「正在使用」。
 func (f *coverFile) Close() error {
 	err := f.File.Close()
-	f.release.Do(func() {
-		f.c.idx.mu.Lock()
-		defer f.c.idx.mu.Unlock()
-		if f.c.idx.inUse[f.name] <= 1 {
-			delete(f.c.idx.inUse, f.name)
-		} else {
-			f.c.idx.inUse[f.name]--
-		}
-	})
+	f.release.Do(func() { f.c.releaseCover(f.name) })
 	return err
 }
 
-// openTracked 在锁里打开封面并登记为正在使用，同时记一次使用。
-// 不在索引里的封面（别处直接写进目录的）顺手补进索引。
+// holdCover 把一张封面登记为正在使用：淘汰与清空都跳过它，直到 releaseCover。
+func (c *Cache) holdCover(name string) {
+	c.idx.mu.Lock()
+	defer c.idx.mu.Unlock()
+	c.idx.inUse[name]++
+}
+
+func (c *Cache) releaseCover(name string) {
+	c.idx.mu.Lock()
+	defer c.idx.mu.Unlock()
+	if c.idx.inUse[name] <= 1 {
+		delete(c.idx.inUse, name)
+	} else {
+		c.idx.inUse[name]--
+	}
+}
+
+// openTracked 打开封面并登记为正在使用，同时记一次使用。不在索引里的封面（别处直接写进目录的）顺手补进索引。
+//
+// 先登记、再在锁外打开：打开文件是一次磁盘操作（Windows 上杀毒软件能拖几十毫秒），不能让它卡住所有 /art 请求
+// 与拼响应时的记账。登记之后淘汰与清空都会跳过它；登记之前就被删掉的，这里打开失败，Open 会重新下载。
 func (c *Cache) openTracked(path string) (*coverFile, error) {
 	name, ok := c.coverName(path)
 	if !ok {
 		return nil, fmt.Errorf("不是封面缓存里的文件：%s", filepath.Base(path))
 	}
-	c.idx.mu.Lock()
-	defer c.idx.mu.Unlock()
+	c.holdCover(name)
 	f, err := os.Open(path)
 	if err != nil {
+		c.releaseCover(name)
 		return nil, err
 	}
-	if _, found := c.idx.entries[name]; found {
-		e := c.idx.entries[name]
+	st, statErr := f.Stat()
+
+	c.idx.mu.Lock()
+	defer c.idx.mu.Unlock()
+	switch e, found := c.idx.entries[name]; {
+	case found:
 		e.used = c.now().UnixNano()
 		c.idx.entries[name] = e
 		c.idx.dirty = true
-	} else if st, err := f.Stat(); err == nil && st.Size() > 0 {
+	case statErr != nil:
+		// 文件已经打开了，照常转发；只是这次记不了账，下次启动对账时补上
+		log.Printf("artcache: 读取封面大小失败，暂不计入占用（%s）：%v", name, statErr)
+	case st.Size() > 0:
 		c.recordLocked(name, st.Size())
 	}
-	c.idx.inUse[name]++
 	return &coverFile{File: f, c: c, name: name}, nil
 }
 
-// writeSidecarIfCover 写取色边车，但只在封面还在时写：淘汰可能已经删掉了正在取色的封面，
-// 这时再写就留下一个没有主人的边车（gone = true，什么都不写）。在索引锁里做，与淘汰互斥。
-func (c *Cache) writeSidecarIfCover(coverPath string, sc toneSidecar) (gone bool, err error) {
+// storeToneIfCover 写取色边车并把结果记进内存，但只在封面还在时做：淘汰可能已经删掉了正在取色的封面，
+// 这时再写就留下一个没有主人的边车、内存里也多一条过期的结果（gone = true，什么都不做）。
+// 在索引锁里做，与淘汰互斥。锁里会去拿 toneMu —— toneMu 那一侧从不回头拿 idx.mu，所以不会成环。
+// err 只是边车写不进去：结果照样记在内存里，这次进程内不重算。
+func (c *Cache) storeToneIfCover(coverPath string, sc toneSidecar, tones *PosterTones) (gone bool, err error) {
 	c.idx.mu.Lock()
 	defer c.idx.mu.Unlock()
-	if _, err := os.Stat(coverPath); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+	if _, statErr := os.Stat(coverPath); statErr != nil {
+		if errors.Is(statErr, fs.ErrNotExist) {
 			return true, nil
 		}
-		return false, err
+		return false, statErr
 	}
-	return false, writeToneSidecar(coverPath, sc)
+	err = writeToneSidecar(coverPath, sc)
+	c.rememberTone(coverPath, toneResult{tones: tones})
+	return false, err
 }

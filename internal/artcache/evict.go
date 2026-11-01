@@ -38,6 +38,8 @@ const (
 	evictTargetPercent = 90
 	// maintainInterval 是后台维护的周期：刷索引、补查一次是否超限。
 	maintainInterval = time.Minute
+	// pinnedCacheTTL：「哪些封面在用」问一次记多久（见 pinnedNames）。
+	pinnedCacheTTL = 30 * time.Second
 )
 
 // Usage 是封面缓存此刻的占用（设置页显示）。
@@ -61,6 +63,8 @@ func (c *Cache) SetPinned(fn func() []string) {
 	c.pinMu.Lock()
 	defer c.pinMu.Unlock()
 	c.pinned = fn
+	c.pinGen++
+	c.pinCache = nil
 }
 
 // Run 是后台维护循环：超限时淘汰、定期刷索引；ctx 结束时最后刷一次索引再返回。
@@ -149,29 +153,46 @@ func (c *Cache) evict(ctx context.Context) {
 	}
 }
 
-// pinnedNames 问一次哪些封面在用，换算成缓存里的文件名。回调出错（panic）时当作没有，记一行日志：
-// 后台 goroutine 里的 panic 会带走整个进程（包括正在放的片子）。
-func (c *Cache) pinnedNames() (names map[string]bool) {
+// pinnedNames 问一次哪些封面在用，换算成缓存里的文件名。结果记 pinnedCacheTTL：
+// 回调要逐个读离线目录的文件，删不掉的封面让每次下载都触发一轮淘汰时，不能每轮都重读一遍。
+// 返回的集合只读。
+func (c *Cache) pinnedNames() map[string]bool {
 	c.pinMu.Lock()
-	fn := c.pinned
+	fn, gen, cached, at := c.pinned, c.pinGen, c.pinCache, c.pinAt
 	c.pinMu.Unlock()
-	names = map[string]bool{}
 	if fn == nil {
-		return names
+		return map[string]bool{}
 	}
+	if cached != nil && c.now().Sub(at) < pinnedCacheTTL {
+		return cached
+	}
+	names, ok := queryPinned(fn)
+	if ok {
+		c.pinMu.Lock()
+		if c.pinGen == gen { // 期间换了回调就不记旧回调的结果
+			c.pinCache, c.pinAt = names, c.now()
+		}
+		c.pinMu.Unlock()
+	}
+	return names
+}
+
+// queryPinned 调回调并换算成文件名。回调 panic 时当作没有（ok = false，不记下来），记一行日志：
+// 后台 goroutine 里的 panic 会带走整个进程（包括正在放的片子）。
+func queryPinned(fn func() []string) (names map[string]bool, ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("artcache: 查询在用的封面时异常，这一轮按都不在用处理：%v", r)
-			names = map[string]bool{}
+			names, ok = map[string]bool{}, false
 		}
 	}()
+	names = map[string]bool{}
 	for _, src := range fn() {
-		if src == "" {
-			continue
+		if src != "" {
+			names[coverFileName(src)] = true
 		}
-		names[coverFileName(src)] = true
 	}
-	return names
+	return names, true
 }
 
 // coverFileName 是 Path 的文件名部分：<地址的 sha256>.img。

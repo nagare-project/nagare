@@ -191,6 +191,11 @@ func (c *Cache) computeTone(path string) {
 	if err != nil {
 		log.Printf("artcache: 读取色结果失败（%s），重算：%v", filepath.Base(path), err)
 	}
+	// 解码期间把封面登记为正在使用：Windows 上开着的文件删不掉，免得淘汰把它当成删不掉的文件报警
+	if name, ok := c.coverName(path); ok {
+		c.holdCover(name)
+		defer c.releaseCover(name)
+	}
 	hue, reason, err := sampleHueFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return // 封面在排队期间被淘汰或清空了：没什么可算的，再下载回来时会重新排队
@@ -208,15 +213,10 @@ func (c *Cache) computeTone(path string) {
 	} else {
 		sc.Reason = reason
 	}
-	gone, err := c.writeSidecarIfCover(path, sc)
-	if gone {
-		return // 算的时候封面被淘汰了：结果不记，再下载回来时重新算
+	// 封面在算的时候被淘汰了（gone）：结果不记，再下载回来时重新算
+	if _, err := c.storeToneIfCover(path, sc, tones); err != nil {
+		log.Printf("artcache: 写取色结果失败（%s），这次运行内不重算：%v", filepath.Base(path), err)
 	}
-	if err != nil {
-		// 结果照样记在内存里：这次进程内不重算，下次启动再试着落盘
-		log.Printf("artcache: 写取色结果失败（%s）：%v", filepath.Base(path), err)
-	}
-	c.rememberTone(path, toneResult{tones: tones})
 }
 
 // readToneSidecar 读边车。found = false：没有、读不了、格式不对或算法版本旧了 —— 都按「要重算」处理；
@@ -246,7 +246,7 @@ func writeToneSidecar(coverPath string, sc toneSidecar) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(coverPath), ".tone-*")
+	tmp, err := os.CreateTemp(filepath.Dir(coverPath), toneTempPrefix+"*")
 	if err != nil {
 		return err
 	}
