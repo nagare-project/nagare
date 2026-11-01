@@ -18,8 +18,8 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
   useEffect(() => {
     if (view === null) return
     setEnabled(view.config.enabled)
-    setExecutable(view.config.executable)
-    setRoot(view.config.root)
+    setExecutable(view.config.executable ?? '')
+    setRoot(view.config.root ?? '')
   }, [view?.config.enabled, view?.config.executable, view?.config.root])
 
   async function handleSave(event: FormEvent<HTMLFormElement>): Promise<void> {

@@ -13,6 +13,10 @@ import (
 // shutdownDelay 是 /api/shutdown 写完响应到真正开始退出的间隔：让响应先送达浏览器。
 const shutdownDelay = 100 * time.Millisecond
 
+// hostGOOS / hostGOARCH 是设置载荷报给界面的平台（也决定 mpv 安装指引的措辞）。
+// 测试换成固定值：黄金响应不能随跑测试的机器变。
+var hostGOOS, hostGOARCH = runtime.GOOS, runtime.GOARCH
+
 // ── 系统：设置载荷、mpv 重探测、退出 ──
 
 // settings 是设置页的一次性载荷（M4 阶段 A 契约）：
@@ -21,8 +25,8 @@ const shutdownDelay = 100 * time.Millisecond
 func (h *Handler) settings(w http.ResponseWriter, _ *http.Request) {
 	payload := map[string]any{
 		"version":    h.deps.Version,
-		"platform":   runtime.GOOS,
-		"arch":       runtime.GOARCH,
+		"platform":   hostGOOS,
+		"arch":       hostGOARCH,
 		"dataDir":    h.deps.DataDir,
 		"logPath":    h.deps.LogPath,
 		"mpv":        mpvView(h.deps.MPV, h.deps.EmbeddedMPV),
@@ -83,7 +87,7 @@ func mpvView(rt *mpv.Runtime, embedded bool) map[string]any {
 		hint = err.Error()
 	}
 	view["hint"] = hint
-	view["install"] = mpv.InstallGuide()
+	view["install"] = mpv.InstallGuideFor(hostGOOS)
 	return view
 }
 

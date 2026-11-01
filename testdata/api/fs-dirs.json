@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "data": {
+    "path": "/media/anime",
+    "parent": "/media",
+    "dirs": [
+      {
+        "name": "Bocchi the Rock",
+        "path": "/media/anime/Bocchi the Rock"
+      },
+      {
+        "name": "葬送的芙莉莲",
+        "path": "/media/anime/葬送的芙莉莲"
+      }
+    ],
+    "truncated": false
+  }
+}

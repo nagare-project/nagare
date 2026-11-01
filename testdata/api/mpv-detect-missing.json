@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "data": {
+    "found": false,
+    "hint": "没有找到 mpv：PATH 与常见安装位置里都没有",
+    "install": {
+      "command": "sudo apt install mpv",
+      "url": "https://mpv.io/installation/",
+      "note": "Fedora：sudo dnf install mpv · Arch：sudo pacman -S mpv"
+    }
+  }
+}

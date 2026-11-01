@@ -45,7 +45,8 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
   const [useDefaultTrackers, setUseDefaultTrackers] = useState(torrent.useDefaultTrackers)
   // 留空 = 用默认目录（后端给的 downloadDir 就是默认目录本身，用来当占位提示）
   const [downloadDir, setDownloadDir] = useState(customDownloadDir(torrent))
-  const [restartRequired, setRestartRequired] = useState(false)
+  // 设置载荷里就带着：改过端口还没重启时，刷新页面后提示照样在
+  const [restartRequired, setRestartRequired] = useState(torrent.restartRequired)
   const [state, setState] = useState<ActionState>({ phase: 'idle' })
 
   const busy = state.phase === 'busy'

@@ -224,7 +224,7 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 		return nil
 	}
 	return DiscoverView{Sections: []SectionView{
-		section("trending", "animego 上在看最多", rows[0], failures[0]), recentSection,
+		section("trending", "大家都在看", rows[0], failures[0]), recentSection,
 		section("thisSeason", "本季新番", rows[1], failures[1]), section("pastSeason", "上季作品", rows[2], failures[2]),
 		section("upcoming", "本季及下季待播", upcoming, derivedError(1, 3)), section("movies", "近期精选剧场版", movies, derivedError(1, 2, 3, 4, 5)),
 	}, FetchedAt: fetchedAt.Unix(), Freshness: freshnessOf(metas...)}, nil

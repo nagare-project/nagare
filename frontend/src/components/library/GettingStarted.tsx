@@ -57,7 +57,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
   const ruleCount = rules !== null && rules.rules.remoteUrl !== '' ? rules.sources.length : 0
   const hasMagnetSource = pluginBT > 0 || ruleCount > 0
   // 有来源但磁力引擎没起来（端口被占等）时不能说「已就绪」：进了作品页才发现播不了
-  const torrentOn = settings.phase !== 'ready' || settings.data.torrent.enabled
+  const torrentOn = settings.phase !== 'ready' || settings.data.torrent?.enabled === true
   const magnetReady = hasMagnetSource && torrentOn
   const platform = settings.phase === 'ready' ? settings.data.platform : undefined
   const magnetDesc = hasMagnetSource && !torrentOn

@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "animego": {
+      "baseUrl": "https://catalog.example.test",
+      "email": "",
+      "loggedIn": false
+    },
+    "arch": "amd64",
+    "background": {
+      "mode": "tray"
+    },
+    "dataDir": "/home/viewer/.config/nagare",
+    "desktop": {
+      "window": false
+    },
+    "logPath": "/home/viewer/.config/nagare/logs/nagare.log",
+    "mpv": {
+      "found": true,
+      "path": "/usr/bin/mpv",
+      "source": "path",
+      "version": "0.41.0"
+    },
+    "platform": "linux",
+    "player": {
+      "anime4k": "off"
+    },
+    "torrent": {
+      "cacheBytes": 52428800,
+      "cacheDir": "/home/viewer/.config/nagare/cache/torrent",
+      "defaultTrackers": [
+        "udp://tracker.opentrackr.org:1337/announce",
+        "udp://open.stealth.si:80/announce",
+        "udp://tracker.torrent.eu.org:451/announce",
+        "udp://open.demonii.com:1337/announce",
+        "http://nyaa.tracker.wf:7777/announce",
+        "udp://leet-tracker.moe:1337/announce",
+        "https://tracker.nekomi.cn:443/announce",
+        "https://tracker.zhuqiy.com:443/announce",
+        "udp://tracker.qu.ax:6969/announce",
+        "udp://tracker-udp.gbitt.info:80/announce",
+        "udp://t.overflow.biz:6969/announce",
+        "udp://tracker.peerfect.org:6969/announce",
+        "udp://tracker.breizh.pm:6969/announce",
+        "http://ipv4announce.sktorrent.eu:6969/announce",
+        "http://tracker.renfei.net:8080/announce",
+        "https://tracker.7471.top:443/announce"
+      ],
+      "downloadDir": "/home/viewer/Downloads/nagare",
+      "downloadDirIsDefault": true,
+      "enabled": true,
+      "listenPort": 47850,
+      "portForwarding": true,
+      "restartRequired": false,
+      "seeding": false,
+      "trackers": [],
+      "useDefaultTrackers": true
+    },
+    "version": "0.7.0"
+  }
+}

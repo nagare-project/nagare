@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "data": null,
+  "error": "季度必须是 WINTER / SPRING / SUMMER / FALL"
+}

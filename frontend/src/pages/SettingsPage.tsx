@@ -104,7 +104,7 @@ export function SettingsPage() {
             <Link to="/torrents" className="settings-shortcut"><Icon name="download" /><span>磁力任务<small>边下边播的会话与整部下载的进度</small></span><Icon name="right" size={18} /></Link>
             <Link to="/search" className="settings-shortcut"><Icon name="search" /><span>搜索磁力资源<small>按关键词在已启用的来源里搜</small></span><Icon name="right" size={18} /></Link>
           </div>
-          {settings.state.phase === 'ready' && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
+          {settings.state.phase === 'ready' && settings.state.data.torrent && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'update'}><UpdateCard update={update} selfUpdate={selfUpdate} /></div>
         <div className="settings-section" hidden={section.id !== 'sources'}><SourcePluginCard plugin={sourcePlugin} /><SourcesCard sources={sources} /></div>

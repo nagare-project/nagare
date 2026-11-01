@@ -1,0 +1,37 @@
+{
+  "success": true,
+  "data": {
+    "config": {
+      "enabled": true,
+      "executable": "/opt/nagare/plugin/nagare-source",
+      "root": "/opt/nagare/plugin/repo"
+    },
+    "status": {
+      "phase": "ready",
+      "url": "http://127.0.0.1:43123",
+      "manifest": {
+        "id": "org.example.source",
+        "name": "Example Source",
+        "version": "0.2.0",
+        "protocolVersions": [
+          1
+        ],
+        "sourceSchemaVersions": [
+          1
+        ],
+        "capabilities": [
+          "candidates",
+          "bt_releases"
+        ]
+      },
+      "startedAt": 1792065000000
+    },
+    "sources": [],
+    "sourcesError": "读取插件来源失败，请重启插件或检查其日志",
+    "bundled": {
+      "executable": "/opt/nagare/plugin/nagare-source",
+      "root": "/opt/nagare/plugin/repo",
+      "active": true
+    }
+  }
+}

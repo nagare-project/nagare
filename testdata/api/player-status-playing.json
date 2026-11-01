@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "data": {
+    "playing": true,
+    "fileId": "[Sub] Frieren - 02 [1080p].mkv|3145728|1788249600000",
+    "title": "葬送的芙莉莲 第 2 集",
+    "position": 312.5,
+    "duration": 1420.04,
+    "danmaku": {
+      "state": "ok",
+      "count": 1834
+    }
+  }
+}

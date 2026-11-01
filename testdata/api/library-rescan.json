@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "data": {
+    "stats": {
+      "videos": 5,
+      "clusters": 3
+    }
+  }
+}
