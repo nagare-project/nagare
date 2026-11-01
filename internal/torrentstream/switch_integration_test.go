@@ -131,17 +131,27 @@ func pmClosed(pm *priorityManager) bool {
 	return pm.closed
 }
 
+// stillToFetch 报告这个分片的优先级断言有没有意义：还没下完、也不在校验或标记完成。
+//
+// PieceState.Priority 是 anacrolix 的「有效」优先级（piece.go effectivePriority）：数据收齐之后
+// 排队校验、校验中、写完成标记的那几毫秒里一律报 None，与我们设的优先级无关。限速做种时在途的请求
+// 照样会收齐，断言恰好扫到这样一片就会误报「要重新可请求的片是 None」（实测约 0.5%）。这几种分片的
+// 数据已经全到，不会再被请求；校验不过时它回到待下载，有效优先级随即恢复成我们设的那一档。
+func stillToFetch(ps torrent.PieceState) bool {
+	return !ps.Complete && !ps.QueuedForHash && !ps.Hashing && !ps.Marking
+}
+
 // assertIdle 断言种子里 [first, end) 这些还没下完的分片都不再可请求，返回其中没下完的片数。
 func assertIdle(t *testing.T, tor *torrent.Torrent, first, end int, msg string) int {
 	t.Helper()
 	incomplete := 0
 	for idx := first; idx < end; idx++ {
 		ps := tor.PieceState(idx)
-		if ps.Complete {
+		if !stillToFetch(ps) {
 			continue
 		}
 		incomplete++
-		assert.Equal(t, torrent.PiecePriorityNone, ps.Priority, "%s：片 %d", msg, idx)
+		assert.Equal(t, torrent.PiecePriorityNone, ps.Priority, "%s：片 %d（%+v）", msg, idx, ps)
 	}
 	return incomplete
 }
