@@ -145,13 +145,25 @@ for t in $IOS_TARGETS; do
   if grep -qx '#define HAVE_GPL 0' "$info/mpv-config.txt"; then pass "mpv HAVE_GPL 0（${t}）"
   else fail "mpv（${t}）不是 -Dgpl=false：$(tr '\n' ' ' < "$info/mpv-config.txt")"; fi
   py gpl-files "$OUT/licenses/mpv/Copyright" "$info/mpv-sources.txt" || fail "mpv（${t}）编进了 GPL only 的文件"
+  # iOS 的几条路径确实编进去了（模拟器里 VideoToolbox 起不来，运行时证明不了，这里从源文件与配置上证明）：
+  # VideoToolbox 硬解 + 它与 OpenGL ES 的互操作、render API 的 OpenGL 后端、AudioUnit 输出
+  missing=""
+  for f in video/out/hwdec/hwdec_vt.c video/out/hwdec/hwdec_ios_gl.m video/out/opengl/libmpv_gl.c audio/out/ao_audiounit.m; do
+    grep -qx "$f" "$info/mpv-sources.txt" || missing="$missing $f"
+  done
+  for d in '#define HAVE_IOS_GL 1' '#define HAVE_AUDIOUNIT 1'; do
+    grep -qx "$d" "$info/mpv-config.txt" || missing="$missing [$d]"
+  done
+  [ -z "$missing" ] && pass "mpv 编进了 VideoToolbox + ios-gl、OpenGL render API、AudioUnit（${t}）" \
+    || fail "mpv（${t}）缺少：$missing"
 done
 
 echo "== LuaJIT =="
 for t in $IOS_TARGETS; do
   jitf="$OUT/info/$t/luajit-jit.txt"
-  if grep -qx '#define LJ_HASJIT 0' "$jitf" 2>/dev/null && grep -qx '#define LJ_TARGET_IOS 1' "$jitf"; then
-    pass "LuaJIT 没有 JIT 编译器（${t}：LJ_HASJIT 0，LJ_TARGET_IOS 1）"
+  if grep -qx '#define LJ_HASJIT 0' "$jitf" 2>/dev/null && grep -qx '#define LJ_TARGET_IOS 1' "$jitf" \
+    && grep -qx '#define LJ_OS_NOJIT 1' "$jitf"; then
+    pass "LuaJIT 没有 JIT 编译器（${t}：LJ_TARGET_IOS 1 → LJ_OS_NOJIT 1 → LJ_HASJIT 0，另外显式 LUAJIT_DISABLE_JIT）"
   else
     fail "LuaJIT（${t}）：$(tr '\n' ' ' < "$jitf" 2>/dev/null || echo 缺少 luajit-jit.txt)"
   fi
@@ -171,8 +183,11 @@ for d in "$OUT"/licenses/*; do
 done
 [ -z "$extra_dirs" ] || fail "licenses/ 里有这次没用到的组件：$extra_dirs"
 gpl_texts=$(cd "$OUT/licenses" && find . -type f | grep -E '(^|[^L])GPL' || true)
-[ -z "$gpl_texts" ] && pass "随包的许可证原文里没有 GPL（$(cd "$OUT/licenses" && find . -type f | wc -l | tr -d ' ') 个文件）" \
-  || fail "随包带了 GPL 的许可证原文：$(echo $gpl_texts)"
+# 文件名之外再看内容：GPL 原文的标题行（LGPL 的是「GNU LESSER GENERAL PUBLIC LICENSE」，不会命中）
+gpl_texts="$gpl_texts $(grep -rlE '^[[:space:]]*GNU (AFFERO )?GENERAL PUBLIC LICENSE[[:space:]]*$' "$OUT/licenses" || true)"
+gpl_texts=$(echo $gpl_texts)
+[ -z "$gpl_texts" ] && pass "随包的许可证原文里没有 GPL（$(cd "$OUT/licenses" && find . -type f | wc -l | tr -d ' ') 个文件，文件名与标题行都看过）" \
+  || fail "随包带了 GPL 的许可证原文：$gpl_texts"
 
 if ! $simulator; then
   echo
@@ -266,8 +281,12 @@ sim_suite() {
   else fail "模拟器里经回环地址 http 播放（${a}）"; show_log "$(slog "$a" http)" 15; fi
   rc=0
   sim "$a" https play "https://127.0.0.1:$port/h264-aac-ass.mkv" || rc=$?
-  if [ $rc -eq 3 ]; then pass "https:// 被拒（${a}，没有 TLS）"
-  else fail "https:// 应当因为没有协议而失败（${a}），实际退出码 $rc"; show_log "$(slog "$a" https)" 10; fi
+  # 要是因为「没有这个协议」被拒，而不是别的原因（比如 TLS 握手失败 —— 那说明 TLS 其实编进来了）
+  if [ $rc -eq 3 ] && grep -q 'No protocol handler found to open URL https://' "$(slog "$a" https)"; then
+    pass "https:// 被拒（${a}，没有这个协议 —— 不带 TLS）"
+  else
+    fail "https:// 应当因为没有协议而失败（${a}），实际退出码 $rc"; show_log "$(slog "$a" https)" 10
+  fi
 
   if sim "$a" lua lua "$here/tests/lua_check.lua" "$MEDIA/h264-aac-ass.mkv" \
     && grep -q "lua-check engine=LuaJIT_2\.1[^ ]* arch=$jit_arch jit=off jit-on=refused " "$(slog "$a" lua)"; then
@@ -285,12 +304,17 @@ sim_suite() {
     fail "${label}，退出码 ${rc}"; show_log "$(slog "$a" render-sw)"
   fi
 
-  # VideoToolbox：模拟器能不能真的用上它与运行环境有关（真机才是准的），这两项只警告
-  if sim "$a" vt-copy play "$MEDIA/h264-aac-ass.mkv" videotoolbox-copy \
-    && grep -q 'hwdec-used=videotoolbox-copy' "$(slog "$a" vt-copy)"; then
+  # VideoToolbox：模拟器里 VideoToolbox 起不来（会话建不起来，回落软解），能不能真的用上要看真机，
+  # 所以「用上了」只警告；但 mpv 必须真的去试了（日志里有 videotoolbox：用上了是 Using hardware decoding，
+  # 没用上是 FFmpeg 报 videotoolbox_vld 初始化失败）—— 一个字都没有说明这条路径根本不在，算失败
+  rc=0
+  sim "$a" vt-copy play "$MEDIA/h264-aac-ass.mkv" videotoolbox-copy || rc=$?
+  if [ $rc -ne 0 ] || ! grep -qi 'videotoolbox' "$(slog "$a" vt-copy)"; then
+    fail "VideoToolbox 解码路径（${a}）：播放失败或 mpv 根本没去试 VideoToolbox（退出码 ${rc}）"; show_log "$(slog "$a" vt-copy)" 15
+  elif grep -q 'hwdec-used=videotoolbox-copy' "$(slog "$a" vt-copy)"; then
     pass "VideoToolbox 硬解（${a}，videotoolbox-copy）"
   else
-    soft "模拟器里 VideoToolbox 没解码（${a}，videotoolbox-copy）：$(grep -o 'hwdec-used=[^ ]*' "$(slog "$a" vt-copy)" || tail -1 "$(slog "$a" vt-copy)")"
+    soft "模拟器里 VideoToolbox 没用上（${a}，试了、回落软解：$(grep -o 'Failed setup for format videotoolbox[^:]*' "$(slog "$a" vt-copy)" | head -1)）：要在真机上看"
   fi
   rc=0
   sim "$a" render-vt render "$MEDIA/h264-aac-ass.mkv" videotoolbox || rc=$?
@@ -319,8 +343,11 @@ if [ "$HOST_ARCH" = arm64 ]; then
     if sim x86_64 info info && grep -q "^arch=x86_64 mpv-version=mpv v$want_mpv" "$(slog x86_64 info)"; then
       pass "模拟器里初始化（x86_64，Rosetta）：$(grep "^arch=" "$(slog x86_64 info)")"
       sim_suite x86_64
+    elif grep -q '^sim_test: start' "$(slog x86_64 info)"; then
+      # 进程起来了才失败：是这个切片坏了，不是环境不支持
+      fail "模拟器里初始化（x86_64，Rosetta）"; show_log "$(slog x86_64 info)"
     else
-      soft "模拟器里跑不起 x86_64 的进程（Rosetta），x86_64 切片只做了静态检查"; show_log "$(slog x86_64 info)" 10
+      soft "模拟器里起不来 x86_64 的进程（Rosetta），x86_64 切片只做了静态检查"; show_log "$(slog x86_64 info)" 10
     fi
   else
     soft "没有 Rosetta：x86_64 模拟器切片只做了静态检查"

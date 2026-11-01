@@ -6,7 +6,8 @@
         * 目录里没有符号链接
         * xcframework 恰好两份：ios-arm64（真机）与 ios-arm64_x86_64-simulator（模拟器，两个架构）
         * 每个切片：平台（LC_BUILD_VERSION）对、minos 不高于 --minos、是动态库、装载名是
-          @rpath/Libmpv.framework/Libmpv、没有 LC_RPATH、只依赖系统库、只导出 mpv_* 符号
+          @rpath/Libmpv.framework/Libmpv、没有 LC_RPATH、只依赖系统库且 VideoToolbox / OpenGLES /
+          CoreVideo / AudioToolbox / CoreText 都链接上了、只导出 mpv_* 符号
         * framework 的 Info.plist（MinimumOSVersion = --minos、平台、版本）、四个头文件、module map
         * ad-hoc 签名有效
       另外列出每个切片引用的「需要声明理由的 API」（App 的 PrivacyInfo.xcprivacy 要覆盖它们）。
@@ -58,6 +59,10 @@ REQUIRED_EXPORTS = (
     "_mpv_render_context_set_update_callback", "_mpv_render_context_report_swap",
     "_mpv_render_context_free",
 )
+# 必须真的链接上的系统 framework（链接时带了 -dead_strip_dylibs，没用到的会被去掉，所以在不在有意义）：
+# VideoToolbox 硬解、ios-gl 互操作（OpenGLES + CoreVideo）、AudioUnit 输出（AudioToolbox）、libass 的字体（CoreText）
+REQUIRED_DEPS = tuple(f"/System/Library/Frameworks/{f}.framework/{f}"
+                      for f in ("VideoToolbox", "OpenGLES", "CoreVideo", "AudioToolbox", "CoreText"))
 # Apple「需要声明理由的 API」里会出现在 C 库里的那些符号（只列出来，不判失败）
 REQUIRED_REASON_SYMBOLS = {
     "_stat": "文件时间戳", "_fstat": "文件时间戳", "_lstat": "文件时间戳", "_fstatat": "文件时间戳",
@@ -183,6 +188,9 @@ def check(args: argparse.Namespace) -> int:
             for dep in lc["deps"]:
                 if not (dep.startswith("/usr/lib/") or dep.startswith("/System/Library/")):
                     fail(f"{tag}：依赖了非系统库 {dep}")
+            missing_deps = [d.rsplit("/", 1)[-1] for d in REQUIRED_DEPS if d not in lc["deps"]]
+            if missing_deps:
+                fail(f"{tag}：没有链接 {missing_deps}（VideoToolbox / ios-gl / AudioUnit / CoreText 那几条路径没编进来？）")
             exported = symbols(binary, arch, "-gU")
             stray = [s for s in exported if not s.startswith("_mpv_")]
             if stray:

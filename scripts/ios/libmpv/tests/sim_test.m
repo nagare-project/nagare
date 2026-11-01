@@ -67,7 +67,9 @@ static mpv_handle *make_handle(const char *const *opts) {
     }
     // idle=yes（libmpv 的默认）不能改成 no：初始化时播放列表还是空的，idle=no 会让核心立刻退出，
     // 与随后的 loadfile 赛跑 —— 输了就是一次「什么都没播」的随机失败
-    const char *base[] = {"config", "no", "terminal", "no", "idle", "yes", NULL};
+    // ytdl=no：iOS 上起不了子进程，内置的 ytdl_hook 遇到它不认识的 URL 会去拉 youtube-dl 并刷一屏报错
+    // （App 那边 libmpvSpec 的 iOS 变体也要这样设）
+    const char *base[] = {"config", "no", "terminal", "no", "idle", "yes", "ytdl", "no", NULL};
     for (int i = 0; base[i]; i += 2) {
         if (set_opt(h, base[i], base[i + 1]) < 0) return NULL;
     }
