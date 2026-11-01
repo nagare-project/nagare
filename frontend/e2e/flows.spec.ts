@@ -158,6 +158,8 @@ test.describe('窄屏抽屉（390px）', () => {
     await page.getByRole('button', { name: '打开导航' }).click()
     const drawer = page.getByRole('dialog', { name: '导航菜单' })
     await expect(drawer).toBeVisible()
+    // 等滑入动画走完：动画途中抽屉还没到位，按在 x=100 处可能还落在暗处
+    await drawer.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
     await page.mouse.move(100, 600)
     await page.mouse.down()
     await page.mouse.move(370, 600)
