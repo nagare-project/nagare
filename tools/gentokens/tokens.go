@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -269,8 +270,10 @@ func (v *validator) font(t fontToken) {
 			v.fail("fonts.%s: player.%s 要给一个字体名（只能含字母、数字、空格与短横线）", t.Name, p)
 		}
 	}
-	if len(t.Player) != len(playerPlatforms) {
-		v.fail("fonts.%s: player 只认 %s 三个键", t.Name, strings.Join(playerPlatforms, " / "))
+	for key := range t.Player {
+		if !slices.Contains(playerPlatforms, key) {
+			v.fail("fonts.%s: player.%s 不认识（只认 %s）", t.Name, key, strings.Join(playerPlatforms, " / "))
+		}
 	}
 }
 
