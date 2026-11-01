@@ -10,8 +10,8 @@
 /* 页面跳到锚点 / 聚焦时让开顶栏；body 用 clip 而不是 hidden：hidden 会把 body 变成滚动容器，sticky 顶栏跟着页面滚走 */
 html { scroll-padding-top: var(--app-nav-h); }
 body { overflow-x: clip; }
-/* 抽屉打开时锁住页面滚动 */
-html:has(.nav-drawer[open]) { overflow: hidden; }
+/* 抽屉打开时锁住页面滚动；保留滚动条的位置，经典滚动条的桌面上页面不会左右跳 */
+html:has(.nav-drawer[open]) { overflow: hidden; scrollbar-gutter: stable; }
 
 /* ---------- 顶栏 ---------- */
 

@@ -5,8 +5,11 @@ import { Icon } from '../ui/Icon'
 import { isBackdropEvent } from '../../lib/dialog'
 import { PRIMARY_NAV, navActiveOptions } from './navItems'
 
-/** 完整顶栏的最小宽度（DESIGN.md 的 --bp-nav；断点用不了 CSS 变量，与 navigation.css 的 1023px 对应） */
-const FULL_NAV_MIN_WIDTH = 1024
+/**
+ * 抽屉所在的窄屏范围：与 navigation.css 里的 (max-width: 1023px) 是同一个查询（DESIGN.md 的 --bp-nav）。
+ * 写成同一句而不是 min-width: 1024px：缩放后的小数宽度（如 1023.4px）两句都不命中，会出现顶栏已完整、抽屉还开着。
+ */
+const DRAWER_MEDIA_QUERY = '(max-width: 1023px)'
 
 interface NavDrawerProps {
   id: string
@@ -23,7 +26,8 @@ interface NavDrawerProps {
  */
 export function NavDrawer({ id, open, onClose, menuButton }: NavDrawerProps) {
   const dialog = useRef<HTMLDialogElement>(null)
-  const pathname = useLocation({ select: (location) => location.pathname })
+  // 整个地址（含查询与 hash）：在 /?q=a 与 /?q=b 之间前进后退也算离开了这一页
+  const href = useLocation({ select: (location) => location.href })
   // 这一次关闭要不要把焦点还给 ☰（前进后退导致的关闭不还）
   const restoreFocus = useRef(true)
   const downOnBackdrop = useRef(false)
@@ -39,17 +43,17 @@ export function NavDrawer({ id, open, onClose, menuButton }: NavDrawerProps) {
     }
   }, [open])
 
-  // 窗口拉宽到完整顶栏（≥1024px）时抽屉没有意义了：关掉；☰ 此时已隐藏，不还焦点
+  // 窗口拉宽到完整顶栏时抽屉没有意义了：关掉；☰ 此时已隐藏，不还焦点
   useEffect(() => {
     if (!open || typeof window.matchMedia !== 'function') return
-    const wide = window.matchMedia(`(min-width: ${FULL_NAV_MIN_WIDTH}px)`)
+    const narrow = window.matchMedia(DRAWER_MEDIA_QUERY)
     const onChange = () => {
-      if (!wide.matches) return
+      if (narrow.matches) return
       restoreFocus.current = false
       dialog.current?.close()
     }
-    wide.addEventListener('change', onChange)
-    return () => wide.removeEventListener('change', onChange)
+    narrow.addEventListener('change', onChange)
+    return () => narrow.removeEventListener('change', onChange)
   }, [open])
 
   // 地址变了而抽屉还开着：只可能是前进 / 后退（点抽屉里的链接会先关抽屉）
@@ -58,7 +62,7 @@ export function NavDrawer({ id, open, onClose, menuButton }: NavDrawerProps) {
     if (!element?.open) return
     restoreFocus.current = false
     element.close()
-  }, [pathname])
+  }, [href])
 
   function handleClose() {
     onClose()
@@ -98,7 +102,7 @@ export function NavDrawer({ id, open, onClose, menuButton }: NavDrawerProps) {
           <Icon name="close" size={20} />
         </button>
       </div>
-      <nav className="nav-drawer-nav" aria-label="导航菜单" onClick={handleNavClick}>
+      <nav className="nav-drawer-nav" aria-label="站点导航" onClick={handleNavClick}>
         {PRIMARY_NAV.map(({ to, label, icon }) => (
           <Link key={to} to={to} className="nav-drawer-link" activeOptions={navActiveOptions(to)}>
             <Icon name={icon} size={20} />{label}

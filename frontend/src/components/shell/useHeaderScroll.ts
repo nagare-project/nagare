@@ -39,7 +39,6 @@ function isKeyboardFocus(target: EventTarget | null): boolean {
 export function useHeaderScroll(header: RefObject<HTMLElement | null>, locked: boolean): HeaderScrollState {
   const [state, setState] = useState<HeaderScrollState>({ scrolled: false, hidden: false, instant: false })
   const lockedRef = useRef(locked)
-  const focusInside = useRef(false)
 
   useEffect(() => {
     lockedRef.current = locked
@@ -65,7 +64,10 @@ export function useHeaderScroll(header: RefObject<HTMLElement | null>, locked: b
         down = 0
       }
       const navHeight = header.current?.offsetHeight ?? 0
-      const pinned = y <= navHeight || lockedRef.current || focusInside.current
+      // 每次现查焦点：鼠标点到别处、或获得焦点的元素被卸载，都不会留下「还在顶栏里」的陈旧记号
+      const focused = document.activeElement
+      const keyboardInside = focused !== null && header.current?.contains(focused) === true && isKeyboardFocus(focused)
+      const pinned = y <= navHeight || lockedRef.current || keyboardInside
       setState((prev) => {
         const scrolled = y > GLASS_AFTER_PX
         let hidden = prev.hidden
@@ -93,20 +95,10 @@ export function useHeaderScroll(header: RefObject<HTMLElement | null>, locked: b
     if (!element) return
     const onFocusIn = (event: FocusEvent) => {
       if (!isKeyboardFocus(event.target)) return
-      focusInside.current = true
       setState((prev) => (prev.hidden ? { ...prev, hidden: false, instant: true } : prev))
     }
-    const onFocusOut = (event: FocusEvent) => {
-      const next = event.relatedTarget
-      if (next instanceof Node && element.contains(next)) return
-      focusInside.current = false
-    }
     element.addEventListener('focusin', onFocusIn)
-    element.addEventListener('focusout', onFocusOut)
-    return () => {
-      element.removeEventListener('focusin', onFocusIn)
-      element.removeEventListener('focusout', onFocusOut)
-    }
+    return () => element.removeEventListener('focusin', onFocusIn)
   }, [header])
 
   return state

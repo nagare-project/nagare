@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FocusEvent, FormEvent, KeyboardEvent } from 'react'
+import type { FocusEvent, FormEvent, KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Icon } from '../ui/Icon'
 import { MAX_QUERY_LENGTH } from '../media/CatalogSearch'
+
+/** 输入法还在组字：Chromium 带 isComposing；Safari 先发 compositionend，随后那次按键的 keyCode 是 229 */
+function isComposing(event: KeyboardEvent<Element>): boolean {
+  return event.nativeEvent.isComposing || event.keyCode === 229
+}
 
 interface HeaderSearchProps {
   open: boolean
@@ -52,21 +57,27 @@ export function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) {
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLFormElement>) {
-    if (event.key === 'Escape') {
+    // 输入法正在选字时的 Esc 是取消候选，不是收起搜索
+    if (event.key === 'Escape' && !isComposing(event)) {
       event.preventDefault()
       collapse(true)
     }
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    // 输入法确认候选的那次 Enter 不提交：Chromium 带 isComposing，Safari 先发 compositionend、keyCode 是 229
-    if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault()
+    // 输入法确认候选的那次 Enter 不提交
+    if (event.key === 'Enter' && isComposing(event)) event.preventDefault()
   }
 
   function handleBlur(event: FocusEvent<HTMLFormElement>) {
     const next = event.relatedTarget
     if (next instanceof Node && event.currentTarget.contains(next)) return
     collapse(false)
+  }
+
+  function handleMouseDown(event: MouseEvent<HTMLFormElement>) {
+    // 按在胶囊上不可聚焦的地方（放大镜、留白）不要让输入框失焦 —— 失焦就会收起
+    if (event.target instanceof Element && event.target.closest('input, button') === null) event.preventDefault()
   }
 
   if (!open) {
@@ -79,7 +90,8 @@ export function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) {
   }
 
   return (
-    <form className="header-search" role="search" aria-label="搜索作品" onSubmit={handleSubmit} onKeyDown={handleKeyDown} onBlur={handleBlur}>
+    <form className="header-search" role="search" aria-label="搜索作品" onSubmit={handleSubmit} onKeyDown={handleKeyDown} onBlur={handleBlur}
+      onMouseDown={handleMouseDown}>
       <span className="header-search-icon" aria-hidden="true"><Icon name="search" size={18} /></span>
       <input
         ref={input}

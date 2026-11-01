@@ -96,6 +96,15 @@ describe('顶栏', () => {
     expect(router.state.location.pathname).toBe('/schedule')
     await unmount()
   })
+
+  it('搜索：输入法选字时的 Esc 只取消候选，不收起搜索', async () => {
+    const { container, unmount } = await mountAt('/schedule')
+    await act(async () => buttonNamed(container, '搜索作品').click())
+    const input = container.querySelector<HTMLInputElement>('header input[aria-label="作品名"]')!
+    await act(async () => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true })) })
+    expect(container.querySelector('header input')).not.toBeNull()
+    await unmount()
+  })
 })
 
 describe('窄屏抽屉', () => {
