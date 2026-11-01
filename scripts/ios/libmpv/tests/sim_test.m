@@ -65,7 +65,9 @@ static mpv_handle *make_handle(const char *const *opts) {
         fprintf(stderr, "sim_test: mpv_create failed\n");
         return NULL;
     }
-    const char *base[] = {"config", "no", "terminal", "no", "idle", "no", NULL};
+    // idle=yes（libmpv 的默认）不能改成 no：初始化时播放列表还是空的，idle=no 会让核心立刻退出，
+    // 与随后的 loadfile 赛跑 —— 输了就是一次「什么都没播」的随机失败
+    const char *base[] = {"config", "no", "terminal", "no", "idle", "yes", NULL};
     for (int i = 0; base[i]; i += 2) {
         if (set_opt(h, base[i], base[i + 1]) < 0) return NULL;
     }
@@ -168,7 +170,11 @@ static int play(const char *file, const char *script, const char *hwdec) {
         }
         case MPV_EVENT_SHUTDOWN:
             done = 1;
-            if (script) result = OK;
+            if (script) {
+                result = OK;
+            } else {
+                printf("sim_test: core shut down before reaching the end\n");
+            }
             break;
         default:
             break;
@@ -254,6 +260,9 @@ static int render(const char *file, const char *hwdec) {
                 fprintf(stderr, "sim_test: playback error: %s\n", mpv_error_string(end->error));
                 goto done;
             }
+        } else if (ev->event_id == MPV_EVENT_SHUTDOWN) {
+            fprintf(stderr, "sim_test: core shut down before %d frames were rendered\n", FRAMES_WANTED);
+            goto done;
         }
         if (mpv_render_context_update(rctx) & MPV_RENDER_UPDATE_FRAME) {
             if ((err = mpv_render_context_render(rctx, rparams)) < 0) {

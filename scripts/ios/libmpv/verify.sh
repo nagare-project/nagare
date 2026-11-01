@@ -217,10 +217,11 @@ for _ in $(seq 1 600); do [ -s "$TMP/port" ] && break; sleep 0.1; done
 [ -s "$TMP/port" ] || die "HTTP 测试服务端 60 秒内没起来：$(cat "$TMP/http-server.log")"
 port=$(cat "$TMP/port")
 
-# sim_once <架构> <日志> 参数...：跑一次。sim_test 自己把输出写进 <日志>.child（不全靠 simctl 转发），
-# simctl 本身的输出（以及 dyld 在 main 之前报的错）进 <日志>
-sim_once() {
-  local arch=$1 logf=$2 rc
+# sim <架构> <日志名> 参数...：在模拟器里跑那个架构的 sim_test，输出进日志，返回它的退出码。
+# sim_test 自己把输出写进 <日志>.child（第一行是「sim_test: start」，不全靠 simctl 转发），
+# simctl 本身的输出（以及 dyld 在 main 之前报的错）进 <日志>，最后拼在一起
+sim() {
+  local arch=$1 logf="$TMP/sim-$1-$2.log" rc
   shift 2
   rm -f "$logf.child"
   set +e
@@ -229,22 +230,6 @@ sim_once() {
   rc=$?
   set -e
   if [ -f "$logf.child" ]; then cat "$logf.child" >> "$logf"; rm -f "$logf.child"; fi
-  return $rc
-}
-
-# sim <架构> <日志名> 参数...：在模拟器里跑那个架构的 sim_test，输出进日志，返回它的退出码。
-# 进程压根没起来（没有「sim_test: start」）而 simctl 报失败的，是模拟器那边偶发的问题，重试一次；
-# 起来了才失败的照实算。
-sim() {
-  local arch=$1 logf="$TMP/sim-$1-$2.log" rc=0
-  shift 2
-  sim_once "$arch" "$logf" "$@" || rc=$?
-  if [ $rc -ne 0 ] && ! grep -q '^sim_test: start' "$logf"; then
-    warn "simctl 没把 sim_test 起来（${arch}，$(basename "$logf")，退出码 ${rc}），重试一次：$(tr '\n' ' ' < "$logf" | cut -c1-200)"
-    mv "$logf" "$logf.first-attempt"
-    rc=0
-    sim_once "$arch" "$logf" "$@" || rc=$?
-  fi
   echo "(sim_test 退出码 $rc)" >> "$logf"
   # 崩了的话把系统写的崩溃报告也收进来（CI 失败时随验证现场上传）
   if [ $rc -ne 0 ] && [ $rc -ne 3 ] && [ $rc -ne 77 ]; then
@@ -309,6 +294,11 @@ sim_suite() {
       done
       echo "STRESS ${a} ${g}: ok=${n_ok} bad=${n_bad}"
     done
+    n_ok=0 n_bad=0
+    for i in $(seq 1 "$LIBMPV_SIM_STRESS"); do
+      if sim "$a" "stress-render-$i" render "$MEDIA/h264-aac-ass.mkv" no; then n_ok=$((n_ok + 1)); else n_bad=$((n_bad + 1)); fi
+    done
+    echo "STRESS ${a} render: ok=${n_ok} bad=${n_bad}"
   fi
 
   # VideoToolbox：模拟器能不能真的用上它与运行环境有关（真机才是准的），这两项只警告
@@ -331,7 +321,7 @@ sim_suite() {
 # 本机架构的模拟器切片：全部必过
 build_sim_test "$HOST_ARCH"
 if sim "$HOST_ARCH" info info && grep -q "^arch=$HOST_ARCH mpv-version=mpv v$want_mpv" "$(slog "$HOST_ARCH" info)"; then
-  pass "模拟器里初始化：$(head -1 "$(slog "$HOST_ARCH" info)")"
+  pass "模拟器里初始化：$(grep "^arch=" "$(slog "$HOST_ARCH" info)")"
   sim_suite "$HOST_ARCH"
 else
   fail "模拟器里初始化（${HOST_ARCH}）"; show_log "$(slog "$HOST_ARCH" info)"
@@ -343,7 +333,7 @@ if [ "$HOST_ARCH" = arm64 ]; then
   if arch -x86_64 /usr/bin/true 2>/dev/null; then
     build_sim_test x86_64
     if sim x86_64 info info && grep -q "^arch=x86_64 mpv-version=mpv v$want_mpv" "$(slog x86_64 info)"; then
-      pass "模拟器里初始化（x86_64，Rosetta）：$(head -1 "$(slog x86_64 info)")"
+      pass "模拟器里初始化（x86_64，Rosetta）：$(grep "^arch=" "$(slog x86_64 info)")"
       sim_suite x86_64
     else
       soft "模拟器里跑不起 x86_64 的进程（Rosetta），x86_64 切片只做了静态检查"; show_log "$(slog x86_64 info)" 10
