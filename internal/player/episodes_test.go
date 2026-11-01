@@ -122,7 +122,7 @@ func TestSyncRefusesEpisodesItCannotPlace(t *testing.T) {
 	assert.False(t, p.Synced)
 }
 
-// 查不到集数：编号从 1 开始的照写（绝大多数文件夹是这样）；没有第 1 集的先不写，说重看会再试。
+// 查不到集数：编号从 1 开始的照写（绝大多数文件夹是这样）；没有第 1 集的先不写，说下次启动或点「重试」时会再试。
 func TestSyncWhenSpaceLookupFails(t *testing.T) {
 	m, client, sess := spaceHarness(t, store.Binding{AnilistID: 9, Episode: 4, Title: "某番"}, seq(1, 12), EpisodeSpace{}, errors.New("unreachable"))
 	m.syncWatched(sess)
@@ -132,7 +132,7 @@ func TestSyncWhenSpaceLookupFails(t *testing.T) {
 	m.syncWatched(sess)
 	assert.Empty(t, client.marked)
 	require.NotNil(t, m.Status().Sync)
-	assert.Equal(t, "重看这一集看完时会再试", m.Status().Sync.Recovery)
+	assert.Equal(t, recoveryRetryLater, m.Status().Sync.Recovery)
 }
 
 // 拦下之后：查得到偏移了再看完一次，就按换算后的集号写进去，横幅自己消失。

@@ -67,6 +67,9 @@ func (f *fakePlayer) SetPause(bool) error           { return nil }
 func (f *fakePlayer) Seek(float64) error            { return nil }
 func (f *fakePlayer) Status() player.Status         { return f.status }
 func (f *fakePlayer) RefreshShaders() (bool, error) { return false, nil }
+func (f *fakePlayer) RetryPendingSyncs(context.Context) player.SyncRetryResult {
+	return player.SyncRetryResult{}
+}
 
 // fakeAuth 是账号会话的替身：这里只有设置载荷会读它，而设置载荷只问登录态。
 // 其余方法落到嵌入的 nil 接口上 —— 本包的测试不碰登录端点，真被调用会直接 panic 暴露出来。

@@ -24,11 +24,14 @@ local seekbar = require 'seekbar'
 local upnext = require 'upnext'
 local embed = require 'embed'
 
-local S, P, FONT = core.S, core.P, core.FONT
+local S, T, FONT, MONO = core.S, core.T, core.FONT, core.MONO
 local send, toast, request_render, scale = core.send, core.toast, core.request_render, core.scale
 local add_element, element_at, find_element = core.add_element, core.element_at, core.find_element
+local style = core.text_style
 
 local HIDE_AFTER = 2.0 -- 鼠标不动多少秒后收起
+-- 控制条上的按钮（窗口按钮、音量、右边那一组）的点击区边长；大播放键、快退快进、上一集下一集更大
+local TOUCH = T.layout.touch_min
 local SPEEDS = { 0.5, 0.75, 1.0, 1.25, 1.5, 2.0 }
 local ANIME4K = {
 	{ value = "off", label = "关" },
@@ -72,14 +75,15 @@ local function ui_visible()
 	return mp.get_time() - S.last_move < HIDE_AFTER
 end
 
--- 图标按钮：size 是点击区（正方形），icon_size 是图标本身
+-- 图标按钮：size 是点击区（正方形），icon_size 是图标本身。压在画面上，图标用主文字色（白），
+-- 悬停时垫一个圆形的次要填充；o.color 给开着的开关（可点击色）
 local function icon_button(c, id, cx, cy, size, icon, icon_size, on_click, o)
 	o = o or {}
 	local half = size / 2
 	if S.hover_id == id then
-		c:circle(cx, cy, half, { color = "#FFFFFF", opacity = 0.1 })
+		c:circle(cx, cy, half, { color = T.color.bg_fill_hover })
 	end
-	c:icon(icon, cx - icon_size / 2, cy - icon_size / 2, icon_size, o.color or P.fg, o.opacity or 1)
+	c:icon(icon, cx - icon_size / 2, cy - icon_size / 2, icon_size, o.color or T.color.text)
 	add_element(id, cx - half, cy - half, cx + half, cy + half, on_click)
 end
 
@@ -87,14 +91,15 @@ end
 local function text_button(c, id, x2, cy, label, on_click, o)
 	o = o or {}
 	local s = scale()
-	local size = 14 * s
-	local w = draw.text_width(label, size) + 20 * s
+	local st = style("label", { align = 5, color = o.color or T.color.text })
+	local w = draw.text_width(label, st.size) + 20 * s
 	local x1 = x2 - w
+	local half = TOUCH / 2 * s
 	if S.hover_id == id then
-		c:rect(x1, cy - 22 * s, x2, cy + 22 * s, { color = "#FFFFFF", opacity = 0.1, radius = 8 * s })
+		c:rect(x1, cy - half, x2, cy + half, { color = T.color.bg_fill_hover, radius = T.radius.sm * s })
 	end
-	c:text((x1 + x2) / 2, cy, label, { align = 5, size = size, color = o.color or P.fg, font = FONT })
-	add_element(id, x1, cy - 22 * s, x2, cy + 22 * s, on_click)
+	c:text((x1 + x2) / 2, cy, label, st)
+	add_element(id, x1, cy - half, x2, cy + half, on_click)
 	return w
 end
 
@@ -179,7 +184,7 @@ local function context_items()
 end
 
 local function open_menu(items, x, y, place)
-	menu.open(items, x, y, { place = place, w = S.w, h = S.h, scale = scale(), font = FONT, palette = P })
+	menu.open(items, x, y, { place = place, w = S.w, h = S.h, scale = scale(), font = FONT })
 	request_render()
 end
 
@@ -189,7 +194,7 @@ local function open_menu_above(id, items)
 	if not e then
 		return
 	end
-	open_menu(items, e.x1, e.y1 - 8 * scale(), "above")
+	open_menu(items, e.x1, e.y1 - T.space.sm * scale(), "above")
 end
 
 local function open_context_menu()
@@ -206,40 +211,41 @@ end
 -- 嵌进 nagare 窗口时左上角的「返回」（回到媒体库）：x 是左边缘，cy 与标题行对齐。返回右边缘
 local function draw_back(c, x, cy)
 	local s = scale()
-	local size = 15 * s
-	local w = 34 * s + draw.text_width("返回", size) + 12 * s
+	local st = style("body_sm", { align = 4, color = T.color.text, outline = core.HALO * s })
+	local w = 34 * s + draw.text_width("返回", st.size) + 12 * s
 	if S.hover_id == "library" then
-		c:rect(x, cy - 18 * s, x + w, cy + 18 * s, { color = "#FFFFFF", opacity = 0.1, radius = 8 * s })
+		c:rect(x, cy - 18 * s, x + w, cy + 18 * s, { color = T.color.bg_fill_hover, radius = T.radius.sm * s })
 	end
-	c:icon("chevron_left", x + 8 * s, cy - 10 * s, 20 * s, P.strong, 1)
-	c:text(x + 32 * s, cy, "返回", { align = 4, size = size, color = P.strong, font = FONT, outline = 0.8 * s, outline_opacity = 0.7 })
+	c:icon("chevron_left", x + 8 * s, cy - 10 * s, 20 * s, T.color.text)
+	c:text(x + 32 * s, cy, "返回", st)
 	add_element("library", x, cy - 18 * s, x + w, cy + 18 * s, embed.back)
 	return x + w
 end
 
 local function draw_top(c)
 	local s = scale()
-	c:scrim(0, 0, S.w, 140 * s, 0.75, 0, 20)
-	local x = 32 * s
+	c:scrim(0, 0, S.w, 140 * s, T.color.player_scrim_top, "top", 20)
+	local x = T.space.xl * s
 	if S.embedded then
 		-- 宿主的窗口按钮（macOS 左上角的红绿灯）占着左边：「返回」与标题从让出的宽度后面开始
-		x = draw_back(c, (S.titlebar_inset + 16) * s, 33 * s) + 12 * s
+		x = draw_back(c, (S.titlebar_inset + T.space.md) * s, 33 * s) + 12 * s
 	end
 	local title = S.nagare_title or (S.title ~= "" and S.title) or "nagare"
-	c:text(x, 22 * s, title, { size = 22 * s, bold = true, color = P.strong, font = FONT, outline = 1 * s, outline_opacity = 0.7 })
+	c:text(x, 22 * s, title, style("h2", { color = T.color.text, outline = core.HALO * s }))
 	if S.info ~= "" then
-		-- 弹幕密的时候顶部全是字：副标题也要描边，否则会被弹幕盖得看不清
-		c:text(x, 54 * s, S.info, { size = 14 * s, color = P.fg, opacity = 0.85, font = FONT, outline = 0.8 * s, outline_opacity = 0.7 })
+		-- 弹幕密的时候顶部全是字：副标题也要描边，否则会被弹幕盖得看不清。次要文字色压在画面上偏淡，
+		-- 用 label（14 / 500）而不是 caption，小窗口、1 倍屏上也读得清
+		c:text(x, 54 * s, S.info, style("label", { color = T.color.text_secondary, outline = core.HALO * s }))
 	end
 	-- 最小化 / 最大化 / 关闭：全屏时不画；嵌进 nagare 窗口时也不画，窗口按钮是宿主的（同一个窗口不要两套）
 	if not S.fullscreen and not S.embedded then
-		local cy = 20 * s + 22 * s
-		local x = S.w - 16 * s - 22 * s
-		icon_button(c, "close", x, cy, 44 * s, "close", 18 * s, function() mp.commandv("quit") end)
+		local cy = 20 * s + TOUCH / 2 * s
+		local x = S.w - T.space.md * s - TOUCH / 2 * s
+		icon_button(c, "close", x, cy, TOUCH * s, "close", 18 * s, function() mp.commandv("quit") end)
 		x = x - 48 * s
-		icon_button(c, "maximize", x, cy, 44 * s, "maximize", 16 * s, function() mp.commandv("cycle", "window-maximized") end)
+		icon_button(c, "maximize", x, cy, TOUCH * s, "maximize", 16 * s, function() mp.commandv("cycle", "window-maximized") end)
 		x = x - 48 * s
-		icon_button(c, "minimize", x, cy, 44 * s, "minimize", 18 * s, function() mp.set_property_bool("window-minimized", true) end)
+		icon_button(c, "minimize", x, cy, TOUCH * s, "minimize", 18 * s, function() mp.set_property_bool("window-minimized", true) end)
 	end
 end
 
@@ -247,20 +253,20 @@ end
 local function draw_volume(c, cy, compact)
 	local s = scale()
 	local icon = (S.mute or S.volume <= 0) and "mute" or (S.volume < 50 and "volume_low" or "volume")
-	local bx = 20 * s + 22 * s
-	icon_button(c, "mute", bx, cy, 44 * s, icon, 22 * s, function() mp.commandv("cycle", "mute") end)
+	local bx = 20 * s + TOUCH / 2 * s
+	icon_button(c, "mute", bx, cy, TOUCH * s, icon, 22 * s, function() mp.commandv("cycle", "mute") end)
 	if compact then
-		return bx + 22 * s
+		return bx + TOUCH / 2 * s
 	end
 	local x1, x2 = bx + 28 * s, bx + 28 * s + 96 * s
 	local th = (S.hover_id == "volume" or S.drag == "volume") and 6 * s or 4 * s
-	c:rect(x1, cy - th / 2, x2, cy + th / 2, { color = "#FFFFFF", opacity = 0.22, radius = th / 2 })
+	c:rect(x1, cy - th / 2, x2, cy + th / 2, { color = T.color.player_track, radius = th / 2 })
 	local frac = S.mute and 0 or math.max(0, math.min(1, S.volume / 100))
 	if frac > 0 then
-		c:rect(x1, cy - th / 2, x1 + (x2 - x1) * frac, cy + th / 2, { color = P.strong, opacity = 1, radius = th / 2 })
+		c:rect(x1, cy - th / 2, x1 + (x2 - x1) * frac, cy + th / 2, { color = T.color.text, radius = th / 2 })
 	end
 	if S.hover_id == "volume" or S.drag == "volume" then
-		c:circle(x1 + (x2 - x1) * frac, cy, 6 * s, { color = "#FFFFFF", opacity = 1 })
+		c:circle(x1 + (x2 - x1) * frac, cy, 6 * s, { color = T.color.text })
 	end
 	add_element("volume", x1 - 6 * s, cy - 14 * s, x2 + 6 * s, cy + 14 * s, nil)
 	return x2 + 6 * s
@@ -269,18 +275,20 @@ end
 local function draw_transport(c, cy, compact)
 	local s = scale()
 	local cx = S.w / 2
-	-- 大播放键：白色实心圆 + 深色图标
+	-- 大播放键：白色实心圆 + 黑色图标，悬停时图标变可点击色
 	local r = 30 * s
-	c:circle(cx, cy, r, { color = S.hover_id == "play" and "#FFFFFF" or P.strong, opacity = 1 })
-	c:icon(S.pause and "play" or "pause", cx - 13 * s, cy - 13 * s, 26 * s, "#0B0B0B", 1)
+	c:circle(cx, cy, r, { color = T.color.text })
+	c:icon(S.pause and "play" or "pause", cx - 13 * s, cy - 13 * s, 26 * s, S.hover_id == "play" and T.color.accent or T.color.bg)
 	add_element("play", cx - r, cy - r, cx + r, cy + r, toggle_pause)
 	if compact then
 		return
 	end
+	-- 环里的「10」用最小一档字号（角标）
+	local ten = style("micro", { align = 5, color = T.color.text })
 	icon_button(c, "back", cx - 68 * s, cy, 48 * s, "back", 28 * s, function() mp.commandv("seek", -10) end)
-	c:text(cx - 68 * s, cy + 1.2 * s, "10", { align = 5, size = 9 * s, bold = true, color = P.fg, font = FONT })
+	c:text(cx - 68 * s, cy + 1.2 * s, "10", ten)
 	icon_button(c, "forward", cx + 68 * s, cy, 48 * s, "forward", 28 * s, function() mp.commandv("seek", 10) end)
-	c:text(cx + 68 * s, cy + 1.2 * s, "10", { align = 5, size = 9 * s, bold = true, color = P.fg, font = FONT })
+	c:text(cx + 68 * s, cy + 1.2 * s, "10", ten)
 end
 
 -- 上一集 / 下一集：nagare 告诉界面有才画；两边放不下（窄窗口、右边按钮多）就不画，
@@ -303,36 +311,40 @@ end
 -- 返回右边这一组的左边缘
 local function draw_right(c, cy, compact)
 	local s = scale()
+	local half = TOUCH / 2 * s
 	local x = S.w - 20 * s
-	icon_button(c, "fullscreen", x - 22 * s, cy, 44 * s, S.fullscreen and "exit_fullscreen" or "fullscreen", 20 * s,
+	icon_button(c, "fullscreen", x - half, cy, TOUCH * s, S.fullscreen and "exit_fullscreen" or "fullscreen", 20 * s,
 		function() mp.commandv("cycle", "fullscreen") end)
 	x = x - 46 * s
-	icon_button(c, "more", x - 22 * s, cy, 44 * s, "more", 20 * s, function() open_menu_above("more", context_items) end)
+	icon_button(c, "more", x - half, cy, TOUCH * s, "more", 20 * s, function() open_menu_above("more", context_items) end)
 	x = x - 46 * s
 	if not compact then
 		x = x - text_button(c, "speed", x, cy, core.fmt_speed(S.speed), function() open_menu_above("speed", speed_items) end) - 2 * s
 	end
-	icon_button(c, "anime4k", x - 22 * s, cy, 44 * s, "sparkle", 22 * s, function() open_menu_above("anime4k", anime4k_items) end,
-		{ color = S.anime4k ~= "off" and P.accent_text or P.fg })
+	-- 画质增强开着时图标用可点击色（选中态）
+	icon_button(c, "anime4k", x - half, cy, TOUCH * s, "sparkle", 22 * s, function() open_menu_above("anime4k", anime4k_items) end,
+		{ color = S.anime4k ~= "off" and T.color.accent or T.color.text })
 	x = x - 46 * s
-	icon_button(c, "subtitles", x - 22 * s, cy, 44 * s, "subtitles", 22 * s, function() open_menu_above("subtitles", tracks.subtitle_items) end)
-	local left = x - 44 * s
+	icon_button(c, "subtitles", x - half, cy, TOUCH * s, "subtitles", 22 * s, function() open_menu_above("subtitles", tracks.subtitle_items) end)
+	local left = x - TOUCH * s
 	x = x - 46 * s
 	if tracks.has_danmaku() then
 		local id = "danmaku"
-		local bx1, bx2 = x - 44 * s, x
+		local bx1, bx2 = x - TOUCH * s, x
 		if S.hover_id == id then
-			c:rect(bx1, cy - 22 * s, bx2, cy + 22 * s, { color = "#FFFFFF", opacity = 0.1, radius = 8 * s })
+			c:rect(bx1, cy - half, bx2, cy + half, { color = T.color.bg_fill_hover, radius = T.radius.sm * s })
 		end
+		-- 「弹」字开关：开着是实心按钮的底 + 白字（白字在 accent 上不到 4.5:1，用深一档的 accent_fill），
+		-- 关着是次要文字色的描边框 + 字
 		local px1, px2 = bx1 + 9 * s, bx2 - 9 * s
-		if tracks.danmaku_visible() then
-			c:rect(px1, cy - 11 * s, px2, cy + 11 * s, { color = P.accent, opacity = 1, radius = 5 * s })
-			c:text((px1 + px2) / 2, cy, "弹", { align = 5, size = 13 * s, bold = true, color = "#FFFFFF", font = FONT })
+		local on = tracks.danmaku_visible()
+		if on then
+			c:rect(px1, cy - 11 * s, px2, cy + 11 * s, { color = T.color.accent_fill, radius = T.radius.sm * s })
 		else
-			c:stroke_rect(px1, cy - 11 * s, px2, cy + 11 * s, { width = 1.5 * s, color = "#FFFFFF", opacity = 0.6, radius = 5 * s })
-			c:text((px1 + px2) / 2, cy, "弹", { align = 5, size = 13 * s, bold = true, color = P.fg, opacity = 0.7, font = FONT })
+			c:stroke_rect(px1, cy - 11 * s, px2, cy + 11 * s, { width = 1.5 * s, color = T.color.text_secondary, radius = T.radius.sm * s })
 		end
-		add_element(id, bx1, cy - 22 * s, bx2, cy + 22 * s, tracks.toggle_danmaku)
+		c:text((px1 + px2) / 2, cy, "弹", style("label", { align = 5, color = on and T.color.text or T.color.text_secondary }))
+		add_element(id, bx1, cy - half, bx2, cy + half, tracks.toggle_danmaku)
 		left = bx1
 	end
 	return left
@@ -340,7 +352,7 @@ end
 
 local function draw_bottom(c)
 	local s = scale()
-	c:scrim(0, S.h - 240 * s, S.w, S.h, 0, 0.85, 24)
+	c:scrim(0, S.h - 240 * s, S.w, S.h, T.color.player_scrim_bottom, "bottom", 24)
 	seekbar.draw(c)
 	local cy = S.h - 44 * s
 	local compact = S.w < 760 * s
@@ -355,13 +367,13 @@ end
 local function draw_buffering(c)
 	local s = scale()
 	local cx, cy = S.w / 2, S.h / 2 - 16 * s
-	c:shape(draw.arc_path(cx, cy, 18 * s, 15 * s, 0, 360, 48), "#FFFFFF", 0.16)
+	c:shape(draw.arc_path(cx, cy, 18 * s, 15 * s, 0, 360, 48), T.color.player_track)
 	local a = (S.spin * 360) % 360
-	c:shape(draw.arc_path(cx, cy, 18 * s, 15 * s, a, a + 90, 16), P.strong, 1)
-	c:text(cx, cy + 36 * s, "正在缓冲", { align = 5, size = 15 * s, color = P.fg, font = FONT, outline = 0.8 * s })
+	c:shape(draw.arc_path(cx, cy, 18 * s, 15 * s, a, a + 90, 16), T.color.text)
+	c:text(cx, cy + 36 * s, "正在缓冲", style("body_sm", { align = 5, color = T.color.text, outline = core.HALO * s }))
 	local rate = core.fmt_rate(S.cache_speed)
 	if rate then
-		c:text(cx, cy + 60 * s, rate, { align = 5, size = 13 * s, color = P.fg, opacity = 0.7, font = FONT, outline = 0.8 * s })
+		c:text(cx, cy + 60 * s, rate, style("caption", { align = 5, color = T.color.text_secondary, font = MONO, outline = core.HALO * s }))
 	end
 end
 
@@ -372,16 +384,19 @@ local function draw_toast(c, visible)
 		return
 	end
 	local s = scale()
-	local x, y = 32 * s, (visible and 92 or 32) * s
-	local w = math.max(draw.text_width(t.text, 14 * s), t.sub and draw.text_width(t.sub, 12 * s) or 0) + 28 * s
+	-- 全局提示的胶囊：toast 底 + 描边，主文字一行、要读的小字一行（次要文字色）
+	local main, sub = style("label", { color = T.color.text }), style("caption", { color = T.color.text_secondary })
+	local pad = T.space.md * s
+	local x, y = T.space.xl * s, (visible and 92 or T.space.xl) * s
+	local w = math.max(draw.text_width(t.text, main.size), t.sub and draw.text_width(t.sub, sub.size) or 0) + 2 * pad
 	local h = (t.sub and 58 or 40) * s
 	c:rect(x, y, x + w, y + h, {
-		color = P.card, opacity = 0.92, radius = 10 * s,
-		border = math.max(1, s), border_color = "#FFFFFF", border_opacity = 0.1,
+		color = T.color.toast, radius = T.radius.full * s,
+		border = math.max(1, s), border_color = T.color.toast_border,
 	})
-	c:text(x + 14 * s, y + 10 * s, t.text, { size = 14 * s, color = P.fg, font = FONT })
+	c:text(x + pad, y + 10 * s, t.text, main)
 	if t.sub then
-		c:text(x + 14 * s, y + 32 * s, t.sub, { size = 12 * s, color = P.fg, opacity = 0.62, font = FONT })
+		c:text(x + pad, y + 32 * s, t.sub, sub)
 	end
 end
 
@@ -650,7 +665,7 @@ end)
 -- 缓冲转圈、「下一集」卡片的倒数圈、界面到点收起：都靠这一个定时器推
 mp.add_periodic_timer(0.05, function()
 	if S.buffering then
-		S.spin = S.spin + 0.05
+		S.spin = S.spin + 0.05 / T.duration.spin -- 圈数：每 T.duration.spin 秒转一整圈
 		request_render()
 	elseif upnext.animating() or S.shown ~= ui_visible() then
 		request_render()

@@ -210,6 +210,8 @@ export interface SyncFailure {
   /** 用户能做的一步动作 */
   recovery?: string
   at?: number
+  /** 还没记到账号、补发会再试的集数；大于 0 时横幅给「重试」（lib/syncRetry.ts） */
+  pending?: number
 }
 
 /**

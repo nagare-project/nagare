@@ -547,6 +547,42 @@ describe('LibraryPage（整页冒烟）', () => {
     await unmount()
   })
 
+  it('横幅上点「重试」：带 token 头发补发请求，结果说在状态行上，横幅按最新状态消失', async () => {
+    let status: PlayerStatus = {
+      playing: false,
+      sync: { state: 'failed', title: '葬送的芙莉莲', episode: 3, reason: '服务暂不可达', recovery: '确认网络后点「重试」', pending: 1 },
+    }
+    const fetchMock = stubFetch(SETTINGS, LIBRARY, status)
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      const path = new URL(url, 'http://127.0.0.1').pathname
+      let data: unknown
+      if (path === '/api/player/sync/retry') {
+        status = { playing: false }
+        data = { synced: 1, remaining: 0 }
+      } else {
+        data = path === '/api/library' ? LIBRARY : path === '/api/settings' ? SETTINGS : path === '/api/update' ? UPDATE : status
+      }
+      void init
+      return new Response(JSON.stringify({ success: true, data }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+
+    const retry = [...container.querySelectorAll('.alert-warn button')].find((b) => b.textContent === '重试') as HTMLButtonElement | undefined
+    expect(retry, '会再试的同步失败要给「重试」').toBeDefined()
+    await act(async () => { retry!.click() })
+    for (let i = 0; i < 5; i++) await act(async () => { await Promise.resolve() })
+
+    const posts = fetchMock.mock.calls.filter(([input]) => String(input).includes('/api/player/sync/retry'))
+    expect(posts).toHaveLength(1)
+    const init = posts[0]![1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(new Headers(init.headers).get('X-Nagare-Token')).toBe('9f86d081884c7d659a2feaa0c55ad015')
+    expect(container.querySelector('.lib-status')?.textContent).toContain('补记上 1 集')
+    expect(container.querySelector('.alert-warn button')).toBeNull()
+    await unmount()
+  })
+
   it('库为空时不显示「重新扫描」「上次扫描」，mpv 缺失也只在引导卡里讲一次', async () => {
     stubFirstRun(MPV_MISSING)
 

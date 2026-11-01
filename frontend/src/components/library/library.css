@@ -55,6 +55,14 @@
    新代码用那边的语义名 .alert-warn。 */
 
 /* 顶栏下的状态行（扫描结果 / 播放错误 / 上次扫描时间） */
+/* 同步横幅上「还有几集没记上」+「重试」一行 */
+.lib-sync-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .lib-status {
   display: flex;
   align-items: baseline;

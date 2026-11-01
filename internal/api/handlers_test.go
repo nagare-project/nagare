@@ -33,6 +33,8 @@ type fakePlayer struct {
 	playing    bool
 	refreshErr error
 	refreshes  int
+	// retryRes 是 RetryPendingSyncs 的答复
+	retryRes player.SyncRetryResult
 	// log 记调用顺序（可为 nil）。磁力播放里「先停播放器再准备种子」的顺序
 	// 是正确性的一部分，只能靠调用序来断言。
 	log func(string)
@@ -59,6 +61,10 @@ func (f *fakePlayer) Status() player.Status { return f.status }
 func (f *fakePlayer) RefreshShaders() (bool, error) {
 	f.refreshes++
 	return f.playing, f.refreshErr
+}
+func (f *fakePlayer) RetryPendingSyncs(context.Context) player.SyncRetryResult {
+	f.record("player.sync-retry")
+	return f.retryRes
 }
 
 // fakeAuth 是 AnimegoAuth 替身。
