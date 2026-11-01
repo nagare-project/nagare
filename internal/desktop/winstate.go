@@ -4,6 +4,11 @@ package desktop
 // 时直接返回），Lua 界面照旧 cycle fullscreen、t 键 cycle ontop —— 属性变了、窗口不动。宿主经 IPC 观察这几个
 // 属性、落到自己的顶层窗口上；用户在窗口上的操作（标题栏的最大化、Win+↑）再写回去，界面的图标才对得上。
 //
+// mpv 的属性通知会合并：它报的是取通知那一刻的值，与上次报给这条连接的一样就不报。宿主写过去的值紧跟着另一次改动
+// （mpv 的子窗口处理 WM_SIZE 时把 window-maximized 改成假、界面或脚本的一次请求）时，两下合在一起常常「没变」，
+// 宿主一个通知都收不到 —— CI 冒烟实测：还原时宿主写假、紧接着请求最大化写真，宿主再也听不到那个真。所以宿主改完
+// 窗口、mpv 的子窗口跟上之后，把这几个属性读回来再对一遍（reconcile）。
+//
 // 这里只有规则本身（纯函数、各平台都能测），真正动窗口的是 window_windows.go。
 
 // hostWindow 是宿主顶层窗口此刻的状态。
@@ -35,19 +40,45 @@ type mpvWrite struct {
 // windowSync 记着 mpv 那边最近一次的值，只在真的不一致时动手，免得来回打乒乓。
 type windowSync struct {
 	mpv map[string]bool // mpv 那边最近一次报来 / 写过去的值
+	// touched：每个属性收到报告、或宿主写过去的次数。读回来的值只在读的这段时间里它没变时才算数（见 reconcile）
+	touched map[string]int
 }
 
 func newWindowSync() *windowSync {
-	return &windowSync{mpv: map[string]bool{}}
+	return &windowSync{mpv: map[string]bool{}, touched: map[string]int{}}
 }
 
 // fromMpv 处理 mpv 报来的一次属性变化：返回宿主要对窗口做的事，以及要写回 mpv 的值。
 func (s *windowSync) fromMpv(name string, v bool, host hostWindow) ([]winAction, []mpvWrite) {
-	old, known := s.mpv[name]
-	s.mpv[name] = v
-	if known && old == v {
+	s.touched[name]++
+	if old, known := s.mpv[name]; known && old == v {
 		return nil, nil
 	}
+	return s.decide(name, v, host)
+}
+
+// marks 是这几个属性此刻的 touched，读回来之前记下，交给 reconcile。
+func (s *windowSync) marks(names []string) []int {
+	out := make([]int, len(names))
+	for i, name := range names {
+		out[i] = s.touched[name]
+	}
+	return out
+}
+
+// reconcile 处理从 mpv 读回来的值（get_property，与宿主的写走同一条连接、按顺序执行，读到的是宿主写过之后的值）。
+// 规则与 fromMpv 相同，只是不跳过「与记下的一样」：被合并掉的那次改动，记下的值看不出来。读的这段时间里这个属性
+// 来过报告或宿主又写过（touched 与 mark 对不上），读到的可能已经过时，不算数 —— 照它动窗口会把用户刚做的撤回去。
+func (s *windowSync) reconcile(name string, v bool, host hostWindow, mark int) ([]winAction, []mpvWrite) {
+	if s.touched[name] != mark {
+		return nil, nil
+	}
+	return s.decide(name, v, host)
+}
+
+// decide 是 mpv 那边的值 v 与宿主窗口不一致时该做的事。动作只在两边不一致时才有，执行之后两边一致，重复调不会多做。
+func (s *windowSync) decide(name string, v bool, host hostWindow) ([]winAction, []mpvWrite) {
+	s.mpv[name] = v
 	switch name {
 	case "fullscreen":
 		if v != host.Fullscreen {
@@ -61,8 +92,7 @@ func (s *windowSync) fromMpv(name string, v bool, host hostWindow) ([]winAction,
 		// 一次性的请求（Lua 的最小化按钮在嵌入时不画，但 set window-minimized yes 仍可能来）：
 		// 最小化宿主，再把 mpv 的值放回假，下一次还能再请求
 		if v {
-			s.mpv[name] = false
-			return []winAction{winMinimize}, []mpvWrite{{name, false}}
+			return []winAction{winMinimize}, s.written(mpvWrite{name, false})
 		}
 	case "window-maximized":
 		// 只认「要最大化」：mpv 的子窗口每收到一次 WM_SIZE（SIZE_RESTORED）就把自己的 window-maximized 改成假
@@ -71,8 +101,22 @@ func (s *windowSync) fromMpv(name string, v bool, host hostWindow) ([]winAction,
 		if v && !host.Maximized && !host.Fullscreen {
 			return []winAction{winMaximize}, nil
 		}
+		// 那个假盖掉了宿主写过去的真（子窗口的 WM_SIZE 比宿主的写晚到一步），宿主却还是最大化：再写一次真。
+		// 写这个属性不会让子窗口改大小，不会再来一个假，不会来回打乒乓。
+		if !v && host.Maximized && !host.Fullscreen {
+			return nil, s.written(mpvWrite{name, true})
+		}
 	}
 	return nil, nil
+}
+
+// written 记下宿主要写过去的值（mpv 那边的值、touched），原样返回。
+func (s *windowSync) written(ws ...mpvWrite) []mpvWrite {
+	for _, w := range ws {
+		s.mpv[w.Name] = w.Value
+		s.touched[w.Name]++
+	}
+	return ws
 }
 
 // fromHost 在宿主窗口的状态变了之后（用户点了标题栏、Win+↑、宿主自己执行了上面的动作）给出要写回 mpv 的值。
@@ -87,8 +131,7 @@ func (s *windowSync) fromHost(host hostWindow) []mpvWrite {
 		if old, known := s.mpv[w.Name]; known && old == w.Value {
 			continue
 		}
-		s.mpv[w.Name] = w.Value
-		out = append(out, w)
+		out = append(out, s.written(w)...)
 	}
 	return out
 }

@@ -125,6 +125,7 @@ func (a *app) seedSession(s *videoSession) {
 		c.send("observe_property", id, name)
 		id++
 	}
+	a.settleChild(s) // 子窗口建好、第一次显示时的 WM_SIZE 可能比这里写的晚到（窗口本来就最大化着时会被盖掉）
 }
 
 // attachChild（界面线程）：mpv 的子窗口找到了。
@@ -133,6 +134,9 @@ func (a *app) attachChild(s *videoSession) {
 		return
 	}
 	a.layout()
+	if s.sync != nil {
+		a.settleChild(s) // 见 seedSession（还没连上 IPC 时由 seedSession 安排）
+	}
 	if a.mode == modeVideo {
 		a.focusVideo()
 	}
@@ -179,6 +183,8 @@ type videoSession struct {
 	killed   atomic.Bool
 
 	sync *windowSync // 界面线程
+	// settleGen：settleChild 的轮次（界面线程），只有最新的一轮去读回来对
+	settleGen uint64
 
 	mu    sync.Mutex
 	props map[string]json.RawMessage // 最近一次的属性值（给测试遥控看）

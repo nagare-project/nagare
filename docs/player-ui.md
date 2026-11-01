@@ -148,7 +148,9 @@ Windows 的宿主也在 `internal/desktop`（默认构建就有，纯 Go）：�
 - 宿主另开一条 IPC 连接：设 `embedded=yes`、`titlebar-inset=0`（v1 保留系统标题栏，左上角没有要让的），**不设
   `hidpi`**（`--wid` 下 mpv 自己按所在显示器读得到 `display-hidpi-scale`）；观察 `fullscreen` / `window-maximized` /
   `window-minimized` / `ontop` 落到顶层窗口上，用户在标题栏上的操作写回去。`window-maximized` 只认「要最大化」：mpv
-  的子窗口每被改一次大小就把它报成假。
+  的子窗口每被改一次大小就把它改成假。这一下晚于宿主写过去的真时会盖掉它，且常被 mpv 合并成「没变」、一个通知都不发
+  （CI 冒烟偶发失败的根因）：宿主还在最大化时，听到假就写回真；每改一次子窗口大小，等它跟上客户区再按宿主的状态补写一次。
+  反方向（mpv 请求最大化）贴着一次改大小发出时同样会被盖掉、宿主收不到，嵌入时界面不画最大化按钮，用户碰不到这条路。
 - mpv 每试一种 GPU 上下文就重建一次子窗口（d3d11 起不来退到 OpenGL，每个新窗口都是 disabled 的）：宿主每秒核对一次，
   接上的窗口没了或又被禁用了就重新找、重新启用。重新启用（`EnableWindow`，跨进程等 mpv 处理 `WM_ENABLE`）放在单独的
   goroutine 里、同一时间只有一个：mpv 卡住时它回不来，看门狗照常每秒核对、照样能判出卡死。

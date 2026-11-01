@@ -512,6 +512,9 @@ function Win-Diag([string]$what) {
             "客户区 $($s.client -join 'x')、mpv 子窗口 $cc；最近的同步：$log")
 }
 
+# mpv 的子窗口跟上了宿主的客户区：它处理完了宿主改大小的那一下（那一下会把 mpv 的 window-maximized 改成假）
+function Child-Settled($s) { return ($s.childClient -and $s.client -and $s.childClient[0] -eq $s.client[0] -and $s.childClient[1] -eq $s.client[1]) }
+
 $maxRepeat = 1
 if ($env:NAGARE_WINTEST_MAX_REPEAT) { $maxRepeat = [int]$env:NAGARE_WINTEST_MAX_REPEAT }
 for ($round = 1; $round -le $maxRepeat; $round++) {
@@ -523,15 +526,20 @@ Step "最大化$tag" {
     $shot = if ($round -eq 1) { Snap 'maximized' -Full } else { '' }
     Add-Step "窗口最大化，写回 mpv 的 window-maximized$tag" $ok $d $shot
     Ctl '/winop' @{ op = 'restore' } | Out-Null
-    $ok2 = Wait-Until { -not (State).maximized } 5
-    $d = if ($ok2) { '' } else { Win-Diag '还原后 5 秒窗口仍是最大化' }
-    $before = State
-    $pre = "请求前 mpv 子窗口 $(if ($before.childClient) { $before.childClient -join 'x' } else { '?' })、客户区 $($before.client -join 'x')"
-    Mpv '["set_property","window-maximized",true]' | Out-Null
-    $ok3 = Wait-Until { (State).maximized } 5
-    if (-not $ok3) { $d = Win-Diag "mpv 请求最大化之后 5 秒窗口没有最大化（$pre）" }
+    # 只等到 mpv 的子窗口跟上还原后的大小（它处理完那次 WM_SIZE，不会再把接下来的请求盖成假），然后马上请求：
+    # 宿主还原时刚把 window-maximized=假 写过去，请求的真贴着它到，mpv 常把两下合并成「没变」不发通知 ——
+    # 这正是要守的那条（宿主改完窗口后读回来对一遍才看得见这个请求）。
+    $ok2 = Wait-Until { $s = State; -not $s.maximized -and (Child-Settled $s) } 5
+    $d = if ($ok2) { '' } else { Win-Diag '还原后 5 秒没等到窗口还原、mpv 的子窗口跟上' }
+    $ok3 = $false
+    if ($ok2) {
+        Mpv '["set_property","window-maximized",true]' | Out-Null
+        $ok3 = Wait-Until { (State).maximized } 5
+        if (-not $ok3) { $d = Win-Diag 'mpv 请求最大化之后 5 秒窗口没有最大化' }
+    }
     Ctl '/winop' @{ op = 'restore' } | Out-Null
-    Wait-Until { -not (State).maximized } 5 | Out-Null
+    # 下一步（mpv 请求最小化）不能撞上还原那次 WM_SIZE：它同样会把 window-minimized 改回假
+    [void](Wait-Until { $s = State; -not $s.maximized -and (Child-Settled $s) } 5)
     Add-Step "还原；mpv 请求最大化落到窗口上$tag" ($ok2 -and $ok3) $d ''
 }
 }
