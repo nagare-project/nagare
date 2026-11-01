@@ -5,7 +5,7 @@
 .assoc-panel-row > svg { flex: none; color: var(--fg-muted); }
 .assoc-panel-status { flex: 1 1 280px; min-width: 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .assoc-panel-status:focus { outline: none; }
-.assoc-panel-status:focus-visible { outline: 2px solid var(--brand-line); outline-offset: 2px; border-radius: var(--radius-sm); }
+.assoc-panel-status:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); border-radius: var(--radius-sm); }
 .assoc-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .assoc-confirm,

@@ -6,7 +6,7 @@ import { DiscoverCard } from './DiscoverCard'
 import type { MediaSummary } from './types'
 
 /** 与后端 maxSearchRunes 一致：再长的关键词后端会拒绝 */
-const MAX_QUERY_LENGTH = 64
+export const MAX_QUERY_LENGTH = 64
 
 /**
  * 发现页顶部的作品搜索框。只在提交时搜：上游 animego 的搜索端点有限速且会打到 AniList，

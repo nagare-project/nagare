@@ -230,11 +230,18 @@ mpv 加载。原样复制、未作改动；显示缩略图的界面代码是 nag
 v3.10.2（修订 `9bdd052`）的 `seanime-web` 组件布局、尺寸和配色，在 nagare 的 React / Vite
 结构中实现。上游使用 GPL-3.0，许可证见其源码树的 LICENSE。
 
-### Inter 字体
+### 界面字体（Sora、JetBrains Mono）
 
-随界面提供 Inter Variable 的 Latin WOFF2，来自 `@fontsource-variable/inter@5.2.8`。
-版权归 Inter Project Authors 所有，使用 SIL Open Font License 1.1；完整许可证随文件提供于
-[`frontend/public/fonts/OFL.txt`](frontend/public/fonts/OFL.txt)。字体由本机提供，无第三方字体请求。
+界面只打包两款字体的**拉丁子集**（可变字重 100–800，WOFF2，未作改动），由本机提供，不发任何第三方字体请求；
+中文不打包字体，走系统字体。两者都使用 [SIL Open Font License 1.1](https://openfontlicense.org)，
+完整许可证随字体文件一起分发。
+
+| 文件 | 来源 | 版权 | 许可证全文 |
+| --- | --- | --- | --- |
+| `frontend/public/fonts/sora-latin-wght-normal.woff2` | npm [`@fontsource-variable/sora@5.3.0`](https://registry.npmjs.org/@fontsource-variable/sora/-/sora-5.3.0.tgz) 的 `files/`（取自 [google/fonts](https://github.com/google/fonts) v17 的 latin 子集；上游 [sora-xor/sora-font](https://github.com/sora-xor/sora-font)） | Copyright 2019 The Sora Project Authors | [`frontend/public/fonts/OFL-Sora.txt`](frontend/public/fonts/OFL-Sora.txt) |
+| `frontend/public/fonts/jetbrains-mono-latin-wght-normal.woff2` | npm [`@fontsource-variable/jetbrains-mono@5.3.0`](https://registry.npmjs.org/@fontsource-variable/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz) 的 `files/`（取自 google/fonts v24 的 latin 子集；上游 [JetBrains/JetBrainsMono](https://github.com/JetBrains/JetBrainsMono)） | Copyright 2020 The JetBrains Mono Project Authors | [`frontend/public/fonts/OFL-JetBrainsMono.txt`](frontend/public/fonts/OFL-JetBrainsMono.txt) |
+
+两个 npm 包按 registry 公布的 sha512 校验过（Sora `h8kHta4Z…E4K8Whw==`，JetBrains Mono `F32xpS2N…S/hdz3Lw==`）。
 
 ### 演示图片
 

@@ -84,7 +84,7 @@ export function AnimePage() {
             它可能已经被移出媒体库，或者重新扫描后归到了别的分组里。
           </p>
           <p className="page-notice-actions">
-            <Link to="/" className="btn btn--sm">
+            <Link to="/library" className="btn btn--sm">
               回到媒体库
             </Link>
           </p>
@@ -143,7 +143,7 @@ function AnimeHero({ cluster, onPlay, pending, resume }: { cluster: LibraryClust
           )}
         </span>
         <div className="anime-hero-text">
-          <Link to="/" className="link anime-back">
+          <Link to="/library" className="link anime-back">
             <Icon name="left" size={16} />媒体库
           </Link>
           <h1 className="anime-title">{title}</h1>

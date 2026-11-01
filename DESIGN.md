@@ -11,8 +11,7 @@
 
 ## 现状与迁移
 
-- 现有桌面界面（`frontend/src/styles/global.css`）还是旧设计：近黑三层 `#070707 → #0b0b0b → #101010`、靛紫品牌色、Inter 字体、80px 侧栏。本文件描述的是目标设计，不描述旧设计。
-- `tokens.css` 已经生成，但**还没有接入页面**：它的 `--bg`、`--radius-sm` 等与 `global.css` 同名、取值不同，提前引入会改掉现有界面。桌面界面按本文件重写时再引入，同时删掉旧 token。
+- 桌面界面已接入 `tokens.css`（`main.tsx` 先于 `global.css` 导入），外壳换成了本文件的顶栏与抽屉，字体换成 Sora / JetBrains Mono 的拉丁子集。`global.css` 里的旧变量名（`--fg`、`--paper`、`--brand` 等）暂时保留为指向 token 的别名，各页面按本文件重写时改用 token 名，全部改完后删掉那段别名。
 - 桌面播放器（mpv 里的 Lua 控制条）已经改用 `tokens.lua`：颜色、字号、字体、圆角、间距、转圈时长都从它取，模块里不写颜色值（见「播放器」与 `docs/player-ui.md`）。
 - iOS 版从第一行代码起就用 `Tokens.swift`。
 

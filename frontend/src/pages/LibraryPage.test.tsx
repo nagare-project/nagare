@@ -145,7 +145,8 @@ beforeEach(() => {
   resetAutoRescanForTest()
   // apiFetch 会读 sessionStorage 里的 token（形状必须合法）
   window.sessionStorage.setItem(TOKEN_STORAGE_KEY, '9f86d081884c7d659a2feaa0c55ad015')
-  window.history.replaceState(null, '', '/')
+  // 媒体库在 /library（第一屏 / 是发现页）
+  window.history.replaceState(null, '', '/library')
   // jsdom 没实现 scrollTo，TanStack Router 挂载时会调一次；打桩消掉告警噪音
   vi.stubGlobal('scrollTo', vi.fn())
   // 根布局的 UpdateBanner 会读 localStorage（Node 自带的全局壳在测试里不可用）
