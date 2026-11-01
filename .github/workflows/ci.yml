@@ -146,8 +146,6 @@ jobs:
     runs-on: windows-latest
     needs: frontend
     timeout-minutes: 30
-    env:
-      NAGARE_WINTEST_MAX_REPEAT: "20" # TEMP: 诊断用，合并前去掉
     defaults:
       run:
         shell: bash
