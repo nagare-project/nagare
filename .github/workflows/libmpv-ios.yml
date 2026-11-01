@@ -154,6 +154,11 @@ jobs:
         run: |
           echo "LIBMPV_WORK=$RUNNER_TEMP/libmpv-ios" >> "$GITHUB_ENV"
           echo "LIBMPV_SOURCES=$RUNNER_TEMP/libmpv/sources" >> "$GITHUB_ENV"
+          # 核对对应源码包时要用包里的 build.sh 算缓存键，它要求的构建工具得在
+          brew install nasm autoconf automake libtool
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet "meson==$MESON_VERSION"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
           # 模拟器的 x86_64 切片（开发机是 Intel Mac）要在 Rosetta 下跑一遍
           if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
             sudo softwareupdate --install-rosetta --agree-to-license
@@ -209,6 +214,10 @@ jobs:
           src="$LIBMPV_WORK/out/libmpv-ios-source-${{ steps.pack.outputs.id }}.tar.gz"
           scripts/ios/libmpv/source-bundle.sh "$src"
           echo "src=$src" >> "$GITHUB_OUTPUT"
+
+      # LGPL 的对应源码义务落在这个包上：源码齐全且 sha256 对、脚本补丁都在、用包里的东西算出的缓存键与仓库一致
+      - name: 核对对应源码包
+        run: scripts/ios/libmpv/check-source-bundle.sh "${{ steps.src.outputs.src }}"
 
       - uses: actions/upload-artifact@v4
         with:
