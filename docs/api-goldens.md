@@ -69,3 +69,10 @@ CGO_ENABLED=0 go test ./internal/api/... ./internal/update/ -run Golden -update
 
 以后的 Swift / Kotlin 客户端照同样的规则各写一份测试：读 `testdata/api/` 下的全部文件（手机版跳过 `desktop-*`
 与 `update-*`），用严格模式解码（遇到不认识的字段就失败），并检查没有漏掉的文件。
+
+## 与界面冒烟测试的假数据的关系
+
+`frontend/e2e/fixtures/`（`tools/uismoke` 给 Playwright 冒烟测试回答的假数据）是另一套：只写信封里的 `data`，
+时间写成 `@now` 一类的占位串（放送表只显示近七日，写死的时间过几天页面就变样），所以不能直接拿黄金文件顶替。
+它们暂时没有经过这里的严格解码；以后可以在 `lib/apiGoldens.test.ts` 里按 `routes.json` 把每个文件对上同一套 schema
+（先把占位串换成数字），让冒烟测试的假数据也跟着接口变。
