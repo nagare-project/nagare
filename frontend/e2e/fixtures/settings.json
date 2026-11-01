@@ -8,6 +8,7 @@
   "player": { "anime4k": "off" },
   "background": { "mode": "dock" },
   "desktop": { "window": false },
+  "coverCache": { "bytes": 52428800, "count": 312, "maxBytes": 314572800 },
   "torrent": {
     "enabled": true,
     "seeding": false,
