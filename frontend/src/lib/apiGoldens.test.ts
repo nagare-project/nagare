@@ -30,6 +30,7 @@ const CONTRACTS: Record<string, Contract> = {
   'settings': okEnvelope(c.settingsData),
   'settings-desktop-window': okEnvelope(c.settingsData),
   'settings-desktop-fallback': okEnvelope(c.settingsData),
+  'cover-cache-clear': okEnvelope(c.coverCacheClearResult),
   'mpv-detect-found': okEnvelope(c.mpvInfo),
   'mpv-detect-missing': okEnvelope(c.mpvInfo),
   'play': okEnvelope(c.playData),
