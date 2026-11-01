@@ -356,6 +356,7 @@ func buildServices(configDir string, window bool) (*services, error) {
 		Association:   lib.AssociationFor,
 		GroupEpisodes: lib.GroupEpisodes,
 		EpisodeSpace:  spaces.Lookup,
+		LibraryItem:   lib.Item,
 		// 同一个窗口里的上一集 / 下一集：本地文件在媒体库同一个作品分组里找邻居（api），
 		// 磁力在同一个种子里找（api/sources 套在外面，先认磁力来源）
 		Navigator: sources.NewTorrentNavigator(api.NewEpisodeNavigator(lib)),
@@ -461,6 +462,21 @@ func buildServices(configDir string, window bool) (*services, error) {
 	}, nil
 }
 
+// syncRetryStartupDelay：启动后等一会儿再补发「看完」—— 让界面先起来；开机自启时网络也多半还没好。
+const syncRetryStartupDelay = 5 * time.Second
+
+// retryPendingSyncsSoon 在 syncRetryStartupDelay 之后补发一轮（ctx 先结束就不补）。
+func retryPendingSyncsSoon(ctx context.Context, p *player.Manager) {
+	t := time.NewTimer(syncRetryStartupDelay)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-t.C:
+	}
+	p.RetryPendingSyncs(ctx)
+}
+
 // nagareExecutableDir 返回可执行文件所在目录（解析符号链接：Homebrew 的 bin/ 里是指向
 // Cellar 的链接），是捆绑资源（mpv、来源插件）的锚点。
 func nagareExecutableDir() (string, error) {
@@ -548,6 +564,9 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	}
 	// 作品识别同理：只读文件头、发匹配请求，退出时不必等它（结果按文件逐个落盘）
 	go svc.identify.Run(ctx)
+	// 上次没记到账号的「看完」（回写途中被强退、断网、关机）：媒体库与作品关联此时已经就绪，
+	// 稍等片刻在后台补发，不拖住启动与界面；退出时随 ctx 停下，没补完的下次再补
+	go retryPendingSyncsSoon(ctx, svc.player)
 
 	go watchSignals(ctx, cancel)
 	serveErr := make(chan error, 1)

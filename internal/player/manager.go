@@ -90,6 +90,10 @@ type Options struct {
 	UIConfigDir func() (string, error)
 	// ScreenshotDir 是播放器里截图的存放目录，第一次截图时才创建。空串交给 mpv 的默认位置。
 	ScreenshotDir string
+	// LibraryItem 查媒体库里的文件条目。补发「看完」（sync_retry.go）不重新匹配，要靠它核对缓存的匹配
+	// 今天是否仍然站得住：集号还是文件现在解析出的那个、认定了作品的分组里附加内容不回写。
+	// 可为 nil：一律当不在媒体库里（磁力、在线候选本来就不在）。
+	LibraryItem func(fileID string) (library.Item, bool)
 	// Navigator 为同一个窗口里的上一集 / 下一集找邻居并把它准备好（见 nav.go、switch.go）。
 	// 可为 nil：窗口里不切集，播完即关窗，与没有这个功能时完全一样（不设 keep-open，
 	// 界面状态里的 nav 恒为两个 false）。
@@ -122,6 +126,9 @@ type SyncInfo struct {
 	Reason   string `json:"reason,omitempty"`   // 中文，用户可读
 	Recovery string `json:"recovery,omitempty"` // 用户能做的一步动作
 	At       int64  `json:"at,omitempty"`       // 毫秒时间戳
+	// Pending 是还没记到账号、补发会再试的集数（横幅说的这一集也会再试时把它算在内）。
+	// 大于 0 时界面给「重试」按钮；0 = 没有可重试的（例如这一集被规则挡下，只能手动去标）。
+	Pending int `json:"pending,omitempty"`
 }
 
 // PlayResult 是发起播放的即时结果。
@@ -180,6 +187,13 @@ type Manager struct {
 	// lastPlaybackFailure 保留最近异常终止的媒体会话，下一次
 	// Play 开始时清空。在线候选回退靠它跨请求观察 mpv 的异步失败。
 	lastPlaybackFailure *PlaybackFailure
+	// syncing 是正在回写的文件（fileID → 写完时关闭的信号），归 mu 管：播放收尾与补发
+	// 不会同时写同一集（见 sync.go 的 beginSync）。
+	syncing map[string]chan struct{}
+
+	// retrySem 让补发同一时刻只跑一轮（容量 1）；retryPace 是补发两集之间的间隔（测试调小）。
+	retrySem  chan struct{}
+	retryPace time.Duration
 }
 
 // New 构造 Manager。
@@ -187,7 +201,7 @@ func New(opts Options) *Manager {
 	if opts.Launch == nil {
 		opts.Launch = mpv.Launch
 	}
-	return &Manager{opts: opts}
+	return &Manager{opts: opts, retrySem: make(chan struct{}, 1), retryPace: syncRetryPace}
 }
 
 // completionRatio：观看进度超过时长的九成视为看完（与网页端习惯一致）。
@@ -576,24 +590,6 @@ func firstNonEmpty(ss ...string) string {
 }
 
 // classifyAnimegoErr 把 animego 客户端错误翻成用户可读的中文（CQ3 分类）。
-// classifySyncErr 把回写失败翻成「用户看到什么、能做什么」。
-// 与 classifyAnimegoErr 分开：弹幕失败的落款是「本地播放不受影响」，
-// 而这里丢的是账号进度，恢复动作完全不同。
-func classifySyncErr(err error) (reason, recovery string) {
-	var ae *animego.Error
-	if errors.As(err, &ae) {
-		switch ae.Kind {
-		case animego.ErrUnavailable:
-			return "animego 服务暂不可达", "确认网络后重看这一集的结尾，会自动再试一次"
-		case animego.ErrRateLimited:
-			return "请求过于频繁被限流", "过几分钟后重看这一集的结尾，会自动再试一次"
-		case animego.ErrAuthExpired:
-			return "登录已过期", "到设置里重新登录，然后重看这一集的结尾"
-		}
-	}
-	return "回写失败：" + err.Error(), "可以到 animego 网站上手动标记这一集"
-}
-
 func classifyAnimegoErr(err error) string {
 	var ae *animego.Error
 	if errors.As(err, &ae) {
