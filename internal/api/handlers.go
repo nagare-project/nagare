@@ -53,7 +53,9 @@ type Deps struct {
 	Catalog        CatalogReader
 	RemoteArt      *RemoteArt
 	AnimegoBaseURL string
-	MPV            *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
+	// CatalogCacheDir 是公开目录的磁盘缓存目录（<配置目录>/cache/catalog）；空 = 只缓存在内存里。
+	CatalogCacheDir string
+	MPV             *mpv.Runtime // 共享探测状态：设置页读、/api/mpv/detect 刷新、播放取路径
 	// EmbeddedMPV：播放在桌面窗口里的进程内 libmpv 上（internal/desktop），不要命令行 mpv。
 	// 设置载荷里的 mpv 据此报「已就绪 · 内置」，界面不再提示安装。
 	EmbeddedMPV bool
@@ -92,6 +94,14 @@ func New(deps Deps) *Handler {
 		art = NewRemoteArt(deps.AnimegoBaseURL, 4096)
 	}
 	catalog := NewDiscoverService(deps.Catalog, art)
+	if deps.CatalogCacheDir != "" {
+		// 起不来只是离线时发现页没有上一份可显示，在线功能不受影响
+		if disk, err := newCatalogDisk(deps.CatalogCacheDir, catalogDiskMaxBytes); err != nil {
+			log.Printf("目录磁盘缓存不可用（离线时发现页没有上一份可显示）：%v", err)
+		} else {
+			catalog.useDisk(disk)
+		}
+	}
 	return &Handler{deps: deps, catalog: catalog, lists: NewListsService(deps.Lists, catalog), remoteArt: art, episodes: newEpisodeMetadataService(art)}
 }
 

@@ -48,14 +48,26 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 func NewDiscoverService(source CatalogReader, art *RemoteArt) *DiscoverService {
 	return &DiscoverService{source: source, art: art, cache: newReadCache(), sleep: sleepCtx}
 }
-func (s *DiscoverService) schedule(ctx context.Context) (animego.ScheduleData, error) {
-	return cachedRead(ctx, s.cache, "schedule", 30*time.Minute, s.source.Schedule)
+
+// useDisk 给目录缓存接上磁盘层（见 catalog_disk.go）；只在构造之后、开始服务之前调用。
+func (s *DiscoverService) useDisk(d *catalogDisk) {
+	s.cache.disk = d
+	d.now = func() time.Time { return s.cache.now() } // 与内存层共用一只钟（测试会换掉它）
+}
+
+func (s *DiscoverService) schedule(ctx context.Context) (animego.ScheduleData, cacheMeta, error) {
+	return cachedReadMeta(ctx, s.cache, "schedule", 30*time.Minute, s.source.Schedule)
 }
 
 // detailRaw 取作品详情的上游原始数据（与 Detail 共用 detail:<id> 缓存）。
 // 媒体库关联要存封面的原始地址，投影之后就只剩 /art 键了。
 func (s *DiscoverService) detailRaw(ctx context.Context, id int) (animego.CatalogMedia, error) {
-	return cachedRead(ctx, s.cache, fmt.Sprintf("detail:%d", id), 10*time.Minute, func(ctx context.Context) (animego.CatalogMedia, error) {
+	raw, _, err := s.detailRawMeta(ctx, id)
+	return raw, err
+}
+
+func (s *DiscoverService) detailRawMeta(ctx context.Context, id int) (animego.CatalogMedia, cacheMeta, error) {
+	return cachedReadMeta(ctx, s.cache, fmt.Sprintf("detail:%d", id), 10*time.Minute, func(ctx context.Context) (animego.CatalogMedia, error) {
 		raw, err := s.source.Detail(ctx, id)
 		if err != nil {
 			return raw, err
@@ -68,13 +80,14 @@ func (s *DiscoverService) detailRaw(ctx context.Context, id int) (animego.Catalo
 }
 
 func (s *DiscoverService) Detail(ctx context.Context, id int) (SummaryMedia, error) {
-	raw, err := s.detailRaw(ctx, id)
+	raw, meta, err := s.detailRawMeta(ctx, id)
 	if err != nil {
 		return SummaryMedia{}, err
 	}
 	m := s.summary(raw)
+	m.Freshness = freshnessOf(meta)
 	// 详情复用已有放送快照；不因补倒计时再增加一个阻塞上游请求。
-	if value, ok := s.cache.get("schedule"); ok {
+	if value, ok := s.cache.peek("schedule"); ok {
 		m.NextAiring = nextAirings(value.(animego.ScheduleData), s.cache.now().Unix())[id]
 		m.RecentAiring = recentAirings(value.(animego.ScheduleData), s.cache.now().Unix())[id]
 	}
@@ -107,6 +120,7 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 		func(ctx context.Context) ([]animego.CatalogMedia, error) { return s.source.YearlyTop(ctx, year) }}
 	rows := make([][]animego.CatalogMedia, len(keys))
 	failures := make([]error, len(keys))
+	metas := make([]cacheMeta, len(keys)+1) // 最后一格是放送
 	var schedule animego.ScheduleData
 	var scheduleErr error
 	var group errgroup.Group
@@ -114,11 +128,11 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 	for i := range keys {
 		group.Go(func() error {
 			key := fmt.Sprintf("%s:%d:%d", keys[i], year, quarter)
-			rows[i], failures[i] = cachedRead(ctx, s.cache, key, 10*time.Minute, loaders[i])
+			rows[i], metas[i], failures[i] = cachedReadMeta(ctx, s.cache, key, 10*time.Minute, loaders[i])
 			return nil
 		})
 	}
-	group.Go(func() error { schedule, scheduleErr = s.schedule(ctx); return nil })
+	group.Go(func() error { schedule, metas[len(keys)], scheduleErr = s.schedule(ctx); return nil })
 	if err := group.Wait(); err != nil {
 		return DiscoverView{}, err
 	}
@@ -143,14 +157,10 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 	next := nextAirings(schedule, now.Unix())
 	aired := recentAirings(schedule, now.Unix())
 	fetchedAt := now
-	for _, key := range keys {
-		at := s.cache.fetchedAt(fmt.Sprintf("%s:%d:%d", key, year, quarter))
-		if !at.IsZero() && at.Before(fetchedAt) {
-			fetchedAt = at
+	for _, m := range metas {
+		if !m.fetchedAt.IsZero() && m.fetchedAt.Before(fetchedAt) {
+			fetchedAt = m.fetchedAt
 		}
-	}
-	if at := s.cache.fetchedAt("schedule"); !at.IsZero() && at.Before(fetchedAt) {
-		fetchedAt = at
 	}
 	section := func(key, title string, items []animego.CatalogMedia, err error) SectionView {
 		v := SectionView{Key: key, Title: title, Items: s.summaries(items)}
@@ -216,16 +226,16 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 		section("trending", "animego 上在看最多", rows[0], failures[0]), recentSection,
 		section("thisSeason", "本季新番", rows[1], failures[1]), section("pastSeason", "上季作品", rows[2], failures[2]),
 		section("upcoming", "本季及下季待播", upcoming, derivedError(1, 3)), section("movies", "近期精选剧场版", movies, derivedError(1, 2, 3, 4, 5)),
-	}, FetchedAt: fetchedAt.Unix()}, nil
+	}, FetchedAt: fetchedAt.Unix(), Freshness: freshnessOf(metas...)}, nil
 }
 
 // ScheduleView 不把未建立作品绑定的条目说成缺集；只报告本机是否有可信作品关联。
 func (s *DiscoverService) ScheduleView(ctx context.Context, inLibrary func(int) bool) (ScheduleView, error) {
-	raw, err := s.schedule(ctx)
+	raw, meta, err := s.schedule(ctx)
 	if err != nil {
 		return ScheduleView{}, err
 	}
-	out := ScheduleView{Airings: []AiringView{}, FetchedAt: s.cache.fetchedAt("schedule").Unix()}
+	out := ScheduleView{Airings: []AiringView{}, FetchedAt: meta.fetchedAt.Unix(), Freshness: freshnessOf(meta)}
 	seen := map[string]bool{}
 	for _, batch := range raw.Groups {
 		for _, r := range batch {

@@ -19,6 +19,7 @@ type SeasonalView struct {
 	Year      int            `json:"year"`
 	Items     []SummaryMedia `json:"items"`
 	FetchedAt int64          `json:"fetchedAt"`
+	Freshness *Freshness     `json:"freshness,omitempty"`
 }
 
 var seasonNames = []string{"WINTER", "SPRING", "SUMMER", "FALL"}
@@ -40,17 +41,14 @@ func (s *DiscoverService) Seasonal(ctx context.Context, season string, year int)
 		return SeasonalView{}, errs.New(errs.CategoryInput, "catalog.seasonal", "年份超出范围", "")
 	}
 	key := fmt.Sprintf("seasonal:%s:%d", season, year)
-	rows, err := cachedRead(ctx, s.cache, key, 10*time.Minute, func(ctx context.Context) ([]animego.CatalogMedia, error) {
+	rows, meta, err := cachedReadMeta(ctx, s.cache, key, 10*time.Minute, func(ctx context.Context) ([]animego.CatalogMedia, error) {
 		return s.source.Seasonal(ctx, season, year)
 	})
 	if err != nil {
 		return SeasonalView{}, err
 	}
-	view := SeasonalView{Season: season, Year: year, Items: s.summaries(rows), FetchedAt: s.cache.now().Unix()}
-	if at := s.cache.fetchedAt(key); !at.IsZero() {
-		view.FetchedAt = at.Unix()
-	}
-	if value, ok := s.cache.get("schedule"); ok {
+	view := SeasonalView{Season: season, Year: year, Items: s.summaries(rows), FetchedAt: meta.fetchedAt.Unix(), Freshness: freshnessOf(meta)}
+	if value, ok := s.cache.peek("schedule"); ok {
 		now := s.cache.now().Unix()
 		next := nextAirings(value.(animego.ScheduleData), now)
 		aired := recentAirings(value.(animego.ScheduleData), now)
