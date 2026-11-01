@@ -4,13 +4,13 @@
 
 | nagare 接口 | 数据与行为 |
 | --- | --- |
-| `GET /api/discover` | `sections[{key,title,items,error?}], fetchedAt`；六个板块，十分钟缓存，板块独立降级 |
-| `GET /api/anime/{id}` | 作品详情，包括中文简介、预告片、关联、推荐、角色和集标题；十分钟缓存 |
-| `GET /api/schedule` | `airings[{anilistId,episode,airingAt,title,cover,format,inLibrary}], fetchedAt`；三十分钟缓存 |
+| `GET /api/discover` | `sections[{key,title,items,error?}], fetchedAt, freshness?`；六个板块，十分钟缓存，板块独立降级，落盘（见「离线磁盘层」） |
+| `GET /api/anime/{id}` | 作品详情，包括中文简介、预告片、关联、推荐、角色和集标题；十分钟缓存，落盘，顶层可带 `freshness?` |
+| `GET /api/schedule` | `airings[{anilistId,episode,airingAt,title,cover,format,inLibrary}], fetchedAt, freshness?`；三十分钟缓存，落盘 |
 | `GET /api/lists` | `loggedIn, entries[{anilistId,status,currentEpisode,score,media,lastWatchedAt?}]`；账号隔离缓存一分钟 |
 | `POST /api/lists/{id}` | `{status,currentEpisode,score}`，返回保存后条目；创建使用 ifAbsent |
 | `DELETE /api/lists/{id}` | 删除账号收藏；返回 `{deleted:true}` |
-| `/art/<cap>/remote/<key>` | 仅接受服务端登记的 SHA-256 键；最多 4096 条，按最近使用淘汰 |
+| `/art/<cap>/remote/<key>` | 仅接受服务端登记的 SHA-256 键；最多 4096 条，按最近使用淘汰；登记表只在内存，重启后由投影重新登记（见「离线磁盘层」） |
 
 这些 API 使用原有本机鉴权信封。Discover/Schedule 不要求 animego 登录；匿名读取 Lists 返回 200 和 `loggedIn:false`，匿名修改返回 401。
 
@@ -58,7 +58,7 @@
 
 ## `GET /api/seasonal`
 
-参数 `season`（WINTER / SPRING / SUMMER / FALL，不分大小写）与 `year`（1990–2100）。响应 `{ season, year, items: SummaryMedia[], fetchedAt }`，items 是 animego `/api/anime/seasonal` 一页 200 条的投影，按 `seasonal:<季>:<年>` 缓存十分钟并合并同键在途请求；放送快照已在缓存时补 `nextAiring` / `recentAiring`。参数不合法返回 400。
+参数 `season`（WINTER / SPRING / SUMMER / FALL，不分大小写）与 `year`（1990–2100）。响应 `{ season, year, items: SummaryMedia[], fetchedAt, freshness? }`，items 是目录服务 `/api/anime/seasonal` 一页 200 条的投影，按 `seasonal:<季>:<年>` 缓存十分钟并合并同键在途请求；放送快照已在缓存时补 `nextAiring` / `recentAiring`。参数不合法返回 400。
 
 ## 作品搜索（2026-10-07）
 
@@ -71,3 +71,15 @@
   - 全局节流：两次出站至少隔 1 秒，不到点就等（排队超过 3 秒才回「搜得太快了」）；
   - 关键词最长 64 个字（按字计）。
 - 只返回元数据（与其余目录读取同一份 SummaryMedia 投影），**不涉及任何资源 / 磁力**（红线 2）。
+
+## 离线磁盘层（2026-11-01）
+
+发现页要当第一屏，断网或目录服务连不上时也得先显示上一份。代码在 `internal/api/catalog_disk.go`（文件层）与 `catalog_cache.go`（读路径）。
+
+- **只落公开目录**：显式白名单 `catalogDiskKey` —— 发现页六个上游板块（`trending/thisSeason/pastSeason/nextSeason/gems/yearly:<年>:<季>`）、`seasonal:<季>:<年>`、`schedule`、`detail:<id>`。**收藏不落盘**（另一个缓存实例，根本没有磁盘层；防止断网时换了账号显示上一个账号的收藏）；**搜索不落盘**（关键词是用户输入）。
+- **位置与格式**：`<配置目录>/cache/catalog/<键的 SHA-256>.json`，目录 0700、文件 0600，临时文件 + 改名原子写入。文件内容 `{version, key, fetchedAt, data}`，`data` 是投影**之前**的上游结构的 JSON，读回时在 `cachedRead` 里解码成原来的类型。格式版本不符、JSON 损坏、键不符、解不成当前结构的文件：删掉并记一行日志，照常走网络，不报给界面。
+- **隐私**：`detail:<id>` 文件等于记下了在本机打开过 / 关联过哪些作品（与 `cache/art` 里的封面同类），只在用户自己的配置目录里，不出本机；清空 `cache/catalog/` 即可抹掉，删掉后只是离线时没有上一份。
+- **上限**：总量 50MB，按最近使用淘汰（最近使用时间同时写进文件 mtime，重启后顺序不丢）；单条超过 8MB 的不写。启动时清掉上次没写完的临时文件。
+- **读路径（stale-while-revalidate）**：内存里未过期 → 直接给；内存里过期或只有盘上的一份 → 先给这一份，同时在后台刷新（与同键的其他读取合并成一次出站）；上游连不上就一直给这一份，并标记离线，一分钟之内不再重试。盘上也没有时照旧报错，板块独立降级不变。内存副本被挤掉、读取又合并进了一次失败的刷新时，退回盘上的一份（stale-if-error）。刷新成功后新的一份替换内存与盘上的旧文件。时钟回拨导致「来自未来」的副本按过期处理。
+- **给界面的字段**：`/api/discover`、`/api/seasonal`、`/api/schedule` 与 `/api/anime/{id}`（顶层）在数据不是刚从上游取回时多一个 `freshness: {fetchedAt, stale, offline}`：`fetchedAt` 是 RFC 3339 的取回时间（发现页取各板块里最旧的一份）；`stale` = 超过缓存时限、后台正在刷新，稍后重新请求可拿到新的；`offline` = 最近一次刷新失败。刚取回的数据不带这个字段。原有的 `fetchedAt`（Unix 秒）不变，同样反映真实取回时间。界面显示「离线 · 更新于 …」是后续前端工作。
+- **封面**：登记表（`remoteart.go`，内存 LRU 4096）不单独落盘。登记键是图片地址的 SHA-256，跨进程不变；盘上存的是原始图片地址，重启后读回来投影时照常登记回去；封面图本身已在 `internal/artcache` 的盘上，于是离线时 `/art/<能力段>/remote/<键>` 照样出图。能力段每次进程启动都换，上一个进程发出的图片地址本来就失效，界面总是先拿到新的 JSON 再请求图片，所以「先投影、后取图」这个顺序总是成立。artcache 每一跳 https 与内网拦截不受影响。
