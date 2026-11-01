@@ -19,6 +19,12 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib/sources.sh"
 # shellcheck source=lib/recipes.sh
 . "$here/lib/recipes.sh"
+# 别的目标平台（scripts/ios/libmpv）复用这份构建流程：在这里换掉与目标相关的函数与配方。
+# macOS 自己不设它；覆盖进来的函数照常按函数体进缓存键，所以两边的缓存互不相干。
+if [ -n "${LIBMPV_OVERLAY:-}" ]; then
+  # shellcheck disable=SC1090 # 路径由调用方给
+  . "$LIBMPV_OVERLAY"
+fi
 
 ARCH=$HOST_ARCH
 mode=build
@@ -68,6 +74,8 @@ KEY_FORMAT=3
 KEY_FUNCTIONS="isolate_pkg_config meson_machine_file meson_install cmake_install autotools_install
   arch_flags arch_triple meson_cpu can_run_arch sdk_path extract_source
   build_dep scrub_destdir apply_patches ff_list"
+# overlay 自己新增的公共函数（被上面这些函数调用的）由它在 LIBMPV_EXTRA_KEY_FUNCTIONS 里列出
+KEY_FUNCTIONS="$KEY_FUNCTIONS ${LIBMPV_EXTRA_KEY_FUNCTIONS:-}"
 compute_keys() {
   local fp helpers dep key s d p
   fp=$(toolchain_fingerprint)

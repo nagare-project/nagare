@@ -1,0 +1,266 @@
+# iOS 的 libmpv：nagare 自己从源码构建（scripts/ios/libmpv/，复用 scripts/macos/libmpv/ 的构建流程与版本锁）。
+# 产物是 Libmpv.xcframework —— 真机 arm64、模拟器 arm64 + x86_64（开发机是 Intel Mac）三个切片，
+# 整套 LGPL-2.1-or-later（App Store 版不能带 GPL），以及 LGPL 要求随附的完整对应源码包。
+# 三个目标在同一种 arm64 runner 上交叉编译，各自缓存组件；最后合成 xcframework、验证（含 iOS 模拟器里实跑）。
+#
+# 这条流水线只产出 artifact（libmpv-ios / libmpv-ios-source），不发布任何东西。
+name: libmpv (iOS)
+
+on:
+  workflow_dispatch:
+  # 只在构建脚本或这条流水线本身改了时跑：iOS 那一层，以及它复用的 macOS 构建流程、版本锁、补丁、测试片段
+  push:
+    branches: [main, ci/libmpv-ios]
+    paths:
+      - "scripts/ios/libmpv/**"
+      - "scripts/macos/libmpv/build.sh"
+      - "scripts/macos/libmpv/fetch.sh"
+      - "scripts/macos/libmpv/lib/**"
+      - "scripts/macos/libmpv/versions.lock"
+      - "scripts/macos/libmpv/patches/**"
+      - "scripts/macos/libmpv/tests/media/**"
+      - ".github/workflows/libmpv-ios.yml"
+  pull_request:
+    paths:
+      - "scripts/ios/libmpv/**"
+      - "scripts/macos/libmpv/build.sh"
+      - "scripts/macos/libmpv/fetch.sh"
+      - "scripts/macos/libmpv/lib/**"
+      - "scripts/macos/libmpv/versions.lock"
+      - "scripts/macos/libmpv/patches/**"
+      - "scripts/macos/libmpv/tests/media/**"
+      - ".github/workflows/libmpv-ios.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: libmpv-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 钉死 Xcode：App 要用 Xcode 26 / iOS 26 SDK 才能上传 App Store，库用同一代工具链编。
+  # 换版本 = 换编译器与 SDK，缓存键会跟着变、全部重编；runner 镜像删掉这一版时这里会直接报错
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+  MESON_VERSION: "1.12.1"
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+
+jobs:
+  build:
+    name: 构建（${{ matrix.target }}）
+    runs-on: macos-15
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ios-arm64, iossim-arm64, iossim-x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # 后面会跑上游的 configure 脚本，不把 token 留在 .git/config 里
+
+      - name: 构建工具
+        run: |
+          brew install nasm autoconf automake libtool
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet "meson==$MESON_VERSION"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          # 工作目录必须每次是同一个绝对路径：.pc 里写的是它，换了路径缓存就不能复用
+          echo "LIBMPV_WORK=$RUNNER_TEMP/libmpv-ios" >> "$GITHUB_ENV"
+          # 源码目录与 macOS 的流水线相同（同一份 versions.lock、同一个缓存键与路径），两边共用一份缓存
+          echo "LIBMPV_SOURCES=$RUNNER_TEMP/libmpv/sources" >> "$GITHUB_ENV"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphonesimulator --show-sdk-version
+
+      - name: 恢复源码缓存
+        id: src-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/sources
+          key: libmpv-src-${{ hashFiles('scripts/macos/libmpv/versions.lock') }}
+          restore-keys: libmpv-src-
+
+      - name: 下载并校验源码
+        run: scripts/macos/libmpv/fetch.sh
+
+      - name: 保存源码缓存
+        if: steps.src-cache.outputs.cache-hit != 'true' && matrix.target == 'ios-arm64'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/sources
+          key: libmpv-src-${{ hashFiles('scripts/macos/libmpv/versions.lock') }}
+
+      - name: 恢复组件缓存
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/libmpv-ios/stage/${{ matrix.target }}
+          key: libmpv-ios-stage-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: libmpv-ios-stage-${{ matrix.target }}-
+
+      - name: 构建
+        id: build
+        run: scripts/ios/libmpv/build.sh --arch ${{ matrix.target }}
+
+      # 失败了也存：已经编好的组件下次直接用
+      - name: 保存组件缓存
+        if: always() && steps.build.outputs.changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/libmpv-ios/stage/${{ matrix.target }}
+          key: libmpv-ios-stage-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: 链接 Libmpv.framework
+        run: |
+          scripts/ios/libmpv/package.sh framework --target ${{ matrix.target }}
+          # 打成 tar 再上传：artifact 不保留文件权限
+          tar -czf "$RUNNER_TEMP/libmpv-ios-fw-${{ matrix.target }}.tar.gz" -C "$LIBMPV_WORK/fw" ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-ios-fw-${{ matrix.target }}
+          path: ${{ runner.temp }}/libmpv-ios-fw-${{ matrix.target }}.tar.gz
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: 上传构建日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-ios-build-logs-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/libmpv-ios/obj/${{ matrix.target }}/**/meson-logs/meson-log.txt
+            ${{ runner.temp }}/libmpv-ios/obj/${{ matrix.target }}/**/ffbuild/config.log
+            ${{ runner.temp }}/libmpv-ios/obj/${{ matrix.target }}/**/config.log
+            ${{ runner.temp }}/libmpv-ios/obj/${{ matrix.target }}/**/CMakeFiles/CMakeConfigureLog.yaml
+            ${{ runner.temp }}/libmpv-ios/obj/${{ matrix.target }}/*.ini
+            ${{ runner.temp }}/libmpv-ios/fw/${{ matrix.target }}/info
+          retention-days: 7
+          if-no-files-found: ignore
+
+  package:
+    name: xcframework + 验证
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 准备
+        run: |
+          echo "LIBMPV_WORK=$RUNNER_TEMP/libmpv-ios" >> "$GITHUB_ENV"
+          echo "LIBMPV_SOURCES=$RUNNER_TEMP/libmpv/sources" >> "$GITHUB_ENV"
+          # 核对对应源码包时要用包里的 build.sh 算缓存键，它要求的构建工具得在
+          brew install nasm autoconf automake libtool
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --disable-pip-version-check --quiet "meson==$MESON_VERSION"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          # 模拟器的 x86_64 切片（开发机是 Intel Mac）要在 Rosetta 下跑一遍
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true && echo "Rosetta 可用"
+          xcodebuild -version
+          xcrun simctl list runtimes available
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: libmpv-ios-fw-*
+          path: ${{ runner.temp }}/fw-dl
+          merge-multiple: true
+
+      - name: 合成 xcframework
+        run: |
+          mkdir -p "$LIBMPV_WORK/fw"
+          for t in ios-arm64 iossim-arm64 iossim-x86_64; do
+            tar -xzf "$RUNNER_TEMP/fw-dl/libmpv-ios-fw-$t.tar.gz" -C "$LIBMPV_WORK/fw"
+          done
+          scripts/ios/libmpv/package.sh xcframework "$LIBMPV_WORK/out/libmpv-ios"
+
+      - name: 验证（静态 + 模拟器）
+        env:
+          LIBMPV_VERIFY_DIR: ${{ runner.temp }}/verify
+        run: |
+          set -o pipefail
+          scripts/ios/libmpv/verify.sh "$LIBMPV_WORK/out/libmpv-ios" --simulator 2>&1 | tee "$RUNNER_TEMP/verify.log"
+
+      - name: 清单与打包
+        id: pack
+        run: |
+          out="$LIBMPV_WORK/out/libmpv-ios"
+          cp "$RUNNER_TEMP/verify.log" "$out/VERIFY.txt"
+          scripts/ios/libmpv/manifest.sh "$out"
+          mpv_ver=$(awk -F'|' '$1 ~ /^mpv[[:space:]]/ {gsub(/[[:space:]]/, "", $2); print $2}' scripts/macos/libmpv/versions.lock)
+          id="${mpv_ver}-$(git rev-parse --short=10 HEAD)"
+          bin="$LIBMPV_WORK/out/libmpv-ios-$id.tar.gz"
+          COPYFILE_DISABLE=1 tar --no-xattrs -czf "$bin" -C "$LIBMPV_WORK/out" libmpv-ios
+          echo "bin=$bin" >> "$GITHUB_OUTPUT"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: 恢复源码缓存
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/libmpv/sources
+          key: libmpv-src-${{ hashFiles('scripts/macos/libmpv/versions.lock') }}
+          restore-keys: libmpv-src-
+
+      - name: 完整对应源码包
+        id: src
+        run: |
+          src="$LIBMPV_WORK/out/libmpv-ios-source-${{ steps.pack.outputs.id }}.tar.gz"
+          scripts/ios/libmpv/source-bundle.sh "$src"
+          echo "src=$src" >> "$GITHUB_OUTPUT"
+
+      # LGPL 的对应源码义务落在这个包上：源码齐全且 sha256 对、脚本补丁都在、用包里的东西算出的缓存键与仓库一致
+      - name: 核对对应源码包
+        run: scripts/ios/libmpv/check-source-bundle.sh "${{ steps.src.outputs.src }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-ios
+          path: ${{ steps.pack.outputs.bin }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-ios-source
+          path: ${{ steps.src.outputs.src }}
+          if-no-files-found: error
+
+      - name: 摘要
+        run: |
+          out="$LIBMPV_WORK/out/libmpv-ios"
+          xcf="$out/Libmpv.xcframework"
+          {
+            echo "### libmpv (iOS xcframework) ${{ steps.pack.outputs.id }}"
+            echo
+            echo "| 产物 | 大小 |"
+            echo "| --- | --- |"
+            echo "| 二进制 tar.gz | $(du -h "${{ steps.pack.outputs.bin }}" | awk '{print $1}') |"
+            echo "| 源码 tar.gz | $(du -h "${{ steps.src.outputs.src }}" | awk '{print $1}') |"
+            echo "| 真机 arm64（ios-arm64） | $(du -h "$xcf/ios-arm64/Libmpv.framework/Libmpv" | awk '{print $1}') |"
+            for a in arm64 x86_64; do
+              lipo "$xcf/ios-arm64_x86_64-simulator/Libmpv.framework/Libmpv" -thin "$a" -output "$RUNNER_TEMP/sim-$a"
+              echo "| 模拟器 $a | $(du -h "$RUNNER_TEMP/sim-$a" | awk '{print $1}') |"
+            done
+            echo
+            echo '```'
+            tail -n 3 "$RUNNER_TEMP/verify.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传验证现场（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-ios-verify-debug
+          path: |
+            ${{ runner.temp }}/verify
+            ${{ runner.temp }}/verify.log
+            ${{ runner.temp }}/libmpv-ios/out/libmpv-ios
+          retention-days: 7
+          if-no-files-found: ignore

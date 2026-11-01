@@ -119,6 +119,9 @@ scripts/macos/libmpv/verify.sh out
 3. 推到 `ci/libmpv-macos` 跑一遍：只有改了的组件和依赖它的组件会重编。`VERIFY.txt` 全过、`MANIFEST.txt`
    里的版本与 minos 对得上才算完。
 4. mpv 升大版本时同步看一遍 nagare 的 Lua 界面（verify.sh 会在新 LuaJIT 上加载它，但只看有没有报错）。
+5. iOS 的构建（[`scripts/ios/libmpv/`](../../ios/libmpv/README.md)）复用这里的 `build.sh`、`versions.lock` 与补丁：
+   这里的改动也会触发 `libmpv-ios.yml`，它要同样跑绿；iOS 重写了五个配方（libjpeg、uchardet、luajit、ffmpeg、mpv），
+   改 macOS 的这几个时看一眼 iOS 那边要不要跟着改（FFmpeg 的解码器清单 iOS 的 verify.sh 会核对）。
 
 ## 测试片段
 
