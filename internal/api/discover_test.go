@@ -160,7 +160,7 @@ func TestSeasonalViewCachesAndValidates(t *testing.T) {
 	f := &catalogStub{}
 	s := catalogService(f)
 	s.cache.now = func() time.Time { return time.Unix(1788656401, 0) }
-	_, err := s.schedule(context.Background())
+	_, _, err := s.schedule(context.Background())
 	require.NoError(t, err)
 
 	view, err := s.Seasonal(context.Background(), "fall", 2024)
