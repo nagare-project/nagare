@@ -12,7 +12,7 @@
 ## 现状与迁移
 
 - 桌面界面已接入 `tokens.css`（`main.tsx` 先于 `global.css` 导入），外壳换成了本文件的顶栏与抽屉，字体换成 Sora / JetBrains Mono 的拉丁子集。`global.css` 里的旧变量名（`--fg`、`--paper`、`--brand` 等）暂时保留为指向 token 的别名，各页面按本文件重写时改用 token 名，全部改完后删掉那段别名。
-- 播放器配色（`core.lua` 的 `M.P`）还是旧设计（靛紫品牌色），播放器换样式时改用 `tokens.lua`。
+- 桌面播放器（mpv 里的 Lua 控制条）已经改用 `tokens.lua`：颜色、字号、字体、圆角、间距、转圈时长都从它取，模块里不写颜色值（见「播放器」与 `docs/player-ui.md`）。
 - iOS 版从第一行代码起就用 `Tokens.swift`。
 
 ## 产品语境
@@ -36,13 +36,13 @@
 
 <!-- gentokens:begin fonts -->
 
-| Token | 字体栈 | 用途 |
-|---|---|---|
-| `--font-cjk` | `"PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif` | 中文回落链：网页字体都只打包拉丁子集，每个中文字都由它渲染 |
-| `--font-sans` | `var(--font-cjk)` | 全局主字体，中文与拉丁字母都走它（一行中英混排只用一套字体） |
-| `--font-jp` | `"Hiragino Sans", "Yu Gothic", "Noto Sans JP", var(--font-cjk)` | 日文原名 |
-| `--font-latin` | `Sora, var(--font-cjk)` | 按需使用：字标、罗马音标题 |
-| `--font-mono` | `"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | 数字与字段标签（配 tabular-nums）、磁力链接、集号 |
+| Token | 字体栈 | 播放器（Lua） | 用途 |
+|---|---|---|---|
+| `--font-cjk` | `"PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif` | macOS `PingFang SC`<br>Windows `Microsoft YaHei UI`<br>Linux `Noto Sans CJK SC` | 中文回落链：网页字体都只打包拉丁子集，每个中文字都由它渲染 |
+| `--font-sans` | `var(--font-cjk)` | — | 全局主字体，中文与拉丁字母都走它（一行中英混排只用一套字体） |
+| `--font-jp` | `"Hiragino Sans", "Yu Gothic", "Noto Sans JP", var(--font-cjk)` | — | 日文原名 |
+| `--font-latin` | `Sora, var(--font-cjk)` | — | 按需使用：字标、罗马音标题 |
+| `--font-mono` | `"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | macOS `Menlo`<br>Windows `Consolas`<br>Linux `monospace` | 数字与字段标签（配 tabular-nums）、磁力链接、集号；播放器里是每秒跳动的时间与速度（ASS 没有 tabular-nums，只能换等宽字体） |
 
 <!-- gentokens:end fonts -->
 
@@ -53,7 +53,7 @@
 - `--font-jp` 给日文原名：同一个汉字在日文和简体中文里字形不同（直、骨、令），用中文字体排日文能读，但认得出区别的人会觉得别扭。
 - **加载**：桌面只打包 Sora 与 JetBrains Mono 的拉丁子集（woff2，SIL OFL，许可写进 `THIRD_PARTY_NOTICES.md`），从本机加载，**不发任何外部字体请求**；不打包中文字体。现有的 Inter 在重写时去掉。
 - **iOS**：系统字体（SF + 苹方），数字用 `.monospacedDigit()`；只有字标用打包的 Sora。字号引用系统文字样式、跟随动态字号（见下表 iOS 列）。
-- **播放器（Lua）**：按平台取系统中文字体（macOS PingFang SC、Windows Microsoft YaHei UI、Linux Noto Sans CJK SC）。
+- **播放器（Lua）**：ASS 的 `\fn` 只认一个字体名、没有回落链，所以按平台点名一个系统自带的字体（上表「播放器」一列，`tokens.json` 里 `fonts[].player`）：主字体是 `--font-cjk` 那一列，每秒跳动的数字（时间、缓冲速度、倒数）用 `--font-mono` 那一列 —— libass 不认 `tabular-nums`，界面主字体的数字是比例宽的。
 
 ### 字号阶梯
 
@@ -135,7 +135,12 @@
 | `--popover-border` | `rgba(255, 255, 255, 0.08)` | 固定值 | 弹层描边 |
 | `--toast` | `rgba(18, 18, 22, 0.94)` | 固定值 | 全局提示胶囊的底（配 blur(20px) saturate(150%)） |
 | `--toast-border` | `rgba(255, 255, 255, 0.12)` | 固定值 | 全局提示胶囊的描边 |
-| `--badge-scrim` | `rgba(0, 0, 0, 0.75)` | 固定值 | 压在封面上的徽标底（配 blur(8px)），只让文字带颜色 |
+| `--badge-scrim` | `rgba(0, 0, 0, 0.75)` | 固定值 | 压在封面上的徽标底（配 blur(8px)），只让文字带颜色；播放器进度条上的悬停时间也用它 |
+| `--player-scrim-top` | `rgba(0, 0, 0, 0.75)` | 不输出 | 播放器顶部渐变遮罩最深处（窗口顶边），往下渐变到透明，压暗标题后面的画面 |
+| `--player-scrim-bottom` | `rgba(0, 0, 0, 0.85)` | 不输出 | 播放器底部渐变遮罩最深处（窗口底边），往上渐变到透明，压暗控制条后面的画面 |
+| `--player-track` | `rgba(255, 255, 255, 0.2)` | 不输出 | 播放器压在画面上的底轨：进度条、音量条、转圈的整圈 |
+| `--player-buffered` | `rgba(255, 255, 255, 0.16)` | 不输出 | 进度条上已经能直接拖过去的部分（叠在底轨上；本地文件是整条） |
+| `--player-text-halo` | `rgba(0, 0, 0, 0.7)` | 不输出 | 播放器压在画面上的文字描边（标题、副标题、缓冲提示），弹幕密、画面亮时字也看得清 |
 
 <!-- gentokens:end colors -->
 
@@ -317,6 +322,7 @@ nagare 的做法让这个陷阱在结构上不会发生：
 | `--dur-toast-in` | 260ms | 全部 | 提示进场 |
 | `--dur-toast-out` | 180ms | 全部 | 提示退场 |
 | `--dur-tone` | 900ms | 全部 | 整页随海报色相过渡 |
+| `--dur-spin` | 1000ms | lua | 播放器里的转圈转一整圈的时间（缓冲、正在准备下一集） |
 | `--dur-banner` | 8000ms | css / swift | 发现页横幅自动切换的间隔（有暂停规则） |
 
 | Token | 值 | 输出到 | 用途 |
@@ -502,7 +508,12 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 
 ### 播放器
 
-- **桌面**：mpv 窗口里 nagare 自己的 Lua 控制条；换新样式时颜色、间距、圆角、字号从 `tokens.lua` 取。
+- **桌面**：mpv 窗口里 nagare 自己的 Lua 控制条，颜色、间距、圆角、字号、字体从 `tokens.lua` 取（逐个部件的取法见 `docs/player-ui.md`「样子」）。与网页不同的是控制条底下是画面而不是固定底色：
+  - 压在画面上的东西靠渐变遮罩（`--player-scrim-top` / `--player-scrim-bottom`）和文字描边（`--player-text-halo`）保证看得清 —— 与作品页 hero「字底下没有可依赖的暗像素」是同一个问题。画面上的图标与主文字用白（`--text`），要读的次要文字仍是 `--text-secondary`。
+  - 菜单、「下一集」卡片是浮层（`--bg-elevated` + `--popover-border`），浮层规则照旧：蓝字用 `--accent-on-elevated`，一张卡片上只有一个实心按钮（`--accent-fill`），次按钮是三级描边按钮。
+  - 可点击色只用在进度、选中、开着的开关和悬停上：进度条已播部分、倒数的弧、开着的画质增强、「弹」字开关（开着是 `--accent-fill` 底）、播放键悬停时的图标。「下一集」「正在准备」这类小标题是只读信息，用 `--teal`。
+  - 大播放键是白色实心圆 + 黑色图标（方案 B「影院」），不是蓝色实心按钮：画面上的控件以白为主，蓝色留给状态。
+  - `--player-*` 几个 token 只输出到 Lua；点击区不小于 `--touch-min`。
 - **iOS**：SwiftUI 控制条盖在 mpv 画面上。
   - 只有横屏（左右两向）：播放即横屏全屏，退出回竖屏；iPad 不锁方向。
   - 按钮：返回、标题与集号、进度条（带缩略图）、播放 / 暂停、弹幕开关与弹幕设置（透明度 / 密度 / 字号 / 显示区域）、选集（从右侧滑出集数面板）、下一集、字幕 / 音轨、画质增强（默认关）、锁定屏幕。
@@ -612,3 +623,4 @@ iPad          [侧栏：发现 / 媒体库 / 放送 / 我的] │ 内容
 | 2026-11-01 | 实心按钮的底用深一档的 `-fill`（主按钮 `--accent-fill`、危险按钮 `--error-fill`，各带悬停 / 按下）；`#0a84ff` 只留给链接、焦点、进度 | 白字在 `#0a84ff` 上 3.65:1、在 `#ff453a` 上 3.41:1，过不了 4.5:1；深一档后三态都 ≥ 4.5:1 |
 | 2026-11-01 | 浮层（`--bg-elevated`）上的彩色字用亮一档：蓝字 `--accent-on-elevated`（与悬停同值 `#409cff`），红字 `--error-on-elevated` | `--accent`、`--error` 在浮层上只有 3.82:1、4.09:1 |
 | 2026-11-01 | 「颜色写在哪些底色上」写进 `tokens.json` 的 `contrast`，生成器逐条实算，文字不到 4.5:1、界面元素不到 3:1 就失败 | 对比度从文档里的说法变成会红的检查；新增用法必须先声明 |
+| 2026-11-01 | 桌面播放器的 Lua 界面改用 `tokens.lua`：去掉靛紫，菜单与卡片换成浮层样式；压在画面上的遮罩、底轨、文字描边加了只输出到 Lua 的 `--player-*` token；字体按平台点名写进 `fonts[].player`，时间改用等宽字体 | 播放器与网页、iOS 用同一套数值；ASS 的 `\fn` 没有回落链、libass 不认 `tabular-nums`，平台字体只能点名 |

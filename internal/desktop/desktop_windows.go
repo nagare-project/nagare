@@ -49,6 +49,8 @@ var testHooks struct {
 	noRuntime bool
 	failWeb   bool
 	logMenus  bool // 记下每次右键菜单的项名（测试看筛得对不对）
+	// trace 记下窗口状态同步的每一步（宿主改大小、写给 mpv 的值、mpv 报来的值），测试失败时连同状态一起报出来
+	trace func(string)
 }
 
 // ui 是唯一的桌面窗口。

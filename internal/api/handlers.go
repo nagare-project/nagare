@@ -33,6 +33,8 @@ type PlayerAPI interface {
 	Status() player.Status
 	// RefreshShaders 把当前的画质增强设置套到正在播放的窗口上；返回是否在播。
 	RefreshShaders() (bool, error)
+	// RetryPendingSyncs 补发看完了、还没记到账号的集（横幅上的「重试」）。
+	RetryPendingSyncs(ctx context.Context) player.SyncRetryResult
 }
 
 // AnimegoAuth 是处理器需要的 animego 会话能力子集。
@@ -121,6 +123,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/player/pause", h.playerPause)
 	mux.HandleFunc("POST /api/player/seek", h.playerSeek)
 	mux.HandleFunc("POST /api/player/config", h.playerConfig)
+	mux.HandleFunc("POST /api/player/sync/retry", h.playerSyncRetry)
 	mux.HandleFunc("GET /api/settings", h.settings)
 	mux.HandleFunc("POST /api/mpv/detect", h.mpvDetect)
 	mux.HandleFunc("POST /api/shutdown", h.shutdown)
@@ -278,6 +281,16 @@ func (h *Handler) playerStatus(w http.ResponseWriter, _ *http.Request) {
 func (h *Handler) playerStop(w http.ResponseWriter, _ *http.Request) {
 	h.deps.Player.Stop()
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{})
+}
+
+// playerSyncRetry 是横幅上的「重试」：当场补发没记到账号的集，答这一轮补上几集、还剩几集、为什么没补完。
+// 一轮最多十来集、两集之间隔一秒多，通常几秒内答复；网页不等了就随请求一起停下，剩下的留到下次。
+func (h *Handler) playerSyncRetry(w http.ResponseWriter, r *http.Request) {
+	res := h.deps.Player.RetryPendingSyncs(r.Context())
+	if r.Context().Err() != nil {
+		return // 浏览器已经不等了
+	}
+	httpserver.WriteJSON(w, http.StatusOK, res)
 }
 
 func (h *Handler) playerPause(w http.ResponseWriter, r *http.Request) {

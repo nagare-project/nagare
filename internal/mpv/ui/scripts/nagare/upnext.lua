@@ -16,7 +16,8 @@ local utils = require 'mp.utils'
 local draw = require 'draw'
 local core = require 'core'
 
-local S, P, FONT = core.S, core.P, core.FONT
+local S, T, MONO = core.S, core.T, core.MONO
+local style = core.text_style
 local M = {}
 
 local PHASES = { countdown = true, preparing = true, error = true }
@@ -132,25 +133,24 @@ end
 ------------------------------------------------------------------------
 -- 绘制
 
--- icon：主按钮（品牌色实心）左边的图标；nil 是次按钮
+-- icon：主按钮（实心，accent_fill 底 + 白字）左边的图标；nil 是次按钮（三级·描边：透明底 + 分隔线描边，
+-- 次要文字色，悬停变浮层蓝字）。卡片是浮层（bg_elevated），一张卡片上只有一个实心按钮
 local function button(c, id, x1, y1, x2, y2, label, icon, on_click)
 	local s = core.scale()
-	local r = 8 * s
+	local r = T.radius.sm * s
 	local hovered = S.hover_id == id
 	local cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
 	if icon then
-		c:rect(x1, y1, x2, y2, { color = P.accent, opacity = 1, radius = r })
-		if hovered then
-			c:rect(x1, y1, x2, y2, { color = "#FFFFFF", opacity = 0.12, radius = r })
-		end
+		c:rect(x1, y1, x2, y2, { color = hovered and T.color.accent_fill_hover or T.color.accent_fill, radius = r })
 		-- 图标 + 文字，整体居中
-		local size, gap = 14 * s, 6 * s
-		local left = cx - (size + gap + draw.text_width(label, 14 * s)) / 2
-		c:icon(icon, left, cy - size / 2, size, "#FFFFFF", 1)
-		c:text(left + size + gap, cy, label, { align = 4, size = 14 * s, bold = true, color = "#FFFFFF", font = FONT })
+		local st = style("label", { align = 4, color = T.color.text })
+		local size, gap = st.size, 6 * s
+		local left = cx - (size + gap + draw.text_width(label, st.size)) / 2
+		c:icon(icon, left, cy - size / 2, size, T.color.text)
+		c:text(left + size + gap, cy, label, st)
 	else
-		c:rect(x1, y1, x2, y2, { color = "#FFFFFF", opacity = hovered and 0.16 or 0.08, radius = r })
-		c:text(cx, cy, label, { align = 5, size = 14 * s, color = P.fg, font = FONT })
+		c:stroke_rect(x1, y1, x2, y2, { width = math.max(1, s), color = T.color.separator, radius = r })
+		c:text(cx, cy, label, style("label", { align = 5, color = hovered and T.color.accent_on_elevated or T.color.text_secondary }))
 	end
 	core.add_element(id, x1, y1, x2, y2, on_click)
 end
@@ -159,18 +159,19 @@ end
 local function draw_ring(c, cx, cy)
 	local s = core.scale()
 	local ro, ri = RING_R * s, (RING_R - 2.5) * s
-	c:shape(draw.arc_path(cx, cy, ro, ri, 0, 360, 48), "#FFFFFF", 0.14)
+	c:shape(draw.arc_path(cx, cy, ro, ri, 0, 360, 48), T.color.player_track)
 	if card.phase == "preparing" then
-		local a = (mp.get_time() * 300) % 360
-		c:shape(draw.arc_path(cx, cy, ro, ri, a, a + 90, 16), P.strong, 1)
+		local a = (mp.get_time() / T.duration.spin * 360) % 360
+		c:shape(draw.arc_path(cx, cy, ro, ri, a, a + 90, 16), T.color.text)
 		return
 	end
+	-- 倒数的弧是进度（可点击色），中间的秒数用等宽数字
 	local left = remaining()
 	local frac = card.seconds > 0 and left / card.seconds or 0
 	if frac > 0.005 then
-		c:shape(draw.arc_path(cx, cy, ro, ri, -90, -90 + 360 * frac, math.max(2, math.floor(48 * frac))), P.accent_text, 1)
+		c:shape(draw.arc_path(cx, cy, ro, ri, -90, -90 + 360 * frac, math.max(2, math.floor(48 * frac))), T.color.accent)
 	end
-	c:text(cx, cy, tostring(math.ceil(left)), { align = 5, size = 15 * s, bold = true, color = P.strong, font = FONT })
+	c:text(cx, cy, tostring(math.ceil(left)), style("label", { align = 5, color = T.color.text, font = MONO }))
 end
 
 local function one_line(text, size, max_w)
@@ -178,17 +179,18 @@ local function one_line(text, size, max_w)
 end
 
 -- 卡片上的文字：小标题、大标题、下面的几行小字，以及按钮行的顶边。inner 是卡片内容区的宽度。
--- 出错卡片的原因按内容区宽度折行，窗口矮时少几行，保证卡片不压到进度条
+-- 出错卡片的原因按内容区宽度折行，窗口矮时少几行，保证卡片不压到进度条。
+-- 小标题是只读信息（teal），出错时是警示色；它们都不可点，不用蓝色
 local function layout(inner)
 	local s = core.scale()
 	local label = card.label ~= "" and card.label or "下一集"
-	local L = { kicker_color = P.accent_text, ring = card.phase ~= "error" }
+	local L = { kicker_color = T.color.teal, ring = card.phase ~= "error" }
 	if card.phase == "error" then
 		local fit = math.floor((S.h / s - TOP_MIN - BOTTOM_MIN - (SUB_Y + BUTTONS_GAP + BUTTON_H + PAD)) / LINE_H)
 		L.kicker = card.title ~= "" and card.title or ERROR_TITLE
-		L.kicker_color = P.warn
+		L.kicker_color = T.color.warning
 		L.title = label
-		L.lines = card.reason ~= "" and draw.wrap(card.reason, 14 * s, inner, math.max(1, math.min(REASON_LINES, fit))) or {}
+		L.lines = card.reason ~= "" and draw.wrap(card.reason, T.type_scale.caption.size * s, inner, math.max(1, math.min(REASON_LINES, fit))) or {}
 	elseif card.phase == "preparing" then
 		L.kicker, L.title, L.lines = "正在准备", label, { "准备好就开始播放" }
 	else
@@ -198,8 +200,8 @@ local function layout(inner)
 	end
 	-- 右上角有圈时，标题让出圈的位置
 	local title_w = L.ring and inner - (2 * RING_R + 12) * s or inner
-	L.kicker = one_line(L.kicker, 13 * s, title_w)
-	L.title = one_line(L.title, 22 * s, title_w)
+	L.kicker = one_line(L.kicker, T.type_scale.label.size * s, title_w)
+	L.title = one_line(L.title, T.type_scale.h2.size * s, title_w)
 	L.buttons_y = SUB_Y + #L.lines * LINE_H + BUTTONS_GAP
 	return L
 end
@@ -230,23 +232,25 @@ function M.draw(c)
 		return
 	end
 	local s = core.scale()
-	local w = math.min(CARD_W * s, S.w - 64 * s)
-	local x2 = S.w - 32 * s
+	local w = math.min(CARD_W * s, S.w - 2 * T.space.xl * s)
+	local x2 = S.w - T.space.xl * s
 	local x1 = x2 - w
 	local L = layout(w - 2 * PAD * s)
 	local h = (L.buttons_y + BUTTON_H + PAD) * s
 	-- 窗口太矮时宁可往下压住悬停时间，也不盖住顶栏的窗口按钮
 	local y1 = math.max(TOP_MIN * s, S.h - BOTTOM_ROOM * s - h)
+	-- 浮层卡：bg_elevated 底、卡片圆角、弹层描边（压在画面上，边缘要看得出来）
 	c:rect(x1, y1, x2, y1 + h, {
-		color = P.card, opacity = 0.94, radius = 12 * s,
-		border = math.max(1, s), border_color = "#FFFFFF", border_opacity = 0.1,
+		color = T.color.bg_elevated, radius = T.radius.md * s,
+		border = math.max(1, s), border_color = T.color.popover_border,
 	})
 
 	local tx = x1 + PAD * s
-	c:text(tx, y1 + KICKER_Y * s, L.kicker, { size = 13 * s, bold = true, color = L.kicker_color, font = FONT })
-	c:text(tx, y1 + TITLE_Y * s, L.title, { size = 22 * s, bold = true, color = P.strong, font = FONT })
+	c:text(tx, y1 + KICKER_Y * s, L.kicker, style("label", { color = L.kicker_color }))
+	c:text(tx, y1 + TITLE_Y * s, L.title, style("h2", { color = T.color.text }))
+	local sub = style("caption", { color = T.color.text_secondary })
 	for i, line in ipairs(L.lines) do
-		c:text(tx, y1 + (SUB_Y + (i - 1) * LINE_H) * s, line, { size = 14 * s, color = P.fg, opacity = 0.7, font = FONT })
+		c:text(tx, y1 + (SUB_Y + (i - 1) * LINE_H) * s, line, sub)
 	end
 	if L.ring then
 		draw_ring(c, x2 - (PAD + RING_R) * s, y1 + (KICKER_Y + SUB_Y + 18) / 2 * s)

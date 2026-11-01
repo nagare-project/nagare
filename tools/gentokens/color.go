@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/nagare-project/nagare/internal/colorspace"
 )
 
 // rgba 是 sRGB 的 0–255 通道加 0–1 的不透明度。
@@ -69,41 +71,21 @@ func (c rgba) over(bg rgba) [3]float64 {
 	return [3]float64{mix(c.R, bg.R), mix(c.G, bg.G), mix(c.B, bg.B)}
 }
 
-// luminance 是 WCAG 2.x 的相对亮度。
+// luminance 是 WCAG 2.x 的相对亮度；通道是 0–255（叠色之后可以带小数）。
 func luminance(ch [3]float64) float64 {
-	lin := func(v float64) float64 {
-		v /= 255
-		if v <= 0.04045 {
-			return v / 12.92
-		}
-		return math.Pow((v+0.055)/1.055, 2.4)
-	}
-	return 0.2126*lin(ch[0]) + 0.7152*lin(ch[1]) + 0.0722*lin(ch[2])
+	return colorspace.RelativeLuminance(ch[0]/255, ch[1]/255, ch[2]/255)
 }
 
 // contrastRatio 是 fg 叠在不透明的 bg 上之后的 WCAG 对比度。
 func contrastRatio(fg, bg rgba) float64 {
-	lf := luminance(fg.over(bg))
-	lb := luminance([3]float64{float64(bg.R), float64(bg.G), float64(bg.B)})
-	if lf < lb {
-		lf, lb = lb, lf
-	}
-	return (lf + 0.05) / (lb + 0.05)
+	return colorspace.ContrastRatio(luminance(fg.over(bg)), luminance([3]float64{float64(bg.R), float64(bg.G), float64(bg.B)}))
 }
 
-// neutralTone 是彩度为 0 时的 OKLCH 颜色换成 sRGB：OKLab 的 a = b = 0 时，
-// 线性 sRGB 三个通道都等于 L³（变换矩阵每行之和为 1），再做 sRGB 伽马编码。
+// neutralTone 是彩度为 0 时的 OKLCH 颜色换成 sRGB（公式见 colorspace.Neutral）。
 // 海报取不到色相（没有封面、封面是灰的）时，色阶就落在这个中性值上。
 func neutralTone(l float64) rgba {
-	lin := l * l * l
-	var v float64
-	if lin <= 0.0031308 {
-		v = 12.92 * lin
-	} else {
-		v = 1.055*math.Pow(lin, 1/2.4) - 0.055
-	}
-	n := uint8(math.Round(math.Max(0, math.Min(1, v)) * 255))
-	return rgba{R: n, G: n, B: n, A: 1}
+	r, g, b := colorspace.Neutral(l).Bytes()
+	return rgba{R: r, G: g, B: b, A: 1}
 }
 
 // iosDarkColors 是 UIKit 语义色在深色外观（默认对比度）下的取值。nagare 的 iOS 版固定暗色，

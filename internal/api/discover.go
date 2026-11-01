@@ -24,6 +24,7 @@ type DiscoverService struct {
 	source CatalogReader
 	art    *RemoteArt
 	cache  *readCache
+	tones  posterToneSlot // 海报取色（poster_tones.go），启动时注入
 	// 目录搜索的全局节流（见 catalog_search.go）；sleep 可在测试里换掉
 	searchMu   sync.Mutex
 	lastSearch time.Time
@@ -249,7 +250,7 @@ func (s *DiscoverService) ScheduleView(ctx context.Context, inLibrary func(int) 
 			if inLibrary != nil {
 				found = inLibrary(m.AnilistID)
 			}
-			out.Airings = append(out.Airings, AiringView{m.AnilistID, r.Episode, r.AiringAt, m.Title, m.Cover, m.Format, found})
+			out.Airings = append(out.Airings, AiringView{m.AnilistID, r.Episode, r.AiringAt, m.Title, m.Cover, m.Format, found, m.PosterTones})
 		}
 	}
 	sort.Slice(out.Airings, func(i, j int) bool {

@@ -10,10 +10,10 @@ const luaHeader = `-- 由 tools/gentokens 从 design/tokens.json 生成，不要
 -- 改 token：编辑 design/tokens.json，再在仓库根目录运行 go generate ./...（CI 检查生成文件是最新的）。
 -- 规则与用法见仓库根目录的 DESIGN.md。
 --
--- 用法：local T = require 'tokens'；颜色项的字段名与 draw.lua 的选项一致，
--- 例如 c:rect(x1, y1, x2, y2, { color = T.color.accent.color, opacity = T.color.accent.opacity })。
+-- 用法：local T = require 'tokens'（界面是目录脚本，mpv 把脚本目录放进了 package.path）。
+-- 颜色项可以整个交给 draw.lua 的 color 选项，例如 c:rect(x1, y1, x2, y2, { color = T.color.accent })。
 -- 尺寸是 CSS 像素，画的时候照常乘界面缩放倍数；时长是秒（mp.add_timeout 用秒）。
--- 现有界面还没有改用它（配色仍在 core.lua 的 M.P），播放器换新样式时再接。
+-- 字体按平台取（core.lua），ASS 的 \fn 只认一个字体名。
 `
 
 // renderLua 写播放器界面（mpv Lua）用的模块。
@@ -37,6 +37,7 @@ func renderLua(f *tokenFile) []byte {
 	}
 	b.WriteString("}\n")
 
+	luaFonts(&b, f.Fonts)
 	luaNums(&b, "space", "间距（像素）", 1, f.Spacing)
 	luaNums(&b, "radius", "圆角（像素）", 1, f.Radii)
 	luaNums(&b, "layout", "布局（像素）", 1, f.Layout)
@@ -44,6 +45,31 @@ func renderLua(f *tokenFile) []byte {
 
 	b.WriteString("\nreturn M\n")
 	return []byte(b.String())
+}
+
+// luaFonts 写播放器按平台用的字体：只有带 player 的字体项，键去掉 font- 前缀（font-cjk → cjk）。
+func luaFonts(b *strings.Builder, fonts []fontToken) {
+	var kept []fontToken
+	for _, t := range fonts {
+		if t.Player != nil {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) == 0 {
+		return
+	}
+	b.WriteString("\n-- 字体：按 mpv 的 platform 属性取（darwin / windows，其余按 linux）\nM.font = {\n")
+	for _, t := range kept {
+		fmt.Fprintf(b, "\t%s = {", snakeCase(strings.TrimPrefix(t.Name, "font-")))
+		for i, p := range playerPlatforms {
+			if i > 0 {
+				b.WriteString(",")
+			}
+			fmt.Fprintf(b, " %s = %q", p, t.Player[p])
+		}
+		fmt.Fprintf(b, " }, -- %s\n", t.Use)
+	}
+	b.WriteString("}\n")
 }
 
 func luaNums(b *strings.Builder, field, doc string, scale float64, ts []numToken) {

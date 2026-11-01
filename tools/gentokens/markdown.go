@@ -120,9 +120,22 @@ func mdPosterTones(f *tokenFile) string {
 func mdFonts(f *tokenFile) string {
 	var rows [][]string
 	for _, t := range f.Fonts {
-		rows = append(rows, []string{code("--" + t.Name), code(fontStack(t.Families)), t.Use})
+		rows = append(rows, []string{code("--" + t.Name), code(fontStack(t.Families)), playerFonts(t), t.Use})
 	}
-	return table([]string{"Token", "字体栈", "用途"}, rows)
+	return table([]string{"Token", "字体栈", "播放器（Lua）", "用途"}, rows)
+}
+
+// playerFonts 是字体表的「播放器」一列：按平台点名的字体，播放器不用的写「—」。
+func playerFonts(t fontToken) string {
+	if t.Player == nil {
+		return "—"
+	}
+	labels := map[string]string{"darwin": "macOS", "windows": "Windows", "linux": "Linux"}
+	parts := make([]string, 0, len(playerPlatforms))
+	for _, p := range playerPlatforms {
+		parts = append(parts, labels[p]+" "+code(t.Player[p]))
+	}
+	return strings.Join(parts, "<br>")
 }
 
 func mdType(f *tokenFile) string {
