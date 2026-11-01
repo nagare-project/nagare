@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "current": "0.7.0",
+    "latest": "",
+    "available": false,
+    "url": "",
+    "checkedAt": 1788350400000,
+    "error": "更新服务器返回错误。请稍后再试",
+    "selfUpdate": {
+      "supported": false,
+      "channel": "unknown",
+      "reason": "这个版本不带一键更新，请到下载页手动更新",
+      "target": ""
+    }
+  }
+}

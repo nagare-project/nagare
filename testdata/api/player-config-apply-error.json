@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "data": {
+    "anime4k": "off",
+    "applied": true,
+    "applyError": "没能把画质增强套到正在播放的窗口上，下次开始播放时会按新设置加载"
+  }
+}

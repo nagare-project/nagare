@@ -207,6 +207,9 @@ type LibraryService struct {
 	// 都由启动流程注入一次（SetIdentify）。
 	onRescan       func()
 	identifyStatus func() IdentifyStatus
+
+	// now 是时钟（扫描时间、关联的设定时间）；测试换成固定时钟，黄金响应才可复现。
+	now func() time.Time
 }
 
 // SetMediaPrefix 注入本地媒体流前缀（形如 /media/<能力段>）。启动时调用一次。
@@ -249,6 +252,7 @@ func NewLibraryService(st *store.Store) *LibraryService {
 		st:    st,
 		items: map[string]library.Item{},
 		subs:  map[string]library.SubtitleRef{},
+		now:   time.Now,
 	}
 }
 
@@ -321,7 +325,7 @@ func (s *LibraryService) Rescan() Stats {
 	s.items = items
 	s.subs = subs
 	s.fileCluster = fileCluster
-	s.scannedAt = time.Now().UnixMilli()
+	s.scannedAt = s.now().UnixMilli()
 	kick := s.onRescan
 	s.mu.Unlock()
 	if kick != nil {

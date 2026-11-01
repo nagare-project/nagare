@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "current": "0.7.0",
+    "latest": "0.8.0",
+    "available": true,
+    "url": "https://github.com/nagare-project/nagare/releases/tag/v0.8.0",
+    "checkedAt": 1788350400000,
+    "error": "",
+    "selfUpdate": {
+      "supported": false,
+      "channel": "unknown",
+      "reason": "这个版本不带一键更新，请到下载页手动更新",
+      "target": ""
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "data": {
+    "config": {
+      "enabled": false
+    },
+    "status": {
+      "phase": "disabled"
+    },
+    "sources": []
+  }
+}

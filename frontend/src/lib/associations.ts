@@ -33,7 +33,8 @@ export interface LibraryMatch {
 
 export type AssociationChange = { mode: 'manual'; anilistId: number } | { mode: 'none' } | { mode: 'auto' }
 
-interface AssociationData {
+/** PUT /api/library/association 与 POST …/dismiss-synced 的 data 载荷；回到自动匹配时 association 为 null */
+export interface AssociationData {
   association: LibraryAssociation | null
 }
 

@@ -124,7 +124,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false }: { me
         fetchSettings(),
       ])
       if (version !== requestVersion.current) return
-      setLocal({ phase: 'ready', query: searchQuery, result, sources, engineDown: !settings.torrent.enabled })
+      setLocal({ phase: 'ready', query: searchQuery, result, sources, engineDown: settings.torrent?.enabled !== true })
     } catch (err) {
       if (version === requestVersion.current) setLocal({ phase: 'error', message: errorText(err, '搜索磁力资源失败') })
       return

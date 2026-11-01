@@ -24,6 +24,7 @@ const SETTINGS: TorrentSettings = {
   cacheBytes: 5_505_024, // 5.25 MB
   downloadDir: '/Users/you/Downloads/nagare',
   downloadDirIsDefault: true,
+  restartRequired: false,
 }
 
 function configResult(overrides: Partial<TorrentConfigData> = {}): TorrentConfigData {

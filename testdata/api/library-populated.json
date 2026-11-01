@@ -1,0 +1,210 @@
+{
+  "success": true,
+  "data": {
+    "folders": [
+      {
+        "id": "f-0a1b2c3d",
+        "path": "/media/anime",
+        "addedAt": 1791892800000,
+        "dropped": {
+          "total": 1,
+          "groups": [
+            {
+              "reason": "too-small",
+              "count": 1,
+              "message": "视频文件小于 1MB",
+              "recovery": "多半是没下完的片或采样文件；下完之后重新扫描",
+              "samples": [
+                "/media/anime/Bocchi the Rock/sample.mkv"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "f-5e6f7a8b",
+        "path": "/media/unplugged",
+        "addedAt": 1791979200000,
+        "error": "扫描失败：访问目录 /media/unplugged: stat /media/unplugged: no such file or directory"
+      }
+    ],
+    "clusters": [
+      {
+        "clusterKey": "20a0c072",
+        "title": "葬送的芙莉莲",
+        "season": null,
+        "confidence": 0.7,
+        "episodeCount": 2,
+        "cover": "/art/cap-art/assoc/20a0c072?v=154587-1792047600000",
+        "association": {
+          "mode": "manual",
+          "anilistId": 154587,
+          "title": "葬送的芙莉莲",
+          "setAt": 1792047600000,
+          "syncedElsewhere": [
+            {
+              "anilistId": 21,
+              "title": "海贼王",
+              "episodes": [
+                1
+              ]
+            },
+            {
+              "anilistId": 22,
+              "episodes": [
+                1,
+                2
+              ]
+            }
+          ]
+        },
+        "groups": [
+          {
+            "groupKey": "葬送的芙莉莲",
+            "label": "葬送的芙莉莲",
+            "sortMode": "episode",
+            "items": [
+              {
+                "fileId": "[Sub] Frieren - 01 [1080p].mkv|3145728|1788249600000",
+                "fileName": "[Sub] Frieren - 01 [1080p].mkv",
+                "episode": 1,
+                "kind": "main",
+                "resolution": "1080p",
+                "group": "Sub",
+                "sizeBytes": 3145728,
+                "stream": "/media/cap-media/%5BSub%5D%20Frieren%20-%2001%20%5B1080p%5D.mkv%7C3145728%7C1788249600000",
+                "progress": {
+                  "positionSec": 1420,
+                  "durationSec": 1420,
+                  "completed": true
+                }
+              },
+              {
+                "fileId": "[Sub] Frieren - 02 [1080p].mkv|3145728|1788249600000",
+                "fileName": "[Sub] Frieren - 02 [1080p].mkv",
+                "episode": 2,
+                "kind": "main",
+                "resolution": "1080p",
+                "group": "Sub",
+                "sizeBytes": 3145728,
+                "stream": "/media/cap-media/%5BSub%5D%20Frieren%20-%2002%20%5B1080p%5D.mkv%7C3145728%7C1788249600000",
+                "progress": {
+                  "positionSec": 312.5,
+                  "durationSec": 1420,
+                  "completed": false
+                }
+              },
+              {
+                "fileId": "[Sub] Frieren - NCOP [1080p].mkv|2097152|1788249600000",
+                "fileName": "[Sub] Frieren - NCOP [1080p].mkv",
+                "episode": null,
+                "kind": "ncop",
+                "resolution": "1080p",
+                "group": "Sub",
+                "sizeBytes": 2097152,
+                "stream": "/media/cap-media/%5BSub%5D%20Frieren%20-%20NCOP%20%5B1080p%5D.mkv%7C2097152%7C1788249600000",
+                "progress": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "clusterKey": "9ae613bd",
+        "title": "Bocchi the Rock",
+        "season": null,
+        "confidence": 0.5,
+        "episodeCount": 1,
+        "cover": "/art/cap-art/%5BANi%5D%20Bocchi%20the%20Rock%21%20-%2001%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4%7C2097152%7C1788249600000?v=1792062000000",
+        "matched": {
+          "anilistId": 130003,
+          "title": "孤独摇滚！"
+        },
+        "groups": [
+          {
+            "groupKey": "Bocchi the Rock",
+            "label": "Bocchi the Rock",
+            "sortMode": "episode",
+            "items": [
+              {
+                "fileId": "[ANi] Bocchi the Rock! - 01 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4|2097152|1788249600000",
+                "fileName": "[ANi] Bocchi the Rock! - 01 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4",
+                "episode": 1,
+                "kind": "main",
+                "resolution": "1080p",
+                "group": "ANi",
+                "sizeBytes": 2097152,
+                "stream": "/media/cap-media/%5BANi%5D%20Bocchi%20the%20Rock%21%20-%2001%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4%7C2097152%7C1788249600000",
+                "progress": {
+                  "positionSec": 600,
+                  "durationSec": 1440,
+                  "completed": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "clusterKey": "58e8d75c",
+        "title": "家庭录像",
+        "season": null,
+        "confidence": 0.5,
+        "episodeCount": 1,
+        "association": {
+          "mode": "none",
+          "setAt": 1792051200000
+        },
+        "groups": [
+          {
+            "groupKey": "家庭录像",
+            "label": "家庭录像",
+            "sortMode": "episode",
+            "items": [
+              {
+                "fileId": "2026 夏天.mp4|2097152|1788249600000",
+                "fileName": "2026 夏天.mp4",
+                "episode": null,
+                "kind": "main",
+                "resolution": null,
+                "sizeBytes": 2097152,
+                "stream": "/media/cap-media/2026%20%E5%A4%8F%E5%A4%A9.mp4%7C2097152%7C1788249600000",
+                "progress": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "continueWatching": [
+      {
+        "fileId": "[ANi] Bocchi the Rock! - 01 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4|2097152|1788249600000",
+        "title": "孤独摇滚！",
+        "episodeTitle": "转动的星球",
+        "episode": 1,
+        "episodeCount": 1,
+        "cover": "/art/cap-art/%5BANi%5D%20Bocchi%20the%20Rock%21%20-%2001%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4%7C2097152%7C1788249600000?v=1792062000000",
+        "positionSec": 600,
+        "durationSec": 1440,
+        "updatedAt": 1792062000000
+      },
+      {
+        "fileId": "[Sub] Frieren - 02 [1080p].mkv|3145728|1788249600000",
+        "title": "葬送的芙莉莲",
+        "episode": 2,
+        "episodeCount": 2,
+        "cover": "/art/cap-art/assoc/20a0c072?v=154587-1792047600000",
+        "positionSec": 312.5,
+        "durationSec": 1420,
+        "updatedAt": 1792058400000
+      }
+    ],
+    "scannedAt": 1792065600000,
+    "identify": {
+      "running": false,
+      "done": 1,
+      "total": 3,
+      "error": "限速中，作品识别稍后继续"
+    }
+  }
+}

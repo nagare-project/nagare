@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "data": {
+    "playing": false,
+    "playbackFailure": {
+      "fileId": "[Sub] Frieren - 01 [1080p].mkv|3145728|1788249600000",
+      "playbackId": "pb-0001",
+      "reason": "mpv 打不开这个文件：文件可能已损坏或不完整",
+      "at": 1792065600000
+    },
+    "sync": {
+      "state": "failed",
+      "fileId": "[Sub] Frieren - 01 [1080p].mkv|3145728|1788249600000",
+      "title": "葬送的芙莉莲",
+      "episode": 1,
+      "reason": "账号服务暂时连不上，这一集没有记成看完",
+      "recovery": "重看这一集并看完时会再试一次",
+      "at": 1792065600000
+    }
+  }
+}

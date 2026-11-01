@@ -1,0 +1,257 @@
+{
+  "success": true,
+  "data": {
+    "sections": [
+      {
+        "key": "trending",
+        "title": "大家都在看",
+        "items": [
+          {
+            "anilistId": 154587,
+            "title": "葬送的芙莉莲",
+            "titleNative": "葬送のフリーレン",
+            "titleRomaji": "Sousou no Frieren",
+            "titleEnglish": "Frieren: Beyond Journey's End",
+            "cover": "/art/cap-art/remote/32ff8f2d410ca43ddc5042f42e75b0d4d0de1b49d5aa9b135d9b8dafcc9a984d",
+            "banner": "/art/cap-art/remote/de8dee194ed832854928247d00f30900dd85f6b6c1c7ff26f0548f05bf05613d",
+            "trailerId": "qgQ9yXb7G7g",
+            "year": 2026,
+            "season": "秋",
+            "episodes": 28,
+            "score": 91,
+            "genres": [
+              "Adventure",
+              "Drama",
+              "Fantasy"
+            ],
+            "description": "勇者一行打倒魔王之后的故事。",
+            "status": "RELEASING",
+            "format": "TV",
+            "duration": 24,
+            "source": "MANGA",
+            "studios": [
+              "Madhouse"
+            ],
+            "startDate": "2026-10-03",
+            "nextAiring": {
+              "episode": 8,
+              "at": 1792584000
+            },
+            "recentAiring": {
+              "episode": 7,
+              "at": 1791979200
+            }
+          },
+          {
+            "anilistId": 130003,
+            "title": "孤独摇滚！",
+            "titleRomaji": "Bocchi the Rock!",
+            "cover": "/art/cap-art/remote/a07dc667d3af44fdcf25258f83f868c368ce1d841e317c6f14bfab32a53e08ad",
+            "year": 2026,
+            "season": "夏",
+            "episodes": 12,
+            "score": 88,
+            "genres": [
+              "Comedy",
+              "Music"
+            ],
+            "status": "FINISHED",
+            "format": "TV",
+            "recentAiring": {
+              "episode": 3,
+              "at": 1792054800
+            }
+          }
+        ]
+      },
+      {
+        "key": "recent",
+        "title": "最近已播出",
+        "items": [
+          {
+            "anilistId": 130003,
+            "title": "孤独摇滚！",
+            "titleRomaji": "Bocchi the Rock!",
+            "cover": "/art/cap-art/remote/a07dc667d3af44fdcf25258f83f868c368ce1d841e317c6f14bfab32a53e08ad",
+            "year": 2026,
+            "season": "夏",
+            "episodes": 12,
+            "score": 88,
+            "genres": [
+              "Comedy",
+              "Music"
+            ],
+            "status": "FINISHED",
+            "format": "TV",
+            "recentAiring": {
+              "episode": 3,
+              "at": 1792054800
+            }
+          },
+          {
+            "anilistId": 154587,
+            "title": "葬送的芙莉莲",
+            "titleNative": "葬送のフリーレン",
+            "titleRomaji": "Sousou no Frieren",
+            "titleEnglish": "Frieren: Beyond Journey's End",
+            "cover": "/art/cap-art/remote/32ff8f2d410ca43ddc5042f42e75b0d4d0de1b49d5aa9b135d9b8dafcc9a984d",
+            "banner": "/art/cap-art/remote/de8dee194ed832854928247d00f30900dd85f6b6c1c7ff26f0548f05bf05613d",
+            "trailerId": "qgQ9yXb7G7g",
+            "year": 2026,
+            "season": "秋",
+            "episodes": 28,
+            "score": 91,
+            "genres": [
+              "Adventure",
+              "Drama",
+              "Fantasy"
+            ],
+            "description": "勇者一行打倒魔王之后的故事。",
+            "status": "RELEASING",
+            "format": "TV",
+            "duration": 24,
+            "source": "MANGA",
+            "studios": [
+              "Madhouse"
+            ],
+            "startDate": "2026-10-03",
+            "recentAiring": {
+              "episode": 7,
+              "at": 1791979200
+            }
+          }
+        ]
+      },
+      {
+        "key": "thisSeason",
+        "title": "本季新番",
+        "items": [
+          {
+            "anilistId": 154587,
+            "title": "葬送的芙莉莲",
+            "titleNative": "葬送のフリーレン",
+            "titleRomaji": "Sousou no Frieren",
+            "titleEnglish": "Frieren: Beyond Journey's End",
+            "cover": "/art/cap-art/remote/32ff8f2d410ca43ddc5042f42e75b0d4d0de1b49d5aa9b135d9b8dafcc9a984d",
+            "banner": "/art/cap-art/remote/de8dee194ed832854928247d00f30900dd85f6b6c1c7ff26f0548f05bf05613d",
+            "trailerId": "qgQ9yXb7G7g",
+            "year": 2026,
+            "season": "秋",
+            "episodes": 28,
+            "score": 91,
+            "genres": [
+              "Adventure",
+              "Drama",
+              "Fantasy"
+            ],
+            "description": "勇者一行打倒魔王之后的故事。",
+            "status": "RELEASING",
+            "format": "TV",
+            "duration": 24,
+            "source": "MANGA",
+            "studios": [
+              "Madhouse"
+            ],
+            "startDate": "2026-10-03",
+            "nextAiring": {
+              "episode": 8,
+              "at": 1792584000
+            },
+            "recentAiring": {
+              "episode": 7,
+              "at": 1791979200
+            }
+          },
+          {
+            "anilistId": 180001,
+            "title": "秋季待播作品",
+            "episodes": null,
+            "genres": [],
+            "status": "NOT_YET_RELEASED",
+            "format": "TV"
+          },
+          {
+            "anilistId": 180002,
+            "title": "剧场版 示例",
+            "cover": "/art/cap-art/remote/8b5b5c9646cc50abdb7e014c7707b5531a598cb9a1deaa4dfd9b8e67f629bd11",
+            "episodes": null,
+            "genres": [
+              "Drama"
+            ],
+            "status": "FINISHED",
+            "format": "MOVIE",
+            "duration": 105
+          }
+        ]
+      },
+      {
+        "key": "pastSeason",
+        "title": "上季作品",
+        "items": [
+          {
+            "anilistId": 130003,
+            "title": "孤独摇滚！",
+            "titleRomaji": "Bocchi the Rock!",
+            "cover": "/art/cap-art/remote/a07dc667d3af44fdcf25258f83f868c368ce1d841e317c6f14bfab32a53e08ad",
+            "year": 2026,
+            "season": "夏",
+            "episodes": 12,
+            "score": 88,
+            "genres": [
+              "Comedy",
+              "Music"
+            ],
+            "status": "FINISHED",
+            "format": "TV",
+            "recentAiring": {
+              "episode": 3,
+              "at": 1792054800
+            }
+          }
+        ]
+      },
+      {
+        "key": "upcoming",
+        "title": "本季及下季待播",
+        "items": [
+          {
+            "anilistId": 180001,
+            "title": "秋季待播作品",
+            "episodes": null,
+            "genres": [],
+            "status": "NOT_YET_RELEASED",
+            "format": "TV"
+          },
+          {
+            "anilistId": 180003,
+            "title": "葬送的芙莉莲 第二季",
+            "episodes": null,
+            "genres": [],
+            "status": "NOT_YET_RELEASED",
+            "format": "TV"
+          }
+        ]
+      },
+      {
+        "key": "movies",
+        "title": "近期精选剧场版",
+        "items": [
+          {
+            "anilistId": 180002,
+            "title": "剧场版 示例",
+            "cover": "/art/cap-art/remote/8b5b5c9646cc50abdb7e014c7707b5531a598cb9a1deaa4dfd9b8e67f629bd11",
+            "episodes": null,
+            "genres": [
+              "Drama"
+            ],
+            "status": "FINISHED",
+            "format": "MOVIE",
+            "duration": 105
+          }
+        ],
+        "error": "暂时取不到该板块，请稍后重试：部分数据未加载：gems 暂不可用"
+      }
+    ],
+    "fetchedAt": 1792065600
+  }
+}

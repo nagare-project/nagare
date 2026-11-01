@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "data": {
+    "animego": {
+      "baseUrl": "https://catalog.example.test",
+      "email": "viewer@example.test",
+      "loggedIn": true
+    },
+    "arch": "amd64",
+    "background": {
+      "mode": "tray"
+    },
+    "dataDir": "/home/viewer/.config/nagare",
+    "desktop": {
+      "window": false
+    },
+    "logPath": "/home/viewer/.config/nagare/logs/nagare.log",
+    "mpv": {
+      "found": true,
+      "path": "/usr/bin/mpv",
+      "source": "path",
+      "version": "0.41.0"
+    },
+    "platform": "linux",
+    "player": {
+      "anime4k": "off"
+    },
+    "version": "0.7.0"
+  }
+}

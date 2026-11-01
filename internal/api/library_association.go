@@ -8,7 +8,6 @@ import (
 	"slices"
 	"sort"
 	"strconv"
-	"time"
 
 	errs "github.com/nagare-project/nagare/internal/errors"
 	"github.com/nagare-project/nagare/internal/httpserver"
@@ -391,7 +390,7 @@ func (h *Handler) commitAssociation(w http.ResponseWriter, clusterKey string, a 
 	}
 	if a != nil {
 		a.Members, a.MemberCount = capMembers(files), len(files)
-		a.SetAt = time.Now().UnixMilli()
+		a.SetAt = h.deps.Lib.now().UnixMilli()
 	}
 	h.applyAssociation(w, clusterKey, a, files)
 }

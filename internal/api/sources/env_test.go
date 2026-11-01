@@ -80,7 +80,9 @@ type testEnv struct {
 	player  *fakePlayer
 	sources *SourcesService
 	plugin  *fakeSourcePluginRuntime
-	torrent *fakeTorrent
+	// pluginSvc 是挂在处理器上的来源插件服务（登记捆绑插件等要直接调它）。
+	pluginSvc *SourcePluginService
+	torrent   *fakeTorrent
 	// downloads 是磁力下载的替身（见 downloads_test.go）。
 	downloads *fakeDownloads
 	// calls 是跨替身的调用顺序记录。
@@ -105,6 +107,7 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 	env := &testEnv{store: st, player: &fakePlayer{}}
 	env.sources = NewSourcesService(st, &rules.Fetcher{}, &rulesync.Syncer{}, filepath.Join(t.TempDir(), "rules"))
 	env.plugin = &fakeSourcePluginRuntime{status: sourceplugin.Status{Phase: "disabled"}}
+	env.pluginSvc = NewSourcePluginService(st, env.plugin, "test")
 	calls := []string{}
 	env.calls = &calls
 	record := func(op string) { calls = append(calls, op) }
@@ -113,7 +116,7 @@ func newEnvWith(t *testing.T, withTorrent bool) *testEnv {
 		Store:           st,
 		Player:          env.player,
 		Sources:         env.sources,
-		SourcePlugin:    NewSourcePluginService(st, env.plugin, "test"),
+		SourcePlugin:    env.pluginSvc,
 		TorrentCacheDir: "/data/nagare/cache/torrent",
 
 		DefaultDownloadDir: "/home/you/Downloads/nagare",

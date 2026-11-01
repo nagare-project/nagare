@@ -94,7 +94,7 @@ export function SettingsPage() {
           {settings.state.phase === 'ready' && <PlaybackCard player={settings.state.data.player} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'torrent'}>
-          {settings.state.phase === 'ready' && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
+          {settings.state.phase === 'ready' && settings.state.data.torrent && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'update'}><UpdateCard update={update} selfUpdate={selfUpdate} /></div>
         <div className="settings-section" hidden={section.id !== 'sources'}><SourcePluginCard plugin={sourcePlugin} /><SourcesCard sources={sources} /></div>

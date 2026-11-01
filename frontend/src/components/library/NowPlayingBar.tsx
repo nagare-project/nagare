@@ -17,7 +17,7 @@ export interface NowPlayingBarProps {
  * 元素，1s linear 与轮询节奏匹配）。
  */
 export function NowPlayingBar({ status, busy, onTogglePause, onStop }: NowPlayingBarProps) {
-  const { title, position, duration, paused, danmaku } = status
+  const { title, position = 0, duration = 0, paused = false, danmaku } = status
   const pct = progressPercent(position, duration)
 
   return (
