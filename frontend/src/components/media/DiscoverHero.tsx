@@ -59,8 +59,8 @@ export function DiscoverHero({ items, showMetadata = true }: { items: MediaSumma
             </m.span>
             <m.div className="hero-text" initial={reduced ? false : { opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }} transition={{ duration: reduced ? 0 : .5, delay: reduced ? 0 : .6 }}>
-              <h2 className="hero-title" aria-label={media.title}>
-                <MediaEntryLink id={media.id}>{media.title.split(' ').map((word, i) => <m.span key={i} aria-hidden="true"
+              <h2 className="hero-title">
+                <MediaEntryLink id={media.id} aria-label={media.title}>{media.title.split(' ').map((word, i) => <m.span key={i} aria-hidden="true"
                   initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }}
                   transition={{ duration: reduced ? 0 : 2, delay: reduced ? 0 : i * .2 }}>{word}{i < media.title.split(' ').length - 1 ? ' ' : ''}</m.span>)}</MediaEntryLink>
               </h2>

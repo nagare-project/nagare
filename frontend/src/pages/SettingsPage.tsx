@@ -62,6 +62,10 @@ export function SettingsPage() {
               ))}
             </div>
           ))}
+          {/* 「扩展」是独立页面（/extensions），顶栏不再放它，入口收在设置里（DESIGN.md「桌面顶栏」） */}
+          <div className="settings-nav-group">
+            <Link to="/extensions" className="settings-nav-item"><Icon name="extension" size={18} />扩展</Link>
+          </div>
         </nav>
         <p className="settings-version">nagare{settings.state.phase === 'ready' ? ` v${settings.state.data.version}` : ''}</p>
       </aside>
@@ -87,13 +91,19 @@ export function SettingsPage() {
           <QuitCard platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined} onQuit={() => setHasQuit(true)} />
         </div>
         <div className="settings-section" hidden={section.id !== 'account'}>
-          {settings.state.phase === 'ready' && <AccountCard animego={settings.state.data.animego} onReload={settings.reload} />}
+          {/* 设置载荷缺了账号一项（接口数据不可全信）时不让整页崩掉：账号分区说明原因，其余分区照常 */}
+          {settings.state.phase === 'ready' && (settings.state.data.animego ? <AccountCard animego={settings.state.data.animego} onReload={settings.reload} /> : <section className="panel settings-card"><p className="result result--warn" role="status">没有读到账号状态，账号设置暂时不可用。重启 nagare 后再试。</p></section>)}
         </div>
         <div className="settings-section" hidden={section.id !== 'player'}>
           {settings.state.phase === 'ready' && <MpvCard mpv={settings.state.data.mpv} desktop={settings.state.data.desktop} onReload={settings.reload} />}
           {settings.state.phase === 'ready' && <PlaybackCard player={settings.state.data.player} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'torrent'}>
+          {/* 磁力任务与磁力搜索不在顶栏里（顶栏只在有任务时出现指示），从这里随时能到 */}
+          <div className="settings-shortcuts">
+            <Link to="/torrents" className="settings-shortcut"><Icon name="download" /><span>磁力任务<small>边下边播的会话与整部下载的进度</small></span><Icon name="right" size={18} /></Link>
+            <Link to="/search" className="settings-shortcut"><Icon name="search" /><span>搜索磁力资源<small>按关键词在已启用的来源里搜</small></span><Icon name="right" size={18} /></Link>
+          </div>
           {settings.state.phase === 'ready' && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
         </div>
         <div className="settings-section" hidden={section.id !== 'update'}><UpdateCard update={update} selfUpdate={selfUpdate} /></div>

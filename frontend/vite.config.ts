@@ -1,8 +1,13 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    // 单元测试只在 src 里；e2e/ 是 Playwright 的冒烟测试（bun run test:e2e），vitest 跑不了它们
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
   build: {
     // 产物直接落到仓库根的 web/，由 Go 侧 //go:embed all:web 嵌进单二进制。
     // emptyOutDir 每次构建都会清空 web/（连 .gitkeep 一起删），随后 vite 把

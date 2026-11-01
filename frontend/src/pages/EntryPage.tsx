@@ -29,7 +29,7 @@ export function EntryPage() {
   const { media, loading, error, retry } = useMediaDetails(id)
   return <main className="catalog-entry lib-shell">
     {loading && <div className="media-detail-loading" role="status" aria-label="正在加载作品详情" />}
-    {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={retry}>重试</button> <a className="link" href="/discover">返回发现</a></p>}
+    {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={retry}>重试</button> <a className="link" href="/">返回发现</a></p>}
     {error && <LocalFallback id={id} />}
     {media && <EntryContent key={id} media={media} />}
   </main>
@@ -69,7 +69,7 @@ function EntryContent({ media }: { media: MediaSummary }) {
     </header>
     <div className="catalog-entry-toolbar">
       <details ref={actions} className="catalog-entry-tools"><summary aria-label="作品操作"><span aria-hidden="true">⋮</span></summary><div className="catalog-entry-menu">
-        <a className="icon-button" href="/" aria-label="管理本地媒体库" title="管理本地媒体库"><Icon name="folder" size={18} />管理本地媒体库</a>
+        <a className="icon-button" href="/library" aria-label="管理本地媒体库" title="管理本地媒体库"><Icon name="folder" size={18} />管理本地媒体库</a>
         <button type="button" className="icon-button" onClick={() => { if (actions.current) actions.current.open = false; information.current?.showModal() }} aria-label="作品信息" title="作品信息"><Icon name="info" size={18} />作品信息</button>
       </div></details>
       <Tabs value={tab} onChange={setTab} label="播放来源">

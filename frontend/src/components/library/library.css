@@ -380,7 +380,7 @@
 }
 
 .ep-play:focus-visible {
-  outline: 2px solid var(--brand-hot);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 2px;
 }
 

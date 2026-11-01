@@ -1,5 +1,5 @@
 import { Outlet } from '@tanstack/react-router'
-import { AppRail } from './AppRail'
+import { AppHeader } from './shell/AppHeader'
 import { SelfUpdateContext, useSelfUpdate } from '../hooks/useSelfUpdate'
 import { UpdateContext, useUpdate } from '../hooks/useUpdate'
 import { UpdateBanner } from './UpdateBanner'
@@ -11,7 +11,7 @@ import { SourcePlaybackProvider } from './media/SourcePlaybackContext'
 import { TorrentPlayProvider } from './torrent/TorrentPlayContext'
 
 /**
- * 根布局：侧边导航 + 新版本提示条 + 页面出口。
+ * 根布局：顶栏 + 新版本提示条 + 页面出口。
  * 更新状态在这里只加载一次，经 UpdateContext 共享给设置页的更新卡 ——
  * 三个页面共用同一条提示，不必各自复制逻辑。
  *
@@ -30,7 +30,7 @@ export function RootLayout() {
   return (
     <UpdateContext.Provider value={update}>
       <SelfUpdateContext.Provider value={selfUpdate}>
-        <CollectionProvider><TorrentPlayProvider><SourcePlaybackProvider><AppRail />
+        <CollectionProvider><TorrentPlayProvider><SourcePlaybackProvider><AppHeader />
           <div className="app-main">
             <UpdateBanner
               view={update.state.phase === 'ready' ? update.state.data : null}

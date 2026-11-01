@@ -34,7 +34,7 @@ interface Notice {
 const INSTALL_MPV_LINK = { to: '/settings', label: '去设置安装 mpv →' } as const
 
 /**
- * `/` 媒体库主页：顶栏（品牌 + mpv 状态 + 重扫 + 设置）、簇列表 /
+ * `/library` 媒体库：顶栏（品牌 + mpv 状态 + 重扫 + 设置）、簇列表 /
  * 空态引导、底部正在播放条。token 获取仍走 main.tsx 的 acquireToken，
  * 这里只负责把 401 转成「走启动链接重新进入」的提示。
  */
@@ -302,7 +302,7 @@ function EmptyLibrary({ onAdd, onShowGuide, platform }: { onAdd: LibraryBodyProp
         <AddFolderForm onAdd={onAdd} platform={platform} />
       </div>
       <p className="page-notice-actions">
-        <Link to="/discover" className="btn btn--sm btn--primary">
+        <Link to="/" className="btn btn--sm btn--primary">
           去发现页选番
         </Link>
         <button type="button" className="btn btn--sm" onClick={onShowGuide}>

@@ -226,7 +226,7 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
           {visible.length ? <ul className="media-play-choices">{visible.map(cluster => <li key={cluster.clusterKey}>
             <LocalChoice cluster={cluster} mediaId={media.id} onChoose={() => { setSelectedKeys([cluster.clusterKey]); setVia(isAssociatedWith(cluster, media.id) ? 'manual' : undefined); setError(null); setNotice(null) }} />
           </li>)}</ul> : <p className="media-play-hint" role="status">{library.clusters.length ? '没有找到同名的本地作品。可以显示全部，按文件夹中的名称选择。' : '媒体库里还没有视频，请先导入本地文件。'}</p>}
-          <a className="link" href="/">管理媒体库</a>
+          <a className="link" href="/library">管理媒体库</a>
         </>}
         {selected && <>
           <div className="media-play-selection">

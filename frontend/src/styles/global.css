@@ -1,9 +1,20 @@
+/* 网页字体只打包拉丁子集（DESIGN.md「排版 · 字体」）：中文一律走 --font-cjk 系统回落链，不发外部字体请求 */
 @font-face {
-  font-family: 'Inter Variable';
+  font-family: 'Sora';
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 100 800;
   font-display: swap;
-  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  src: url('/fonts/sora-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 /* ============================================================
@@ -23,79 +34,61 @@
    页面与 feature 专属样式见各自的 .css。
    ============================================================ */
 
+/* ---- 旧变量 → 设计 token ----
+   新设计的数值都在 tokens.css（由 design/tokens.json 生成，main.tsx 里先于本文件导入）。
+   页面还在逐个按 DESIGN.md 重写，旧变量名先保留、取值一律指向 token：旧样式表不用一次改完，
+   也不会出现新旧两套颜色并存。页面重写时直接改用 token 名，全部改完后删掉这一段。
+   --bg / --radius-sm / --radius-lg 与 token 同名，直接用 token 的值，这里不再定义。 */
 :root {
-  /* ---- 表面：三层近黑 ----
-     差值刻意压得很小（7 → 11 → 16），层级靠边框而不是靠底色对比拉开。
-     拉大差值会让卡片"浮"起来，与内容优先的取向相反。 */
-  --bg: #070707;
-  --paper: #0b0b0b;
-  --paper-raised: #101010;
-  --sunken: #050505;
-  /* 半透明档：底部固定条与模态遮罩要透出下层再做 backdrop-filter，
-     不透明的 --bg 用不了。写在这里而不是各文件自己配，是为了
-     三处（正在播放条 / 磁力状态条 / 选集遮罩）永远是同一个黑。 */
-  --bg-blur: rgba(7, 7, 7, 0.88);
-  --scrim: rgba(0, 0, 0, 0.72);
+  /* 表面：Level 0 / 1 / 2 */
+  --paper: var(--bg-card);
+  --paper-raised: var(--bg-elevated);
+  --sunken: var(--bg);
+  /* 底部固定条与选集遮罩要透出下层再做 backdrop-filter（--bg 的半透明档） */
+  --bg-blur: rgba(0, 0, 0, 0.88);
+  --scrim: var(--overlay);
 
-  /* ---- 描边 ---- */
-  --border: rgba(255, 255, 255, 0.1);
-  --border-dim: rgba(255, 255, 255, 0.06);
+  /* 描边 */
+  --border: var(--separator);
+  --border-dim: var(--hairline);
 
-  /* ---- 文字三档 ---- */
-  --fg: rgb(209, 209, 209);
-  --fg-muted: rgba(255, 255, 255, 0.4);
-  --fg-subtle: rgba(255, 255, 255, 0.26);
+  /* 文字：要读的次要文字一律 --text-secondary。旧的第三档（26% 白）在黑底上不到 4.5:1，
+     也并到 --text-secondary —— 无障碍扫描不开豁免（DESIGN.md 颜色规则 5） */
+  --fg: var(--text);
+  --fg-muted: var(--text-secondary);
+  --fg-subtle: var(--text-secondary);
 
-  /* ---- 底纹：hover 与"当前项" ---- */
-  --subtle: rgba(255, 255, 255, 0.06);
-  --subtle-hover: rgba(255, 255, 255, 0.09);
+  /* 底纹：悬停与当前项 */
+  --subtle: var(--bg-fill);
+  --subtle-hover: var(--bg-fill-hover);
 
-  /* ---- 品牌：靛紫 ----
-     --brand 是【文字档】，--brand-solid 是【填充档】。两者不可互换：
-     用 solid 当文字色在近黑底上对比度不足，用 brand 当填充底则太亮。 */
-  --brand: #c7c2ff;
-  --brand-hot: #e4e1ff;
-  --brand-solid: #6152df;
-  --brand-wash: rgba(97, 82, 223, 0.16);
-  --brand-line: rgba(159, 146, 255, 0.32);
+  /* 可点击色只有蓝色一族：--brand 是文字档（链接、焦点），--brand-solid 是实心按钮的底 */
+  --brand: var(--accent);
+  --brand-hot: var(--accent-hover);
+  --brand-solid: var(--accent-fill);
+  --brand-wash: var(--accent-dim);
+  --brand-line: rgba(10, 132, 255, 0.4);
 
-  /* ---- 状态色：一律「浅档文字 + 深档底纹」 ---- */
-  --ok: #86efac;
-  --ok-wash: rgba(34, 197, 94, 0.1);
-  --ok-line: rgba(34, 197, 94, 0.4);
+  /* 状态色：语义色文字 + 同色 12% 底 */
+  --ok: var(--success);
+  --ok-wash: var(--success-dim);
+  --ok-line: rgba(48, 209, 88, 0.4);
+  --warn: var(--warning);
+  --warn-wash: var(--warning-dim);
+  --warn-line: rgba(255, 159, 10, 0.4);
+  --err: var(--error);
+  --err-wash: var(--error-dim);
+  --err-line: rgba(255, 69, 58, 0.4);
 
-  --warn: #fdba74;
-  --warn-wash: rgba(249, 115, 22, 0.1);
-  --warn-line: rgba(249, 115, 22, 0.4);
+  /* 观看进度条：进度是 --accent（DESIGN.md 颜色规则 1） */
+  --progress-fill: var(--accent);
+  --progress-track: rgba(255, 255, 255, 0.12);
 
-  --err: #fca5a5;
-  --err-wash: rgba(239, 68, 68, 0.1);
-  --err-line: rgba(239, 68, 68, 0.4);
-
-  /* ---- 观看进度条 ----
-     用中性白而不是品牌紫：进度条会压在剧集缩略图/标题上，
-     彩色会与内容抢注意力，而它只是一个"看到哪了"的参考。 */
-  --progress-fill: rgba(255, 255, 255, 0.72);
-  --progress-track: rgba(255, 255, 255, 0.1);
-
-  /* ---- 圆角 ---- */
-  --radius-sm: 0.375rem;
-  --radius: 0.5rem;
-  --radius-lg: 0.75rem;
-
-  /* ---- 排版 ----
-     中文字面在英文字体里会回退，所以中文字体必须排在系统 UI 字体之后、
-     兜底 sans-serif 之前，顺序不能动。 */
-  --font-ui:
-    'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
-
-  --duration-fast: 140ms;
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-
-  /* 侧栏宽度：内容区靠它偏移，只在这里定义一次 */
-  --rail-w: 80px;
-  --page-gutter: 24px;
+  --radius: var(--radius-sm);
+  --font-ui: var(--font-sans);
+  --duration-fast: var(--dur-short);
+  --ease: var(--ease-standard);
+  --page-gutter: var(--gutter);
 }
 
 /* ---------- 基础 reset ---------- */
@@ -116,8 +109,8 @@ html {
 body {
   min-height: 100dvh;
   background-color: var(--bg);
-  color: var(--fg);
-  font-family: var(--font-ui);
+  color: var(--text);
+  font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -126,6 +119,13 @@ body {
 
 #root {
   min-height: 100dvh;
+}
+
+/* 焦点环只有这一个：2px 不透明 --focus-ring 实线 + 2px 透明间隔（DESIGN.md 颜色规则 2）。
+   组件自己的 :focus-visible 规则只改间隔或圆角，不换颜色、不换成阴影。 */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* ---------- 卡片 ---------- */
@@ -208,7 +208,7 @@ body {
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #6f61e6;
+  background: var(--accent-fill-hover);
 }
 
 /* 危险动作（删除源 / 退出登录 / 退出程序）：
@@ -248,13 +248,12 @@ body {
 }
 
 .input::placeholder {
-  color: var(--fg-subtle);
+  color: var(--text-tertiary);
 }
 
+/* 聚焦：边框变 --accent，外加统一的焦点环（DESIGN.md「输入」；不另设一档光晕） */
 .input:focus-visible {
-  outline: none;
-  border-color: var(--brand-line);
-  box-shadow: 0 0 0 1px var(--brand-line);
+  border-color: var(--accent);
 }
 
 /* ---------- 徽标 ---------- */
@@ -346,7 +345,7 @@ body {
 }
 
 .link:hover {
-  color: #fff;
+  color: var(--accent-hover);
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
@@ -493,8 +492,7 @@ button.link:disabled {
   .input,
   .link,
   .switch,
-  .switch-knob,
-  .app-rail-item {
+  .switch-knob {
     transition: none;
   }
 }

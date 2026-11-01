@@ -65,7 +65,7 @@ export function WatchPage() {
             它可能已经被移走或改名（文件 id 挂在 名称+大小+修改时间 上）。重新扫描一次即可。
           </p>
           <p className="page-notice-actions">
-            <Link to="/" className="btn btn--sm">
+            <Link to="/library" className="btn btn--sm">
               回到媒体库
             </Link>
           </p>

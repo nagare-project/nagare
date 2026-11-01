@@ -25,8 +25,9 @@ export function DiscoverPage() {
   const [data, setData] = useState<DiscoverSections>()
   const [error, setError] = useState<string>()
   const [attempt, setAttempt] = useState(0)
-  const search = useSearch({ from: '/discover' })
-  const navigate = useNavigate({ from: '/discover' })
+  // 发现页挂在 `/`（`/discover` 是跳到这里的别名）
+  const search = useSearch({ from: '/' })
+  const navigate = useNavigate({ from: '/' })
   // 根路由不校验参数，地址栏原样的 q 会一路传下来（?q=%20%20 到这里是两个空格）：在这里再收一次
   const query = (search.q ?? '').trim()
   // 同一个词再点「搜索」时地址栏不变：用这个序号让结果重新拉一次（后端有缓存，不会多打上游）

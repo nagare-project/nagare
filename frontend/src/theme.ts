@@ -16,12 +16,10 @@ import type { CSSProperties } from 'react'
  *
  * 保留等宽不是装饰：这些数字每秒都在跳，比例字体下字宽变化会让整行左右抖动。
  * tabular-nums + 等宽栈把每一位钉死在同一宽度上。
- * 字体栈用系统等宽，不再指定 JetBrains Mono —— 用户机器上大概率没有，
- * 指定了只会白白多一次字体回退。
+ * 字体栈是 tokens.css 的 --font-mono：JetBrains Mono 的拉丁子集随界面打包，系统等宽字体兜底。
  */
 export const mono = {
-  fontFamily:
-    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+  fontFamily: 'var(--font-mono)',
   fontVariantNumeric: 'tabular-nums',
 } as const satisfies CSSProperties
 
