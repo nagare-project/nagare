@@ -1179,6 +1179,12 @@ export function removeDownload(id: string): Promise<void> {
 }
 
 // ---------- 目录 · 收藏 · 放送（M6） ----------
+/**
+ * 目录数据的来历：只在不是刚从上游取回时出现（来自上次运行留在盘上的一份、超过缓存时限、或上游连不上），
+ * 界面据此显示「离线 · 更新于 …」。fetchedAt 是 RFC 3339；stale = 后台正在刷新，稍后重新请求可拿到新的；
+ * offline = 最近一次刷新失败，仍在显示上一份。
+ */
+export interface CatalogFreshness { fetchedAt: string; stale: boolean; offline: boolean }
 /** API 数据通过 lib/media.ts 适配，组件继续持有自己的契约。 */
 export interface SummaryMediaData {
   anilistId: number; title: string; titleNative?: string; titleRomaji?: string; titleEnglish?: string
@@ -1189,16 +1195,18 @@ export interface SummaryMediaData {
   relations?: { type: string; media: SummaryMediaData }[]; recommendations?: SummaryMediaData[]
   characters?: { name: string; image: string; role: string; actor?: string; actorImage?: string }[]
   episodeTitles?: { episode: number; title: string }[]
+  /** 只在作品详情（GET /api/anime/{id}）的顶层出现 */
+  freshness?: CatalogFreshness
 }
-export interface DiscoverData { sections: { key: string; title: string; items: SummaryMediaData[]; error?: string }[]; fetchedAt: number }
+export interface DiscoverData { sections: { key: string; title: string; items: SummaryMediaData[]; error?: string }[]; fetchedAt: number; freshness?: CatalogFreshness }
 export type CollectionStatus = 'watching' | 'plan_to_watch' | 'completed' | 'dropped'
 export interface CollectionEntry { anilistId: number; status: CollectionStatus; currentEpisode: number; score: number | null; media: SummaryMediaData; lastWatchedAt?: number }
 export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] }
 export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
-export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; format?: string; inLibrary: boolean }[]; fetchedAt: number }
+export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; format?: string; inLibrary: boolean }[]; fetchedAt: number; freshness?: CatalogFreshness }
 export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
 export type SeasonName = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL'
-export interface SeasonalData { season: SeasonName; year: number; items: SummaryMediaData[]; fetchedAt: number }
+export interface SeasonalData { season: SeasonName; year: number; items: SummaryMediaData[]; fetchedAt: number; freshness?: CatalogFreshness }
 /** 某一季的全部作品（animego 一页 200 条），后端十分钟缓存 */
 export const fetchSeasonalData = (season: SeasonName, year: number, signal?: AbortSignal) =>
   apiFetch<SeasonalData>(`/api/seasonal?season=${season}&year=${year}`, { signal })
