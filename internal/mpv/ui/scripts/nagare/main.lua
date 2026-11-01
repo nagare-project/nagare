@@ -233,8 +233,9 @@ local function draw_top(c)
 	local title = S.nagare_title or (S.title ~= "" and S.title) or "nagare"
 	c:text(x, 22 * s, title, style("h2", { color = T.color.text, outline = core.HALO * s }))
 	if S.info ~= "" then
-		-- 弹幕密的时候顶部全是字：副标题也要描边，否则会被弹幕盖得看不清
-		c:text(x, 54 * s, S.info, style("caption", { color = T.color.text_secondary, outline = core.HALO * s }))
+		-- 弹幕密的时候顶部全是字：副标题也要描边，否则会被弹幕盖得看不清。次要文字色压在画面上偏淡，
+		-- 用 label（14 / 500）而不是 caption，小窗口、1 倍屏上也读得清
+		c:text(x, 54 * s, S.info, style("label", { color = T.color.text_secondary, outline = core.HALO * s }))
 	end
 	-- 最小化 / 最大化 / 关闭：全屏时不画；嵌进 nagare 窗口时也不画，窗口按钮是宿主的（同一个窗口不要两套）
 	if not S.fullscreen and not S.embedded then
