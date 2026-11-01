@@ -285,22 +285,6 @@ sim_suite() {
     fail "${label}，退出码 ${rc}"; show_log "$(slog "$a" render-sw)"
   fi
 
-  if [ -n "${LIBMPV_SIM_STRESS:-}" ]; then
-    local i n_ok=0 n_bad=0 g
-    for g in hevc10-flac.mkv h264-aac-ass.mkv av1-opus.webm; do
-      n_ok=0 n_bad=0
-      for i in $(seq 1 "$LIBMPV_SIM_STRESS"); do
-        if sim "$a" "stress-$g-$i" play "$MEDIA/$g"; then n_ok=$((n_ok + 1)); else n_bad=$((n_bad + 1)); fi
-      done
-      echo "STRESS ${a} ${g}: ok=${n_ok} bad=${n_bad}"
-    done
-    n_ok=0 n_bad=0
-    for i in $(seq 1 "$LIBMPV_SIM_STRESS"); do
-      if sim "$a" "stress-render-$i" render "$MEDIA/h264-aac-ass.mkv" no; then n_ok=$((n_ok + 1)); else n_bad=$((n_bad + 1)); fi
-    done
-    echo "STRESS ${a} render: ok=${n_ok} bad=${n_bad}"
-  fi
-
   # VideoToolbox：模拟器能不能真的用上它与运行环境有关（真机才是准的），这两项只警告
   if sim "$a" vt-copy play "$MEDIA/h264-aac-ass.mkv" videotoolbox-copy \
     && grep -q 'hwdec-used=videotoolbox-copy' "$(slog "$a" vt-copy)"; then
