@@ -501,18 +501,39 @@ Step '全屏' {
     Add-Step 'Enter 进全屏、mpv 改 fullscreen=no 退出（属性→窗口）' ($ok3 -and $ok4) '' ''
 }
 
-Step '最大化' {
+# 最大化这一组没过时报出两边此刻的真实状态：宿主的、mpv 报来的、直接问 mpv 的、两个窗口的大小、最近的同步事件
+function Win-Diag([string]$what) {
+    $s = State
+    $live = '?'
+    try { $live = [string](Mpv '["get_property","window-maximized"]').data } catch { $live = "问不到：$($_.Exception.Message)" }
+    $cc = if ($s.childClient) { $s.childClient -join 'x' } else { '?' }
+    $log = @($s.winlog | Select-Object -Last 16) -join ' | '
+    return ("$what；宿主 maximized=$($s.maximized) fullscreen=$($s.fullscreen)；mpv 报来的 window-maximized=$(Prop $s 'window-maximized')、直接问到的=$live；" +
+            "客户区 $($s.client -join 'x')、mpv 子窗口 $cc；最近的同步：$log")
+}
+
+$maxRepeat = 1
+if ($env:NAGARE_WINTEST_MAX_REPEAT) { $maxRepeat = [int]$env:NAGARE_WINTEST_MAX_REPEAT }
+for ($round = 1; $round -le $maxRepeat; $round++) {
+$tag = if ($maxRepeat -gt 1) { "（第 $round 轮）" } else { '' }
+Step "最大化$tag" {
     Ctl '/winop' @{ op = 'maximize' } | Out-Null
     $ok = Wait-Until { $s = State; $s.maximized -and (Prop $s 'window-maximized') -eq $true } 5
-    $shot = Snap 'maximized' -Full
-    Add-Step '窗口最大化，写回 mpv 的 window-maximized' $ok '' $shot
+    $d = if ($ok) { '' } else { Win-Diag '5 秒内没等到' }
+    $shot = if ($round -eq 1) { Snap 'maximized' -Full } else { '' }
+    Add-Step "窗口最大化，写回 mpv 的 window-maximized$tag" $ok $d $shot
     Ctl '/winop' @{ op = 'restore' } | Out-Null
     $ok2 = Wait-Until { -not (State).maximized } 5
+    $d = if ($ok2) { '' } else { Win-Diag '还原后 5 秒窗口仍是最大化' }
+    $before = State
+    $pre = "请求前 mpv 子窗口 $(if ($before.childClient) { $before.childClient -join 'x' } else { '?' })、客户区 $($before.client -join 'x')"
     Mpv '["set_property","window-maximized",true]' | Out-Null
     $ok3 = Wait-Until { (State).maximized } 5
+    if (-not $ok3) { $d = Win-Diag "mpv 请求最大化之后 5 秒窗口没有最大化（$pre）" }
     Ctl '/winop' @{ op = 'restore' } | Out-Null
     Wait-Until { -not (State).maximized } 5 | Out-Null
-    Add-Step '还原；mpv 请求最大化落到窗口上' ($ok2 -and $ok3) '' ''
+    Add-Step "还原；mpv 请求最大化落到窗口上$tag" ($ok2 -and $ok3) $d ''
+}
 }
 
 Step '最小化' {

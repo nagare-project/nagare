@@ -155,7 +155,9 @@ func (a *app) onProperty(s *videoSession, name string, data json.RawMessage) {
 	if json.Unmarshal(data, &v) != nil {
 		return
 	}
-	acts, writes := s.sync.fromMpv(name, v, a.hostState())
+	host := a.hostState()
+	acts, writes := s.sync.fromMpv(name, v, host)
+	traceWin("mpv 报 %s=%v（宿主 %+v）→ 动作 %v、写回 %v", name, v, host, acts, writes)
 	s.write(writes)
 	a.apply(acts)
 }
