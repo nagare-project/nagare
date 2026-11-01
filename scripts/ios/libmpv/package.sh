@@ -110,7 +110,10 @@ framework() {
   if grep -E -i 'built for|was built for newer|building for .* but linking' "$out/info/$target/link.log" >&2; then
     die "${target}：有目标文件不是按这个切片的平台 / 部署目标编的"
   fi
-  strip -x "$fw/Libmpv" 2>&1 | grep -v 'invalidate the code signature' >&2 || true
+  # 去掉局部符号；「签名失效」的提示是预期内的（下面整个 framework 重签），其余输出与失败照常报
+  local strip_out
+  strip_out=$(strip -x "$fw/Libmpv" 2>&1) || { printf '%s\n' "$strip_out" >&2; die "${target}：strip 失败"; }
+  printf '%s\n' "$strip_out" | grep -v -e 'invalidate the code signature' -e '^$' >&2 || true
 
   local h
   for h in client.h render.h render_gl.h stream_cb.h; do
