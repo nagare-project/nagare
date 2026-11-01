@@ -1,55 +1,253 @@
-/* 尺寸取自 seanime AppLayout / VerticalMenu / TopNavbar。 */
-.app-rail { position: fixed; z-index: 50; inset: 0 auto 0 0; display: flex; flex-direction: column; width: var(--rail-w); padding: 16px; background: transparent; }
-.app-rail-brand { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--fg); text-decoration: none; margin-bottom: 16px; }
-.app-rail-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; background: var(--brand-solid); color: white; font-size: 28px; font-weight: 700; }
-.app-brand-name { font-size: 22px; font-weight: 600; letter-spacing: -.04em; }
-.app-rail-links { display: flex; flex-direction: column; gap: 4px; }
-.app-rail-footer { display: flex; flex-direction: column; gap: 4px; margin-top: auto; padding-top: 24px; }
-.app-rail-item { position: relative; display: flex; flex: none; align-items: center; justify-content: center; height: 40px; width: 48px; border-radius: 16px; color: var(--fg-muted); text-decoration: none; transition: color 150ms, background 150ms; }
-.app-rail-item:hover, .app-rail-item[aria-current='page'] { color: var(--fg); background: var(--subtle); }
-.app-rail-tooltip { position: absolute; left: calc(100% + 14px); padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: #171717; color: var(--fg); font-size: 13px; font-weight: 500; white-space: nowrap; opacity: 0; transform: translateX(-4px); pointer-events: none; transition: opacity 120ms, transform 120ms; }
-.app-rail-item:hover .app-rail-tooltip, .app-rail-item:focus-visible .app-rail-tooltip { opacity: 1; transform: translateX(0); }
-.app-rail-account { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: 12px auto 0; border-radius: 50%; color: var(--fg-muted); background: var(--paper-raised); text-decoration: none; }
-.app-rail-account:hover { color: var(--fg); }
+/* ============================================================
+   应用外壳：顶栏 · 搜索 · 左侧抽屉（DESIGN.md「桌面顶栏」）。
+   颜色、尺寸、动效全部取 tokens.css；顶栏高度只在这里换算成 --app-nav-h，
+   满屏页面与横幅向上铺开的距离都引用它。
+   ============================================================ */
+
+:root { --app-nav-h: var(--nav-h); }
+@media (max-width: 1023px) { :root { --app-nav-h: var(--nav-h-compact); } }
+
+/* 页面跳到锚点 / 聚焦时让开顶栏；body 用 clip 而不是 hidden：hidden 会把 body 变成滚动容器，sticky 顶栏跟着页面滚走 */
+html { scroll-padding-top: var(--app-nav-h); }
+body { overflow-x: clip; }
+/* 抽屉打开时锁住页面滚动 */
+html:has(.nav-drawer[open]) { overflow: hidden; }
+
+/* ---------- 顶栏 ---------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: var(--app-nav-h);
+  color: var(--text);
+  transition: transform var(--dur-medium) var(--ease-standard);
+}
+/* 玻璃画在 ::before 上才能淡入淡出；页面顶部透明（可能压在横幅图上） */
+.app-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--glass-nav);
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-short) var(--ease-standard);
+}
+.app-header[data-scrolled]::before { opacity: 1; }
+.app-header[data-hidden] { transform: translateY(-100%); }
+.app-header[data-instant] { transition: none; }
+.app-header:not([data-scrolled]) .app-wordmark,
+.app-header:not([data-scrolled]) .app-header-link { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 12px rgba(0, 0, 0, 0.6); }
+
+.app-header-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--sp-md);
+  height: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* 顶栏自己的控件就在 scroll-padding-top 那条带子里：不抵消的话，聚焦任何一个都会让页面跳一截 */
+.app-header a,
+.app-header button,
+.app-header input { scroll-margin-top: calc(-1 * var(--app-nav-h)); }
+
+.app-wordmark {
+  justify-self: start;
+  /* 字标不参与收缩：窄屏上宁可让右边的按钮挤一挤 */
+  flex: none;
+  color: var(--text);
+  font-family: var(--type-wordmark-family);
+  font-size: var(--type-wordmark-size);
+  font-weight: var(--type-wordmark-weight);
+  letter-spacing: var(--type-wordmark-tracking);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+}
+
+.app-header-nav { display: flex; align-items: center; gap: var(--sp-xs); }
+.app-header-link {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  color: var(--nav-link);
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--dur-short) var(--ease-standard), background-color var(--dur-short) var(--ease-standard);
+}
+.app-header-link:hover { color: var(--text); background: var(--hairline); }
+.app-header-link[aria-current='page'] { color: var(--text); }
+
+.app-header-actions { justify-self: end; display: flex; align-items: center; gap: var(--sp-sm); }
+
+/* 圆形图标按钮（DESIGN.md「按钮 · 圆形图标」） */
+.app-header-icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-fill);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--dur-short) var(--ease-standard), background-color var(--dur-short) var(--ease-standard);
+}
+.app-header-icon:hover { color: var(--text); background: var(--bg-fill-hover); }
+.app-header-icon[aria-current='page'] { color: var(--text); }
+.app-header-menu { display: none; }
+.app-header-torrent-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* ---------- 搜索：放大镜向左展开 ---------- */
+
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  width: min(280px, 40vw);
+  height: 40px;
+  padding: 0 4px 0 14px;
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  transform-origin: right center;
+  animation: header-search-open var(--dur-medium) var(--ease-enter);
+}
+/* 焦点环画在外层胶囊上（DESIGN.md「桌面顶栏」最后一条） */
+.header-search:has(.header-search-input:focus-visible) { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.header-search-icon { display: inline-flex; color: var(--text-secondary); }
+.header-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  /* 16px：iOS 上小于 16px 会触发页面缩放 */
+  font-size: 16px;
+}
+.header-search-input::placeholder { color: var(--text-tertiary); }
+.header-search-input:focus-visible { outline: none; }
+.header-search-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.header-search-close:hover { color: var(--text); background: var(--bg-fill-hover); }
+@keyframes header-search-open {
+  from { opacity: 0; transform: scaleX(0.6); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- 左侧抽屉（<1024px） ---------- */
+
+.nav-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(320px, 85vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--separator-opaque);
+  background: var(--bg-card);
+  color: var(--text);
+  overflow-y: auto;
+}
+.nav-drawer[open] { animation: nav-drawer-in var(--dur-medium) var(--ease-enter); }
+.nav-drawer::backdrop { background: var(--overlay); }
+.nav-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--nav-h-compact);
+  padding: 0 12px 0 20px;
+}
+.nav-drawer-nav { display: flex; flex-direction: column; padding: var(--sp-sm) var(--sp-sm) var(--sp-lg); }
+.nav-drawer-link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  color: var(--nav-link);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.nav-drawer-link:hover { color: var(--text); background: var(--bg-fill); }
+.nav-drawer-link[aria-current='page'] { color: var(--text); background: var(--bg-fill); }
+.nav-drawer-rule { margin: var(--sp-sm) 12px; border: 0; border-top: 1px solid var(--hairline); }
+@keyframes nav-drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+
+/* ---------- 页面出口 ---------- */
+
 /* 横幅（新版本 / 后台提示）与页面同在这一列：页面靠 flex 吃掉余下的高度，而不是各自再声明
    一遍「视口高 - 顶栏」—— 那样只要有横幅，内容再少的页面也会多出横幅那么高的滚动。 */
-.app-main { display: flex; flex-direction: column; min-height: calc(100dvh - 80px); padding-left: var(--rail-w); }
+.app-main { display: flex; flex-direction: column; min-height: calc(100dvh - var(--app-nav-h)); }
 .app-main > main { flex: 1 0 auto; }
-.app-topbar { position: relative; display: flex; align-items: center; gap: 12px; height: 80px; padding: 0 16px; margin-left: var(--rail-w); z-index: 10; }
-.app-top-links { display: flex; align-items: center; gap: 0; }
-.app-top-links a { padding: 0 8px; color: var(--fg-muted); font-size: 18.4px; line-height: 24px; font-weight: 600; text-decoration: none; }
-.app-top-links a:hover, .app-top-links a[aria-current='page'] { color: var(--fg); }
-.icon-button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--fg-muted); cursor: pointer; text-decoration: none; }
-.icon-button:hover:not(:disabled) { color: var(--fg); background: var(--subtle); }
-.icon-button:disabled { opacity: .25; cursor: default; }
-.app-top-search { display: none; }
-.app-menu-button { display: none; }
-.app-drawer { position: fixed; inset: 0 auto 0 0; width: 280px; max-width: 85vw; height: 100dvh; max-height: 100dvh; padding: 0; margin: 0; border: 0; border-right: 1px solid var(--border); background: var(--bg); color: var(--fg); }
-.app-drawer::backdrop { background: rgba(0, 0, 0, .7); backdrop-filter: blur(4px); }
-.app-drawer-content { display: flex; flex-direction: column; min-height: 100%; padding: 24px 16px; }
-.app-drawer-content .app-rail-brand { justify-content: flex-start; }
-.app-drawer-content .app-rail-item { justify-content: flex-start; width: 100%; gap: 16px; padding: 0 16px; }
-.app-rail-label { font-size: 14px; font-weight: 500; }
-.app-drawer-content .app-rail-account { width: 100%; justify-content: flex-start; padding: 0 16px; gap: 16px; border-radius: 12px; }
-.app-drawer-close { position: absolute; top: 24px; right: 12px; }
-.app-rail-item:focus-visible, .app-rail-account:focus-visible, .app-top-links a:focus-visible, .icon-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-@media (min-width: 1024px) and (max-height: 680px) {
-  .app-rail { padding-top: 8px; padding-bottom: 8px; }
-  .app-rail-brand { margin-bottom: 8px; }
-  .app-rail-item { height: 36px; }
-  .app-rail-footer { padding-top: 12px; }
-}
+
+/* 页面里通用的方形图标按钮（关闭、翻页、工具） */
+.icon-button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; text-decoration: none; }
+.icon-button:hover:not(:disabled) { color: var(--text); background: var(--bg-fill); }
+.icon-button:disabled { opacity: .35; cursor: default; }
+
+/* ---------- 响应式 ---------- */
+
 @media (max-width: 1023px) {
-  .app-rail { display: none; }
-  .app-main { padding-left: 0; min-height: calc(100dvh - 64px); }
-  .app-topbar { margin-left: 0; padding: 0 16px; height: 64px; }
-  .app-menu-button { display: inline-flex; }
-  .app-top-search { display: inline-flex; margin-left: auto; }
-  .app-top-links a { padding: 8px 10px; }
+  .app-header-inner { grid-template-columns: auto 1fr auto; gap: var(--sp-sm); padding: 0 12px; }
+  .app-header-menu { display: inline-flex; }
+  .app-header-nav, .app-header-torrent, .app-header-settings { display: none; }
+  .app-header-icon { width: var(--touch-min); height: var(--touch-min); }
+  /* 窄屏上展开的搜索盖住整条顶栏（☰ 与字标在它下面），收起后原样回来 */
+  .header-search { position: absolute; inset-inline: 12px; top: 50%; width: auto; height: var(--touch-min); margin-top: calc(var(--touch-min) / -2); }
 }
-@media (max-width: 480px) {
-  .app-topbar { gap: 4px; padding: 0 12px; }
-  .app-top-links { gap: 0; }
-  .app-top-links a { padding: 8px; font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header, .app-header::before, .app-header-link, .app-header-icon { transition: none; }
+  .header-search, .nav-drawer[open] { animation: none; }
 }
-@media (prefers-reduced-motion: reduce) { .app-rail-item, .app-rail-tooltip { transition: none; } }

@@ -8,7 +8,7 @@
 .seasonal-chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .seasonal-chip { padding: 6px 12px; border: 1px solid var(--border-dim); border-radius: 999px; background: transparent; color: var(--fg-muted); font-size: 13px; cursor: pointer; }
 .seasonal-chip:hover { border-color: var(--border); color: inherit; }
-.seasonal-chip--active { border-color: #8b7cf6; background: #8b7cf614; color: inherit; }
+.seasonal-chip--active { border-color: var(--accent); background: var(--accent-dim); color: inherit; }
 .seasonal-chip-gap { width: 12px; }
 .seasonal-sort-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .seasonal-sort-row .input { width: auto; padding-right: 28px; }

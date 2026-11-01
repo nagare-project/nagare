@@ -49,6 +49,17 @@ describe('设置分区', () => {
     await unmount()
   })
 
+  it('「扩展」收在设置的分类导航里；磁力播放分区能到磁力任务与磁力搜索', async () => {
+    const { container, unmount } = await open('/settings#torrent')
+    const nav = container.querySelector('nav[aria-label="设置分类"]')!
+    const extensions = [...nav.querySelectorAll('a')].find((a) => a.textContent === '扩展')
+    expect(extensions?.getAttribute('href')).toBe('/extensions')
+    const section = container.querySelector('.settings-section:not([hidden])')!
+    const hrefs = [...section.querySelectorAll('a')].map((a) => a.getAttribute('href'))
+    expect(hrefs).toEqual(expect.arrayContaining(['/torrents', '/search']))
+    await unmount()
+  })
+
   it('切换分类保留登录草稿，并保留登录前的会话限制说明', async () => {
     const { container, router, unmount } = await open('/settings#account')
     const email = container.querySelector<HTMLInputElement>('#animego-email')!

@@ -108,8 +108,8 @@
 .discover-card-title a:hover { color: var(--brand-hot); }
 .hero-art > a { display: block; width: 100%; height: 100%; }
 .hero-releasing { color: var(--brand); display: inline-flex; align-items: center; gap: 8px; }
-.discover-airing { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom-left-radius: 8px; background: #4c1d95e6; color: white; font-size: 12px; font-weight: 600; }
-.discover-loading-hero { background: linear-gradient(120deg, #1b1525, var(--bg)); }
+.discover-airing { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom-left-radius: 8px; background: var(--badge-scrim); color: var(--warning); font-size: 12px; font-weight: 600; backdrop-filter: blur(8px); }
+.discover-loading-hero { background: linear-gradient(120deg, var(--bg-card), var(--bg)); }
 .discover-loading-title { height: 36px; width: 180px; border-radius: 8px; background: var(--paper-raised); }
 .discover-loading-cards { display: flex; gap: 16px; margin-top: 48px; overflow: hidden; }
 .discover-loading-cards > div { flex: 0 0 250px; height: 333px; background: var(--paper-raised); border-radius: 8px; animation: detail-pulse 1s ease-in-out infinite alternate; }
@@ -121,13 +121,13 @@
 .discover-row-track { align-items: flex-start; }
 .discover-card-title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-wrap: pretty; line-height: 20px; }
 .discover-card-season { margin-top: 7px; line-height: 20px; padding-bottom: 1px; }
-.discover-airing { top: 8px; right: 8px; padding: 6px 12px; border-radius: 999px; background: #7956e6; color: #ede9fe; }
+.discover-airing { top: 8px; right: 8px; padding: 6px 12px; border-radius: 999px; background: var(--badge-scrim); color: var(--warning); }
 .discover-recent { position: absolute; top: 0; right: 0; display: flex; flex-direction: column; align-items: flex-end; }
 .discover-recent strong { padding: 6px 5px 6px 12px; background: #070707cc; border-bottom-left-radius: 8px; color: white; font-size: 18px; line-height: 28px; }
 .discover-recent small { color: #a1a1aa; font-size: 16px; }
 .discover-recent time { padding: 4px 5px 4px 8px; border-bottom-left-radius: 8px; background: #525252b3; color: white; font-size: 12px; font-weight: 600; }
 .discover-card-next { margin-top: 8px; text-align: center; font-size: 12px; line-height: 16px; }
-.discover-personal-score { position: absolute; right: 0; bottom: 0; display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-top-left-radius: 8px; color: white; background: #4f46e5cc; font-weight: 700; }
+.discover-personal-score { position: absolute; right: 0; bottom: 0; display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-top-left-radius: 8px; color: var(--text); background: var(--badge-scrim); font-weight: 700; }
 .hero-meta .hero-score { font-weight: 600; gap: 8px; }
 .hero-score svg { color: inherit; }
 .hero-desc { color: var(--fg); line-height: 20px; }
