@@ -285,6 +285,7 @@ Nagare 优先播放可靠的 HTTP/HLS 候选，失败后自动换源，在线候
 
 ## 许可证
 
-[AGPL-3.0](LICENSE)。
+[AGPL-3.0](LICENSE)，另附一项允许经 Apple App Store 分发的附加许可（[APP-STORE-EXCEPTION.md](APP-STORE-EXCEPTION.md)，
+依 AGPL-3.0 第 7 条；只覆盖 nagare 自己的代码，不覆盖第三方组件）。外部贡献需先同意 [CLA](CLA.md)。
 
 参与开发前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)——尤其是开头的四条红线，它们定义了这个项目的边界。
