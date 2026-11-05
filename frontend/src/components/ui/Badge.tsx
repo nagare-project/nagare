@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 /**
  * 徽标。语义色一律走 tone，不要在调用处拼 `badge--warn`。
  *
- * 暗底上的状态色规则（见 styles/global.css 开头）：文字取浅档、
- * 底纹取深档 @10%。这条规则封在 CSS 里，这一层只负责把语义翻成类名。
+ * 状态色规则（DESIGN.md 颜色规则 6）：语义色文字 + 同色 12% 底。
+ * 这条规则封在 CSS 里，这一层只负责把语义翻成类名。
  */
 export type BadgeTone = 'neutral' | 'accent' | 'warn'
 
