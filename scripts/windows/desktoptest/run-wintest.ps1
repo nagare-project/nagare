@@ -533,27 +533,6 @@ Step '全屏' {
     Add-Step 'Enter 进全屏、mpv 改 fullscreen=no 退出（属性→窗口），两头都停得住' ($d -eq '') $d ''
 }
 
-# 诊断用（CI 上临时设 NAGARE_WINTEST_FS_REPEAT=<轮数>）：把上面 Enter 进、改属性退的一组反复做，量偶发的比例。
-# 每轮先回到开头（片子只有 40 秒，播完会换集）、先确认不在全屏里。
-$fsRepeat = 0
-if ($env:NAGARE_WINTEST_FS_REPEAT) { $fsRepeat = [int]$env:NAGARE_WINTEST_FS_REPEAT }
-for ($round = 1; $round -le $fsRepeat; $round++) {
-    Step "全屏反复进出（第 $round 轮）" {
-        Mpv '["seek",0,"absolute"]' | Out-Null
-        Mpv '["set_property","fullscreen",false]' | Out-Null
-        [void](Wait-Until { -not (State).fullscreen } 5)
-        Start-Sleep -Milliseconds 300
-        $d = Fullscreen-RoundTrip
-        Add-Step "全屏反复进出（第 $round 轮）" ($d -eq '') $d ''
-    }
-}
-if ($fsRepeat -gt 0) {
-    try {
-        Mpv '["set_property","fullscreen",false]' | Out-Null
-        [void](Wait-Until { -not (State).fullscreen } 5)
-    } catch { Note "反复进出之后退出全屏失败：$($_.Exception.Message)" }
-}
-
 # 直接问 mpv 此刻的 window-maximized（遥控状态里的是 mpv 最近一次报来的，可能早就过时了）；问不到是 $null
 function Live-Maximized { try { return (Mpv '["get_property","window-maximized"]').data } catch { return $null } }
 
