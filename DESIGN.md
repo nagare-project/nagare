@@ -11,7 +11,7 @@
 
 ## 现状与迁移
 
-- 桌面界面已接入 `tokens.css`（`main.tsx` 先于 `global.css` 导入），外壳换成了本文件的顶栏与抽屉，字体换成 Sora / JetBrains Mono 的拉丁子集。各页面都已按本文件重写，样式表直接用 token 名；`global.css` 里那层旧变量名的别名已经删掉。样式表里不另起颜色变量，缺的值先加进 `tokens.json`。
+- 桌面界面已接入 `tokens.css`（`main.tsx` 先于 `global.css` 导入），外壳换成了本文件的顶栏与抽屉，字体换成 Sora / JetBrains Mono 的拉丁子集。各页面都已按本文件重写，样式表直接用 token 名；`global.css` 里那层旧变量名的别名已经删掉。多处共用的值先加进 `tokens.json`，不在样式表里另起颜色变量；只用一处的值写在使用处并注明。
 - 桌面播放器（mpv 里的 Lua 控制条）已经改用 `tokens.lua`：颜色、字号、字体、圆角、间距、转圈时长都从它取，模块里不写颜色值（见「播放器」与 `docs/player-ui.md`）。
 - iOS 版从第一行代码起就用 `Tokens.swift`。
 
