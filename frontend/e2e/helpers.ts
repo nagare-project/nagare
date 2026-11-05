@@ -11,6 +11,8 @@ export const ROUTES = [
   '/discover',
   '/library',
   '/anime/stardust',
+  // 没认出作品的本地分组：没有海报 hero，主按钮是「认作品」
+  '/anime/unknown-folder',
   '/entry?id=1001',
   '/lists',
   '/schedule',

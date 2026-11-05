@@ -15,6 +15,7 @@
   "GET /api/sources": "sources.json",
   "GET /api/source-plugin": "source-plugin.json",
   "GET /api/torrent/status": "torrent-status.json",
+  "POST /api/torrent/play": "torrent-play.json",
   "GET /api/downloads": "downloads.json",
   "GET /api/search": "search.json",
   "GET /api/search/plugin": "search-plugin.ndjson"
