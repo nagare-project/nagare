@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 /**
- * nagare 的设计 token（内联样式那一半；颜色与原子件在 styles/global.css）。
+ * nagare 的设计 token（内联样式那一半；数值在 styles/tokens.css，原子件在 styles/global.css）。
  *
  * 设计语言参照 seanime —— 内容优先、chrome 退让的媒体库应用外观：
  * 近黑三层表面、发丝白描边、状态色在暗底上一律取浅档，品牌色克制使用。
@@ -33,5 +33,5 @@ export const mono = {
 export const label = {
   fontSize: '0.84rem',
   lineHeight: 1.5,
-  color: 'var(--fg-muted)',
+  color: 'var(--text-secondary)',
 } as const satisfies CSSProperties

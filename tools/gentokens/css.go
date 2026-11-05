@@ -10,8 +10,8 @@ const cssHeader = `/* 由 tools/gentokens 从 design/tokens.json 生成，不要
    改 token：编辑 design/tokens.json，再在仓库根目录运行 go generate ./...（CI 检查生成文件是最新的）。
    规则与用法见仓库根目录的 DESIGN.md。
 
-   frontend/src/main.tsx 先于 global.css 导入本文件。global.css 里的旧变量名（--fg、--paper 等）
-   只是指向这里的别名，页面按 DESIGN.md 重写时直接改用这里的 token 名，全部改完后删掉那段别名。 */
+   frontend/src/main.tsx 先于 global.css 导入本文件。样式表一律直接用这里的 token 名；
+   多处共用的值先加进 design/tokens.json，不另起颜色变量。 */
 `
 
 // renderCSS 把 token 写成 :root 上的 CSS 自定义属性。
