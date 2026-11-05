@@ -62,6 +62,8 @@ export function SearchBody(props: SearchBodyProps) {
     return <p className="result result--dim">正在搜索「{query}」…</p>
   }
 
+  // 重搜在途时旧结果压暗但【有意】照常可点：磁力链接不会因为重搜而失效，几秒里禁掉复制 / 播放对谁都没好处。
+  // 来源标签在这期间不可点（busy）：两次切换交错，结果就对不上是哪一次的
   const isStale = search.phase === 'searching'
   return (
     <div className={isStale ? 'search-results search-results--stale' : 'search-results'} aria-busy={isStale}>
