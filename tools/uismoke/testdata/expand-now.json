@@ -1,0 +1,14 @@
+{
+  "$comment": "时间占位串的换法用例：tools/uismoke 的 expandNow（Go）与 frontend/src/lib/smokeFixtures.test.ts 里的同名函数（TS）各跑一遍，规则改了两边要一起改。now 是 Unix 秒。",
+  "now": 1800000000,
+  "cases": [
+    { "name": "秒", "in": "{\"at\":\"@now\"}", "want": "{\"at\":1800000000}" },
+    { "name": "毫秒", "in": "{\"at\":\"@nowms\"}", "want": "{\"at\":1800000000000}" },
+    { "name": "往后", "in": "{\"at\":\"@now+7200\"}", "want": "{\"at\":1800007200}" },
+    { "name": "往前（毫秒）", "in": "{\"at\":\"@nowms-60\"}", "want": "{\"at\":1799999940000}" },
+    { "name": "RFC 3339 字符串", "in": "{\"fetchedAt\":\"@nowiso\"}", "want": "{\"fetchedAt\":\"2027-01-15T08:00:00Z\"}" },
+    { "name": "RFC 3339 往前", "in": "{\"fetchedAt\":\"@nowiso-7200\"}", "want": "{\"fetchedAt\":\"2027-01-15T06:00:00Z\"}" },
+    { "name": "一份里有好几个", "in": "[\"@now-3600\",\"@nowms+1\",\"@nowiso+60\"]", "want": "[1799996400,1800000001000,\"2027-01-15T08:01:00Z\"]" },
+    { "name": "普通字符串不动", "in": "{\"title\":\"@nowhere\",\"at\":\"now\"}", "want": "{\"title\":\"@nowhere\",\"at\":\"now\"}" }
+  ]
+}

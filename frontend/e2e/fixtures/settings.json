@@ -21,6 +21,7 @@
     "cacheDir": "/Users/you/Library/Application Support/nagare/cache/torrent",
     "cacheBytes": 0,
     "downloadDir": "/Users/you/Downloads/nagare",
-    "downloadDirIsDefault": true
+    "downloadDirIsDefault": true,
+    "restartRequired": false
   }
 }

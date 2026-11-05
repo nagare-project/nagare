@@ -16,6 +16,8 @@
 // 时间写成占位串，回答时换成当时的时间：放送表只显示近七日、媒体库扫描太久会触发自动重扫，
 // 写死的时间戳过几天就让页面换了样子。"@now" 是 Unix 秒，"@nowms" 是毫秒，"@nowiso" 是 RFC 3339 字符串
 // （仍带引号），后面都可跟 +N / -N 秒，例如 "@now+7200" 是两小时后、"@nowiso-7200" 是两小时前。
+// 换法的用例在 testdata/expand-now.json：前端的严格解码测试（frontend/src/lib/smokeFixtures.test.ts）照同一套规则
+// 换完再解码每份假数据，两边共用这份用例。
 package main
 
 import (

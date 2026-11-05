@@ -74,5 +74,15 @@ CGO_ENABLED=0 go test ./internal/api/... ./internal/update/ -run Golden -update
 
 `frontend/e2e/fixtures/`（`tools/uismoke` 给 Playwright 冒烟测试回答的假数据）是另一套：只写信封里的 `data`，
 时间写成 `@now` 一类的占位串（放送表只显示近七日，写死的时间过几天页面就变样），所以不能直接拿黄金文件顶替。
-它们暂时没有经过这里的严格解码；以后可以在 `lib/apiGoldens.test.ts` 里按 `routes.json` 把每个文件对上同一套 schema
-（先把占位串换成数字），让冒烟测试的假数据也跟着接口变。
+但它们同样逐份严格解码：`frontend/src/lib/smokeFixtures.test.ts` 按 `routes.json` 走过每一条路由，先把占位串换成数字，
+再用与黄金文件同一套 schema 解这个文件（`.ndjson` 事件流逐行解）。缺字段、类型不对、多出客户端不认识的字段都算失败，
+所以接口类型改了，冒烟测试的假数据也得跟着改，不会在一份过时的数据上跑绿。
+
+- **登记**：`routes.json` 加了一条路由，要在这个测试的 `FIXTURE_CONTRACTS` 里写上它用哪个 schema；没登记的路由、
+  登记了却已不在路由表里的，都会让测试失败。
+- **占位串**：换法与 `tools/uismoke` 的 `expandNow` 相同。两边共用 `tools/uismoke/testdata/expand-now.json` 里的用例，
+  Go 与 TS 各跑一遍，规则只改了一边就有一边红。换完之后还剩 `"@now…` 的（写错的占位串，uismoke 也不认）同样算失败。
+- **还没有黄金文件的接口**（`/api/search`、`/api/search/plugin`）：schema 暂放在 `frontend/src/test/smokeContracts.ts`，
+  同样钉在客户端类型上。不放进 `apiContracts.ts`，是因为那边的覆盖检查要求每个可选字段都在黄金文件里出现过；
+  给它们补上黄金文件之后再挪过去。
+- 假数据不算覆盖：可选字段、联合分支有没有出现过，只看黄金文件。
