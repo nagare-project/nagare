@@ -79,6 +79,20 @@ test.describe('手机（390px）', () => {
 test.describe('宽屏（1440px）', () => {
   test.use({ viewport: { width: 1440, height: VIEWPORT_HEIGHT } })
 
+  test('上次扫描读不到的文件夹：顶上的横幅写出路径与原因，整页无 serious / critical 问题', async ({ page }) => {
+    await page.route('**/api/library', async (route) => {
+      const response = await route.fetch()
+      const envelope = (await response.json()) as { data: { folders: Record<string, unknown>[] } }
+      const broken = { id: 'folder-2', path: '/Volumes/外接盘/番剧', addedAt: 1756500000, error: '目录不存在（移动硬盘没接上？）' }
+      await route.fulfill({ response, json: { ...envelope, data: { ...envelope.data, folders: [...envelope.data.folders, broken] } } })
+    })
+    await openApp(page, '/library')
+    const banner = page.getByRole('status').filter({ hasText: '有 1 个文件夹这次没能扫描' })
+    await expect(banner).toContainText('/Volumes/外接盘/番剧')
+    await expect(banner.getByRole('link', { name: /检查文件夹/ })).toHaveAttribute('href', '/settings#folders')
+    expect(await blockingViolations(page)).toEqual([])
+  })
+
   test('只用键盘：展开「还没认出」→ 进分组页 → 认作品对话框，Esc 关掉后焦点回到「认作品」', async ({ page }) => {
     const problems = watchProblems(page)
     await openApp(page, '/library')

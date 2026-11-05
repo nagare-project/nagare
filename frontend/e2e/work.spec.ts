@@ -131,6 +131,31 @@ test.describe('宽屏（1440px）', () => {
     await expect(trigger).toBeFocused()
   })
 
+  test('没登录账号：作品页说一次「登录后显示弹幕、同步进度」，关掉后刷新也不再出现；整页无 serious / critical 问题', async ({ page }) => {
+    await page.route('**/api/lists', (route) => route.fulfill({ json: { success: true, data: { loggedIn: false, entries: [] } } }))
+    await openApp(page, ENTRY)
+    const hint = page.getByText(/^登录后显示弹幕、同步进度/)
+    await expect(hint).toBeVisible()
+    expect(await blockingViolations(page)).toEqual([])
+    await page.getByRole('button', { name: '关闭这条说明' }).click()
+    await expect(hint).toBeHidden()
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading', { level: 1, name: '星屑的旅人' })).toBeVisible()
+    await expect(page.getByText(/^登录后显示弹幕、同步进度/)).toHaveCount(0)
+  })
+
+  test('作品详情读不到：说出原因，给媒体库里这部作品的本地分组链接；整页无 serious / critical 问题', async ({ page }) => {
+    await page.route('**/api/anime/1001', (route) => route.fulfill({ status: 503, json: { success: false, data: null, error: '目录服务暂时连不上' } }))
+    await openApp(page, ENTRY)
+    await expect(page.getByRole('alert')).toContainText('目录服务暂时连不上')
+    const local = page.getByRole('link', { name: '星屑的旅人（3 集）' })
+    await expect(local).toHaveAttribute('href', '/anime/stardust')
+    expect(await blockingViolations(page)).toEqual([])
+    await local.click()
+    await expect(page).toHaveURL((url) => url.pathname === '/anime/stardust')
+  })
+
   test('在线播放标签照常可用：切过去面板出现，没有错误', async ({ page }) => {
     const problems = watchProblems(page)
     await openApp(page, ENTRY)

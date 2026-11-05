@@ -96,6 +96,10 @@
 .work-section-title > small { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .work-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-sm) var(--sp-md); }
 
+/* 句子里的链接除了颜色还带下划线（WCAG 1.4.1）：次要文字、红色 / 绿色的提示与蓝色链接之间不到 3:1，
+   光靠颜色分不出哪几个字能点。磁力抽屉也挂在作品页里，一并生效 */
+.work-page :is(p, .media-play-empty) a.link { text-decoration: underline; text-underline-offset: 0.2em; }
+
 /* 细条说明（目录读不到时退化成本地页、没登录时的一句提示） */
 .work-strip { padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-secondary); font-size: var(--type-caption-size); }
 .work-strip--hint { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); padding-block: var(--sp-xs); }
