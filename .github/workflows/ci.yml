@@ -272,8 +272,15 @@ jobs:
           $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
           if (-not $makensis -and (Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe')) { $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe' }
           if (-not $makensis) {
-            choco install nsis -y --no-progress | Out-Null
+            # choco 的社区源偶尔连不上 / 限流：重试三次，输出留着，装不上就把 choco 说的话报出来（别丢进 Out-Null）
             $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
+            foreach ($try in 1..3) {
+              $log = choco install nsis -y --no-progress 2>&1 | Out-String
+              if ($LASTEXITCODE -eq 0 -and (Test-Path $makensis)) { break }
+              Write-Host "choco install nsis 第 $try 次没装上（退出码 $LASTEXITCODE）：`n$log"
+              if ($try -eq 3) { throw 'NSIS 装不上（choco 三次都失败），见上面的输出' }
+              Start-Sleep -Seconds (15 * $try)
+            }
           }
           # 暂存：真的 nagare.exe 与 bootstrapper；mpv 与插件放占位文件（这里只验安装脚本本身，不验 mpv）
           $stage = Join-Path $env:RUNNER_TEMP 'nsis-stage'

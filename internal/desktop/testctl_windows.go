@@ -26,6 +26,10 @@ import (
 	"time"
 )
 
+// testJSTimeout 是 /js 等脚本结果的上限。没有 GPU 的 CI 机器上页面用软件渲染，刚起来那几秒脚本会排在长任务后面，
+// 5 秒挂过一次（CI 里网页层右键菜单那一项）；真卡死的页面照样在这里报出来。
+const testJSTimeout = 15 * time.Second
+
 const (
 	// winTraceKeep 是遥控至少留着的窗口状态同步事件条数（只留最近的；超过两倍时裁回这么多）。整份由 /winlog 给，
 	// 测试收尾时存进报告（winlog.txt）
@@ -342,7 +346,7 @@ func testJS(w http.ResponseWriter, r *http.Request) {
 	select {
 	case out := <-res:
 		fmt.Fprintln(w, out)
-	case <-time.After(5 * time.Second):
-		fail(w, fmt.Errorf("脚本 5 秒内没有结果"))
+	case <-time.After(testJSTimeout):
+		fail(w, fmt.Errorf("脚本 %s 内没有结果", testJSTimeout))
 	}
 }
