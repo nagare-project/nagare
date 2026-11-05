@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nagare-project/nagare/internal/animego"
@@ -197,6 +198,10 @@ type Manager struct {
 	retryPace  time.Duration
 	retryLife  context.Context
 	endRetries context.CancelFunc
+	// retryQueued：KickPendingSyncs 排下的一轮还没轮上（轮上时清掉），这期间再 kick 不多排。
+	// kicked 数着 KickPendingSyncs 起的后台轮次：退出不等它们（随 retryLife 停下），只有测试要等。
+	retryQueued atomic.Bool
+	kicked      sync.WaitGroup
 }
 
 // New 构造 Manager。

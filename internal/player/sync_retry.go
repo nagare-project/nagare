@@ -11,8 +11,8 @@ import (
 
 // 补发：「看完了、还没记到账号」的集落在进度里（Completed && !Synced），但失败横幅只在内存里，
 // 收尾那次回写又只发一次 —— 回写途中被强退、断网、关机，下次启动就什么都不说、也不再试，
-// 账号上静默少一集。补发在启动时（桌面版 main）、横幅上点「重试」时（以后移动端回到前台时）
-// 把它们再写一遍，每集走的是与收尾完全相同的 syncEntry。
+// 账号上静默少一集。补发在启动时（桌面版 main）、登录成功之后、横幅上点「重试」时（以后移动端
+// 回到前台时）把它们再写一遍，每集走的是与收尾完全相同的 syncEntry。
 
 const (
 	// syncRetryMax 是一轮补发最多试几集：攒了很多（断网看了一整季）也不一口气打上游，剩下的下一轮再补。
@@ -50,6 +50,37 @@ type pendingSync struct {
 // 开机自启时网络还没好是常事，不是要用户处理的事。被规则挡下、登录过期这类要用户知道的才进横幅；
 // 一轮结束后横幅说的那一集记上了就撤掉，否则把「还有几集没记上」更新成现在的数。
 func (m *Manager) RetryPendingSyncs(ctx context.Context) SyncRetryResult {
+	return m.retryRound(ctx, nil)
+}
+
+// KickPendingSyncs 在后台补发一轮、立刻返回。登录成功之后调：启动时那一轮还没登录、什么都没补，
+// 不该让用户等到下次启动或自己去点「重试」。
+//
+// 与 RetryPendingSyncs 过同一道闸（retrySem）：有一轮在跑就等它跑完再跑，单轮上限与节奏不变。
+// 已经有一轮排着队、还没轮上时不再多排 —— 它轮上时才取待补列表与登录态，取到的就是最新的；
+// 轮上之后再来的照常排一轮（比如补到一半换了账号）。这一轮挂在 retryLife 上而不是调用方的 ctx：
+// 登录的答复一发出，请求的 ctx 就结束了；退出时（StopRetrying）它随 retryLife 停下。
+func (m *Manager) KickPendingSyncs() {
+	if m.retryLife.Err() != nil || !m.retryQueued.CompareAndSwap(false, true) {
+		return
+	}
+	m.kicked.Go(func() {
+		started := false
+		m.retryRound(m.retryLife, func() {
+			started = true
+			m.retryQueued.Store(false)
+		})
+		// 没轮上就结束了（现在只有退出时会这样）：也放开标记，不让它挡住之后的 kick。
+		// 轮上过的不在这里清：那时可能已经有更新的一轮排着队，清掉它的标记就会多排一轮。
+		if !started {
+			m.retryQueued.Store(false)
+		}
+	})
+}
+
+// retryRound 是 RetryPendingSyncs 的本体。onTurn 不为 nil 时，在这一轮拿到 retrySem、真正开跑时调一次
+// （没轮上就结束了不调）。
+func (m *Manager) retryRound(ctx context.Context, onTurn func()) SyncRetryResult {
 	// 退出时（StopRetrying）在跑的这一轮跟着停：HTTP 服务关闭时不取消在途请求的 ctx
 	if m.retryLife.Err() != nil {
 		return SyncRetryResult{Remaining: len(m.pendingSyncs())}
@@ -63,6 +94,9 @@ func (m *Manager) RetryPendingSyncs(ctx context.Context) SyncRetryResult {
 		return SyncRetryResult{Remaining: len(m.pendingSyncs())}
 	}
 	defer func() { <-m.retrySem }()
+	if onTurn != nil {
+		onTurn()
+	}
 
 	res := m.retryPass(ctx)
 	pending := m.pendingSyncs()
@@ -82,7 +116,7 @@ func (m *Manager) StopRetrying() { m.endRetries() }
 func (m *Manager) retryPass(ctx context.Context) SyncRetryResult {
 	var res SyncRetryResult
 	if m.opts.Client == nil || !m.opts.Client.LoggedIn() {
-		res.Reason = "还没有登录账号：到设置里登录之后再点「重试」，或等下次启动时自动补记"
+		res.Reason = "还没有登录账号：到设置里登录之后会自动补记"
 		return res
 	}
 	attempted := 0

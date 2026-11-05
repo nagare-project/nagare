@@ -12,8 +12,9 @@
   align-items: center;
   gap: 0.9rem 1.1rem;
   padding: 0.7rem clamp(1rem, 4vw, 2rem) 0.8rem;
-  border-top: 1px solid var(--border);
-  background: var(--bg-blur);
+  border-top: 1px solid var(--separator);
+  /* 纯黑的 88%：要透出下层内容再做 backdrop-filter，只有这一处用 */
+  background: rgba(0, 0, 0, 0.88);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -30,7 +31,7 @@
 
 .np-track-fill {
   height: 100%;
-  background: var(--progress-fill);
+  background: var(--accent);
   transition: width 1s linear;
 }
 
@@ -40,12 +41,12 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--brand-hot);
+  background: var(--accent-hover);
   animation: np-pulse 2s ease-in-out infinite;
 }
 
 .np-pulse--paused {
-  background: var(--fg-muted);
+  background: var(--text-secondary);
   box-shadow: none;
   animation: none;
 }
@@ -78,7 +79,7 @@
 .np-time {
   flex: none;
   font-size: 0.84rem;
-  color: var(--brand);
+  color: var(--accent);
 }
 
 .np-actions {

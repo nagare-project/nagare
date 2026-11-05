@@ -3,13 +3,13 @@
 .poster-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; margin: 0; padding: 0; list-style: none; }
 .poster { min-width: 0; }
 .poster-hit { display: block; color: inherit; text-decoration: none; }
-.poster-hit:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 8px; }
-.poster-art { position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 8px; background: var(--paper-raised); }
+.poster-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
+.poster-art { position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 8px; background: var(--bg-elevated); }
 .poster-art img { width: 100%; height: 100%; object-fit: cover; object-position: center; transition: transform 200ms ease-out; }
 .poster-hit:hover .poster-art img, .poster-hit:focus-visible .poster-art img { transform: scale(1.1); }
 .poster-art-blank { display: grid; place-items: center; width: 100%; height: 100%; color: #ffffff30; background: linear-gradient(145deg, #262331, #111116); font-size: 38px; }
 .poster-title { margin-top: 8px; font-size: 16px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.poster-meta { margin-top: 4px; color: var(--fg-muted); font-size: 13px; }
+.poster-meta { margin-top: 4px; color: var(--text-secondary); font-size: 13px; }
 @media (min-width: 768px) { .poster-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1080px) { .poster-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (min-width: 1320px) { .poster-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }

@@ -2,7 +2,7 @@
 
 /* ============================================================
    元数据类页面（我的列表 / 发现 / 放送表）的样式。
-   底座 token 与海报网格在 styles/global.css 与 library.css 里，
+   token 在 styles/tokens.css，原子件在 styles/global.css，海报网格在 library/artwork.css，
    这里只加这三页特有的东西。
    ============================================================ */
 
@@ -33,7 +33,7 @@
 .poster-bar-fill {
   display: block;
   height: 100%;
-  background: var(--progress-fill);
+  background: var(--accent);
 }
 
 /* ---------- 卡片信息层 ---------- */
@@ -52,9 +52,9 @@
   height: 1.35rem;
   padding: 0 0.4rem;
   border-radius: var(--radius-sm);
-  /* 压在图上，所以底色要够实才读得清 —— 这里不用 --subtle */
+  /* 压在图上，所以底色要够实才读得清 —— 这里不用 --bg-fill */
   background: rgba(7, 7, 7, 0.78);
-  color: var(--brand);
+  color: var(--accent);
   font-size: 0.78rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -73,9 +73,9 @@
 .poster-genre {
   flex: none;
   padding: 0.05rem 0.35rem;
-  border: 1px solid var(--border-dim);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
-  color: var(--fg-subtle);
+  color: var(--text-secondary);
   font-size: 0.74rem;
   white-space: nowrap;
 }
@@ -90,7 +90,7 @@
   padding: 0.7rem;
   background: linear-gradient(180deg, rgba(7, 7, 7, 0.1) 0%, rgba(7, 7, 7, 0.92) 100%);
   opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease);
+  transition: opacity var(--dur-short) var(--ease-standard);
   pointer-events: none;
 }
 
@@ -113,7 +113,7 @@
 
 /* 原文标题：比副标题再弱一档，单行截断 */
 .poster-native {
-  color: var(--fg-subtle);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   overflow: hidden;
   white-space: nowrap;
@@ -137,34 +137,34 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
   transition:
-    background-color var(--duration-fast) var(--ease),
-    color var(--duration-fast) var(--ease);
+    background-color var(--dur-short) var(--ease-standard),
+    color var(--dur-short) var(--ease-standard);
 }
 
 .tab:hover {
-  background: var(--subtle);
-  color: var(--fg);
+  background: var(--bg-fill);
+  color: var(--text);
 }
 
-/* 当前档只提亮 + 一层白底纹，不染品牌色（见 global.css 规则 3） */
+/* 当前档只提亮 + 一层白底纹，不染蓝色 */
 .tab--on {
-  background: var(--subtle);
-  color: var(--fg);
+  background: var(--bg-fill);
+  color: var(--text);
 }
 
 .tab:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 .tab-count {
-  color: var(--fg-subtle);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
 }
@@ -189,7 +189,7 @@
 }
 
 .row-sub {
-  color: var(--fg-muted);
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -227,21 +227,21 @@
   width: 1.9rem;
   height: 1.9rem;
   border-radius: var(--radius-sm);
-  color: var(--fg-subtle);
+  color: var(--text-secondary);
   font-size: 0.95rem;
   text-decoration: none;
   transition:
-    color var(--duration-fast) var(--ease),
-    background-color var(--duration-fast) var(--ease);
+    color var(--dur-short) var(--ease-standard),
+    background-color var(--dur-short) var(--ease-standard);
 }
 
 .ep-browser:hover {
-  background: var(--subtle);
-  color: var(--fg);
+  background: var(--bg-fill);
+  color: var(--text);
 }
 
 .ep-browser:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -250,14 +250,14 @@
 .row-controls { display: flex; margin-left: auto; gap: 4px; }
 .row-scroll::-webkit-scrollbar { display: none; }
 .media-art-button { width: 100%; padding: 0; border: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
-.media-art-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.media-art-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .poster-score { pointer-events: none; }
 .tabs--center { justify-content: center; }
 .tabs--center .tab { height: 42px; border-radius: 0; padding: 0 32px; border-bottom: 2px solid transparent; background: transparent; }
-.tabs--center .tab--on { border-bottom-color: var(--brand); color: var(--fg); }
-.tabs--center { border-bottom: 1px solid var(--border-dim); }
-.fixture-notice { color: var(--fg-muted); border: 1px dashed var(--border); background: transparent; font-size: 12px; padding: 8px 12px; }
-.fixture-notice strong { color: var(--fg); font-weight: 500; }
+.tabs--center .tab--on { border-bottom-color: var(--accent); color: var(--text); }
+.tabs--center { border-bottom: 1px solid var(--hairline); }
+.fixture-notice { color: var(--text-secondary); border: 1px dashed var(--separator); background: transparent; font-size: 12px; padding: 8px 12px; }
+.fixture-notice strong { color: var(--text); font-weight: 500; }
 @media (max-width: 1100px) { .row-scroll .poster { flex-basis: 200px; } }
 @media (max-width: 640px) {
   .row-scroll .poster { flex-basis: 42%; min-width: 140px; }

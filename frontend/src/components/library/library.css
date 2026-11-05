@@ -15,7 +15,14 @@
   width: 100%;
   max-width: 1800px;
   margin-inline: auto;
-  padding: 16px var(--page-gutter) 48px;
+  padding: 16px var(--gutter) 48px;
+}
+
+/* 手机宽度两侧留白收窄到 16px */
+@media (max-width: 640px) {
+  .lib-shell {
+    padding-inline: 16px;
+  }
 }
 
 /* 播放条出现时给底部让位，避免最后几行被固定条盖住 */
@@ -113,7 +120,7 @@
 .cluster-count {
   margin-left: auto;
   font-size: 0.8rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -144,12 +151,12 @@
   padding: 0.18rem 0.5rem 0.18rem 0.4rem;
   border-left: 2px solid transparent;
   font-size: 0.8rem;
-  transition: background-color var(--duration-fast) var(--ease);
+  transition: background-color var(--dur-short) var(--ease-standard);
 }
 
 .ep-row:hover {
-  background: var(--brand-wash);
-  border-left-color: var(--border);
+  background: var(--accent-dim);
+  border-left-color: var(--separator);
 }
 
 .ep-row:has(.ep-browser) {
@@ -157,17 +164,17 @@
 }
 
 .ep-row--active {
-  background: var(--brand-wash);
-  border-left-color: var(--brand-hot);
+  background: var(--accent-dim);
+  border-left-color: var(--accent-hover);
 }
 
 .ep-num {
   font-size: 0.86rem;
-  color: var(--brand);
+  color: var(--accent);
 }
 
 .ep-num--none {
-  color: var(--fg-subtle);
+  color: var(--text-secondary);
 }
 
 /* 文件名与 kind 徽标放在同一格里，保证右侧元数据列对齐。 */
@@ -184,13 +191,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.85rem;
-  color: var(--fg);
+  color: var(--text);
 }
 
 .ep-res,
 .ep-size {
   font-size: 0.8rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -224,19 +231,19 @@
 .ep-pbar-fill {
   display: block;
   height: 100%;
-  background: var(--progress-fill);
+  background: var(--accent);
 }
 
 .ep-pct {
   min-width: 2.4em;
   text-align: right;
   font-size: 0.84rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
 }
 
 .ep-done {
   font-size: 0.86rem;
-  color: var(--brand-hot);
+  color: var(--accent-hover);
 }
 
 .ep-play {
@@ -245,23 +252,23 @@
   justify-content: center;
   width: 2rem;
   height: 1.55rem;
-  border: 1px solid var(--border-dim);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--brand);
+  color: var(--accent);
   font-size: 0.8rem;
   line-height: 1;
   cursor: pointer;
   transition:
-    background-color var(--duration-fast) var(--ease),
-    border-color var(--duration-fast) var(--ease),
-    color var(--duration-fast) var(--ease);
+    background-color var(--dur-short) var(--ease-standard),
+    border-color var(--dur-short) var(--ease-standard),
+    color var(--dur-short) var(--ease-standard);
 }
 
 .ep-play:hover:not(:disabled, [aria-disabled='true']) {
-  background: var(--brand-wash);
-  border-color: var(--brand-hot);
-  color: var(--brand-hot);
+  background: var(--accent-dim);
+  border-color: var(--accent-hover);
+  color: var(--accent-hover);
 }
 
 .ep-play:focus-visible {
@@ -314,9 +321,9 @@
    什么都没跳过时组件整个不渲染，所以这里不必考虑「空的样子」。 */
 .drops {
   padding: 0.55rem 0.85rem;
-  border: 1px solid var(--warn-line);
-  border-radius: var(--radius);
-  background: var(--warn-wash);
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-sm);
+  background: var(--warning-dim);
   font-size: 0.85rem;
 }
 
@@ -325,7 +332,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.2rem 0.6rem;
-  color: var(--warn);
+  color: var(--warning);
   cursor: pointer;
   list-style: none; /* Firefox */
 }
@@ -339,10 +346,10 @@
 .drops-summary::before {
   content: '▸';
   /* 跟随 summary 的警示色但压暗：它是这一行唯一「还能展开」的信号，
-     用 --fg-subtle 在警示底色上几乎看不见（实机截图里确认过） */
+     用中性的淡灰字在警示底色上几乎看不见（实机截图里确认过） */
   color: currentcolor;
   opacity: 0.55;
-  transition: transform var(--duration-fast) var(--ease);
+  transition: transform var(--dur-short) var(--ease-standard);
 }
 
 .drops[open] > .drops-summary::before {
@@ -350,7 +357,7 @@
 }
 
 .drops-summary:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: 2px;
 }
@@ -363,7 +370,7 @@
 .drops-why {
   flex: 1;
   min-width: 0;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -381,22 +388,22 @@
 /* 每组一条左侧细线：展开后几组原因才读得开，否则是一坨等宽的文字 */
 .drops-group {
   padding-left: 0.7rem;
-  border-left: 1px solid var(--warn-line);
+  border-left: 1px solid var(--warning-line);
 }
 
 .drops-group-head {
-  color: var(--fg);
+  color: var(--text);
 }
 
 .drops-group-head strong {
-  color: var(--warn);
+  color: var(--warning);
   font-weight: 600;
 }
 
 /* 恢复动作是这整块东西存在的理由，所以给它正文色而不是次要色 */
 .drops-recovery {
   margin-top: 0.25rem;
-  color: var(--fg);
+  color: var(--text);
 }
 
 .drops-paths {
@@ -406,13 +413,13 @@
 }
 
 .drops-path {
-  color: var(--fg-muted);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
 
 .drops-path--more {
-  color: var(--fg-subtle);
+  color: var(--text-secondary);
 }
 
 .library-empty { max-width: 640px; }

@@ -2,8 +2,8 @@
    改 token：编辑 design/tokens.json，再在仓库根目录运行 go generate ./...（CI 检查生成文件是最新的）。
    规则与用法见仓库根目录的 DESIGN.md。
 
-   frontend/src/main.tsx 先于 global.css 导入本文件。global.css 里的旧变量名（--fg、--paper 等）
-   只是指向这里的别名，页面按 DESIGN.md 重写时直接改用这里的 token 名，全部改完后删掉那段别名。 */
+   frontend/src/main.tsx 先于 global.css 导入本文件。样式表一律直接用这里的 token 名；
+   多处共用的值先加进 design/tokens.json，不另起颜色变量。 */
 
 :root {
   /* ---- 颜色 ---- */
@@ -24,6 +24,7 @@
   --accent-fill-hover: #0274de; /* 实心主按钮的悬停态（白字 4.61:1） */
   --accent-fill-active: #0066cc; /* 实心主按钮的按下态（白字 5.57:1） */
   --accent-dim: rgba(10, 132, 255, 0.12); /* 选中项的底、可点击色的轻填充 */
+  --accent-line: rgba(10, 132, 255, 0.4); /* 可点击色的 40% 描边：实心主按钮的边、选中的分段与徽标、进行中的状态胶囊（装饰，不承担对比度） */
   --focus-ring: #0a84ff; /* 焦点环：不透明的实线 outline，所有可交互元素共用这一个，不随海报色变 */
   --teal: #5ac8fa; /* 只读信息：信息标签、弹幕分区、只读高亮；不可点击 */
   --teal-dim: rgba(90, 200, 250, 0.1); /* teal 的底色填充 */
@@ -34,14 +35,17 @@
   --nav-link: rgba(235, 235, 245, 0.66); /* 顶栏链接的安静态 */
   --success: #30d158; /* 已看完、同步成功、已完结 */
   --success-dim: rgba(48, 209, 88, 0.12); /* 成功徽标的底 */
+  --success-line: rgba(48, 209, 88, 0.4); /* 成功状态胶囊的描边 */
   --warning: #ff9f0a; /* 连载中、待确认、需要注意 */
   --warning-dim: rgba(255, 159, 10, 0.12); /* 警示徽标的底 */
+  --warning-line: rgba(255, 159, 10, 0.4); /* 警示徽标、警示提示条、扫描跳过说明的描边 */
   --error: #ff453a; /* 错误文字与图标；危险按钮的底改用 error-fill，浮层上的红字改用 error-on-elevated */
   --error-on-elevated: #ff6961; /* 浮层上的红字、全局提示里的失败图标（4.94:1） */
   --error-fill: #d63027; /* 危险按钮的底（白字 4.87:1） */
   --error-fill-hover: #dc332a; /* 危险按钮的悬停态（白字 4.62:1） */
   --error-fill-active: #c8281f; /* 危险按钮的按下态（白字 5.56:1） */
   --error-dim: rgba(255, 69, 58, 0.12); /* 错误徽标的底 */
+  --error-line: rgba(255, 69, 58, 0.4); /* 危险按钮悬停与失败状态胶囊的描边 */
   --info: #5ac8fa; /* 信息提示（与 teal 同值） */
   --glass-nav: rgba(9, 9, 11, 0.78); /* 顶栏毛玻璃（配 saturate(160%) blur(16px)） */
   --glass-light: rgba(255, 255, 255, 0.08); /* 作品页 hero 的工具按钮（玻璃·轻） */
@@ -53,6 +57,7 @@
   --toast: rgba(18, 18, 22, 0.94); /* 全局提示胶囊的底（配 blur(20px) saturate(150%)） */
   --toast-border: rgba(255, 255, 255, 0.12); /* 全局提示胶囊的描边 */
   --badge-scrim: rgba(0, 0, 0, 0.75); /* 压在封面上的徽标底（配 blur(8px)），只让文字带颜色；播放器进度条上的悬停时间也用它 */
+  --progress-track: rgba(255, 255, 255, 0.12); /* 观看进度条的底轨（海报下缘、剧集行）；已看部分是 accent */
 
   /* ---- 海报色阶：没有色相时的中性值。有色相时由服务端算好 sRGB，直接写在使用它的元素上 ---- */
   --poster-tone: #b1b1b1; /* oklch(76% 0.085 h)；作品页强调文字、图标、悬停态、主按钮的底 */
