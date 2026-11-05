@@ -1,30 +1,30 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { AnimatePresence, domAnimation, LazyMotion, m } from 'motion/react'
+import { CatalogNotice } from '../components/catalog/CatalogStates'
+import { EmptyLibraryStrip } from '../components/catalog/EmptyLibraryStrip'
+import { FreshnessNote } from '../components/catalog/FreshnessNote'
+import { RouteLink } from '../components/catalog/RouteLink'
+import { adjacentSeason, currentSeason } from '../components/catalog/season'
 import { CarouselRow } from '../components/media/CarouselRow'
 import { CatalogSearchForm, CatalogSearchResults } from '../components/media/CatalogSearch'
-import { DiscoverHero } from '../components/media/DiscoverHero'
 import { DiscoverCard } from '../components/media/DiscoverCard'
 import { DiscoverGenres, genreLabel, genreQuery } from '../components/media/DiscoverGenres'
-import { useReducedMotionPreference } from '../components/media/useReducedMotionPreference'
-import { Tab as TabButton, Tabs } from '../components/ui'
-import { SchedulePage } from './SchedulePage'
-import { fetchDiscover } from '../lib/media'
-import type { DiscoverSections } from '../lib/media'
-import { errorText } from '../lib/format'
+import { DiscoverHero } from '../components/media/DiscoverHero'
 import type { MediaSummary } from '../components/media/types'
-import '../components/library/library.css'
+import { useCatalogResource } from '../hooks/useCatalogResource'
+import { fetchDiscover } from '../lib/media'
+import type { DiscoverSections, DiscoverView } from '../lib/media'
+import '../components/catalog/catalog.css'
 import '../components/media/media.css'
 import '../components/media/discover.css'
 
-type Tab = 'anime' | 'schedule'
+/** 横幅最多轮几部 */
+const HERO_LIMIT = 12
+/** 骨架里每行画几张卡 */
+const SKELETON_CARDS = 6
 
-
+/** 发现页（`/`，DESIGN.md「发现」）：横幅 + 海报行；地址栏带 ?q= 时换成作品搜索结果 */
 export function DiscoverPage() {
-  const [tab, setTab] = useState<Tab>('anime')
-  const [data, setData] = useState<DiscoverSections>()
-  const [error, setError] = useState<string>()
-  const [attempt, setAttempt] = useState(0)
   // 发现页挂在 `/`（`/discover` 是跳到这里的别名）
   const search = useSearch({ from: '/' })
   const navigate = useNavigate({ from: '/' })
@@ -32,58 +32,127 @@ export function DiscoverPage() {
   const query = (search.q ?? '').trim()
   // 同一个词再点「搜索」时地址栏不变：用这个序号让结果重新拉一次（后端有缓存，不会多打上游）
   const [searchRun, setSearchRun] = useState(0)
-  const initialGenre = genreLabel(search.genre ?? '')
-  const reduced = useReducedMotionPreference()
-  useEffect(() => {
-    const abort = new AbortController()
-    setError(undefined)
-    void fetchDiscover(abort.signal).then(next => { if (!abort.signal.aborted) setData(next) })
-      .catch(err => { if (!abort.signal.aborted) setError(errorText(err, '榜单加载失败')) })
-    return () => abort.abort()
-  }, [attempt])
-  return <main className="lib-shell discover-shell">
-    {data ? <DiscoverHero items={(data.find(section => section.key === 'thisSeason')?.items ?? []).filter(item => item.status !== 'NOT_YET_RELEASED').slice(0, 12)} showMetadata={tab === 'anime'} /> : <div className="hero discover-loading-hero" aria-label="正在加载精选作品" />}
-    <LazyMotion features={domAnimation}>
-      <m.div className="discover-content" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: .5, delay: .6 }}>
-        <div className="discover-tabs">
-          <Tabs value={tab} onChange={next => setTab(next as Tab)} label="发现分类" center>
-            {(['anime', 'schedule'] as const).map(value => <TabButton key={value} value={value}>
-              {tab === value && <m.span className="discover-tab-pill" layoutId="discover-category" transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 38 }} />}
-              <span>{value === 'anime' ? '动画' : '放送表'}</span>
-            </TabButton>)}
-          </Tabs>
+  // 搜索时榜单也照常读着：清掉关键词就能立刻回到榜单
+  const discover = useCatalogResource('discover', fetchDiscover, { fallbackError: '目录服务没有回应' })
+
+  function handleSearch(q: string) {
+    setSearchRun((n) => n + 1)
+    void navigate({ search: (prev) => ({ ...prev, q: q === '' ? undefined : q }) })
+  }
+
+  return (
+    <main className="discover-page">
+      <EmptyLibraryStrip />
+      {query !== '' ? (
+        <div className="catalog-page">
+          <CatalogSearchForm query={query} onSearch={handleSearch} />
+          <CatalogSearchResults query={query} run={searchRun} />
         </div>
-        <AnimatePresence mode="wait" initial={false}>
-          <m.div key={tab} className={tab === 'anime' ? 'discover-panel discover-anime-panel' : 'discover-panel'} initial={reduced ? false : { opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: reduced ? 1 : .99 }} transition={{ duration: reduced ? 0 : .35 }}>
-            {tab === 'schedule' ? <SchedulePage embedded /> : <>
-              <CatalogSearchForm query={query} onSearch={(q) => {
-                setSearchRun(n => n + 1)
-                void navigate({ search: (prev) => ({ ...prev, q: q === '' ? undefined : q }) })
-              }} />
-              {/* 有关键词时只显示搜索结果；榜单不卸载数据，清除关键词就回来 */}
-              {query !== '' ? <CatalogSearchResults query={query} run={searchRun} /> : <>
-              {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={() => setAttempt(value => value + 1)}>重新加载</button></p>}
-              {!data && !error && <section aria-label="正在加载榜单" aria-busy="true"><div className="discover-loading-title" /><div className="discover-loading-cards">{[0, 1, 2, 3].map(i => <div key={i} />)}</div></section>}
-              {/* 上游这一板块整段为空（如「最近已播出」恰好没有到点的集数）时整行不画：
-                  空行里那句「暂无某分类」是写给类型筛选的，放在这里是错话。 */}
-              {data?.filter(section => section.items.length || section.error).map(section => <Section key={section.key} title={section.title} items={section.items} filters={['trending', 'thisSeason', 'pastSeason'].includes(section.key)} arrows={section.key === 'recent'} initialGenre={section.key === 'trending' ? initialGenre : '全部'} error={section.error} retry={() => setAttempt(value => value + 1)} />)}
-              {data && !data.some(section => section.items.length || section.error) && <p className="result" role="status">暂时没有可显示的作品。</p>}
-              </>}
-            </>}
-          </m.div>
-        </AnimatePresence>
-      </m.div>
-    </LazyMotion>
-  </main>
+      ) : discover.data ? (
+        <DiscoverContent view={discover.data} refreshing={discover.refreshing} initialGenre={genreLabel(search.genre ?? '')} retry={discover.retry} />
+      ) : discover.error ? (
+        <div className="catalog-page"><CatalogUnreachable detail={discover.error} retry={discover.retry} /></div>
+      ) : (
+        <DiscoverSkeleton />
+      )}
+    </main>
+  )
 }
 
-function Section({ title, items, filters, arrows, initialGenre, error, retry }: { title: string; items: MediaSummary[]; filters?: boolean; arrows?: boolean; initialGenre: string; error?: string; retry: () => void }) {
+/** 板块有作品才画；读取失败的板块整块隐藏（DESIGN.md「发现」） */
+function visibleSections(sections: DiscoverSections): DiscoverSections {
+  return sections.filter((section) => section.items.length > 0 && !section.error)
+}
+
+/** 横幅：本季里已经开播的作品；本季一部都没有时退到第一个有作品的板块 */
+function heroSource(sections: DiscoverSections): { label: string; items: MediaSummary[] } {
+  const season = sections.find((section) => section.key === 'thisSeason' && !section.error)
+  const released = season?.items.filter((item) => item.status !== 'NOT_YET_RELEASED') ?? []
+  if (season && released.length > 0) return { label: season.title, items: released.slice(0, HERO_LIMIT) }
+  const first = visibleSections(sections)[0]
+  return { label: first?.title ?? '', items: first?.items.slice(0, HERO_LIMIT) ?? [] }
+}
+
+function DiscoverContent({ view, refreshing, initialGenre, retry }: { view: DiscoverView; refreshing: boolean; initialGenre: string; retry: () => void }) {
+  const sections = visibleSections(view.sections)
+  if (sections.length === 0) {
+    const failed = view.sections.some((section) => section.error)
+    return (
+      <div className="catalog-page">
+        {failed
+          ? <CatalogUnreachable retry={retry} />
+          : <CatalogNotice title="暂时没有可显示的作品" actions={<button type="button" className="btn" onClick={retry}>重新读取</button>}>目录服务这次没有返回任何板块，稍后再来看看。</CatalogNotice>}
+      </div>
+    )
+  }
+  const hero = heroSource(view.sections)
+  return (
+    <>
+      <div className="discover-status"><FreshnessNote freshness={view.freshness} refreshing={refreshing} /></div>
+      {hero.items.length > 0 && <DiscoverHero items={hero.items} label={hero.label} />}
+      <div className="catalog-page discover-rows">
+        {sections.map((section) => (
+          <DiscoverSection key={section.key} sectionKey={section.key} title={section.title} items={section.items} initialGenre={section.key === 'trending' ? initialGenre : '全部'} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** 本季 / 上季两行的「查看全部」：季度页里有完整列表与按类型筛选 */
+function seasonLink(sectionKey: string): Record<string, string | number> | undefined {
+  const now = currentSeason()
+  if (sectionKey === 'thisSeason') return {}
+  if (sectionKey === 'pastSeason') return adjacentSeason(now.season, now.year, -1)
+  return undefined
+}
+
+function DiscoverSection({ sectionKey, title, items, initialGenre }: { sectionKey: string; title: string; items: MediaSummary[]; initialGenre: string }) {
   const [genre, setGenre] = useState(initialGenre)
-  const visible = genre === '全部' ? items : items.filter(media => media.genres.includes(genreQuery(genre)))
-  return <CarouselRow title={title} autoPlay arrows={arrows} filters={filters && <DiscoverGenres title={title} value={genre} onChange={setGenre} />}>
-    {visible.map(media => <DiscoverCard key={`${media.id}-${media.recentAiring?.episode ?? ''}`} media={media} />)}
-    {error && <li className="discover-empty" role="alert"><span>{error} <button className="btn" onClick={retry}>重试</button></span></li>}
-    {!error && visible.length === 0 && <li className="discover-empty" role="status">当前返回的作品中暂无「{genre}」分类。</li>}
-  </CarouselRow>
+  const filterable = sectionKey === 'trending'
+  const visible = !filterable || genre === '全部' ? items : items.filter((media) => media.genres.includes(genreQuery(genre)))
+  const season = seasonLink(sectionKey)
+  return (
+    <CarouselRow title={title}
+      filters={filterable && <DiscoverGenres title={title} value={genre} onChange={setGenre} />}
+      action={season && <RouteLink to="/seasonal" search={season} className="row-more">查看全部<span className="visually-hidden">：{title}</span></RouteLink>}>
+      {visible.map((media) => <DiscoverCard key={`${media.id}-${media.recentAiring?.episode ?? ''}`} media={media} />)}
+      {visible.length === 0 && <li className="discover-row-empty" role="status">当前返回的作品中暂无「{genre}」分类。</li>}
+    </CarouselRow>
+  )
+}
+
+/** 一份缓存都没有、又连不上目录服务（DESIGN.md「状态表 · 发现」） */
+function CatalogUnreachable({ detail, retry }: { detail?: string; retry: () => void }) {
+  return (
+    <CatalogNotice tone="error" title="连不上目录服务，媒体库照常可用"
+      actions={<>
+        <RouteLink to="/library" className="btn btn--primary">去媒体库</RouteLink>
+        <button type="button" className="btn" onClick={retry}>重试</button>
+      </>}>
+      {detail ?? '发现页的作品来自在线目录；本机的番剧文件不受影响。'}
+    </CatalogNotice>
+  )
+}
+
+/** 横幅 + 两行海报的静态骨架 */
+function DiscoverSkeleton() {
+  return (
+    <div role="status" aria-busy="true">
+      <span className="visually-hidden">正在读取发现页</span>
+      <div className="discover-skeleton-hero" aria-hidden="true" />
+      <div className="catalog-page discover-rows" aria-hidden="true">
+        {[0, 1].map((row) => (
+          <div key={row} className="discover-skeleton-row">
+            <span className="discover-skeleton-title" />
+            <ul className="catalog-grid">
+              {Array.from({ length: SKELETON_CARDS }, (_, i) => (
+                <li key={i} className="poster-skeleton"><span className="poster-skeleton-art" /><span className="poster-skeleton-line" /><span className="poster-skeleton-line poster-skeleton-line--short" /></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }

@@ -34,6 +34,14 @@
         "nextAiring": {
           "episode": 6,
           "at": "@now+172800"
+        },
+        "posterTones": {
+          "hue": 250,
+          "tone": "#88b6e6",
+          "quiet": "#779cc2",
+          "mid": "#496c90",
+          "low": "#0d2034",
+          "onTone": "#030c17"
         }
       },
       "lastWatchedAt": "@now-3600"
@@ -67,7 +75,15 @@
         "startDate": "2026-10-04",
         "studios": [
           "测试工作室"
-        ]
+        ],
+        "posterTones": {
+          "hue": 140,
+          "tone": "#95bf8b",
+          "quiet": "#82a37a",
+          "mid": "#53734c",
+          "low": "#13240f",
+          "onTone": "#050e04"
+        }
       }
     },
     {
@@ -99,7 +115,8 @@
         "startDate": "2026-10-04",
         "studios": [
           "测试工作室"
-        ]
+        ],
+        "posterTones": null
       }
     }
   ]

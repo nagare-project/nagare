@@ -32,6 +32,14 @@
           "nextAiring": {
             "episode": 6,
             "at": "@now+172800"
+          },
+          "posterTones": {
+            "hue": 250,
+            "tone": "#88b6e6",
+            "quiet": "#779cc2",
+            "mid": "#496c90",
+            "low": "#0d2034",
+            "onTone": "#030c17"
           }
         },
         {
@@ -62,6 +70,14 @@
           "nextAiring": {
             "episode": 6,
             "at": "@now+172800"
+          },
+          "posterTones": {
+            "hue": 350,
+            "tone": "#db9bb9",
+            "quiet": "#ba879e",
+            "mid": "#88586f",
+            "low": "#2f1622",
+            "onTone": "#14060d"
           }
         },
         {
@@ -88,7 +104,15 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": {
+            "hue": 140,
+            "tone": "#95bf8b",
+            "quiet": "#82a37a",
+            "mid": "#53734c",
+            "low": "#13240f",
+            "onTone": "#050e04"
+          }
         },
         {
           "anilistId": 1004,
@@ -113,7 +137,15 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": {
+            "hue": 75,
+            "tone": "#d1aa73",
+            "quiet": "#b29267",
+            "mid": "#816339",
+            "low": "#2c1c04",
+            "onTone": "#120900"
+          }
         },
         {
           "anilistId": 1005,
@@ -143,7 +175,8 @@
           "nextAiring": {
             "episode": 6,
             "at": "@now+172800"
-          }
+          },
+          "posterTones": null
         },
         {
           "anilistId": 1006,
@@ -169,7 +202,8 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": null
         },
         {
           "anilistId": 1007,
@@ -195,7 +229,8 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": null
         },
         {
           "anilistId": 1008,
@@ -221,7 +256,8 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": null
         }
       ]
     },
@@ -257,6 +293,14 @@
           "nextAiring": {
             "episode": 6,
             "at": "@now+172800"
+          },
+          "posterTones": {
+            "hue": 250,
+            "tone": "#88b6e6",
+            "quiet": "#779cc2",
+            "mid": "#496c90",
+            "low": "#0d2034",
+            "onTone": "#030c17"
           }
         },
         {
@@ -287,6 +331,14 @@
           "nextAiring": {
             "episode": 6,
             "at": "@now+172800"
+          },
+          "posterTones": {
+            "hue": 350,
+            "tone": "#db9bb9",
+            "quiet": "#ba879e",
+            "mid": "#88586f",
+            "low": "#2f1622",
+            "onTone": "#14060d"
           }
         },
         {
@@ -317,7 +369,8 @@
           "nextAiring": {
             "episode": 6,
             "at": "@now+172800"
-          }
+          },
+          "posterTones": null
         },
         {
           "anilistId": 1007,
@@ -343,7 +396,8 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": null
         }
       ]
     },
@@ -383,6 +437,14 @@
           "recentAiring": {
             "episode": 5,
             "at": "@now-7200"
+          },
+          "posterTones": {
+            "hue": 250,
+            "tone": "#88b6e6",
+            "quiet": "#779cc2",
+            "mid": "#496c90",
+            "low": "#0d2034",
+            "onTone": "#030c17"
           }
         },
         {
@@ -417,6 +479,14 @@
           "recentAiring": {
             "episode": 5,
             "at": "@now-7200"
+          },
+          "posterTones": {
+            "hue": 350,
+            "tone": "#db9bb9",
+            "quiet": "#ba879e",
+            "mid": "#88586f",
+            "low": "#2f1622",
+            "onTone": "#14060d"
           }
         },
         {
@@ -451,7 +521,8 @@
           "recentAiring": {
             "episode": 5,
             "at": "@now-7200"
-          }
+          },
+          "posterTones": null
         }
       ]
     },
@@ -483,7 +554,15 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": {
+            "hue": 140,
+            "tone": "#95bf8b",
+            "quiet": "#82a37a",
+            "mid": "#53734c",
+            "low": "#13240f",
+            "onTone": "#050e04"
+          }
         },
         {
           "anilistId": 1004,
@@ -508,7 +587,15 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": {
+            "hue": 75,
+            "tone": "#d1aa73",
+            "quiet": "#b29267",
+            "mid": "#816339",
+            "low": "#2c1c04",
+            "onTone": "#120900"
+          }
         },
         {
           "anilistId": 1006,
@@ -534,7 +621,8 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": null
         },
         {
           "anilistId": 1008,
@@ -560,7 +648,8 @@
           "startDate": "2026-10-04",
           "studios": [
             "测试工作室"
-          ]
+          ],
+          "posterTones": null
         }
       ]
     }

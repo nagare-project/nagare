@@ -14,8 +14,8 @@
 // 冒烟测试会把这种失败请求当成错误 —— 新页面多调了一个接口，就得在这里补上假数据。
 //
 // 时间写成占位串，回答时换成当时的时间：放送表只显示近七日、媒体库扫描太久会触发自动重扫，
-// 写死的时间戳过几天就让页面换了样子。"@now" 是 Unix 秒，"@nowms" 是毫秒，后面可跟 +N / -N 秒，
-// 例如 "@now+7200" 是两小时后。
+// 写死的时间戳过几天就让页面换了样子。"@now" 是 Unix 秒，"@nowms" 是毫秒，"@nowiso" 是 RFC 3339 字符串
+// （仍带引号），后面都可跟 +N / -N 秒，例如 "@now+7200" 是两小时后、"@nowiso-7200" 是两小时前。
 package main
 
 import (
@@ -51,7 +51,7 @@ const shutdownTimeout = 5 * time.Second
 var tokenShape = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // nowToken 匹配假数据里的时间占位串（连同引号，换成数字）。
-var nowToken = regexp.MustCompile(`"@now(ms)?([+-][0-9]+)?"`)
+var nowToken = regexp.MustCompile(`"@now(ms|iso)?([+-][0-9]+)?"`)
 
 func main() {
 	log.SetFlags(0)
@@ -215,8 +215,12 @@ func expandNow(body []byte, now time.Time) []byte {
 			offset, _ = strconv.ParseInt(string(sub[2]), 10, 64)
 		}
 		at := now.Add(time.Duration(offset) * time.Second)
-		if len(sub[1]) > 0 {
+		switch string(sub[1]) {
+		case "ms":
 			return strconv.AppendInt(nil, at.UnixMilli(), 10)
+		case "iso":
+			// RFC 3339 字符串（目录数据的 freshness.fetchedAt 用这种写法），换完仍带引号
+			return strconv.AppendQuote(nil, at.UTC().Format(time.RFC3339))
 		}
 		return strconv.AppendInt(nil, at.Unix(), 10)
 	})

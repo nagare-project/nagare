@@ -18,6 +18,20 @@ func newStore(t *testing.T) (*Store, string) {
 	return s, path
 }
 
+// CoverURLs：匹配封面 + 手动认定的封面，去重；没有封面的、标为「不是目录作品」的不算。
+func TestCoverURLs(t *testing.T) {
+	s, _ := newStore(t)
+	assert.Empty(t, s.CoverURLs())
+	require.NoError(t, s.SetBinding("f1", Binding{CoverURL: "https://img.example/a.jpg"}))
+	require.NoError(t, s.SetBinding("f2", Binding{CoverURL: "https://img.example/a.jpg"}))
+	require.NoError(t, s.SetBinding("f3", Binding{AnilistID: 3}))
+	_, err := s.ApplyAssociation("k1", &Association{Mode: AssociationManual, CoverURL: "https://img.example/b.jpg"}, nil)
+	require.NoError(t, err)
+	_, err = s.ApplyAssociation("k2", &Association{Mode: AssociationNone, CoverURL: "https://img.example/c.jpg"}, nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"https://img.example/a.jpg", "https://img.example/b.jpg"}, s.CoverURLs())
+}
+
 // 首次打开不存在的文件应得到空状态且不落盘；首次写入才建文件（0600）。
 func TestOpenMissingAndFirstWrite(t *testing.T) {
 	s, path := newStore(t)

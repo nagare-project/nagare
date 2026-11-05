@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "data": [
+    {
+      "episode": 1,
+      "title": "The Journey's End",
+      "image": "/art/cap-art/remote/d60001c373e7e60831f425ef8d8d651644e8cd1e8972a085c60e213a1b9eccf8",
+      "description": "勇者一行凯旋。",
+      "duration": 24,
+      "airDate": "2026-10-03",
+      "airedAt": "2026-10-03T14:00:00Z"
+    },
+    {
+      "episode": 2,
+      "title": "不用魔法也可以"
+    }
+  ]
+}

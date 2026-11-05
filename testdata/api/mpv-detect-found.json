@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "data": {
+    "found": true,
+    "path": "/usr/bin/mpv",
+    "source": "path",
+    "version": "0.41.0"
+  }
+}

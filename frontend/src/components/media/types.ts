@@ -54,7 +54,7 @@ export interface MediaSummary {
   /** animego 已知的逐集标题；缺项不代表该集不存在。 */
   episodeTitles?: EpisodeMetadata[]
   rankings?: { rank: number; type: string; context: string; year: number; season: string }[]
-  /** 封面的海报色阶（服务端算好的最终 sRGB）；null / 缺省 = 中性色。只有作品页用它 */
+  /** 封面的海报色阶（服务端算好的 sRGB）；null / 缺省 = 中性色。写在使用它的元素自身（lib/posterTones.ts） */
   posterTones?: PosterTones | null
   /** 作品详情的来历：只在不是刚从上游取回时出现（离线、缓存过期） */
   freshness?: CatalogFreshness

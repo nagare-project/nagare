@@ -124,11 +124,11 @@ func TestSwitchRevertFollowsReaderOnRetiredFile(t *testing.T) {
 	windowed := 0
 	for idx := first; idx < end; idx++ {
 		ps := tor.PieceState(idx)
-		if ps.Complete {
+		if !stillToFetch(ps) {
 			continue
 		}
 		windowed++
-		assert.True(t, ps.Priority >= torrent.PiecePriorityNext, "片 %d 要在 mpv 读位置之后的窗口里，实际 %v", idx, ps.Priority)
+		assert.True(t, ps.Priority >= torrent.PiecePriorityNext, "片 %d 要在 mpv 读位置之后的窗口里，实际 %+v", idx, ps)
 	}
 	require.Positive(t, windowed, "读位置之后还得有没下完的分片，断言才有意义")
 
@@ -176,9 +176,9 @@ func TestDoubleAbandonedSwitchReturnsToWindowFile(t *testing.T) {
 	// 两头与相邻文件共用的边界分片除外
 	wanted := 0
 	for idx := file1.BeginPieceIndex() + 1; idx < file1.EndPieceIndex()-1; idx++ {
-		if ps := tor.PieceState(idx); !ps.Complete {
+		if ps := tor.PieceState(idx); stillToFetch(ps) {
 			wanted++
-			assert.NotEqual(t, torrent.PiecePriorityNone, ps.Priority, "第 1 集的片 %d 要重新可请求", idx)
+			assert.NotEqual(t, torrent.PiecePriorityNone, ps.Priority, "第 1 集的片 %d 要重新可请求：%+v", idx, ps)
 		}
 	}
 	require.Positive(t, wanted, "第 1 集还得有没下完的分片，断言才有意义")

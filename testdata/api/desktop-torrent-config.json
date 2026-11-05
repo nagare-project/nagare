@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "data": {
+    "cacheBytes": 0,
+    "cacheDir": "/data/nagare/cache/torrent",
+    "defaultTrackers": [
+      "udp://tracker.opentrackr.org:1337/announce",
+      "udp://open.stealth.si:80/announce",
+      "udp://tracker.torrent.eu.org:451/announce",
+      "udp://open.demonii.com:1337/announce",
+      "http://nyaa.tracker.wf:7777/announce",
+      "udp://leet-tracker.moe:1337/announce",
+      "https://tracker.nekomi.cn:443/announce",
+      "https://tracker.zhuqiy.com:443/announce",
+      "udp://tracker.qu.ax:6969/announce",
+      "udp://tracker-udp.gbitt.info:80/announce",
+      "udp://t.overflow.biz:6969/announce",
+      "udp://tracker.peerfect.org:6969/announce",
+      "udp://tracker.breizh.pm:6969/announce",
+      "http://ipv4announce.sktorrent.eu:6969/announce",
+      "http://tracker.renfei.net:8080/announce",
+      "https://tracker.7471.top:443/announce"
+    ],
+    "downloadDir": "/home/you/Downloads/nagare",
+    "downloadDirIsDefault": true,
+    "enabled": true,
+    "listenPort": 47850,
+    "portForwarding": true,
+    "restartRequired": false,
+    "seeding": true,
+    "trackers": [
+      "udp://tracker.example.test:6969/announce"
+    ],
+    "useDefaultTrackers": true
+  }
+}

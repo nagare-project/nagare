@@ -1,36 +1,47 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
-import Autoplay from 'embla-carousel-autoplay'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
 /**
- * 分页点的上限（与 seanime CarouselDotButtons 相同）。自由拖拽下每张卡一个吸附点，
- * 本季/上季动辄一百部，一百个点会把整页撑出横向滚动；超过上限就换成前后翻页箭头 ——
- * 不能什么都不画：拖拽和滚轮对只能单指点按的用户（语音控制、开关设备）不可用。
+ * 分页点的上限。点是「按一屏一页」算的（slidesToScroll: 'auto'），本季一百部也只有二十来页；
+ * 再多就只画前后箭头 —— 一排几十个点既找不到位置、又会把标题行撑出横向滚动。
  */
 export const MAX_ROW_DOTS = 30
 
-/** 与 seanime 共用 Embla 的自由拖拽、惯性和逐张分页。 */
-export function CarouselRow({ title, children, filters, autoPlay = false, arrows = false }: {
-  title: string; children: ReactNode; filters?: ReactNode; autoPlay?: boolean; arrows?: boolean
-}) {
+interface CarouselRowProps {
+  title: string
+  children: ReactNode
+  /** 标题下面的筛选条（类型标签） */
+  filters?: ReactNode
+  /** 标题行右侧、箭头左边的链接（如「查看全部」） */
+  action?: ReactNode
+}
+
+/**
+ * 发现页的海报行（DESIGN.md「动效」：海报行不自动滚动）：
+ * 只在用户拖动、滑动、滚轮横移或点箭头时动。箭头一直都在 —— 拖拽对语音控制和开关设备用户不可用。
+ * 键盘：焦点落到屏外的卡片时 Embla 会把它滚进来；在行里按左右方向键整页翻。
+ */
+export function CarouselRow({ title, children, filters, action }: CarouselRowProps) {
   const id = useId()
+  const headingId = useId()
   const reduced = useReducedMotionPreference()
-  const pointerFocus = useRef(false)
   const wheel = useRef({ time: 0, direction: 0 })
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const [paused, setPaused] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [snaps, setSnaps] = useState<number[]>([])
   const [selected, setSelected] = useState(0)
   const [edges, setEdges] = useState({ start: true, end: true })
-  const autoplay = useMemo(() => Autoplay({ delay: 5000, playOnInit: false, stopOnInteraction: true, stopOnFocusIn: false }), [])
-  const [viewport, api] = useEmblaCarousel({ align: 'start', dragFree: true,
+  const [viewport, api] = useEmblaCarousel({
+    align: 'start',
+    dragFree: true,
+    slidesToScroll: 'auto',
+    containScroll: 'trimSnaps',
+    // 卡片浮层里打开的对话框（预览、选集）不能被当成拖拽的起点
     watchDrag: (_, event) => !(event.target instanceof Element && event.target.closest('dialog')),
-  }, [autoplay])
+  })
+
   useEffect(() => {
     if (!api) return
     const sync = () => {
@@ -42,14 +53,12 @@ export function CarouselRow({ title, children, filters, autoPlay = false, arrows
     const up = () => setDragging(false)
     sync()
     api.on('select', sync).on('reInit', sync).on('pointerDown', down).on('pointerUp', up)
-    return () => { api.off('select', sync).off('reInit', sync).off('pointerDown', down).off('pointerUp', up) }
+    return () => {
+      api.off('select', sync).off('reInit', sync).off('pointerDown', down).off('pointerUp', up)
+    }
   }, [api])
-  useEffect(() => {
-    if (!api) return
-    // Embla 在只有一页时不初始化自动播放插件，不能调用 play。
-    if (api.scrollSnapList().length > 1 && autoPlay && !reduced && !hovered && !focused && !paused && !dragging) autoplay.play()
-    else autoplay.stop()
-  }, [api, autoplay, autoPlay, reduced, hovered, focused, paused, dragging, snaps])
+
+  // 触控板横向滑动 / Alt + 滚轮：一次手势翻一页（连续的滚轮事件在 80ms 内只认一次）
   useEffect(() => {
     if (!api) return
     const element = api.rootNode()
@@ -66,34 +75,43 @@ export function CarouselRow({ title, children, filters, autoPlay = false, arrows
     element.addEventListener('wheel', onWheel, { passive: false })
     return () => element.removeEventListener('wheel', onWheel)
   }, [api, reduced])
-  const overCap = snaps.length > MAX_ROW_DOTS
-  const arrowButtons = <>
-    <button type="button" className="icon-button row-arrow" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}><Icon name="left" size={20} /></button>
-    <button type="button" className="icon-button row-arrow" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}><Icon name="right" size={20} /></button>
-  </>
-  return <section className="row discover-row" aria-label={title} data-filtered={!!filters || undefined} data-arrows={arrows || undefined} data-dragging={dragging || undefined}
-    onPointerEnter={event => { if (event.pointerType !== 'touch') setHovered(true) }} onPointerLeave={() => setHovered(false)}
-    onPointerDownCapture={() => { pointerFocus.current = true; setFocused(false) }}
-    onKeyDownCapture={() => { pointerFocus.current = false; setFocused(true) }}
-    onFocusCapture={event => setFocused(!pointerFocus.current || !!event.target.closest('dialog[open]'))}
-    onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
-    <div className="row-head"><h2 className="row-title">{title}</h2>
-      <div className={arrows ? 'row-controls' : overCap ? 'row-controls row-controls--arrows' : 'row-controls row-controls--dots'}>
-        {autoPlay && !reduced && snaps.length > 1 && <button type="button" className="row-pause" aria-label={`${paused ? '播放' : '暂停'}${title}轮播`} aria-pressed={paused}
-          onClick={() => setPaused(!paused)}><Icon name={paused ? 'play' : 'pause'} size={14} /></button>}
-        {/* 分页点模式也带一对箭头：窄屏把点藏起来时由箭头接手（CSS 按宽度二选一） */}
-        {arrows || overCap ? arrowButtons : snaps.length > 1 && <>
-          {snaps.map((_, index) => <button type="button" key={index} className="row-dot" aria-label={`${title}第 ${index + 1} 页`}
-            aria-pressed={selected === index} aria-controls={id} onClick={() => api?.scrollTo(index, reduced)}><span /></button>)}
-          {arrowButtons}
-        </>}
+
+  const pages = snaps.length
+  const showDots = pages > 1 && pages <= MAX_ROW_DOTS
+  return (
+    <section className="discover-row" aria-labelledby={headingId} data-dragging={dragging || undefined}>
+      <div className="row-head">
+        <h2 className="row-title" id={headingId}>{title}</h2>
+        {action}
+        {pages > 1 && (
+          <div className="row-controls">
+            {showDots && (
+              <div className="row-dots" role="group" aria-label={`${title}分页`}>
+                {snaps.map((_, index) => (
+                  <button type="button" key={index} className="row-dot" aria-label={`${title}第 ${index + 1} 页`}
+                    aria-current={selected === index ? 'true' : undefined} aria-controls={id} onClick={() => api?.scrollTo(index, reduced)}>
+                    <span />
+                  </button>
+                ))}
+              </div>
+            )}
+            <button type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}>
+              <Icon name="left" size={18} />
+            </button>
+            <button type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}>
+              <Icon name="right" size={18} />
+            </button>
+          </div>
+        )}
       </div>
-    </div>
-    {filters}
-    <div className="discover-row-viewport" ref={viewport} id={id} onKeyDown={event => {
-      if (event.target instanceof Element && event.target.closest('dialog')) return
-      if (event.key === 'ArrowRight') { event.preventDefault(); api?.scrollNext(reduced) }
-      if (event.key === 'ArrowLeft') { event.preventDefault(); api?.scrollPrev(reduced) }
-    }}><ul className="discover-row-track">{children}</ul></div>
-  </section>
+      {filters}
+      <div className="discover-row-viewport" ref={viewport} id={id} onKeyDown={(event) => {
+        if (event.target instanceof Element && event.target.closest('dialog')) return
+        if (event.key === 'ArrowRight') { event.preventDefault(); api?.scrollNext(reduced) }
+        if (event.key === 'ArrowLeft') { event.preventDefault(); api?.scrollPrev(reduced) }
+      }}>
+        <ul className="discover-row-track">{children}</ul>
+      </div>
+    </section>
+  )
 }

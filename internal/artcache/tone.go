@@ -84,6 +84,9 @@ func (c *Cache) PosterTones(rawURL string) *PosterTones {
 		return nil
 	}
 	path := c.Path(rawURL)
+	// 拼响应时用到这张封面的颜色 = 界面正在显示它，记一次使用：浏览器按 immutable 缓存封面一周，
+	// 显示时未必再来 /art 取图，只看 /art 会把天天在看的海报当成没人用。没缓存的封面这里什么都不做。
+	c.touch(path)
 	if tones, known := c.memoTone(path); known {
 		return tones
 	}
@@ -188,7 +191,15 @@ func (c *Cache) computeTone(path string) {
 	if err != nil {
 		log.Printf("artcache: 读取色结果失败（%s），重算：%v", filepath.Base(path), err)
 	}
+	// 解码期间把封面登记为正在使用：Windows 上开着的文件删不掉，免得淘汰把它当成删不掉的文件报警
+	if name, ok := c.coverName(path); ok {
+		c.holdCover(name)
+		defer c.releaseCover(name)
+	}
 	hue, reason, err := sampleHueFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return // 封面在排队期间被淘汰或清空了：没什么可算的，再下载回来时会重新排队
+	}
 	if err != nil {
 		log.Printf("artcache: 封面取色时读文件失败（%s），%v 后再试：%v", filepath.Base(path), toneRetryAfter, err)
 		c.rememberTone(path, toneResult{failedAt: c.now()})
@@ -202,11 +213,10 @@ func (c *Cache) computeTone(path string) {
 	} else {
 		sc.Reason = reason
 	}
-	if err := writeToneSidecar(path, sc); err != nil {
-		// 结果照样记在内存里：这次进程内不重算，下次启动再试着落盘
-		log.Printf("artcache: 写取色结果失败（%s）：%v", filepath.Base(path), err)
+	// 封面在算的时候被淘汰了（gone）：结果不记，再下载回来时重新算
+	if _, err := c.storeToneIfCover(path, sc, tones); err != nil {
+		log.Printf("artcache: 写取色结果失败（%s），这次运行内不重算：%v", filepath.Base(path), err)
 	}
-	c.rememberTone(path, toneResult{tones: tones})
 }
 
 // readToneSidecar 读边车。found = false：没有、读不了、格式不对或算法版本旧了 —— 都按「要重算」处理；
@@ -236,7 +246,7 @@ func writeToneSidecar(coverPath string, sc toneSidecar) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(coverPath), ".tone-*")
+	tmp, err := os.CreateTemp(filepath.Dir(coverPath), toneTempPrefix+"*")
 	if err != nil {
 		return err
 	}

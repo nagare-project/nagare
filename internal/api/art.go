@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/nagare-project/nagare/internal/artcache"
@@ -60,19 +59,14 @@ func (h *ArtHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path, err := h.cache.Get(r.Context(), source)
+	// Open 而不是 Get + os.Open：文件在转发完（Close）之前不会被后台淘汰或清空删掉
+	f, err := h.cache.Open(r.Context(), source)
 	if err != nil {
 		// 不记录 URL：请求 URL 与上游地址都不进日志（见 middleware.go 的约束），
 		// 这里只说哪个 fileId 失败了。
 		if !errors.Is(err, r.Context().Err()) {
 			log.Printf("art: 取封面失败（%q）：%v", fileID, withoutURL(err))
 		}
-		http.NotFound(w, r)
-		return
-	}
-
-	f, err := os.Open(path)
-	if err != nil {
 		http.NotFound(w, r)
 		return
 	}

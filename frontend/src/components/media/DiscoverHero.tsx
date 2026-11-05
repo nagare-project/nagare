@@ -1,84 +1,111 @@
-import { audienceColor } from './media-format'
 import { useRef, useState } from 'react'
-import { AnimatePresence, domAnimation, LazyMotion, m } from 'motion/react'
+import { posterToneStyle } from '../../lib/posterTones'
 import { Icon } from '../ui/Icon'
+import { DiscoverTrailer } from './DiscoverTrailer'
+import { genreLabel } from './DiscoverGenres'
 import { MediaArtwork } from './MediaArtwork'
 import { MediaEntryLink } from './MediaEntryLink'
 import { MediaPreview } from './MediaPreview'
-import { DiscoverTrailer } from './DiscoverTrailer'
-import { useDiscoverCarousel } from './useDiscoverCarousel'
-import { useReducedMotionPreference } from './useReducedMotionPreference'
+import { useBannerRotation } from './useBannerRotation'
 import { useDesktopLayout } from './useDesktopLayout'
 import { useMediaTrailer } from './useMediaTrailer'
+import { useReducedMotionPreference } from './useReducedMotionPreference'
 import type { MediaSummary } from './types'
 
-/** 参照 seanime：12 秒轮播、900ms 退场、封面缩放与分层文字入场。 */
-export function DiscoverHero({ items, showMetadata = true }: { items: MediaSummary[]; showMetadata?: boolean }) {
+const STATUS_LABEL: Record<string, string> = { RELEASING: '放送中', FINISHED: '已完结', NOT_YET_RELEASED: '未播出' }
+
+/** 横幅上那一行元信息：评分 · 放送状态 · 集数 · 类型（数字走等宽字体） */
+function heroMeta(media: MediaSummary): { score?: string; parts: string[] } {
+  const parts: string[] = []
+  const status = media.status ? STATUS_LABEL[media.status] : undefined
+  if (status) parts.push(status)
+  if (media.format === 'MOVIE') parts.push('剧场版')
+  else if (media.nextAiring) parts.push(`已播 ${Math.max(0, media.nextAiring.episode - 1)} 集`)
+  else if (media.episodes) parts.push(`共 ${media.episodes} 集`)
+  for (const genre of media.genres.slice(0, 3)) {
+    const label = genreLabel(genre)
+    parts.push(label === '全部' ? genre : label)
+  }
+  return { score: media.score ? (media.score / 10).toFixed(1) : undefined, parts }
+}
+
+/**
+ * 发现页横幅（DESIGN.md「发现」「动效」）：每 8 秒换一部，配齐暂停规则；
+ * 暂停按钮常驻（触屏 44px），减弱动态效果时不自动切、也不显示暂停按钮。
+ * 悬停一秒后（只在宽屏、鼠标）背景换成静音预告片。
+ */
+export function DiscoverHero({ items, label }: { items: MediaSummary[]; label: string }) {
+  const [element, setElement] = useState<HTMLElement | null>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
-  const [paused, setPaused] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [userPaused, setUserPaused] = useState(false)
+  // 鼠标点过留下的焦点不算「键盘焦点」：只有键盘（或程序）把焦点移进来才停住
   const pointerFocus = useRef(false)
   const desktop = useDesktopLayout()
   const reduced = useReducedMotionPreference()
-  const { activeIndex, selectedIndex, transitioning, select } = useDiscoverCarousel(Math.min(items.length, 12), paused || hovered || focused || previewOpen || !desktop || !showMetadata, reduced)
+  const count = items.length
+  const { index, select, running } = useBannerRotation({ count, held: hovered || focused || dialogOpen, paused: userPaused, reduced, element })
+  const media = items[index]
+  const trailerActive = desktop && hovered && !dialogOpen && !reduced
+  const trailerId = useMediaTrailer(media, trailerActive)
+  if (!media) return null
+  const meta = heroMeta(media)
 
-  const trailerId = useMediaTrailer(items[activeIndex], desktop && showMetadata && hovered && !previewOpen && !transitioning && !reduced)
-  if (!items.length) return null
-  const media = items[activeIndex]!
   return (
-    <LazyMotion features={domAnimation}><m.section className={transitioning ? 'hero hero--transitioning' : 'hero'} aria-label="精选作品" aria-roledescription="轮播"
-      initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.2 }}
+    <section ref={setElement} className="hero" aria-roledescription="轮播" aria-label="精选作品" style={posterToneStyle(media.posterTones)}
+      onPointerEnter={(event) => { if (event.pointerType !== 'touch') setHovered(true) }}
+      onPointerLeave={() => setHovered(false)}
       onPointerDownCapture={() => { pointerFocus.current = true; setFocused(false) }}
-      onKeyDownCapture={() => { pointerFocus.current = false; setFocused(true) }}
+      onKeyDownCapture={() => { pointerFocus.current = false }}
       onFocusCapture={() => { if (!pointerFocus.current) setFocused(true) }}
-      onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
-      <div className="hero-bg" aria-hidden="true">
-        <MediaArtwork src={media.banner ?? media.cover} title={media.title} eager />
-        <DiscoverTrailer key={media.id} videoId={trailerId} title={media.title}
-          active={desktop && showMetadata && hovered && !previewOpen && !transitioning && !reduced} />
-        <div className="hero-transition-shade" />
-        <div className="hero-gradient-top" /><div className="hero-gradient-left" /><div className="hero-gradient-rail" /><div className="hero-gradient-bottom" />
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
+      <div className="hero-backdrop" aria-hidden="true">
+        <div className="hero-backdrop-image" key={media.id}><MediaArtwork src={media.banner ?? media.cover} title={media.title} eager /></div>
+        <DiscoverTrailer key={`trailer-${media.id}`} videoId={trailerId} title={media.title} active={trailerActive} />
+        <div className="hero-scrim" />
       </div>
-      {showMetadata && desktop && items.length > 1 && <div className="hero-dots" aria-label="切换精选作品">
-        {items.slice(0, 12).map((m, i) => <button key={m.id} type="button" aria-pressed={i === selectedIndex} aria-label={m.title}
-          className={i === selectedIndex ? 'hero-dot hero-dot--on' : 'hero-dot'} onClick={() => select(i)} />)}
-        <button type="button" className="hero-pause" aria-label={paused ? '自动轮播' : '暂停轮播'} aria-pressed={paused} onClick={() => setPaused(!paused)}><Icon name={paused ? 'play' : 'pause'} size={14} /></button>
-      </div>}
-      <div className="hero-stage" aria-busy={transitioning}>
-        <AnimatePresence>
-          {desktop && showMetadata && !transitioning && <m.div key={media.id} className="hero-body"
-            onPointerEnter={event => { if (event.pointerType !== 'touch') setHovered(true) }}
-            onPointerLeave={() => setHovered(false)}
-            initial={reduced ? false : { opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: reduced ? 0 : -20 }}
-            transition={reduced ? { duration: 0 } : { type: 'spring', damping: 20, stiffness: 100 }}>
-            <m.span className="hero-art" initial={reduced ? false : { opacity: 0, scale: .7, skewX: 5, skewY: 5 }}
-              animate={{ opacity: 1, scale: 1, skewX: 0, skewY: 0 }} exit={{ opacity: 1, scale: 1, skewY: 1 }} transition={{ duration: reduced ? 0 : .5 }}>
-              <MediaEntryLink id={media.id} aria-label={`打开作品 ${media.title}`}><MediaArtwork src={media.cover} title={media.title} eager /></MediaEntryLink>
-            </m.span>
-            <m.div className="hero-text" initial={reduced ? false : { opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }} transition={{ duration: reduced ? 0 : .5, delay: reduced ? 0 : .6 }}>
-              <h2 className="hero-title">
-                <MediaEntryLink id={media.id} aria-label={media.title}>{media.title.split(' ').map((word, i) => <m.span key={i} aria-hidden="true"
-                  initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }}
-                  transition={{ duration: reduced ? 0 : 2, delay: reduced ? 0 : i * .2 }}>{word}{i < media.title.split(' ').length - 1 ? ' ' : ''}</m.span>)}</MediaEntryLink>
-              </h2>
-              <p className="hero-genres">{media.genres.slice(0, 3).map((genre) => <span key={genre}>{genre}</span>)}</p>
+      <div className="hero-inner">
+        {/* 自动切换时不念（每 8 秒打断一次读屏）；停住之后换的那张才念 */}
+        <div aria-live={running ? 'off' : 'polite'}>
+          <div className="hero-slide" key={media.id} role="group" aria-roledescription="幻灯片" aria-label={`第 ${index + 1} 部，共 ${count} 部`}>
+            <MediaEntryLink id={media.id} className="hero-art" tabIndex={-1} aria-hidden="true">
+              <MediaArtwork src={media.cover} title={media.title} eager />
+            </MediaEntryLink>
+            <div className="hero-text">
+              <p className="hero-kicker">{label}</p>
+              <h2 className="hero-title"><MediaEntryLink id={media.id}>{media.title}</MediaEntryLink></h2>
+              {media.titleNative && <p className="hero-native" lang="ja">{media.titleNative}</p>}
               <p className="hero-meta">
-                {!!media.score && <span className="hero-score discover-card-score" style={{ color: audienceColor(media.score) }}><Icon name="heart" size={12} />{media.score / 10}</span>}
-                {!!media.nextAiring && <span className="hero-releasing"><Icon name="broadcast" size={18} />放送中</span>}
-                {media.format !== 'MOVIE' && (media.nextAiring?.episode || media.episodes) && <span>{media.nextAiring ? `${Math.max(0, media.nextAiring.episode - 1)} 集已播出` : `共 ${media.episodes} 集`}</span>}
+                {meta.score && <span className="hero-score"><Icon name="star" size={14} /><span className="visually-hidden">评分 </span>{meta.score}</span>}
+                {meta.parts.map((part, i) => <span key={`${i}-${part}`}>{part}</span>)}
               </p>
-              <m.div initial={reduced ? false : { opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: reduced ? 0 : .5, delay: reduced ? 0 : .7 }}>
-                {media.description && <p className="hero-desc">{media.description}</p>}
-                <MediaPreview media={media} className="btn hero-preview" onOpenChange={setPreviewOpen}>预览</MediaPreview>
-              </m.div>
-            </m.div>
-          </m.div>}
-        </AnimatePresence>
+              {media.description && <p className="hero-desc">{media.description}</p>}
+              <div className="hero-actions">
+                <MediaPreview media={media} className="btn btn--primary" onOpenChange={setDialogOpen}>预览</MediaPreview>
+                <MediaEntryLink id={media.id} className="btn hero-open">作品页</MediaEntryLink>
+              </div>
+            </div>
+          </div>
+        </div>
+        {count > 1 && (
+          <div className="hero-controls">
+            <div className="hero-dots" role="group" aria-label="切换精选作品">
+              {items.map((item, i) => (
+                <button key={item.id} type="button" className="hero-dot" aria-label={`第 ${i + 1} 部：${item.title}`}
+                  aria-current={i === index ? 'true' : undefined} onClick={() => select(i)}>
+                  <span />
+                </button>
+              ))}
+            </div>
+            {!reduced && (
+              <button type="button" className="hero-pause" aria-label={userPaused ? '继续自动切换' : '暂停自动切换'} onClick={() => setUserPaused((paused) => !paused)}>
+                <Icon name={userPaused ? 'play' : 'pause'} size={14} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
-    </m.section></LazyMotion>
+    </section>
   )
 }

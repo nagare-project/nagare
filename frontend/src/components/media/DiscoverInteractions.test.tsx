@@ -3,66 +3,145 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
 import { DiscoverHero } from './DiscoverHero'
-import { DiscoverCard } from './DiscoverCard'
-import { DISCOVER_INTERVAL_MS } from './useDiscoverCarousel'
+import { CARD_HOVER_INTENT_MS, DiscoverCard } from './DiscoverCard'
+import { BANNER_INTERVAL_FALLBACK_MS } from './useBannerRotation'
 import type { MediaSummary } from './types'
 
-const items: MediaSummary[] = [1, 2, 3].map(id => ({ id, title: `作品 ${id}`, episodes: 12, watched: 0, genres: ['奇幻'] }))
+const items: MediaSummary[] = [1, 2, 3].map(id => ({ id, title: `作品 ${id}`, episodes: 12, watched: 0, genres: ['Fantasy'] }))
+const INTERVAL = BANNER_INTERVAL_FALLBACK_MS
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 async function advance(ms: number) { await act(async () => { vi.advanceTimersByTime(ms) }) }
 async function pointer(element: Element, type: string, relatedTarget: EventTarget | null = null) {
   await act(async () => { element.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget })) })
 }
+const dots = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>('button')].filter(b => /^第 \d 部：/.test(b.getAttribute('aria-label') ?? ''))
+const current = (container: HTMLElement) => dots(container).findIndex(dot => dot.getAttribute('aria-current') === 'true')
+const heading = (container: HTMLElement) => container.querySelector('h2')?.textContent
 
-describe('Discover 鼠标与键盘交互', () => {
-  it('鼠标点击横幅分页后，按钮留有焦点也会继续自动轮播', async () => {
-    const { container, unmount } = await mount(<DiscoverHero items={items} />)
-    const dots = [...container.querySelectorAll<HTMLButtonElement>('.hero-dot')]
-    await pointer(dots[1]!, 'pointerdown')
-    await act(async () => { dots[1]!.focus(); dots[1]!.click() })
-    expect(document.activeElement).toBe(dots[1])
-    expect(dots[1]?.getAttribute('aria-pressed')).toBe('true')
-    await advance(DISCOVER_INTERVAL_MS)
-    expect(dots[2]?.getAttribute('aria-pressed')).toBe('true')
+describe('发现页横幅：8 秒切换与暂停规则', () => {
+  it('每 8 秒换一部；鼠标点圆点切换后照常自动切（点过留下的焦点不算键盘焦点）', async () => {
+    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
+    expect(heading(container)).toBe('作品 1')
+    await advance(INTERVAL)
+    expect(heading(container)).toBe('作品 2')
+    const target = dots(container)[2]!
+    await pointer(target, 'pointerdown')
+    await act(async () => { target.focus(); target.click() })
+    expect(current(container)).toBe(2)
+    // 手动切换后新的那张从头算：差一点不切，到点才切
+    await advance(INTERVAL - 10)
+    expect(current(container)).toBe(2)
+    await advance(10)
+    expect(current(container)).toBe(0)
     await unmount()
   })
 
-  it('键盘焦点暂停横幅，移出后恢复；切到日程期间停播', async () => {
-    const { container, rerender, unmount } = await mount(<DiscoverHero items={items} />)
-    const dot = container.querySelector<HTMLButtonElement>('.hero-dot')!
+  it('键盘焦点停住横幅，移出后接着剩下的时间走', async () => {
+    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
+    await advance(INTERVAL - 3000)
+    const dot = dots(container)[0]!
     await act(async () => dot.focus())
-    await advance(DISCOVER_INTERVAL_MS)
-    expect(dot.getAttribute('aria-pressed')).toBe('true')
+    await advance(INTERVAL * 2)
+    expect(current(container)).toBe(0)
     await act(async () => dot.blur())
-    await advance(DISCOVER_INTERVAL_MS)
-    expect(dot.getAttribute('aria-pressed')).toBe('false')
-    await rerender(<DiscoverHero items={items} showMetadata={false} />)
-    await advance(DISCOVER_INTERVAL_MS * 2)
-    await rerender(<DiscoverHero items={items} />)
-    expect(container.querySelectorAll('.hero-dot')[1]?.getAttribute('aria-pressed')).toBe('true')
+    await advance(2990)
+    expect(current(container)).toBe(0)
+    await advance(10)
+    expect(current(container)).toBe(1)
     await unmount()
   })
 
-  it('快速移出再移入不会卸载卡片内容；鼠标点击后移出正常收起', async () => {
-    const { container, unmount } = await mount(<DiscoverCard media={items[0]!} />)
-    const card = container.querySelector('.discover-card')!
+  it('鼠标悬停时停住，移开后接着走', async () => {
+    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
+    const hero = container.querySelector('section')!
+    await pointer(hero, 'pointerover')
+    await advance(INTERVAL * 3)
+    expect(current(container)).toBe(0)
+    await pointer(hero, 'pointerout', document.body)
+    await advance(INTERVAL)
+    expect(current(container)).toBe(1)
+    await unmount()
+  })
+
+  it('暂停按钮一直停到再按；按钮名字说的是按下去会做什么', async () => {
+    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
+    const pause = [...container.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === '暂停自动切换')!
+    expect(pause).toBeDefined()
+    await act(async () => pause.click())
+    expect(pause.getAttribute('aria-label')).toBe('继续自动切换')
+    await advance(INTERVAL * 3)
+    expect(current(container)).toBe(0)
+    await act(async () => pause.click())
+    expect(pause.getAttribute('aria-label')).toBe('暂停自动切换')
+    await advance(INTERVAL)
+    expect(current(container)).toBe(1)
+    await unmount()
+  })
+
+  it('只有一部时不画圆点和暂停按钮，也不起计时器', async () => {
+    const { container, unmount } = await mount(<DiscoverHero items={items.slice(0, 1)} label="本季新番" />)
+    expect(container.querySelectorAll('button')).toHaveLength(1) // 只有「预览」
+    expect(vi.getTimerCount()).toBe(0)
+    await unmount()
+  })
+})
+
+describe('作品卡的悬停浮层', () => {
+  it('鼠标停一会儿才弹出；快速移出再移入不会卸载内容；鼠标点击后移出正常收起', async () => {
+    const { container, unmount } = await mount(<ul><DiscoverCard media={items[0]!} /></ul>)
+    const card = container.querySelector('li')!
+    const popup = container.querySelector('[data-state]')!
     await pointer(card, 'pointerover')
-    const popup = container.querySelector('.discover-card-popup')!
+    expect(popup.getAttribute('data-state')).toBe('closed')
+    await advance(CARD_HOVER_INTENT_MS)
     expect(popup.getAttribute('data-state')).toBe('open')
     const content = popup.firstChild
     await pointer(card, 'pointerout', document.body)
     await advance(20)
     await pointer(card, 'pointerover', document.body)
-    await advance(20)
+    await advance(CARD_HOVER_INTENT_MS)
     expect(popup.firstChild).toBe(content)
-    const cover = container.querySelector<HTMLButtonElement>('.discover-card-cover')!
-    await pointer(cover, 'pointerdown')
-    await act(async () => cover.focus())
+    const link = container.querySelector<HTMLAnchorElement>('a[href="/entry?id=1"]')!
+    await pointer(link, 'pointerdown')
+    await act(async () => link.focus())
     await pointer(card, 'pointerout', document.body)
     await advance(40)
     expect(popup.getAttribute('data-state')).toBe('closed')
     expect(popup.firstChild).toBeNull()
+    await unmount()
+  })
+
+  it('整张卡是一个链接：名字是标题 + 副标题，不另写 aria-label（语音控制念可见文字就能点到）', async () => {
+    const media: MediaSummary = { ...items[0]!, year: 2026, season: 'FALL', status: 'RELEASING' }
+    const { container, unmount } = await mount(<ul><DiscoverCard media={media} /></ul>)
+    const link = container.querySelector<HTMLAnchorElement>('a[href="/entry?id=1"]')!
+    expect(link.hasAttribute('aria-label')).toBe(false)
+    expect(link.textContent).toContain('作品 1')
+    expect(link.textContent).toContain('2026 秋 · 12 集')
+    // 封面角标只是视觉，同样的信息以文字放在链接里
+    expect(link.querySelector('[aria-hidden="true"]')?.textContent).toContain('放送中')
+    expect(link.querySelector('.visually-hidden')?.textContent).toBe('放送中')
+    await unmount()
+  })
+
+  it('海报色写在卡片自己身上；没有色阶时不写，落回中性值', async () => {
+    const tones = { hue: 250, tone: '#88b6e6', quiet: '#779cc2', mid: '#496c90', low: '#0d2034', onTone: '#030c17' }
+    const { container, unmount } = await mount(<ul><DiscoverCard media={{ ...items[0]!, posterTones: tones }} /><DiscoverCard media={{ ...items[1]!, posterTones: null }} /></ul>)
+    const [toned, neutral] = [...container.querySelectorAll('li')]
+    expect(toned!.style.getPropertyValue('--poster-tone')).toBe('#88b6e6')
+    expect(toned!.style.getPropertyValue('--poster-tone-mid')).toBe('#496c90')
+    expect(neutral!.getAttribute('style')).toBeNull()
+    await unmount()
+  })
+
+  it('评分为 0 或缺席时浮层里不出评分，而不是显示一个 0 分', async () => {
+    const { container, unmount } = await mount(<ul><DiscoverCard media={{ ...items[0]!, score: 0 }} /><DiscoverCard media={{ ...items[1]!, score: 82 }} /></ul>)
+    for (const link of container.querySelectorAll<HTMLAnchorElement>('li > a')) {
+      await act(async () => link.focus())
+    }
+    const scores = [...container.querySelectorAll('.poster-card-score')].map(e => e.textContent)
+    expect(scores).toEqual(['评分 8.2'])
     await unmount()
   })
 })

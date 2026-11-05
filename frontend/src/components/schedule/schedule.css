@@ -1,142 +1,187 @@
-/* seanime Schedule：宽幅缺集卡 + 月历 + 即将播出。 */
-.schedule-shell { gap: 40px; padding: 24px 32px 48px; }
-.schedule-shell > .fixture-notice { margin-bottom: -20px; }
-/* 放不下时整组分页点换到下一行，标题不收缩 —— 中文标题一收缩就会被挤成一字一行的竖排。 */
-.schedule-section-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 20px; margin-bottom: 16px; }
-.schedule-section-heading h2 { display: flex; align-items: center; gap: 12px; font-size: 28px; font-weight: 650; line-height: 1.25; letter-spacing: -.03em; }
-.schedule-section-heading p { color: var(--fg-muted); font-size: 15px; margin-top: 8px; }
+/* ============================================================
+   放送表（DESIGN.md「放送表」）：月历（≥1024px）/ 逐日列表（<1024px）+ 即将播出。
+   页面骨架与页头在 catalog/catalog.css。只表示上游安排，不推断缺集或逐集已看。
+   ============================================================ */
+
+.schedule-skeleton { min-height: 640px; border: 1px solid var(--separator-opaque); border-radius: var(--radius-lg); background: var(--bg-card); }
+
+/* 区块标题：放不下时箭头整组换到下一行，标题不收缩（中文一收缩就成了竖排） */
+.schedule-section-heading { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-sm) var(--sp-lg); margin-bottom: var(--sp-md); }
+.schedule-section-heading h2 { flex: none; font-size: clamp(20px, 3vw, var(--type-h2-size)); font-weight: var(--type-h2-weight); letter-spacing: var(--type-h2-tracking); line-height: 1.3; }
+.schedule-section-heading p { margin-top: var(--sp-xs); color: var(--text-secondary); font-size: var(--type-caption-size); }
+
+/* ---------- 即将播出：宽幅卡片横向一条（不自动滚动） ---------- */
 .schedule-strip { min-width: 0; }
-.schedule-strip-row { position: relative; display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; list-style: none; margin: 0; padding: 0 0 4px; }
-.schedule-episode { flex: 0 0 calc((100% - 32px) / 3); min-width: 0; scroll-snap-align: start; }
-.schedule-episode-hit { display: block; width: 100%; text-align: left; color: inherit; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
-.schedule-episode-art { position: relative; display: block; aspect-ratio: 2 / 1; border-radius: 10px; background: var(--paper-raised); overflow: hidden; }
-.schedule-episode-art img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; transition: transform .3s; }
-.schedule-episode-hover { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; background: #0006; transition: opacity .2s; }
-.schedule-episode-hit:hover .schedule-episode-art img { transform: scale(1.05); }
-.schedule-episode-hit:hover .schedule-episode-hover, .schedule-episode-hit:focus-visible .schedule-episode-hover { opacity: 1; }
-.schedule-episode-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 600; margin-top: 8px; }
-.schedule-episode-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 3px; font-size: 16px; font-weight: 500; }
-.schedule-episode-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.schedule-episode-meta time { color: var(--fg-muted); font-size: 13px; white-space: nowrap; font-weight: 400; }
-.schedule-strip-dots { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 5px; margin-left: auto; padding-bottom: 4px; }
-.schedule-strip-dot { position: relative; width: 14px; height: 7px; padding: 0; border: 0; border-radius: 99px; background: #ffffff20; cursor: pointer; transition: background-color .25s; }
-.schedule-strip-dot::before { content: ''; position: absolute; inset: -8px -2px; }
-.schedule-strip-dot--on { background: #ffffff80; }
-.schedule-strip-pause { display: grid; place-items: center; width: 22px; height: 24px; padding: 0; margin-left: 4px; border: 0; background: none; color: var(--fg-muted); cursor: pointer; }
-.schedule-calendar { border: 1px solid var(--border-dim); border-radius: 12px; background: var(--bg); }
-.calendar-header { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 12px 24px; border-bottom: 1px solid var(--border-dim); gap: 16px; }
-.calendar-month { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: var(--fg-muted); font-size: 18px; font-weight: 600; }
-.calendar-month--current { color: var(--fg); }
-.calendar-header-actions { display: flex; align-items: center; gap: 20px; }
-.calendar-arrow { border: 1px solid var(--border-dim); border-radius: 50%; width: 32px; height: 32px; }
-.calendar-return { color: var(--fg-muted); font: inherit; font-size: 12px; padding: 4px 8px; background: var(--subtle); border: 0; border-radius: 6px; cursor: pointer; }
-.calendar-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--border-dim); font-size: 15px; font-weight: 600; text-align: center; padding: 10px 8px; gap: 8px; }
-.calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; padding: 8px; }
-.calendar-day { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; height: 160px; padding: 8px 12px; border-radius: 6px; }
-.calendar-day--outside { opacity: .2; }
+.schedule-strip-arrows { display: flex; gap: var(--sp-xs); }
+.schedule-strip-row { position: relative; display: flex; gap: var(--sp-md); margin: 0; padding: 0 0 var(--sp-xs); overflow-x: auto; list-style: none; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.schedule-strip-row::-webkit-scrollbar { display: none; }
+.schedule-episode { flex: 0 0 calc((100% - 2 * var(--sp-md)) / 3); min-width: 0; scroll-snap-align: start; }
+.schedule-episode-hit { display: block; width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.schedule-episode-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.schedule-episode-art img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; transition: transform var(--dur-medium) var(--ease-enter); }
+.schedule-episode-hit:hover .schedule-episode-art img { transform: scale(1.04); }
+.schedule-episode-title { display: block; margin-top: var(--sp-sm); overflow: hidden; font-size: var(--type-h3-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-episode-meta { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-sm); margin-top: 2px; font-size: var(--type-label-size); font-variant-numeric: tabular-nums; }
+.schedule-episode-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-episode-meta time { flex: none; color: var(--poster-tone-quiet); font-size: var(--type-caption-size); }
+
+/* ---------- 月历 ---------- */
+.schedule-calendar { border: 1px solid var(--separator-opaque); border-radius: var(--radius-lg); background: var(--bg-card); }
+.calendar-header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); min-height: 64px; padding: 12px var(--sp-lg); border-bottom: 1px solid var(--hairline); }
+.calendar-month { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-secondary); font-size: var(--type-h3-size); font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
+.calendar-month--current { color: var(--text); }
+.calendar-header-actions { display: flex; align-items: center; gap: var(--sp-sm); }
+.calendar-arrow { width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--bg-fill); }
+.calendar-return { min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-full); background: var(--bg-fill); color: var(--accent); font: inherit; font-size: var(--type-caption-size); cursor: pointer; }
+.calendar-return:hover { background: var(--bg-fill-hover); }
+.calendar-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-sm); padding: 10px var(--sp-sm); border-bottom: 1px solid var(--hairline); color: var(--text-secondary); font-size: var(--type-label-size); font-weight: 600; text-align: center; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-sm); padding: var(--sp-sm); }
+.calendar-day { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; height: 168px; padding: var(--sp-sm) 10px; border-radius: var(--radius-sm); background: var(--bg); }
+.calendar-day--outside { opacity: 0.35; }
 .calendar-day:hover, .calendar-day:focus-within { z-index: 2; }
-.calendar-day-art { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; opacity: .2; transition: opacity .5s; }
-.calendar-day:hover .calendar-day-art { opacity: .3; }
-.calendar-day--today .calendar-day-art, .calendar-day--today:hover .calendar-day-art { opacity: .8; }
-.calendar-day-image { position: absolute; inset: 0; opacity: 0; transition: opacity .5s; }
-.calendar-day-image--on { opacity: 1; }
+.calendar-day-art { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; opacity: 0.22; transition: opacity var(--dur-medium) var(--ease-standard); }
+.calendar-day:hover .calendar-day-art { opacity: 0.32; }
+.calendar-day--today .calendar-day-art { opacity: 0.6; }
+.calendar-day-image { position: absolute; inset: 0; animation: calendar-art-in var(--dur-medium) var(--ease-enter); }
 .calendar-day-image img { width: 100%; height: 100%; object-fit: cover; }
-.calendar-day-open { position: absolute; inset: 0; border: 0; border-radius: inherit; padding: 0; background: linear-gradient(0deg, #080a10, #080a10b0 40%, transparent); cursor: pointer; }
-.calendar-day-open:hover { background-color: #ffffff03; }
-.schedule-date { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; font-size: 16px; color: var(--fg-muted); pointer-events: none; }
-.schedule-date--today { border-radius: 50%; color: #070707; background: #fff; font-size: 18px; font-weight: 700; transition: transform .3s; }
-.calendar-day:hover .schedule-date--today { transform: rotate(12deg); }
-.calendar-events { position: relative; margin: 8px 0 0; padding: 0; list-style: none; }
-.calendar-events li + li { margin-top: 4px; }
-.calendar-event { display: flex; align-items: center; width: 100%; gap: 4px; padding: 0; border: 0; background: none; color: var(--fg); text-align: left; font: inherit; font-size: 13px; font-weight: 500; line-height: 1.3; cursor: pointer; }
-.calendar-event--watched { color: var(--fg-muted); }
-.calendar-event:hover { color: white; }
+.calendar-day-image .poster-art-mark { display: none; }
+/* 整格是「查看当天详情」：压在封面上的渐变保证日期和条目读得清 */
+.calendar-day-open { position: absolute; inset: 0; padding: 0; border: 0; border-radius: inherit; background: linear-gradient(0deg, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.6) 45%, rgba(0, 0, 0, 0.1)); cursor: pointer; }
+.schedule-date { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 28px; color: var(--text-secondary); font-size: var(--type-body-sm-size); font-variant-numeric: tabular-nums; pointer-events: none; }
+.schedule-date--today { border-radius: var(--radius-full); background: var(--text); color: var(--bg); font-weight: 700; }
+.calendar-events { position: relative; margin: var(--sp-sm) 0 0; padding: 0; list-style: none; }
+.calendar-events li + li { margin-top: 2px; }
+/* 点按区域至少 24px 高（WCAG 2.5.8） */
+.calendar-event { display: flex; align-items: center; gap: var(--sp-xs); width: 100%; min-height: 24px; padding: 0 4px; border: 0; border-radius: 4px; background: none; color: var(--text); font: inherit; font-size: var(--type-caption-size); font-weight: 500; line-height: 1.3; text-align: left; cursor: pointer; }
+.calendar-event:hover { background: rgba(255, 255, 255, 0.08); }
+.calendar-event--watched { color: var(--text-secondary); }
 .calendar-event-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.calendar-event-episode { flex: none; margin-left: 4px; color: var(--fg-muted); font-size: 12px; font-weight: 600; }
-.calendar-more { padding: 0; border: 0; background: none; color: var(--fg-muted); font: inherit; font-size: 12px; cursor: pointer; }
-.calendar-more:hover { color: var(--fg); }
-.calendar-event-tooltip { position: absolute; top: -8px; left: 36px; width: max-content; max-width: 200px; z-index: 3; pointer-events: none; padding: 6px 8px; border: 1px solid #ffffff20; border-radius: 6px; background: #10121bd9; color: #ddd; backdrop-filter: blur(8px); font-size: 12px; line-height: 1.5; animation: calendar-tooltip-in .3s ease-out; }
-.calendar-day:nth-child(7n) .calendar-event-tooltip { left: auto; right: 4px; }
-@keyframes calendar-tooltip-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.calendar-event-episode { flex: none; color: var(--text-secondary); font-size: var(--type-micro-size); font-weight: 600; font-variant-numeric: tabular-nums; }
+.calendar-more { min-height: 24px; padding: 0 4px; border: 0; border-radius: 4px; background: none; color: var(--text-secondary); font: inherit; font-size: var(--type-micro-size); cursor: pointer; }
+.calendar-more:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
+.calendar-event-tooltip {
+  position: absolute;
+  top: -8px;
+  left: 36px;
+  z-index: 3;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--popover-border);
+  border-radius: var(--radius-sm);
+  background: var(--popover);
+  box-shadow: var(--shadow-elevated);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+  pointer-events: none;
+}
+.calendar-day:nth-child(7n) .calendar-event-tooltip { right: 4px; left: auto; }
 .calendar-mobile { display: none; }
-.calendar-empty { color: var(--fg-muted); text-align: center; padding: 16px; font-size: 14px; border-top: 1px solid var(--border-dim); }
+.calendar-empty { padding: var(--sp-md); border-top: 1px solid var(--hairline); color: var(--text-secondary); font-size: var(--type-label-size); text-align: center; }
+@keyframes calendar-art-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* 日历设置：浮层（Level 2） */
 .calendar-settings { position: relative; z-index: 5; }
-.calendar-settings-panel { position: absolute; top: 44px; right: -8px; width: 380px; max-width: calc(100vw - 48px); padding: 16px; border: 1px solid #ffffff1a; border-radius: 12px; color: var(--fg); background: #0b0b0bf5; box-shadow: 0 12px 32px #0006; backdrop-filter: blur(12px); font-size: 14px; }
-.calendar-settings-panel fieldset { border: 0; min-width: 0; margin: 0 0 12px; padding: 0 0 12px; border-bottom: 1px solid var(--border-dim); }
-.calendar-settings-panel legend { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
-.calendar-settings-panel label { display: flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; }
-.calendar-settings-panel input { width: 18px; height: 18px; margin: 0; accent-color: var(--brand); }
+.calendar-settings-panel {
+  position: absolute;
+  top: 44px;
+  right: -8px;
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  padding: var(--sp-md);
+  border: 1px solid var(--popover-border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  box-shadow: var(--shadow-elevated);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--text);
+  font-size: var(--type-label-size);
+}
+.calendar-settings-panel fieldset { min-width: 0; margin: 0 0 12px; padding: 0 0 12px; border: 0; border-bottom: 1px solid var(--hairline); }
+.calendar-settings-panel legend { margin-bottom: var(--sp-sm); color: var(--text-secondary); font-size: var(--type-caption-size); font-weight: 600; }
+.calendar-settings-panel label { display: flex; align-items: center; gap: var(--sp-sm); min-height: 32px; cursor: pointer; }
+.calendar-settings-panel input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .calendar-status-options { display: grid; grid-template-columns: 1fr 1fr; }
-.calendar-setting-switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; font-size: 13px; font-weight: 500; }
-.calendar-setting-switch + .calendar-setting-switch { border-top: 1px solid var(--border-dim); padding-bottom: 0; }
-.calendar-dialog { width: min(672px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 24px; margin: auto; color: var(--fg); background: #101010; border: 1px solid #ffffff20; border-radius: 14px; overflow-y: auto; }
-.calendar-dialog::backdrop { background: #000b; backdrop-filter: blur(6px); }
-.calendar-dialog > header { position: relative; padding-right: 40px; margin-bottom: 20px; }
-.calendar-dialog > header h2 { font-size: 21px; font-weight: 600; line-height: 1.5; }
-.calendar-dialog > header p { color: var(--fg-muted); font-size: 14px; margin-top: 4px; }
-.calendar-dialog > header button { position: absolute; right: -8px; top: -8px; }
-.schedule-event-list { display: flex; flex-direction: column; gap: 12px; list-style: none; padding: 0; margin: 0; }
-.schedule-event { display: flex; align-items: flex-start; width: 100%; gap: 12px; padding: 10px; border: 0; border-radius: 8px; color: var(--fg); background: #15171e80; font: inherit; text-align: left; cursor: pointer; transition: background-color .2s; }
-.schedule-event:hover { background: #20222c80; }
-.schedule-event-art { position: relative; display: block; width: 40px; height: 56px; flex: none; border-radius: 4px; overflow: hidden; background: var(--paper-raised); }
+.calendar-setting-switch { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); padding-top: 4px; font-weight: 500; }
+
+/* 当天详情：模态（Level 3） */
+.calendar-dialog { width: min(672px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); margin: auto; padding: var(--sp-lg); overflow-y: auto; border: 1px solid var(--popover-border); border-radius: var(--radius-xl); background: var(--bg-elevated); box-shadow: var(--shadow-modal); color: var(--text); }
+.calendar-dialog::backdrop { background: var(--overlay); backdrop-filter: blur(6px); }
+.calendar-dialog > header { position: relative; margin-bottom: 20px; padding-right: 40px; }
+.calendar-dialog > header h2 { font-size: var(--type-h3-size); font-weight: 600; line-height: 1.5; }
+.calendar-dialog > header p { margin-top: var(--sp-xs); color: var(--text-secondary); font-size: var(--type-label-size); }
+.calendar-dialog > header button { position: absolute; top: -8px; right: -8px; }
+
+/* 一天里的条目（当天详情、窄屏逐日列表）：左边一道作品自己的海报色 */
+.schedule-event-list { display: flex; flex-direction: column; gap: var(--sp-sm); margin: 0; padding: 0; list-style: none; }
+.schedule-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-left: 3px solid var(--poster-tone-mid);
+  border-radius: var(--radius-sm);
+  background: var(--bg-fill);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-standard);
+}
+.schedule-event:hover { background: var(--bg-fill-hover); }
+.schedule-event-art { position: relative; display: block; flex: none; width: 40px; height: 54px; overflow: hidden; border-radius: 4px; background: var(--bg-elevated); }
 .schedule-event-art img { width: 100%; height: 100%; object-fit: cover; }
 .schedule-event-info { flex: 1; min-width: 0; }
-.schedule-event-title { display: flex; align-items: baseline; gap: 8px; justify-content: space-between; font-size: 15px; font-weight: 500; line-height: 1.45; }
-.schedule-event--watched .schedule-event-title { color: var(--fg-muted); }
-.schedule-watched { display: inline-flex; color: var(--fg-muted); flex: none; }
-.schedule-event-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--fg-muted); }
-.schedule-finale { display: inline-flex; color: #93c5fd; flex: none; }
-.schedule-agenda-day { padding: 16px; }
-.schedule-agenda-day + .schedule-agenda-day { border-top: 1px solid var(--border-dim); }
-.schedule-agenda-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.schedule-agenda-heading .schedule-date { width: 32px; height: 32px; border-radius: 50%; background: #20222c; font-size: 14px; font-weight: 650; color: #ccc; }
-.schedule-agenda-heading .schedule-date--today { background: #fff; color: #070707; }
-.schedule-agenda-heading h3 { font-size: 15px; font-weight: 600; }
-.schedule-agenda-heading p { color: var(--fg-muted); font-size: 13px; margin-top: 3px; }
-.schedule-today-label { margin-left: 8px; color: var(--brand); font-size: 12px; }
-.schedule-count { margin-left: auto; padding: 4px 8px; border-radius: 99px; background: #20222c; color: var(--fg-muted); font-size: 12px; }
-.schedule-empty { color: var(--fg-muted); font-size: 14px; padding: 16px; }
-.discover-schedule > h2 { text-align: center; font-size: 26px; margin-bottom: 24px; }
-.schedule-agenda--discover .schedule-agenda-day { padding: 24px 0; }
-.schedule-agenda--discover .schedule-event-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.schedule-agenda--discover .schedule-event-art { width: 80px; height: 80px; }
-.schedule-agenda--discover .schedule-event { background: var(--bg); }
-.schedule-agenda--discover .schedule-date { display: none; }
-.schedule-episode-hit:focus-visible, .schedule-strip-dot:focus-visible, .schedule-strip-pause:focus-visible, .calendar-day-open:focus-visible, .calendar-event:focus-visible, .calendar-more:focus-visible, .calendar-return:focus-visible, .schedule-event:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
-.calendar-day--still .calendar-day-image, .calendar-day--still .calendar-day-art { transition: none; }
-@media (min-width: 1536px) { .schedule-episode { flex-basis: calc((100% - 48px) / 4); } }
-@media (min-width: 2000px) { .schedule-episode { flex-basis: calc((100% - 64px) / 5); } }
+.schedule-event-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-sm); font-size: var(--type-body-sm-size); font-weight: 500; line-height: 1.45; }
+.schedule-event--watched .schedule-event-title { color: var(--text-secondary); }
+.schedule-watched { display: inline-flex; flex: none; color: var(--success); }
+.schedule-event-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; color: var(--text-secondary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; }
+.schedule-finale { display: inline-flex; flex: none; color: var(--teal); }
+
+/* 窄屏逐日列表 */
+.schedule-agenda { display: flex; flex-direction: column; }
+.schedule-agenda-day { padding: var(--sp-md); }
+.schedule-agenda-day + .schedule-agenda-day { border-top: 1px solid var(--hairline); }
+.schedule-agenda-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.schedule-agenda-heading .schedule-date { width: 32px; height: 32px; border-radius: var(--radius-full); background: var(--bg-elevated); color: var(--text); font-size: var(--type-label-size); font-weight: 600; }
+.schedule-agenda-heading .schedule-date--today { background: var(--text); color: var(--bg); }
+.schedule-agenda-heading h3 { font-size: var(--type-body-sm-size); font-weight: 600; }
+.schedule-agenda-heading p { margin-top: 2px; color: var(--text-secondary); font-size: var(--type-caption-size); }
+.schedule-today-label { margin-left: var(--sp-sm); color: var(--teal); font-size: var(--type-caption-size); }
+.schedule-count { margin-left: auto; padding: 2px 8px; border-radius: var(--radius-full); background: var(--bg-fill); color: var(--text-secondary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; }
+.schedule-empty { padding: var(--sp-md); color: var(--text-secondary); font-size: var(--type-label-size); }
+
+@media (pointer: coarse) {
+  .calendar-arrow { width: var(--touch-min); height: var(--touch-min); }
+  .calendar-return { min-height: var(--touch-min); }
+}
+@media (min-width: 1536px) { .schedule-episode { flex-basis: calc((100% - 3 * var(--sp-md)) / 4); } }
 @media (max-width: 1023px) {
-  .schedule-shell { padding: 16px 24px 40px; gap: 32px; }
-  .schedule-episode { flex-basis: calc((100% - 16px) / 2); }
-  .calendar-grid, .calendar-weekdays { display: none; }
+  .schedule-episode { flex-basis: calc((100% - var(--sp-md)) / 2); }
+  .calendar-grid, .calendar-weekdays, .calendar-empty { display: none; }
   .calendar-mobile { display: block; }
-  .calendar-empty { display: none; }
-  .schedule-release > .schedule-section-heading { display: none; }
-  .schedule-agenda--discover .schedule-event-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 767px) {
-  /* 窄屏靠手指横滑翻页，与发现页一样不画分页点；暂停按钮留下，自动轮播还在跑。 */
-  .schedule-strip-dot { display: none; }
-}
-@media (max-width: 640px) {
-  .schedule-shell { padding: 16px 16px 32px; }
-  .schedule-section-heading { gap: 8px; }
-  .schedule-section-heading h2 { font-size: 22px; gap: 8px; }
-  .schedule-section-heading h2 svg { width: 23px; }
-  .schedule-section-heading p { font-size: 13px; }
-  .schedule-episode { flex-basis: 100%; }
-  .schedule-episode-title { font-size: 16px; }
-  .schedule-episode-meta { font-size: 15px; }
-  .calendar-header { padding: 12px 16px; min-height: 60px; }
-  .calendar-header-actions { gap: 8px; }
-  .calendar-month { font-size: 16px; padding-right: 32px; }
-  .calendar-return { position: absolute; top: 45px; right: 18px; z-index: 1; font-size: 11px; }
+@media (max-width: 600px) {
+  .schedule-episode { flex-basis: 85%; }
+  .calendar-header { min-height: 60px; padding: 12px var(--sp-md); }
+  .calendar-month { padding-right: 32px; font-size: var(--type-body-size); }
+  .calendar-return { position: absolute; top: 48px; right: 16px; z-index: 1; }
   .calendar-dialog { padding: 20px; }
-  .calendar-dialog > header h2 { font-size: 18px; }
-  .schedule-agenda--discover .schedule-event-list { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .schedule-episode-art img, .schedule-episode-hover, .schedule-strip-dot, .calendar-day-art, .calendar-day-image, .schedule-date--today, .schedule-event { transition: none; }
-  .calendar-event-tooltip { animation: none; }
+  .schedule-episode-art img, .calendar-day-art, .schedule-event { transition: none; }
+  .schedule-episode-hit:hover .schedule-episode-art img { transform: none; }
+  .calendar-day-image { animation: none; }
 }

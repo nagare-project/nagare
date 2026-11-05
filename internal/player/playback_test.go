@@ -114,13 +114,17 @@ func pushEOF(t *testing.T, f *mpvtest.Fake, pos, duration float64) {
 	f.Quit(t)
 }
 
-// awaitWindowEnd 等窗口收尾全部做完（包括后台回写）。
-func awaitWindowEnd(t *testing.T, pb *playback) {
+// awaitWindowEnd 等窗口收尾全部做完（包括后台回写）。给了 fakes 时，超时把它们收到的命令一并打出来：
+// 卡住的窗口多半是在等一个假 mpv 不会自己发的事件，看命令序列就知道停在哪一步。
+func awaitWindowEnd(t *testing.T, pb *playback, fakes ...*mpvtest.Fake) {
 	t.Helper()
 	select {
 	case <-pb.finished:
 	// 只是等待的上限，正常几十毫秒就收尾；机器满载（两套 -race 同时跑）时 5 秒不够，见过偶发超时
 	case <-time.After(15 * time.Second):
+		for i, f := range fakes {
+			t.Logf("第 %d 个假 mpv 收到的命令：%v", i, f.Commands())
+		}
 		t.Fatal("窗口没有在 15 秒内收尾")
 	}
 }

@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "data": {
+    "synced": 1,
+    "remaining": 1,
+    "reason": "账号服务限流中，稍后再试"
+  }
+}

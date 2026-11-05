@@ -1,0 +1,8 @@
+/* 静音预告片（发现页横幅与作品卡浮层共用）：确认开始播放之后才淡入盖住图片 */
+.hero-trailer { position: absolute; inset: 0; overflow: hidden; opacity: 0; pointer-events: none; transition: opacity var(--dur-long) var(--ease-standard); }
+.hero-trailer--playing { opacity: 1; }
+.hero-trailer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; transform: scale(1.8); pointer-events: none; }
+.hero-trailer-notice { position: absolute; right: var(--sp-lg); bottom: var(--sp-lg); z-index: 3; padding: 2px 8px; border-radius: var(--radius-full); background: var(--badge-scrim); color: var(--text); font-size: var(--type-caption-size); }
+.hero-trailer[data-variant='card'] iframe { top: 50%; left: 50%; width: 100%; height: calc(100% + 120px); transform: translate(-50%, -50%); }
+@media (min-width: 1536px) { .hero-trailer[data-variant='hero'] iframe { transform: scale(2.5); } }
+@media (prefers-reduced-motion: reduce) { .hero-trailer { transition: none; } }

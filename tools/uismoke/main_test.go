@@ -24,6 +24,8 @@ func TestExpandNowReplacesPlaceholders(t *testing.T) {
 		{"毫秒", `{"at":"@nowms"}`, `{"at":1800000000000}`},
 		{"往后", `{"at":"@now+7200"}`, `{"at":1800007200}`},
 		{"往前（毫秒）", `{"at":"@nowms-60"}`, `{"at":1799999940000}`},
+		{"RFC 3339 字符串", `{"fetchedAt":"@nowiso"}`, `{"fetchedAt":"2027-01-15T08:00:00Z"}`},
+		{"RFC 3339 往前", `{"fetchedAt":"@nowiso-7200"}`, `{"fetchedAt":"2027-01-15T06:00:00Z"}`},
 		{"普通字符串不动", `{"title":"@nowhere","at":"now"}`, `{"title":"@nowhere","at":"now"}`},
 	}
 	for _, tc := range cases {
