@@ -33,8 +33,9 @@ type fakePlayer struct {
 	playing    bool
 	refreshErr error
 	refreshes  int
-	// retryRes 是 RetryPendingSyncs 的答复
+	// retryRes 是 RetryPendingSyncs 的答复；onKick 在 KickPendingSyncs 被调时跑（可为 nil）
 	retryRes player.SyncRetryResult
+	onKick   func()
 	// log 记调用顺序（可为 nil）。磁力播放里「先停播放器再准备种子」的顺序
 	// 是正确性的一部分，只能靠调用序来断言。
 	log func(string)
@@ -65,6 +66,12 @@ func (f *fakePlayer) RefreshShaders() (bool, error) {
 func (f *fakePlayer) RetryPendingSyncs(context.Context) player.SyncRetryResult {
 	f.record("player.sync-retry")
 	return f.retryRes
+}
+func (f *fakePlayer) KickPendingSyncs() {
+	f.record("player.sync-kick")
+	if f.onKick != nil {
+		f.onKick()
+	}
 }
 
 // fakeAuth 是 AnimegoAuth 替身。
