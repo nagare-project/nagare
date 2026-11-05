@@ -78,6 +78,19 @@ describe('假数据页面', () => {
     await unmount()
   })
 
+  it('发现：页面有一个 h1（视觉上不显示）；关掉空库说明后焦点落在它上面', async () => {
+    installLocalStorage()
+    vi.mocked(fetchLibrary).mockResolvedValueOnce({ folders: [], clusters: [], continueWatching: [], scannedAt: null } as LibraryData)
+    const { container, unmount } = await mount(<DiscoverPage />)
+    const title = getByRole(container, 'heading', { level: 1, name: '发现' })
+    expect(title.className).toContain('visually-hidden')
+    const close = getByRole(container, 'button', { name: '关闭这条说明' })
+    close.focus()
+    await act(async () => close.click())
+    expect(document.activeElement).toBe(title)
+    await unmount()
+  })
+
   it('发现：板块按后端给的顺序一行一行画，每行都有作品卡', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
     const rows = discoverRows(container)

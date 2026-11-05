@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
+import { getByRole } from '../../test/queries'
 import { DiscoverHero } from './DiscoverHero'
 import { CARD_HOVER_INTENT_MS, DiscoverCard } from './DiscoverCard'
 import { BANNER_INTERVAL_FALLBACK_MS } from './useBannerRotation'
@@ -109,6 +110,43 @@ describe('作品卡的悬停浮层', () => {
     await advance(40)
     expect(popup.getAttribute('data-state')).toBe('closed')
     expect(popup.firstChild).toBeNull()
+    await unmount()
+  })
+
+  it('按 Esc 收起浮层（WCAG 1.4.13）：鼠标不用移开；移开再停回来才重新弹出', async () => {
+    const { container, unmount } = await mount(<ul><DiscoverCard media={items[0]!} /></ul>)
+    const card = container.querySelector('li')!
+    const popup = container.querySelector('[data-state]')!
+    await pointer(card, 'pointerover')
+    await advance(CARD_HOVER_INTENT_MS)
+    expect(popup.getAttribute('data-state')).toBe('open')
+    await act(async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+    expect(popup.getAttribute('data-state')).toBe('closed')
+    // 鼠标还停在卡片上：不会自己又弹出来
+    await advance(CARD_HOVER_INTENT_MS * 3)
+    expect(popup.getAttribute('data-state')).toBe('closed')
+    await pointer(card, 'pointerout', document.body)
+    await pointer(card, 'pointerover', document.body)
+    await advance(CARD_HOVER_INTENT_MS)
+    expect(popup.getAttribute('data-state')).toBe('open')
+    await unmount()
+  })
+
+  it('键盘焦点在浮层里时按 Esc：浮层收起，焦点回到卡片链接（不掉进藏起来的浮层或 <body>）', async () => {
+    const { container, unmount } = await mount(<ul><DiscoverCard media={items[0]!} /></ul>)
+    const link = getByRole(container, 'link', { name: /^作品 1/ })
+    await act(async () => { link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })); link.focus() })
+    const popup = container.querySelector('[data-state]')!
+    expect(popup.getAttribute('data-state')).toBe('open')
+    const play = getByRole(container, 'button', { name: /^播放 / })
+    await act(async () => play.focus())
+    await act(async () => { play.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+    expect(popup.getAttribute('data-state')).toBe('closed')
+    expect(document.activeElement).toBe(link)
+    // 焦点离开这张卡之后，下次再进来照常弹出
+    await act(async () => link.blur())
+    await act(async () => { link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })); link.focus() })
+    expect(popup.getAttribute('data-state')).toBe('open')
     await unmount()
   })
 

@@ -34,18 +34,25 @@ function heroMeta(media: MediaSummary): { score?: string; parts: string[] } {
  * 暂停按钮常驻（触屏 44px），减弱动态效果时不自动切、也不显示暂停按钮。
  * 悬停一秒后（只在宽屏、鼠标）背景换成静音预告片。
  */
-export function DiscoverHero({ items, label }: { items: MediaSummary[]; label: string }) {
+export function DiscoverHero({ items: latest, label }: { items: MediaSummary[]; label: string }) {
   const [element, setElement] = useState<HTMLElement | null>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [userPaused, setUserPaused] = useState(false)
+  // 横幅停住（悬停、键盘焦点在里面、预览对话框开着）时钉住这一组作品：后台刷新换了数据（换序、换作品），
+  // 当前这张不能在用户眼前被换掉 —— 预览对话框与键盘焦点都挂在这张上，一换就被卸掉。停住结束后再换成新数据
+  const held = hovered || focused || dialogOpen
+  const [pinned, setPinned] = useState<MediaSummary[] | null>(null)
+  if (held && pinned === null) setPinned(latest)
+  if (!held && pinned !== null) setPinned(null)
+  const items = pinned ?? latest
   // 鼠标点过留下的焦点不算「键盘焦点」：只有键盘（或程序）把焦点移进来才停住
   const pointerFocus = useRef(false)
   const desktop = useDesktopLayout()
   const reduced = useReducedMotionPreference()
   const count = items.length
-  const { index, select, running } = useBannerRotation({ count, held: hovered || focused || dialogOpen, paused: userPaused, reduced, element })
+  const { index, select, running } = useBannerRotation({ count, held, paused: userPaused, reduced, element })
   const media = items[index]
   const trailerActive = desktop && hovered && !dialogOpen && !reduced
   const trailerId = useMediaTrailer(media, trailerActive)

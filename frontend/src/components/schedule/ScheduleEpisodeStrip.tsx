@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { keepArrowFocus } from '../../lib/focus'
 import { posterToneStyle } from '../../lib/posterTones'
 import { Icon } from '../ui/Icon'
 import { MediaArtwork } from '../media/MediaArtwork'
@@ -15,11 +16,18 @@ export function ScheduleEpisodeStrip({ title, items, now }: { title: string; ite
   const rowId = useId()
   const headingId = useId()
   const [edges, setEdges] = useState({ start: true, end: true })
+  const prevArrow = useRef<HTMLButtonElement>(null)
+  const nextArrow = useRef<HTMLButtonElement>(null)
   const reduced = useReducedMotionPreference()
   useEffect(() => {
     const element = row.current
     if (!element) return
-    const sync = () => setEdges({ start: element.scrollLeft < 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 })
+    const sync = () => {
+      const next = { start: element.scrollLeft < 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 }
+      // 滚到头时箭头马上变 disabled：先把焦点交给另一头（见 keepArrowFocus）
+      keepArrowFocus(next, { start: prevArrow.current, end: nextArrow.current })
+      setEdges(next)
+    }
     sync()
     element.addEventListener('scroll', sync, { passive: true })
     const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync)
@@ -32,8 +40,8 @@ export function ScheduleEpisodeStrip({ title, items, now }: { title: string; ite
     <header className="schedule-section-heading">
       <div><h2 id={headingId}>{title}</h2><p>按本机时区显示</p></div>
       {!(edges.start && edges.end) && <div className="schedule-strip-arrows">
-        <button type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={rowId} disabled={edges.start} onClick={() => page(-1)}><Icon name="left" size={18} /></button>
-        <button type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={rowId} disabled={edges.end} onClick={() => page(1)}><Icon name="right" size={18} /></button>
+        <button ref={prevArrow} type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={rowId} disabled={edges.start} onClick={() => page(-1)}><Icon name="left" size={18} /></button>
+        <button ref={nextArrow} type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={rowId} disabled={edges.end} onClick={() => page(1)}><Icon name="right" size={18} /></button>
       </div>}
     </header>
     <ul className="schedule-strip-row" ref={row} id={rowId}>{items.map(({ event, extraCount }) => <li className="schedule-episode" key={event.id} style={posterToneStyle(event.media.posterTones)}>

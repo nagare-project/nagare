@@ -42,6 +42,8 @@ export function DiscoverPage() {
 
   return (
     <main className="discover-page">
+      {/* 版面上没有页面标题（横幅就是第一屏），读屏仍要一个 h1：按标题跳转时知道这是哪一页，关掉顶部说明后焦点也落在这里 */}
+      <h1 className="visually-hidden">发现</h1>
       <EmptyLibraryStrip />
       {query !== '' ? (
         <div className="catalog-page">

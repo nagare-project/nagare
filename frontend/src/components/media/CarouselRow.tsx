@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
+import { keepArrowFocus } from '../../lib/focus'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
@@ -33,6 +34,8 @@ export function CarouselRow({ title, children, filters, action }: CarouselRowPro
   const [snaps, setSnaps] = useState<number[]>([])
   const [selected, setSelected] = useState(0)
   const [edges, setEdges] = useState({ start: true, end: true })
+  const prevArrow = useRef<HTMLButtonElement>(null)
+  const nextArrow = useRef<HTMLButtonElement>(null)
   const [viewport, api] = useEmblaCarousel({
     align: 'start',
     dragFree: true,
@@ -45,9 +48,12 @@ export function CarouselRow({ title, children, filters, action }: CarouselRowPro
   useEffect(() => {
     if (!api) return
     const sync = () => {
+      const next = { start: !api.canScrollPrev(), end: !api.canScrollNext() }
+      // Embla 在翻页的同一刻发 select：趁箭头还没变 disabled，把焦点交给另一头
+      keepArrowFocus(next, { start: prevArrow.current, end: nextArrow.current })
       setSnaps(api.scrollSnapList())
       setSelected(api.selectedScrollSnap())
-      setEdges({ start: !api.canScrollPrev(), end: !api.canScrollNext() })
+      setEdges(next)
     }
     const down = () => setDragging(true)
     const up = () => setDragging(false)
@@ -95,10 +101,10 @@ export function CarouselRow({ title, children, filters, action }: CarouselRowPro
                 ))}
               </div>
             )}
-            <button type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}>
+            <button ref={prevArrow} type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}>
               <Icon name="left" size={18} />
             </button>
-            <button type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}>
+            <button ref={nextArrow} type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}>
               <Icon name="right" size={18} />
             </button>
           </div>

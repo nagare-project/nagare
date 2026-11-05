@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { keepArrowFocus } from '../../lib/focus'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
@@ -15,10 +16,16 @@ export function DiscoverGenres({ title, value, onChange }: { title: string; valu
   const frame = useRef(0)
   const drag = useRef({ active: false, moved: false, x: 0, last: 0, time: 0, speed: 0, start: 0 })
   const [edges, setEdges] = useState({ start: true, end: true })
+  const arrows = useRef<{ start: HTMLButtonElement | null; end: HTMLButtonElement | null }>({ start: null, end: null })
   const reduced = useReducedMotionPreference()
   useEffect(() => {
     const element = scroll.current!
-    const sync = () => setEdges({ start: element.scrollLeft < 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 })
+    const sync = () => {
+      const next = { start: element.scrollLeft < 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 }
+      // 滚到头时箭头马上变 disabled：先把焦点交给另一头（见 keepArrowFocus）
+      keepArrowFocus(next, arrows.current)
+      setEdges(next)
+    }
     sync()
     element.addEventListener('scroll', sync, { passive: true })
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(sync)
@@ -77,7 +84,7 @@ export function DiscoverGenres({ title, value, onChange }: { title: string; valu
         </button>)}
       </nav>
     </div>
-    {(['start', 'end'] as const).map(side => <button key={side} type="button" className={`discover-genre-arrow discover-genre-arrow--${side}`}
+    {(['start', 'end'] as const).map(side => <button key={side} ref={element => { arrows.current[side] = element }} type="button" className={`discover-genre-arrow discover-genre-arrow--${side}`}
       aria-label={`${title}类型向${side === 'start' ? '前' : '后'}翻页`} aria-controls={id} disabled={edges[side]}
       onClick={() => { cancelAnimationFrame(frame.current); scroll.current?.scrollBy({ left: side === 'start' ? -500 : 500, behavior: reduced ? 'instant' : 'smooth' }) }}>
       <Icon name={side === 'start' ? 'left' : 'right'} size={20} />
