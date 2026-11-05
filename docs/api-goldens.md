@@ -76,13 +76,17 @@ CGO_ENABLED=0 go test ./internal/api/... ./internal/update/ -run Golden -update
 时间写成 `@now` 一类的占位串（放送表只显示近七日，写死的时间过几天页面就变样），所以不能直接拿黄金文件顶替。
 但它们同样逐份严格解码：`frontend/src/lib/smokeFixtures.test.ts` 按 `routes.json` 走过每一条路由，先把占位串换成数字，
 再用与黄金文件同一套 schema 解这个文件（`.ndjson` 事件流逐行解）。缺字段、类型不对、多出客户端不认识的字段都算失败，
-所以接口类型改了，冒烟测试的假数据也得跟着改，不会在一份过时的数据上跑绿。
+所以接口类型改了，`fixtures/` 里的假数据也得跟着改，不会在一份过时的数据上跑绿。
+各个 spec 里用 `stubJson` / `page.route` 临时换出来的回答不在这项检查里。
 
 - **登记**：`routes.json` 加了一条路由，要在这个测试的 `FIXTURE_CONTRACTS` 里写上它用哪个 schema；没登记的路由、
   登记了却已不在路由表里的，都会让测试失败。
-- **占位串**：换法与 `tools/uismoke` 的 `expandNow` 相同。两边共用 `tools/uismoke/testdata/expand-now.json` 里的用例，
-  Go 与 TS 各跑一遍，规则只改了一边就有一边红。换完之后还剩 `"@now…` 的（写错的占位串，uismoke 也不认）同样算失败。
+- **占位串**：换法与 `tools/uismoke` 的 `expandNow` 相同（偏移最多 9 位）。两边共用 `tools/uismoke/testdata/expand-now.json`
+  里的用例，Go 与 TS 各跑一遍，规则只改了一边就有一边红。换完之后还剩以 `@now` 开头的字符串（写错的占位串，uismoke 也不认），
+  同样算失败，所以假数据里不要写以 `@now` 开头的普通字符串。
 - **还没有黄金文件的接口**（`/api/search`、`/api/search/plugin`）：schema 暂放在 `frontend/src/test/smokeContracts.ts`，
-  同样钉在客户端类型上。不放进 `apiContracts.ts`，是因为那边的覆盖检查要求每个可选字段都在黄金文件里出现过；
-  给它们补上黄金文件之后再挪过去。
+  同样用 `exact` 钉在客户端类型上，但用 `withoutCoverage` 建，不进覆盖检查（那边要求每个可选字段都在黄金文件里出现过）。
+  `/api/search/plugin` 的来源结果在线上写作 `{"event":"item","outcome":…}`，客户端读进来才改叫 `outcome` 事件，
+  所以那份 schema 钉的是线上的形状。冒烟假数据里这条流只有 `scope` 与 `done` 两行，条目与来源结果两种分支还没有数据走过；
+  给它们补上黄金文件之后，把 schema 挪进 `apiContracts.ts`。
 - 假数据不算覆盖：可选字段、联合分支有没有出现过，只看黄金文件。
