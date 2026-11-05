@@ -55,6 +55,27 @@ for (const width of WIDTHS) {
   })
 }
 
+test.describe('手机（390px）', () => {
+  test.use({ viewport: { width: 390, height: VIEWPORT_HEIGHT } })
+
+  test('继续观看有三条时横向一条滑动：排在屏幕外的卡片不把整页撑出横向滚动', async ({ page }) => {
+    await page.route('**/api/library', async (route) => {
+      const response = await route.fetch()
+      const envelope = (await response.json()) as { data: { continueWatching: Record<string, unknown>[] } }
+      const [first] = envelope.data.continueWatching
+      const more = [2, 3].map((n) => ({ ...first, fileId: `file-cont-${n}`, title: `第 ${n} 部在看的作品` }))
+      await route.fulfill({ response, json: { ...envelope, data: { ...envelope.data, continueWatching: [first, ...more] } } })
+    })
+    await openApp(page, '/library')
+    const cards = page.getByRole('region', { name: '继续观看' }).getByRole('button')
+    await expect(cards).toHaveCount(3)
+    expect(await horizontalOverflow(page), '页面出现了横向滚动').toBeLessThanOrEqual(0)
+    // 键盘走到第三张：它滚进来，焦点环没被裁掉（四周留了 4px）
+    await cards.nth(2).focus()
+    await expect(cards.nth(2)).toBeInViewport()
+  })
+})
+
 test.describe('宽屏（1440px）', () => {
   test.use({ viewport: { width: 1440, height: VIEWPORT_HEIGHT } })
 

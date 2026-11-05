@@ -109,9 +109,10 @@ export function AssociationPanel({ cluster, onChanged, pickRequest, pickOpener }
         </p>
         <div className="assoc-panel-actions">
           {association === undefined && matched && (
+            // 不用实心按钮：作品页唯一的实心按钮是 hero 里的海报色主按钮（DESIGN.md「一页只有一个实心按钮」）
             <button
               type="button"
-              className="btn btn--sm btn--primary"
+              className="btn btn--sm"
               aria-label={`确认对应作品是「${matched.title || `作品 ${matched.anilistId}`}」`}
               disabled={pending}
               onClick={() => void change({ mode: 'manual', anilistId: matched.anilistId })}

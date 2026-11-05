@@ -14,7 +14,9 @@
 /* ---------- ① 继续观看：最多三条，16:9 缩略图 + --accent 进度条 ---------- */
 
 .cont { display: flex; flex-direction: column; gap: var(--sp-md); }
-.cont-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); margin: 0; padding: 0; list-style: none; }
+/* position: relative —— 卡片里有 .visually-hidden（绝对定位）：手机上这一行横向滚动时，它们得以这一行为包含块，
+   否则排在屏幕外的那几张会把整页撑出横向滚动 */
+.cont-row { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); margin: 0; padding: 0; list-style: none; }
 .cont-card { min-width: 0; }
 .cont-card-hit { display: flex; flex-direction: column; gap: var(--sp-sm); width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .cont-card-hit:disabled { opacity: 0.6; cursor: wait; }
