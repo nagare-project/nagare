@@ -26,6 +26,22 @@
 #define WIDTH 160
 #define HEIGHT 96
 #define FRAMES_WANTED 30
+
+// read_frame 读回 fbo 里的画面：亮度均值（三通道之和）与「和左下角第一个像素颜色不同」的像素数
+static void read_frame(GLuint fbo, long *sum, int *distinct) {
+    static unsigned char pixels[WIDTH * HEIGHT * 4];
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    *sum = 0;
+    *distinct = 0;
+    unsigned char first[3] = {pixels[0], pixels[1], pixels[2]};
+    for (int i = 0; i < WIDTH * HEIGHT; i++) {
+        *sum += pixels[i * 4] + pixels[i * 4 + 1] + pixels[i * 4 + 2];
+        if (memcmp(&pixels[i * 4], first, 3) != 0) {
+            (*distinct)++;
+        }
+    }
+}
 #define TIMEOUT_SECONDS 30.0
 
 static int fail(const char *what, int err) {
@@ -199,7 +215,11 @@ static int render(const char *file, const char *hwdec) {
         {MPV_RENDER_PARAM_FLIP_Y, &flip},
         {MPV_RENDER_PARAM_INVALID, NULL},
     };
-    while (frames < FRAMES_WANTED && now_seconds() < deadline) {
+    // 够了帧数之后每画一帧读回来看一次，看到彩色测试图就停。没有 GPU 的 runner 上软件渲染器偶尔头几十帧
+    // 只画出底色和字幕（读回来几乎是一种颜色），一直等到期限还是这样才算没画出来
+    long sum = 0;
+    int distinct = 0;
+    while (now_seconds() < deadline) {
         mpv_event *ev = mpv_wait_event(h, 0.005);
         if (ev->event_id == MPV_EVENT_END_FILE) {
             mpv_event_end_file *end = ev->data;
@@ -216,19 +236,12 @@ static int render(const char *file, const char *hwdec) {
             }
             mpv_render_context_report_swap(rctx);
             frames++;
-        }
-    }
-
-    static unsigned char pixels[WIDTH * HEIGHT * 4];
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    long sum = 0;
-    int distinct = 0;
-    unsigned char first[3] = {pixels[0], pixels[1], pixels[2]};
-    for (int i = 0; i < WIDTH * HEIGHT; i++) {
-        sum += pixels[i * 4] + pixels[i * 4 + 1] + pixels[i * 4 + 2];
-        if (memcmp(&pixels[i * 4], first, 3) != 0) {
-            distinct++;
+            if (frames >= FRAMES_WANTED) {
+                read_frame(fbo, &sum, &distinct);
+                if (distinct >= WIDTH * HEIGHT / 4) {
+                    break;
+                }
+            }
         }
     }
     char *cur = mpv_get_property_string(h, "hwdec-current");
