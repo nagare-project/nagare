@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { act } from 'react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { getByRole } from '../test/queries'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
 import { DiscoverPage } from './DiscoverPage'
@@ -363,13 +364,16 @@ describe('扩展 / Debrid', () => {
     const { ExtensionsPage } = await import('./ExtensionsPage')
     const { container, unmount } = await mount(<ExtensionsPage />)
 
-    expect(container.querySelector('.page-title')?.textContent).toBe('扩展')
-    // 从 seanime 过来的人会以为这里能装 JS 插件；这段对照必须在
-    const intro = container.querySelector('.ext-intro')?.textContent ?? ''
+    expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe('扩展')
+    // 入口在设置里：页面顶部给一条回设置的路
+    expect(getByRole(container, 'link', { name: '设置' }).getAttribute('href')).toBe('/settings#sources')
+    // 从可执行插件那边过来的人会以为这里能装 JS 插件；这段对照必须在
+    const intro = getByRole(container, 'region', { name: '规则，不是插件' }).textContent ?? ''
     expect(intro).toContain('声明式')
     expect(intro).toContain('没有代码执行')
-    // 真实的源管理组件挂上了
-    expect(container.querySelector('[aria-labelledby="sources-heading"]')).not.toBeNull()
+    // 真实的源管理组件挂上了，而且直接挂在页面标题下（h2）
+    expect(getByRole(container, 'region', { name: '磁力源规则' })).not.toBeNull()
+    expect(getByRole(container, 'heading', { level: 2, name: '磁力源规则' })).not.toBeNull()
     // 不该有假数据横幅 —— 它用的是真接口
     expect(container.querySelector('.alert-warn')).toBeNull()
     await unmount()

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { inDesktopWindow } from '../lib/desktopWindow'
 import type { BackgroundMode, Platform } from '../lib/endpoints'
+import { handOffFocus, pageHeading } from '../lib/focus'
 import { Icon } from './ui/Icon'
-import './background-hint.css'
+import './app-banner.css'
 
 /** 「知道了」记在 localStorage 里的键；值固定为 '1' */
 export const BACKGROUND_HINT_DISMISSED_KEY = 'nagare.backgroundHint.dismissed'
@@ -24,6 +25,13 @@ export interface BackgroundHintProps {
  */
 export function BackgroundHint({ mode, platform, inWindow = inDesktopWindow() }: BackgroundHintProps) {
   const [dismissed, setDismissed] = useState<boolean>(readDismissed)
+  // 点「知道了」后整条提示连同按钮一起消失：焦点交给页面主标题，不掉到 <body> 上
+  const handOff = useRef(false)
+  useEffect(() => {
+    if (!dismissed || !handOff.current) return
+    handOff.current = false
+    handOffFocus(pageHeading())
+  }, [dismissed])
 
   if (dismissed || mode === null) {
     return null
@@ -31,19 +39,22 @@ export function BackgroundHint({ mode, platform, inWindow = inDesktopWindow() }:
 
   function handleDismiss(): void {
     writeDismissed()
+    handOff.current = true
     setDismissed(true)
   }
 
   return (
-    <aside className="background-hint" role="note">
-      <div className="background-hint-inner">
-        <span className="background-hint-icon" aria-hidden="true">
+    <aside className="app-banner" role="note" aria-label="后台运行提示">
+      <div className="app-banner-inner">
+        <span className="app-banner-icon" aria-hidden="true">
           <Icon name="info" size={16} />
         </span>
-        <span className="background-hint-text">{hintText(mode, platform, inWindow)}</span>
-        <button type="button" className="btn btn--sm background-hint-dismiss" onClick={handleDismiss}>
-          知道了
-        </button>
+        <span className="app-banner-text">{hintText(mode, platform, inWindow)}</span>
+        <span className="app-banner-actions">
+          <button type="button" className="btn btn--sm" onClick={handleDismiss}>
+            知道了
+          </button>
+        </span>
       </div>
     </aside>
   )

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { FAKE_RULES } from '../lib/fixtures/scans'
 import type { FakeRule } from '../lib/fixtures/scans'
 import { mono } from '../theme'
-import '../components/library/library.css'
-import '../components/media/media.css'
+import '../components/catalog/catalog.css'
+import '../styles/panels.css'
+import './preview-pages.css'
 
 /**
  * `/auto-downloader` 自动下载。
@@ -27,49 +28,36 @@ export function AutoDownloaderPage() {
   }
 
   return (
-    <main className="lib-shell">
-      <header className="page-head">
-        <h1 className="page-title">自动下载</h1>
+    <main className="catalog-page page-narrow preview-page">
+      <header className="catalog-head">
+        <h1 className="catalog-title">自动下载</h1>
       </header>
 
       <p className="alert-warn" role="status">
         <strong>这一页只是界面预览，功能尚未实现。</strong>
-        nagare 目前没有订阅、没有定时轮询，
-        <strong>点「启用」不会下载任何东西</strong>（缺口 G6）。
+        nagare 目前没有订阅、没有定时轮询，<strong>点「启用」不会下载任何东西</strong>（缺口 G6）。
       </p>
 
       <ul className="rule-list">
         {rules.map((r) => (
-          <li key={r.id} className="panel rule">
+          <li key={r.id} className="info-panel rule">
             <div className="rule-main">
               <p className="rule-title">{r.title}</p>
               <p className="rule-feed" style={mono}>
                 {r.feed}
               </p>
               <p className="rule-meta">
-                {r.quality} · 已匹配 {r.matched} 集 ·{' '}
-                {r.lastCheckedAt === null
-                  ? '从未检查'
-                  : `上次检查 ${new Date(r.lastCheckedAt).toLocaleString('zh-CN', { hour12: false })}`}
+                {r.quality} · 已匹配 {r.matched} 集 · {r.lastCheckedAt === null ? '从未检查' : `上次检查 ${new Date(r.lastCheckedAt).toLocaleString('zh-CN', { hour12: false })}`}
               </p>
             </div>
-            <button
-              type="button"
-              className="switch"
-              role="switch"
-              aria-checked={r.enabled}
-              aria-label={`${r.enabled ? '停用' : '启用'} ${r.title} 的订阅`}
-              onClick={() => toggle(r.id)}
-            >
-              <span className="switch-knob" />
+            <button type="button" className="switch" role="switch" aria-checked={r.enabled} aria-label={`${r.title} 的订阅`} onClick={() => toggle(r.id)}>
+              <span className="switch-knob" aria-hidden="true" />
             </button>
           </li>
         ))}
       </ul>
 
-      <p className="result result--dim">
-        规则地址一律由你自己填写 —— nagare 不预填、不内置、不推荐任何订阅源。
-      </p>
+      <p className="info-panel-note">规则地址一律由你自己填写 —— nagare 不预填、不内置、不推荐任何订阅源。</p>
     </main>
   )
 }

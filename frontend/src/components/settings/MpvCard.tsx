@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { copyText } from '../../lib/clipboard'
 import { redetectMpv } from '../../lib/endpoints'
 import type { DesktopInfo, MpvInfo, MpvInstallGuide, MpvSource } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { isHttpUrl } from '../../lib/url'
-import { label, mono } from '../../theme'
+import { mono } from '../../theme'
+import '../../styles/panels.css'
 import './cards.css'
 
 /** 「已复制」提示停留多久后恢复按钮文案 */
@@ -66,15 +67,15 @@ export function MpvCard({ mpv, desktop, onReload }: MpvCardProps) {
   const view = detectView(detect)
 
   return (
-    <section className="panel settings-card" aria-labelledby="mpv-heading">
-      <h2 id="mpv-heading" className="panel-heading">
-        播放器 mpv
-      </h2>
+    <section className="info-panel" aria-labelledby="mpv-heading">
+      <h3 id="mpv-heading" className="info-panel-title">
+        mpv
+      </h3>
 
       {mpv.embedded === true ? (
         <dl className="kv-list">
           <dt>状态</dt>
-          <dd className="result--ok">已就绪 ✓</dd>
+          <dd className="status-text status-text--ok">已就绪 ✓</dd>
           <dt>来源</dt>
           <dd>{SOURCE_LABEL.embedded}（不需要另装 mpv）</dd>
           <dt>进度条缩略图</dt>
@@ -87,7 +88,7 @@ export function MpvCard({ mpv, desktop, onReload }: MpvCardProps) {
       ) : mpv.found ? (
         <dl className="kv-list">
           <dt>状态</dt>
-          <dd className="result--ok">已找到 ✓</dd>
+          <dd className="status-text status-text--ok">已找到 ✓</dd>
           <dt>版本</dt>
           <dd style={mono}>{mpv.version ?? '（未知）'}</dd>
           <dt>路径</dt>
@@ -99,7 +100,7 @@ export function MpvCard({ mpv, desktop, onReload }: MpvCardProps) {
         <>
           <dl className="kv-list">
             <dt>状态</dt>
-            <dd className="result--err">未找到</dd>
+            <dd className="status-text status-text--error">未找到</dd>
           </dl>
           <p className="alert-warn" role="alert">
             {mpv.hint ?? '未检测到 mpv，请先安装 mpv。'}
@@ -115,14 +116,14 @@ export function MpvCard({ mpv, desktop, onReload }: MpvCardProps) {
         <div className="form-actions">
           <button
             type="button"
-            className="btn btn--sm"
+            className={mpv.found ? 'btn' : 'btn btn--primary'}
             onClick={() => void handleDetect()}
             disabled={busy}
           >
             {busy ? '检测中 …' : '重新检测'}
           </button>
           {!mpv.found && (
-            <span className="result result--dim mpv-detect-hint">
+            <span className="info-panel-note">
               安装完成后点「重新检测」即可，无需重启 nagare
             </span>
           )}
@@ -173,6 +174,7 @@ function DesktopRow({ desktop }: { desktop?: DesktopInfo }) {
 export function InstallGuide({ install }: { install: MpvInstallGuide }) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const timerRef = useRef<number | null>(null)
+  const commandId = useId()
 
   // 卸载时清掉复位定时器，别对着已卸载的卡片 setState
   useEffect(() => {
@@ -192,24 +194,19 @@ export function InstallGuide({ install }: { install: MpvInstallGuide }) {
 
   return (
     <div className="mpv-install">
-      <h3 className="mpv-install-heading" style={label}>
-        安装方法
-      </h3>
+      <h4 className="mpv-install-heading">安装方法</h4>
       {install.note !== '' && <p className="mpv-install-note">{install.note}</p>}
       {hasCommand && (
         <div className="mpv-command">
-          <code className="mpv-command-text" style={mono}>
+          <code id={commandId} className="mpv-command-text" style={mono}>
             {install.command}
           </code>
+          {/* 名字就是看得见的「复制」（读屏与语音控制都按它找），复制的是什么由描述带出来 */}
           <button
             type="button"
-            className={
-              copyState === 'failed'
-                ? 'btn btn--sm mpv-copy mpv-copy--failed'
-                : 'btn btn--sm mpv-copy'
-            }
+            className={copyState === 'failed' ? 'btn mpv-copy mpv-copy--failed' : 'btn mpv-copy'}
             onClick={() => void handleCopy()}
-            aria-label="复制安装命令"
+            aria-describedby={commandId}
           >
             {COPY_LABEL[copyState]}
           </button>

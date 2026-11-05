@@ -1,151 +1,114 @@
 /* ============================================================
-   设置页 M4 新增卡片样式：mpv 安装指引 · 更新 · 退出 · 关于。
-   .settings-card / .kv-list / .form-actions 来自 pages/settings.css（这些卡只在设置页渲染）；
-   .alert-warn / .alert-warn 来自 styles/global.css（三个页面共用同一条警示样式）；
-   .switch 与其它原子件见 styles/global.css。
+   设置页各面板自己的部件：mpv 安装指引 · 更新 · 退出确认 · 磁力 · 画质增强。
+   面板、字段、键值表、开关行、徽标见 styles/panels.css；按钮、开关本体见 styles/global.css。
+   颜色、尺寸一律取 tokens.css 的 token 名。
    ============================================================ */
 
-/* ---------- mpv 安装指引 ---------- */
+/* ---------- mpv 安装指引（设置「播放器」与新手引导共用） ---------- */
 
+/* 框用描边不用填充：框里有蓝色链接与红字，叠在填充底上的 --accent / --error 都不到 4.5:1 */
 .mpv-install {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  padding: 0.85rem 0.9rem 0.95rem;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  background: var(--sunken);
+  gap: 10px;
+  padding: var(--sp-md);
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-md);
 }
 
 .mpv-install-heading {
-  font-weight: 400;
+  color: var(--text);
+  font-size: var(--type-label-size);
+  font-weight: 600;
 }
 
 .mpv-install-note {
-  font-size: 0.82rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: 1.6;
 }
 
 /* 等宽命令块 + 复制按钮 */
 .mpv-command {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--sp-sm);
 }
 
 .mpv-command-text {
   flex: 1;
   min-width: 0;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--border);
+  padding: 10px 14px;
+  border: 1px solid var(--separator-opaque);
   border-radius: var(--radius-sm);
   background: var(--bg);
-  color: var(--brand-hot);
-  font-size: 0.82rem;
-  overflow-x: auto;
-  white-space: pre;
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  /* 折行而不是横向滚：滚动区域要能用键盘滚，命令折开照样能整段复制 */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   user-select: all;
 }
 
 .mpv-copy {
-  flex: none;
-  min-width: 5.2em;
+  min-width: 5.5em;
 }
 
 .mpv-copy--failed {
-  border-color: var(--err-line);
-  color: var(--err);
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .mpv-install-link {
   align-self: flex-start;
-  font-size: 0.86rem;
-}
-
-.mpv-detect-hint {
-  font-size: 0.82rem;
+  font-size: var(--type-label-size);
 }
 
 /* ---------- 更新 ---------- */
 
 .update-badge {
-  margin-left: 0.6em;
-  vertical-align: middle;
+  margin-left: var(--sp-sm);
 }
 
 .update-download {
-  margin-left: 0.8em;
-  font-size: 0.86rem;
+  margin-left: var(--sp-sm);
+  font-size: var(--type-label-size);
 }
 
 .update-error {
   overflow-wrap: anywhere;
 }
 
-.update-actions {
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.update-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  cursor: pointer;
-}
-
-.update-toggle-text {
-  font-size: 0.8rem;
-}
-
-.update-note {
-  font-size: 0.86rem;
-}
-
-/* ---------- 一键更新（M4 阶段 B） ---------- */
+/* ---------- 一键更新（有新版本或更新进行中时出现） ---------- */
 
 .self-update {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.8rem 0.9rem 0.9rem;
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-sm);
-  background: var(--sunken);
-}
-
-/* 不支持自更新时的原因框，用与 mpv 缺失同一条警示样式（.alert-warn 来自 global.css） */
-.self-update-unsupported {
-  overflow-wrap: anywhere;
-}
-
-.self-update-actions {
-  flex-wrap: wrap;
-  align-items: center;
+  gap: 10px;
+  padding: var(--sp-md);
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-md);
 }
 
 .self-update-link {
-  font-size: 0.86rem;
+  font-size: var(--type-label-size);
 }
 
 .self-update-note {
-  font-size: 0.84rem;
-  line-height: 1.6;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: 1.65;
 }
 
-/* 要被替换的路径可能很长，允许自己滚，别把卡片撑破 */
+/* 要被替换的路径可能很长：允许折行，别把面板撑破 */
 .self-update-target {
-  color: var(--brand);
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
-.self-update-status {
-  overflow-wrap: anywhere;
-}
-
-/* 「已装好但没等到重启」：终态且要用户动手，用警示框而不是普通结果行 */
-.self-update-settled {
+.self-update-status,
+.self-update-settled,
+.self-update-unsupported {
   overflow-wrap: anywhere;
 }
 
@@ -154,9 +117,9 @@
   flex: none;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: var(--brand-hot);
-  animation: self-update-pulse 1.4s ease-in-out infinite;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  animation: self-update-pulse 1.4s var(--ease-standard) infinite;
 }
 
 @keyframes self-update-pulse {
@@ -169,145 +132,131 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .self-update-dot {
-    animation: none;
-  }
-}
-
-/* ---------- 退出 ---------- */
+/* ---------- 退出 / 清空封面缓存：内联二次确认 ---------- */
 
 .quit-confirm {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.75rem 0.9rem 0.85rem;
-  border: 1px solid var(--warn-line);
-  border-left: 3px solid var(--warn);
-  border-radius: var(--radius-sm);
-  background: var(--warn-wash);
+  gap: 12px;
+  padding: var(--sp-md);
+  border-radius: var(--radius-md);
+  background: var(--error-dim);
 }
 
 .quit-confirm-copy {
-  font-size: 0.84rem;
+  color: var(--text);
+  font-size: var(--type-label-size);
 }
 
-.quit-confirm-button {
-  border-color: var(--err-line);
-  color: var(--err);
-}
-
-.quit-confirm-button:hover:not(:disabled) {
-  border-color: var(--err);
-  background-color: transparent;
-  color: var(--err);
-}
-
-/* ---------- 磁力（M3） ---------- */
+/* ---------- 磁力 ---------- */
 
 .torrent-form {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 20px;
 }
 
-/* 开关 + 标题 + 一段说明；说明与标题左对齐，开关单独占一列 */
-.torrent-toggle {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 0.6rem;
-  cursor: pointer;
-}
-
-.torrent-toggle .switch {
-  margin-top: 0.2rem;
-}
-
-.torrent-toggle-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.torrent-toggle-text {
-  font-size: 0.84rem;
-}
-
-.torrent-toggle-note {
-  font-size: 0.84rem;
-  line-height: 1.55;
-  color: var(--fg-muted);
-}
-
-.torrent-toggle-note b {
-  font-weight: 500;
-  color: var(--fg);
-}
-
-.torrent-note {
-  font-size: 0.82rem;
-  line-height: 1.55;
-  color: var(--fg-muted);
-}
-
-/* 端口是个短数字，不需要撑满整行 */
 .torrent-port {
-  max-width: 9rem;
+  max-width: 10rem;
 }
 
 .torrent-trackers {
-  resize: vertical;
-  min-height: 4.5rem;
-  line-height: 1.6;
+  min-height: 6rem;
 }
 
+/* 内置 tracker 列表：只读，等宽、可横向滚动 */
 .torrent-default-trackers {
-  display: block;
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  background: var(--surface-2, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: -8px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-fill);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
   line-height: 1.6;
-  white-space: pre-line;
-  color: var(--text-muted, inherit);
-  overflow-x: auto;
+  list-style: none;
+}
+
+/* 长地址折行而不是横向滚动：能滚动的区域得能用键盘滚，一个只读列表不值得多一个 Tab 停留点 */
+.torrent-default-trackers li {
+  overflow-wrap: anywhere;
 }
 
 .torrent-dirty {
-  font-size: 0.84rem;
-}
-
-/* 重启才生效：比普通结果行更显眼，用警示框 */
-.torrent-restart {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--warn-line);
-  border-left: 3px solid var(--warn);
-  border-radius: var(--radius-sm);
-  background: var(--warn-wash);
-  color: var(--warn);
-  font-size: 0.86rem;
-}
-
-.torrent-restart b {
-  font-weight: 500;
+  min-height: 0;
 }
 
 .torrent-cache-note {
-  font-size: 0.82rem;
-  line-height: 1.5;
+  flex: 1 1 16rem;
 }
 
-/* 画质增强：三档并排的选择按钮 */
-.playback-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0.6rem 0; }
-.playback-preset { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border-dim); border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.playback-preset strong { font-size: 14px; }
-.playback-preset span { color: var(--fg-muted); font-size: 12px; line-height: 1.4; }
-.playback-preset:hover:not(:disabled) { border-color: var(--border); }
-.playback-preset--active { border-color: var(--brand-line); background: var(--brand-wash); }
-.playback-preset:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-@media (max-width: 520px) { .playback-presets { grid-template-columns: 1fr; } }
+/* ---------- 画质增强：三档并排的选择按钮（选中 = 蓝色家族） ---------- */
+
+.playback-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-sm);
+}
+
+.playback-preset {
+  display: grid;
+  gap: 4px;
+  min-height: var(--touch-min);
+  padding: 12px 14px;
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-short) var(--ease-standard),
+    background-color var(--dur-short) var(--ease-standard);
+}
+
+.playback-preset strong {
+  font-size: var(--type-label-size);
+  font-weight: 600;
+}
+
+.playback-preset span {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: 1.45;
+}
+
+.playback-preset:hover:not(:disabled) {
+  background: var(--row-hover);
+}
+
+.playback-preset--active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.playback-preset--active strong {
+  color: var(--text);
+}
+
+.playback-preset:disabled {
+  cursor: default;
+}
+
+@media (max-width: 600px) {
+  .playback-presets {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .self-update-dot {
+    animation: none;
+  }
+
+  .playback-preset {
+    transition: none;
+  }
+}

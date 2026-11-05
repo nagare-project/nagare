@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SearchItem } from '../../lib/endpoints'
+import { accessibleName, getAllByRole, getByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 import { MAX_RENDERED_RESULTS, ResultTable } from './ResultTable'
 import { PLAY_BLOCKED_HINT, PLAY_ENGINE_DOWN_HINT, ResultRow } from './ResultRow'
@@ -28,10 +29,15 @@ function makePlay(overrides: Partial<PlayControl> = {}): PlayControl {
   return { onPlay: vi.fn(), busy: null, engineDown: false, ...overrides }
 }
 
+/** 本行的播放按钮：名字是「看得见的字 + 这一行的标题」 */
 function playButton(container: HTMLElement): HTMLButtonElement {
-  const found = container.querySelector<HTMLButtonElement>('.res-play-wrap button')
-  if (found === null) throw new Error('找不到播放按钮')
-  return found
+  return getByRole(container, 'button', { name: /^(播放|启动中 …|播放中) \[Sakurato\]/ }) as HTMLButtonElement
+}
+
+/** aria-describedby 指向的说明文字（禁用的原因） */
+function description(element: HTMLElement): string {
+  const ids = element.getAttribute('aria-describedby')?.split(/\s+/) ?? []
+  return ids.map((id) => element.ownerDocument.getElementById(id)?.textContent ?? '').join(' ')
 }
 
 /** 给 jsdom 的 navigator 装一个可控的 clipboard */
@@ -63,7 +69,7 @@ describe('ResultRow', () => {
     expect(container.querySelector('.res-size')?.textContent).toBe('1.5 GB')
     expect(container.querySelector('.res-fansub')?.textContent).toBe('桜都字幕组')
     expect(container.querySelector('.res-date')?.textContent).toBe('2026-08-30')
-    expect(container.querySelector('.res-source .badge')?.textContent).toBe('源甲')
+    expect(getByRole(container, 'cell', { name: '源甲' })).not.toBeNull()
     expect(container.querySelector('.res-seeders')).toBeNull()
     await unmount()
   })
@@ -83,7 +89,7 @@ describe('ResultRow', () => {
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
     stubClipboard(writeText)
     const { container, unmount } = await mountRow(makeItem())
-    const button = container.querySelector('button.res-copy') as HTMLButtonElement
+    const button = getByRole(container, 'button', { name: /^复制磁力 \[Sakurato\] Sousou no Frieren/ }) as HTMLButtonElement
     expect(button.textContent).toBe('复制磁力')
 
     await act(async () => {
@@ -99,7 +105,7 @@ describe('ResultRow', () => {
     stubClipboard(vi.fn().mockRejectedValue(new Error('NotAllowedError')))
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { container, unmount } = await mountRow(makeItem())
-    const button = container.querySelector('button.res-copy') as HTMLButtonElement
+    const button = getByRole(container, 'button', { name: /^复制磁力/ }) as HTMLButtonElement
     await act(async () => {
       button.click()
     })
@@ -163,7 +169,9 @@ describe('ResultRow', () => {
     expect(play.disabled).toBe(true)
     expect(play.textContent).toBe('播放')
     expect(container.querySelector('.res-play-wrap')?.getAttribute('title')).toBe(PLAY_BLOCKED_HINT)
-    expect(play.getAttribute('aria-label')).toContain(PLAY_BLOCKED_HINT)
+    // 原因作为按钮的描述念出来；名字仍以看得见的「播放」开头
+    expect(description(play)).toBe(PLAY_BLOCKED_HINT)
+    expect(accessibleName(play)).toMatch(/^播放 /)
 
     // 禁用的按钮点了也不该触发播放（防「点了没反应」被误当成 bug）
     await act(async () => {
@@ -203,9 +211,9 @@ describe('ResultTable', () => {
     const { container, unmount } = await mount(
       <ResultTable items={[makeItem(), makeItem()]} names={{}} play={makePlay()} />,
     )
-    expect(container.querySelector('th.res-seeders')).toBeNull()
+    expect(getAllByRole(container, 'columnheader').map(accessibleName)).not.toContain('做种')
     // 查不到名字时来源徽标回退显示 id
-    expect(container.querySelector('.res-source .badge')?.textContent).toBe('src-a')
+    expect(getAllByRole(container, 'cell', { name: 'src-a' })).toHaveLength(2)
     await unmount()
   })
 })

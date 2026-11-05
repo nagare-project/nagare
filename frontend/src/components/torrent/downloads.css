@@ -1,17 +1,21 @@
-/* 磁力任务页的「下载」：完整下到下载目录、下完进媒体库的任务列表 */
-.downloads-panel { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 1.25rem; padding: 1.1rem 1.2rem 1.25rem; }
-.downloads-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 1rem; }
-.downloads-head .panel-heading { flex: 1 0 auto; }
-.downloads-dir { min-width: 0; overflow-wrap: anywhere; color: var(--fg-muted); font-size: 12px; }
-.downloads-empty { color: var(--fg-muted); font-size: 14px; line-height: 1.6; }
-.download-list { display: flex; flex-direction: column; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
-.download-item { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.85rem 1rem; border: 1px solid var(--border-dim); border-radius: 10px; background: var(--paper); }
-.download-main { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
-.download-name { flex: 1; min-width: 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.download-state { flex: none; color: var(--fg-muted); font-size: 12px; }
-.download-state--downloading { color: var(--brand); }
-.download-state--done { color: var(--ok); }
-.download-state--failed { color: var(--err); }
-.download-details { color: var(--fg-muted); font-size: 12px; overflow-wrap: anywhere; white-space: pre-line; }
-.download-hint { color: var(--warn); font-size: 12px; line-height: 1.5; }
-.download-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+/* 磁力任务页的「下载」：完整下到下载目录、下完进媒体库的任务列表。面板见 styles/panels.css */
+.downloads-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-xs) var(--sp-lg); }
+.downloads-dir { min-width: 0; color: var(--text-secondary); font-size: var(--type-caption-size); overflow-wrap: anywhere; }
+.downloads-dir-note { margin-left: 4px; }
+.download-list { display: flex; flex-direction: column; gap: var(--sp-sm); margin: 0; padding: 0; list-style: none; }
+.download-item { gap: 10px; }
+.download-main { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--sp-md); min-width: 0; }
+.download-name { flex: 1 1 14rem; min-width: 0; overflow: hidden; color: var(--text); font-size: var(--type-body-sm-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.download-state { flex: none; color: var(--text-secondary); font-size: var(--type-caption-size); font-weight: 500; }
+.download-state--downloading { color: var(--accent); }
+.download-state--done { color: var(--success); }
+.download-state--failed { color: var(--error); }
+.download-details { color: var(--text-secondary); font-size: var(--type-caption-size); overflow-wrap: anywhere; white-space: pre-line; }
+.download-hint { color: var(--warning); font-size: var(--type-caption-size); line-height: 1.55; }
+.download-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-sm); }
+.download-actions .btn { position: relative; }
+
+/* 进度条（当前会话与下载列表共用）：底轨 + --accent 填充（DESIGN.md 颜色规则 1：进度是可点击色家族） */
+.torrent-bar { height: 4px; overflow: hidden; border-radius: var(--radius-full); background: var(--bg-fill-hover); }
+.torrent-bar-fill { display: block; height: 100%; background: var(--accent); transition: width var(--dur-short) linear; }
+@media (prefers-reduced-motion: reduce) { .torrent-bar-fill { transition: none; } }

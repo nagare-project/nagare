@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getByRole, queryByRole } from '../test/queries'
 import { mount } from '../test/harness'
 import { installLocalStorage, memoryStorage } from '../test/storage'
 import { BACKGROUND_HINT_DISMISSED_KEY, BackgroundHint, hintText } from './BackgroundHint'
@@ -20,7 +21,9 @@ describe('BackgroundHint', () => {
   it('设置未加载（mode=null）时不渲染', async () => {
     const m = await mount(<BackgroundHint mode={null} platform={null} />)
     mounted.push(m.unmount)
-    expect(m.container.querySelector('.background-hint')).toBeNull()
+    expect(queryByRole(m.container, 'note', { name: '后台运行提示' })).toBeNull()
+    // 只断「找不到」的话，角色或名字一改测试照样绿：再确认确实什么都没画
+    expect(m.container.textContent).toBe('')
   })
 
   it('Dock 形态：提示 Dock 图标与 ⌘Q', async () => {
@@ -36,14 +39,29 @@ describe('BackgroundHint', () => {
     const m = await mount(<BackgroundHint mode="tray" platform="windows" />)
     mounted.push(m.unmount)
     await act(async () => {
-      m.container.querySelector<HTMLButtonElement>('.background-hint-dismiss')?.click()
+      (queryByRole(m.container, 'button', { name: '知道了' }) as HTMLButtonElement | null)?.click()
     })
-    expect(m.container.querySelector('.background-hint')).toBeNull()
+    expect(queryByRole(m.container, 'note', { name: '后台运行提示' })).toBeNull()
+    expect(m.container.textContent).toBe('')
     expect(window.localStorage.getItem(BACKGROUND_HINT_DISMISSED_KEY)).toBe('1')
 
     const again = await mount(<BackgroundHint mode="tray" platform="windows" />)
     mounted.push(again.unmount)
-    expect(again.container.querySelector('.background-hint')).toBeNull()
+    expect(queryByRole(again.container, 'note', { name: '后台运行提示' })).toBeNull()
+  })
+
+  it('「知道了」之后焦点交给页面主标题，不掉到 body 上', async () => {
+    const m = await mount(
+      <>
+        <BackgroundHint mode="dock" platform="darwin" />
+        <main><h1>发现</h1></main>
+      </>,
+    )
+    mounted.push(m.unmount)
+    const dismiss = getByRole(m.container, 'button', { name: '知道了' })
+    dismiss.focus()
+    await act(async () => { dismiss.click() })
+    expect(document.activeElement).toBe(getByRole(m.container, 'heading', { level: 1, name: '发现' }))
   })
 
   it('localStorage 抛异常时照常显示、关闭也不炸', async () => {
@@ -59,11 +77,11 @@ describe('BackgroundHint', () => {
     })
     const m = await mount(<BackgroundHint mode="menubar" platform="darwin" />)
     mounted.push(m.unmount)
-    expect(m.container.querySelector('.background-hint')).not.toBeNull()
+    expect(queryByRole(m.container, 'note', { name: '后台运行提示' })).not.toBeNull()
     await act(async () => {
-      m.container.querySelector<HTMLButtonElement>('.background-hint-dismiss')?.click()
+      (queryByRole(m.container, 'button', { name: '知道了' }) as HTMLButtonElement | null)?.click()
     })
-    expect(m.container.querySelector('.background-hint')).toBeNull()
+    expect(queryByRole(m.container, 'note', { name: '后台运行提示' })).toBeNull()
   })
 })
 
@@ -114,7 +132,7 @@ describe('BackgroundHint 在桌面窗口里', () => {
   it('window 形态 + 在窗口里：渲染窗口版文案', async () => {
     const m = await mount(<BackgroundHint mode="window" platform="darwin" inWindow />)
     mounted.push(m.unmount)
-    const text = m.container.querySelector('.background-hint-text')?.textContent ?? ''
+    const text = queryByRole(m.container, 'note', { name: '后台运行提示' })?.textContent ?? ''
     expect(text).toContain('关闭窗口不会退出 nagare')
     expect(text).not.toContain('标签页')
   })

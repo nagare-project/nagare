@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getByRole, queryByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 
 const endpoints = vi.hoisted(() => ({ shutdownNagare: vi.fn() }))
@@ -8,9 +9,11 @@ vi.mock('../../lib/endpoints', () => endpoints)
 
 import { QuitCard, QuitNotice, quitNote } from './QuitCard'
 
-function button(container: HTMLElement, text: string): HTMLButtonElement | undefined {
-  return Array.from(container.querySelectorAll('button')).find((b) => b.textContent === text)
+function button(container: HTMLElement, name: string): HTMLButtonElement | undefined {
+  return (queryByRole(container, 'button', { name }) as HTMLButtonElement | null) ?? undefined
 }
+
+const confirmGroup = (container: HTMLElement) => queryByRole(container, 'group', { name: '确认退出' })
 
 const mounted: Array<() => Promise<void>> = []
 afterEach(async () => {
@@ -25,20 +28,51 @@ describe('QuitCard', () => {
     const m = await mount(<QuitCard platform="linux" onQuit={onQuit} />)
     mounted.push(m.unmount)
     expect(m.container.textContent).toContain('Linux 没有托盘图标')
-    expect(m.container.querySelector('.quit-confirm')).toBeNull()
+    expect(confirmGroup(m.container)).toBeNull()
 
     await act(async () => {
       button(m.container, '退出 nagare')?.click()
     })
-    expect(m.container.querySelector('.quit-confirm')).not.toBeNull()
+    expect(confirmGroup(m.container)).not.toBeNull()
     expect(endpoints.shutdownNagare).not.toHaveBeenCalled()
     expect(onQuit).not.toHaveBeenCalled()
 
     await act(async () => {
       button(m.container, '取消')?.click()
     })
-    expect(m.container.querySelector('.quit-confirm')).toBeNull()
+    expect(confirmGroup(m.container)).toBeNull()
     expect(button(m.container, '退出 nagare')).toBeDefined()
+  })
+
+  // 「退出 nagare」按下去就被确认区换掉了：焦点不能跟着掉到 <body>，键盘用户得能接着操作
+  it('确认区出来时焦点在「取消」，取消后回到「退出 nagare」', async () => {
+    const m = await mount(<QuitCard platform="darwin" onQuit={vi.fn()} />)
+    mounted.push(m.unmount)
+    await act(async () => {
+      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+    })
+    expect(getByRole(m.container, 'group', { name: '确认退出' })).not.toBeNull()
+    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '取消' }))
+
+    await act(async () => {
+      getByRole(m.container, 'button', { name: '取消' }).click()
+    })
+    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 nagare' }))
+  })
+
+  it('退出失败：说出原因，焦点回到「退出 nagare」', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    endpoints.shutdownNagare.mockRejectedValue(new Error('后端没有响应'))
+    const m = await mount(<QuitCard platform="darwin" onQuit={vi.fn()} />)
+    mounted.push(m.unmount)
+    await act(async () => {
+      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+    })
+    await act(async () => {
+      getByRole(m.container, 'button', { name: '确认退出' }).click()
+    })
+    expect(getByRole(m.container, 'status').textContent).toContain('后端没有响应')
+    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 nagare' }))
   })
 
   it('确认后调 shutdown，成功回调 onQuit', async () => {
@@ -71,7 +105,7 @@ describe('QuitCard', () => {
       button(m.container, '确认退出')?.click()
     })
     expect(onQuit).not.toHaveBeenCalled()
-    const status = m.container.querySelector('.result--err[role="status"]')?.textContent ?? ''
+    const status = getByRole(m.container, 'status').textContent ?? ''
     expect(status).toContain('无法连接到 nagare 后端')
     expect(status).toContain('直接关闭此页')
   })
@@ -89,7 +123,9 @@ describe('QuitCard 在桌面窗口里', () => {
     await act(async () => {
       button(m.container, '退出 nagare')?.click()
     })
-    expect(m.container.querySelector('.quit-confirm-copy')?.textContent).toBe('确定退出 nagare 吗？正在播放的视频也会停止。')
+    const confirm = confirmGroup(m.container)!
+    // 焦点落在「取消」上：问题本身挂在分组的描述上，读屏才念得到
+    expect(document.getElementById(confirm.getAttribute('aria-describedby') ?? '')?.textContent).toBe('确定退出 nagare 吗？正在播放的视频也会停止。')
   })
 
   it('Windows 的桌面窗口：指托盘，不提 ⌘Q', () => {
@@ -105,7 +141,7 @@ describe('QuitNotice', () => {
   it('整页提示「nagare 已退出，可以关闭此页」', async () => {
     const m = await mount(<QuitNotice />)
     mounted.push(m.unmount)
-    expect(m.container.querySelector('h1')?.textContent).toBe('nagare 已退出')
+    expect(getByRole(m.container, 'heading', { level: 1, name: 'nagare 已退出' })).toBeDefined()
     expect(m.container.textContent).toContain('可以关闭此页')
   })
 })

@@ -3,6 +3,7 @@ import { act } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { PlayerStatus, SyncFailure } from '../../lib/endpoints'
 import { describeSyncRetry } from '../../lib/syncRetry'
+import { getByRole, queryByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 import { SyncAlert } from './SyncAlert'
 
@@ -19,7 +20,7 @@ const FAILED: SyncFailure = {
 }
 
 function retryButton(container: HTMLElement): HTMLButtonElement | undefined {
-  return [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('重试'))
+  return (queryByRole(container, 'button', { name: /^重试/ }) as HTMLButtonElement | null) ?? undefined
 }
 
 describe('SyncAlert', () => {
@@ -46,7 +47,7 @@ describe('SyncAlert', () => {
     const { container, unmount } = await mount(
       <SyncAlert status={statusWith({ ...FAILED, pending: 3 })} onRetry={vi.fn(async () => {})} />,
     )
-    const text = container.textContent ?? ''
+    const text = getByRole(container, 'status').textContent ?? ''
     expect(text).toContain('共有 3 集等着补记')
     expect(text).toContain('下次启动')
     // 恢复动作不再说「重看这一集才会再试」
@@ -62,13 +63,13 @@ describe('SyncAlert', () => {
       />,
     )
     expect(retryButton(container)).toBeUndefined()
-    expect(container.querySelector('.alert-warn-recovery')?.textContent).toContain('手动标记')
+    expect(getByRole(container, 'status').textContent).toContain('→ 先确认它是作品的第几集，再手动标记')
     await unmount()
   })
 
   it('没有失败时什么都不画', async () => {
     const { container, unmount } = await mount(<SyncAlert status={{ playing: false }} onRetry={vi.fn(async () => {})} />)
-    expect(container.querySelector('.alert-warn')).toBeNull()
+    expect(queryByRole(container, 'status')).toBeNull()
     await unmount()
   })
 })

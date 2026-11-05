@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FocusEvent, FormEvent, KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { isComposing, preventComposingSubmit } from '../../lib/ime'
 import { Icon } from '../ui/Icon'
 import { MAX_QUERY_LENGTH } from '../media/CatalogSearch'
-
-/** 输入法还在组字：Chromium 带 isComposing；Safari 先发 compositionend，随后那次按键的 keyCode 是 229 */
-function isComposing(event: KeyboardEvent<Element>): boolean {
-  return event.nativeEvent.isComposing || event.keyCode === 229
-}
 
 interface HeaderSearchProps {
   open: boolean
@@ -64,11 +60,6 @@ export function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) {
     }
   }
 
-  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    // 输入法确认候选的那次 Enter 不提交
-    if (event.key === 'Enter' && isComposing(event)) event.preventDefault()
-  }
-
   function handleBlur(event: FocusEvent<HTMLFormElement>) {
     const next = event.relatedTarget
     if (next instanceof Node && event.currentTarget.contains(next)) return
@@ -99,7 +90,7 @@ export function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) {
         type="text"
         value={text}
         onChange={(event) => setText(event.target.value)}
-        onKeyDown={handleInputKeyDown}
+        onKeyDown={preventComposingSubmit}
         placeholder="搜索作品名"
         aria-label="作品名"
         maxLength={MAX_QUERY_LENGTH}

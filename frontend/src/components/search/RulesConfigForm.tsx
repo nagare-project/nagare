@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ReloadResult, RulesConfigPatch, RulesInfo, SyncResult } from '../../lib/endpoints'
 import { errorText, formatClock } from '../../lib/format'
-import { label, mono } from '../../theme'
+import { mono } from '../../theme'
 import './sources.css'
 
 export interface RulesConfigFormProps {
@@ -88,7 +88,7 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
   return (
     <form className="rules-form" onSubmit={handleSave}>
       <div className="field">
-        <label htmlFor="rules-remote-url" style={label}>
+        <label htmlFor="rules-remote-url" className="field-label">
           规则仓库地址
         </label>
         <input
@@ -104,7 +104,7 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
         />
       </div>
       <div className="field">
-        <label htmlFor="rules-local-dir" style={label}>
+        <label htmlFor="rules-local-dir" className="field-label">
           本地规则目录
         </label>
         <input
@@ -120,26 +120,20 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
         />
       </div>
       <div className="form-actions">
-        <button type="submit" className="btn btn--sm" disabled={busy}>
+        <button type="submit" className="btn" disabled={busy}>
           {state.phase === 'busy' && state.action === 'save' ? '保存中 …' : '保存'}
         </button>
-        <button
-          type="button"
-          className="btn btn--sm"
-          onClick={handleSync}
-          disabled={!canSync}
-          title={rules.remoteUrl === '' ? '先保存规则仓库地址' : undefined}
-        >
+        <button type="button" className="btn" onClick={handleSync} disabled={!canSync} aria-describedby={rules.remoteUrl === '' ? 'rules-sync-hint' : undefined}>
           {state.phase === 'busy' && state.action === 'sync' ? '同步中 …' : '同步规则'}
         </button>
-        <button
-          type="button"
-          className="btn btn--sm btn--danger"
-          onClick={handleReload}
-          disabled={busy}
-        >
+        <button type="button" className="btn" onClick={handleReload} disabled={busy}>
           {state.phase === 'busy' && state.action === 'reload' ? '加载中 …' : '重新加载'}
         </button>
+        {rules.remoteUrl === '' && (
+          <span id="rules-sync-hint" className="info-panel-note">
+            先保存规则仓库地址，才能同步。
+          </span>
+        )}
       </div>
       <p
         className={view === null ? 'result' : `result result--${view.tone}`}

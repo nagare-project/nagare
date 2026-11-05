@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { SourceOutcome } from '../../lib/endpoints'
+import { accessibleName } from '../../test/queries'
 import { mount } from '../../test/harness'
 import { SourceStateChip } from './SourceStateChip'
 
@@ -72,7 +73,9 @@ describe('SourceStateChip', () => {
     )
     const button = container.querySelector('button.src-chip') as HTMLButtonElement
     expect(button.getAttribute('aria-pressed')).toBe('true')
-    expect(button.getAttribute('aria-label')).toBe('源甲：正常 · 3 条，点击禁用')
+    // 名字 = 看得见的「源甲 3 条」（「·」只是装饰）+ 给读屏的状态说明
+    expect(accessibleName(button)).toBe('源甲3 条，正常，点击禁用')
+    expect(button.hasAttribute('aria-label')).toBe(false)
     await act(async () => {
       button.click()
     })
@@ -87,7 +90,7 @@ describe('SourceStateChip', () => {
     )
     const button = container.querySelector('button.src-chip') as HTMLButtonElement
     expect(button.getAttribute('aria-pressed')).toBe('false')
-    expect(button.getAttribute('aria-label')).toBe('源甲：已禁用，点击启用')
+    expect(accessibleName(button)).toBe('源甲已禁用，点击启用')
     await act(async () => {
       button.click()
     })

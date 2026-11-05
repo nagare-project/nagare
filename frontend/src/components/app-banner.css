@@ -1,0 +1,101 @@
+/* ============================================================
+   顶栏下面那一条（新版本、「关掉标签页不会退出」）：RootLayout 挂在所有页面之上。
+   发现页与作品页的横幅图会向上铺到顶栏底下（定位元素），提示条必须自己定位并压在上面，
+   底色也要不透明 —— 否则它在这两页整条被图盖掉，或者文字糊在图上看不清。
+   左右留白与页面内容对齐（最宽 1400px、居中）。
+   ============================================================ */
+
+.app-banner {
+  position: relative;
+  z-index: 6;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-card);
+}
+
+.app-banner-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm) var(--sp-md);
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 10px var(--gutter);
+  font-size: var(--type-label-size);
+}
+
+.app-banner-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.update-banner .app-banner-icon {
+  color: var(--accent);
+}
+
+.app-banner-text {
+  flex: 1 1 16rem;
+  min-width: 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.app-banner-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+/* 不那么要紧的动作（忽略此版本）：安静的次要字，悬停才亮 */
+.app-banner-quiet {
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.app-banner-quiet:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.app-banner-note {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+
+/* 一键更新进行中的呼吸点：下载可能几分钟没有任何数字变化，用它表明进程还活着 */
+.update-banner-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  animation: app-banner-pulse 1.4s var(--ease-standard) infinite;
+}
+
+@keyframes app-banner-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-banner-inner {
+    padding-inline: 16px;
+  }
+
+  .app-banner-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner-dot {
+    animation: none;
+  }
+}

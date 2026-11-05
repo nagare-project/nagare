@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { preventComposingSubmit } from '../../lib/ime'
 import { fetchCatalogSearch } from '../../lib/media'
 import { errorText } from '../../lib/format'
+import { RouteLink } from '../catalog/RouteLink'
 import { Icon } from '../ui/Icon'
 import { DiscoverCard } from './DiscoverCard'
 import type { MediaSummary } from './types'
@@ -40,6 +42,7 @@ export function CatalogSearchForm({ query, onSearch }: { query: string; onSearch
           maxLength={MAX_QUERY_LENGTH}
           enterKeyHint="search"
           autoComplete="off"
+          onKeyDown={preventComposingSubmit}
         />
       </span>
       <button type="submit" className="btn btn--primary">
@@ -81,7 +84,13 @@ export function CatalogSearchResults({ query, run = 0 }: { query: string; run?: 
 
   return (
     <section className="catalog-search-results" aria-label={`「${query}」的搜索结果`} aria-busy={state.phase === 'loading'}>
-      <h2 className="row-title">搜索「{query}」</h2>
+      <div className="catalog-search-head">
+        <h2 className="row-title">搜索「{query}」</h2>
+        {/* 作品名搜的是目录；要找这部番的磁力资源，同一个词换到磁力搜索 */}
+        <RouteLink to="/search" search={{ q: query }} className="link catalog-search-magnet">
+          在磁力来源里搜<span className="visually-hidden">「{query}」</span> →
+        </RouteLink>
+      </div>
       {state.phase === 'loading' && (
         <p className="result result--dim" role="status">
           正在搜索 …

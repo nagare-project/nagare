@@ -54,19 +54,23 @@ export function SourceStateChip({ name, outcome, onToggle, busy = false }: Sourc
     )
   }
 
+  // 名字取自按钮上的字，再补一段只给读屏的说明：不用 aria-label 盖掉看得见的字，
+  // 否则「源甲 · 3 条」与名字对不上，语音控制按看到的字叫它叫不动（WCAG 2.5.3）
   return (
     <button
       type="button"
       className={className}
       title={view.tooltip}
       data-tooltip={view.tooltip}
-      aria-label={`${name}：${view.description}，点击${enabled ? '禁用' : '启用'}`}
       aria-pressed={enabled}
       data-state={outcome.state}
       onClick={() => onToggle(!enabled)}
       disabled={busy}
     >
       {body}
+      <span className="visually-hidden">
+        {outcome.state === 'ok' ? '，正常' : ''}，点击{enabled ? '禁用' : '启用'}
+      </span>
     </button>
   )
 }

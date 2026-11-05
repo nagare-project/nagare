@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearch as useRouteSearch } from '@tanstack/react-router'
+import { RouteLink } from '../components/catalog/RouteLink'
 import { SearchBody } from '../components/search/SearchBody'
 import { SearchForm } from '../components/search/SearchForm'
 import type { PlayControl } from '../components/search/ResultRow'
@@ -15,6 +16,7 @@ import type { TorrentPlayState } from '../hooks/useTorrentPlay'
 import type { SearchItem, SourceOutcome } from '../lib/endpoints'
 import { errorText } from '../lib/format'
 import { mono } from '../theme'
+import '../components/catalog/catalog.css'
 import '../components/search/search.css'
 
 /** 状态行的一条消息 */
@@ -102,10 +104,15 @@ export function SearchPage() {
   const statusLine = notice ?? pickStatusLine(query, search.state, sources.state)
 
   return (
-    <main className="search-shell">
-      <header className="page-head">
-        <h1 className="page-title">搜索</h1>
+    <main className="catalog-page">
+      <header className="catalog-head">
+        <div>
+          <h1 className="catalog-title">搜索</h1>
+          <p className="catalog-subline">在你启用的磁力来源里按关键词找资源，可以直接边下边播。</p>
+        </div>
       </header>
+
+      <SearchScope query={query} />
 
       {play.engineDown && (
         <p className="alert-warn" role="alert">
@@ -116,24 +123,13 @@ export function SearchPage() {
         </p>
       )}
 
-      {/* key=query：URL 里的关键词变了（后退 / 分享链接）就重置输入框 */}
-      <SearchForm
-        key={query}
-        inputRef={searchInputRef}
-        initialQuery={query}
-        onSubmit={handleSubmit}
-        busy={search.state.phase === 'searching'}
-        autoFocus={query === ''}
-      />
-
-      <p
-        className={statusLine === null ? 'result search-status' : `result search-status result--${statusLine.tone}`}
-        style={mono}
-        role="status"
-        aria-live="polite"
-      >
-        {statusLine?.text}
-      </p>
+      <div className="search-bar">
+        {/* key=query：URL 里的关键词变了（后退 / 分享链接）就重置输入框 */}
+        <SearchForm key={query} inputRef={searchInputRef} initialQuery={query} onSubmit={handleSubmit} busy={search.state.phase === 'searching'} autoFocus={query === ''} />
+        <p className={statusLine === null ? 'result search-status' : `result search-status result--${statusLine.tone}`} style={mono} role="status" aria-live="polite">
+          {statusLine?.text}
+        </p>
+      </div>
 
       <SearchBody
         query={query}
@@ -146,8 +142,24 @@ export function SearchPage() {
         toggling={togglingId !== null}
         play={play}
       />
-
     </main>
+  )
+}
+
+/**
+ * 搜索的两种范围：按作品名找番（目录，结果在发现页 `/?q=`）与按关键词搜磁力（本页）。
+ * 同一个词在两边之间带过去；顶栏的放大镜搜的是作品名。
+ */
+function SearchScope({ query }: { query: string }) {
+  return (
+    <nav className="search-scope" aria-label="搜索范围">
+      <RouteLink to="/" search={{ q: query }} className="search-scope-item">
+        作品
+      </RouteLink>
+      <Link to="/search" search={{ q: query === '' ? undefined : query }} className="search-scope-item" aria-current="page">
+        磁力
+      </Link>
+    </nav>
   )
 }
 

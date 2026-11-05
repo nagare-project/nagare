@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isSettledPhase } from '../hooks/useSelfUpdate'
 import type { UseSelfUpdateResult } from '../hooks/useSelfUpdate'
 import type { UpdateView } from '../lib/endpoints'
+import { handOffFocus, pageHeading } from '../lib/focus'
 import { formatVersion } from '../lib/format'
 import { selfUpdateStatus } from '../lib/selfUpdateText'
 import { isHttpUrl } from '../lib/url'
 import { Icon } from './ui/Icon'
-import './update-banner.css'
+import './app-banner.css'
 
 /** 「忽略此版本」记在 localStorage 里的键；值是被忽略的 latest 原文 */
 export const IGNORED_VERSION_KEY = 'nagare.update.ignoredVersion'
@@ -28,6 +29,13 @@ export interface UpdateBannerProps {
  */
 export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
   const [ignored, setIgnored] = useState<string | null>(readIgnored)
+  // 点「忽略此版本」后提示条连同按钮一起消失：焦点交给页面主标题，不掉到 <body> 上
+  const handOff = useRef(false)
+  useEffect(() => {
+    if (ignored === null || !handOff.current) return
+    handOff.current = false
+    handOffFocus(pageHeading())
+  }, [ignored])
 
   if (view === null || !view.available || view.latest === '' || ignored === view.latest) {
     return null
@@ -39,23 +47,20 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
 
   function handleIgnore(): void {
     writeIgnored(latest)
+    handOff.current = true
     setIgnored(latest)
   }
 
   return (
-    <aside className="update-banner" role="status" aria-live="polite">
-      <div className="update-banner-inner">
-        <span className="update-banner-icon" aria-hidden="true">
+    <aside className="app-banner update-banner" role="status" aria-live="polite">
+      <div className="app-banner-inner">
+        <span className="app-banner-icon" aria-hidden="true">
           <Icon name="refresh" size={16} />
         </span>
         {selfUpdate.busy && <span className="update-banner-dot" aria-hidden="true" />}
         {/* 整条 aside 是 live region，所以每秒都在变的秒数必须 aria-hidden，
             否则读屏会一秒念一遍（与 TorrentStatusBar 的处理同一手法） */}
-        <span
-          className={
-            status === null ? 'update-banner-text' : `update-banner-text result--${status.tone}`
-          }
-        >
+        <span className={status === null ? 'app-banner-text' : `app-banner-text result--${status.tone}`}>
           {status === null ? (
             <>
               新版本 {formatVersion(view.latest)} 可用（当前 {formatVersion(view.current)}）
@@ -67,39 +72,27 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
             </>
           )}
         </span>
-        {isHttpUrl(view.url) && (
-          <a
-            className="link update-banner-link"
-            href={view.url}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            下载 ↗
-          </a>
-        )}
-        {view.selfUpdate.supported && !settled && (
-          <button
-            type="button"
-            className="btn btn--sm update-banner-apply"
-            onClick={selfUpdate.start}
-            disabled={selfUpdate.busy}
-          >
-            {selfUpdate.busy ? '更新中 …' : failed ? '重试' : '立即更新'}
-          </button>
-        )}
-        {/* 更新期间不给「忽略此版本」：点了提示条连同进度一起消失，而后端还在
-            下载/替换 —— 用户会以为自己取消掉了。换成一句说明，别留个哑掉的控件。 */}
-        {selfUpdate.busy ? (
-          <span className="update-banner-hint">更新进行中，暂时不能忽略此版本</span>
-        ) : (
-          <button
-            type="button"
-            className="btn btn--sm btn--danger update-banner-ignore"
-            onClick={handleIgnore}
-          >
-            忽略此版本
-          </button>
-        )}
+        <span className="app-banner-actions">
+          {isHttpUrl(view.url) && (
+            <a className="link" href={view.url} target="_blank" rel="noreferrer noopener">
+              下载 ↗
+            </a>
+          )}
+          {view.selfUpdate.supported && !settled && (
+            <button type="button" className="btn btn--sm" onClick={selfUpdate.start} disabled={selfUpdate.busy}>
+              {selfUpdate.busy ? '更新中 …' : failed ? '重试' : '立即更新'}
+            </button>
+          )}
+          {/* 更新期间不给「忽略此版本」：点了提示条连同进度一起消失，而后端还在
+              下载/替换 —— 用户会以为自己取消掉了。换成一句说明，别留个哑掉的控件。 */}
+          {selfUpdate.busy ? (
+            <span className="app-banner-note">更新进行中，暂时不能忽略此版本</span>
+          ) : (
+            <button type="button" className="btn btn--sm app-banner-quiet" onClick={handleIgnore}>
+              忽略此版本
+            </button>
+          )}
+        </span>
       </div>
     </aside>
   )

@@ -8,6 +8,7 @@ import { CHANNEL_LABEL, UNSUPPORTED_REASON, selfUpdateStatus } from '../../lib/s
 import type { SelfUpdateStatus } from '../../lib/selfUpdateText'
 import { isHttpUrl } from '../../lib/url'
 import { mono } from '../../theme'
+import '../../styles/panels.css'
 import './cards.css'
 
 export interface UpdateCardProps {
@@ -62,10 +63,10 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
   const view = actionView(action)
 
   return (
-    <section className="panel settings-card" aria-labelledby="update-heading">
-      <h2 id="update-heading" className="panel-heading">
-        更新
-      </h2>
+    <section className="info-panel" aria-labelledby="update-heading">
+      <h3 id="update-heading" className="info-panel-title">
+        版本
+      </h3>
 
       {state.phase === 'loading' && (
         <p className="result result--dim" style={mono} role="status">
@@ -77,15 +78,11 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
           <p className="result result--err" style={mono}>
             {state.phase === 'error' ? state.message : '未携带有效 token，无法读取更新状态'}
           </p>
-          <p>
-            <button
-              type="button"
-              className="btn btn--sm"
-              onClick={() => void update.reload()}
-            >
+          <div className="form-actions">
+            <button type="button" className="btn btn--sm" onClick={() => void update.reload()}>
               重试
             </button>
-          </p>
+          </div>
         </>
       )}
       {state.phase === 'ready' && (
@@ -97,7 +94,7 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
             <dd style={mono}>
               {formatVersion(state.data.latest)}
               {state.data.available && (
-                <span className="badge badge--accent update-badge">新版本</span>
+                <span className="status-badge status-badge--info update-badge">新版本</span>
               )}
               {state.data.available && isHttpUrl(state.data.url) && (
                 <a
@@ -130,33 +127,21 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
 
           <SelfUpdateSection view={state.data} selfUpdate={selfUpdate} />
 
-          <div className="form-actions update-actions">
-            <button
-              type="button"
-              className="btn btn--sm"
-              onClick={() => void handleCheck()}
-              disabled={busy}
-            >
+          <div className="form-actions">
+            <button type="button" className="btn" onClick={() => void handleCheck()} disabled={busy}>
               {action.phase === 'busy' && action.action === 'check' ? '检查中 …' : '立即检查'}
             </button>
-            <label className="update-toggle">
-              <button
-                type="button"
-                role="switch"
-                className="switch"
-                aria-checked={state.data.enabled}
-                aria-label="自动检查更新"
-                onClick={() => void handleToggle(!state.data.enabled)}
-                disabled={busy}
-              >
-                <span className="switch-knob" aria-hidden="true" />
-              </button>
-              <span className="update-toggle-text">自动检查更新</span>
-            </label>
           </div>
-          <p className="page-notice-copy update-note">
-            开启后每天最多向 GitHub 查询一次最新发布，只发送版本号；发现新版本时页面顶部会提示，不会自动下载或替换程序。
-          </p>
+          <hr className="info-panel-rule" />
+          <label className="toggle-row">
+            <span id="update-auto-label" className="toggle-row-label">自动检查更新</span>
+            <span id="update-auto-note" className="toggle-row-note">
+              开启后每天最多向 GitHub 查询一次最新发布，只发送版本号；发现新版本时页面顶部会提示，不会自动下载或替换程序。
+            </span>
+            <button type="button" role="switch" className="switch" aria-checked={state.data.enabled} aria-labelledby="update-auto-label" aria-describedby="update-auto-note" onClick={() => void handleToggle(!state.data.enabled)} disabled={busy}>
+              <span className="switch-knob" aria-hidden="true" />
+            </button>
+          </label>
         </>
       )}
 
@@ -239,14 +224,9 @@ function SelfUpdateSection({
 
   return (
     <div className="self-update">
-      <div className="form-actions self-update-actions">
+      <div className="form-actions">
         {selfUpdate.busy && <span className="self-update-dot" aria-hidden="true" />}
-        <button
-          type="button"
-          className="btn btn--sm"
-          onClick={selfUpdate.start}
-          disabled={selfUpdate.busy}
-        >
+        <button type="button" className="btn btn--primary" onClick={selfUpdate.start} disabled={selfUpdate.busy}>
           {selfUpdate.busy ? '更新中 …' : failed ? '重试' : '立即更新'}
         </button>
         {failed && downloadable && (

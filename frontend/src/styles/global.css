@@ -211,6 +211,26 @@ body {
   background: var(--accent-fill-hover);
 }
 
+.btn--primary:active:not(:disabled) {
+  background: var(--accent-fill-active);
+}
+
+/* 实心危险按钮（DESIGN.md「按钮 · 危险」）：只给确认删除、确认退出、退出登录这类收尾的一下。
+   白字在 -fill 三态上都 ≥ 4.5:1；与主按钮一样，一屏至多一个实心按钮 */
+.btn--destructive {
+  border-color: transparent;
+  background: var(--error-fill);
+  color: var(--text);
+}
+
+.btn--destructive:hover:not(:disabled) {
+  background: var(--error-fill-hover);
+}
+
+.btn--destructive:active:not(:disabled) {
+  background: var(--error-fill-active);
+}
+
 /* 危险动作（删除源 / 退出登录 / 退出程序）：
    平时收敛成普通次要按钮，hover 才转红 —— 红色常驻会让用户不敢碰旁边的东西 */
 .btn--danger {
@@ -228,6 +248,13 @@ body {
   height: 2rem;
   padding: 0 0.65rem;
   font-size: 0.86rem;
+}
+
+/* 触屏上所有按钮至少 44px 高（DESIGN.md「按钮」） */
+@media (pointer: coarse) {
+  .btn {
+    min-height: var(--touch-min);
+  }
 }
 
 /* ---------- 文本输入 ---------- */
@@ -286,54 +313,67 @@ body {
   color: var(--warn);
 }
 
-/* ---------- 开关 ---------- */
+/* ---------- 开关 ----------
+   关：不透明分隔色的轨道 + 次要文字色的圆钮；开：实心按钮那一档的蓝（--accent-fill，对卡片底 ≥ 3:1）+ 白钮。
+   状态靠圆钮的位置读出来，颜色只是加强；高对比度模式下轨道颜色被系统换掉，所以另给一圈边框。 */
 
 .switch {
   position: relative;
   flex: none;
-  width: 2.2rem;
-  height: 1.25rem;
+  width: 44px;
+  height: 26px;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  background: var(--sunken);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--separator-opaque);
   cursor: pointer;
-  transition:
-    border-color var(--duration-fast) var(--ease),
-    background-color var(--duration-fast) var(--ease);
+  transition: background-color var(--dur-short) var(--ease-standard);
 }
 
 .switch[aria-checked='true'] {
-  border-color: var(--brand-line);
-  background: var(--brand-solid);
+  background: var(--accent-fill);
 }
 
 .switch-knob {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: calc(1.25rem - 6px);
-  height: calc(1.25rem - 6px);
-  border-radius: 50%;
-  background: var(--fg-muted);
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--text-secondary);
   transition:
-    transform var(--duration-fast) var(--ease),
-    background-color var(--duration-fast) var(--ease);
+    transform var(--dur-short) var(--ease-standard),
+    background-color var(--dur-short) var(--ease-standard);
 }
 
 .switch[aria-checked='true'] .switch-knob {
-  transform: translateX(0.95rem);
-  background: #fff;
-}
-
-.switch:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
+  transform: translateX(18px);
+  background: var(--text);
 }
 
 .switch:disabled {
-  opacity: 0.45;
+  opacity: 0.35;
   cursor: default;
+}
+
+/* 触屏上点按区补到 44px 高（圆钮本身不变大） */
+@media (pointer: coarse) {
+  .switch::before {
+    content: '';
+    position: absolute;
+    inset: -9px 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .switch {
+    border: 1px solid ButtonText;
+  }
+
+  .switch[aria-checked='true'] .switch-knob {
+    background: Highlight;
+  }
 }
 
 /* ---------- 链接 ---------- */
@@ -408,6 +448,12 @@ button.link:disabled {
 
 .alert-warn-link {
   white-space: nowrap;
+}
+
+/* 提示条里夹在句子中的链接带下划线：不能只靠颜色和周围的字区分开（WCAG 1.4.1） */
+.alert-warn .link {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 /* ---------- 全页提示（无 token / 库加载失败） ---------- */

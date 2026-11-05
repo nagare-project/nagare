@@ -1,0 +1,52 @@
+/* ============================================================
+   磁力任务页（/torrents）：边下边播的当前会话 + 整部下载的列表。
+   页面容器与页头沿用 .catalog-page / .catalog-head，面板见 styles/panels.css。
+   ============================================================ */
+
+.torrents-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+}
+
+.torrents-section-title {
+  flex: none;
+  font-size: clamp(20px, 3vw, var(--type-h2-size));
+  font-weight: var(--type-h2-weight);
+  letter-spacing: var(--type-h2-tracking);
+}
+
+/* ---------- 当前会话 ---------- */
+
+.torrent-task-name {
+  min-width: 0;
+}
+
+.torrent-file {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 进度条 .torrent-bar 与下载列表共用，见 components/torrent/downloads.css */
+
+.torrent-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 12px var(--sp-md);
+  margin: 0;
+}
+
+.torrent-stat dt {
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--type-caption-size);
+}
+
+.torrent-stat dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: var(--type-body-sm-size);
+}

@@ -1,0 +1,30 @@
+/* 「这一集没记到账号」的同步横幅（DESIGN.md「状态表 · 账号 · 出错」）：
+   警示色只做左边一道竖线与淡底，正文用主文字色 —— 这段要读完，整段染成橙色反而难读。
+   与 .alert-warn 同一个元素，这里只覆盖样子，不改变它的用途。 */
+.sync-banner {
+  padding: 12px 16px;
+  border: 0;
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--warning-dim);
+  color: var(--text);
+  font-size: var(--type-label-size);
+  line-height: 1.6;
+}
+
+.sync-banner .alert-warn-recovery {
+  margin-top: 6px;
+  color: var(--text);
+}
+
+.sync-banner .lib-sync-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm) var(--sp-md);
+  color: var(--text-secondary);
+}
+
+.sync-banner .lib-sync-retry .btn {
+  color: var(--text);
+}

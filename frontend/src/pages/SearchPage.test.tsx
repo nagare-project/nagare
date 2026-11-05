@@ -22,6 +22,7 @@ import {
   stopTorrent,
 } from '../lib/endpoints'
 import { createAppRouter } from '../routes'
+import { accessibleName, getAllByRole, getByRole, queryByRole } from '../test/queries'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
 
@@ -98,6 +99,23 @@ function outcome(source: string, overrides: Partial<SourceOutcome> = {}): Source
   return { source, state: 'ok', count: 0, rawCount: 0, dropped: 0, latencyMs: 50, ...overrides }
 }
 
+/** 每一行的「播放」按钮：名字 = 看得见的字 + 这一行的标题 */
+function playButtons(container: HTMLElement): HTMLButtonElement[] {
+  const table = getByRole(container, 'table')
+  return getAllByRole(table, 'button', { name: /^(播放|启动中 …|播放中) / }) as HTMLButtonElement[]
+}
+
+/** aria-describedby 指向的说明文字（播放按钮禁用的原因） */
+function description(element: HTMLElement): string {
+  const ids = element.getAttribute('aria-describedby')?.split(/\s+/) ?? []
+  return ids.map((id) => element.ownerDocument.getElementById(id)?.textContent ?? '').join(' ')
+}
+
+/** 源状态条里的每个 chip（可切换启用的按钮） */
+function sourceChips(container: HTMLElement): HTMLButtonElement[] {
+  return getAllByRole(getByRole(container, 'list', { name: '各源状态' }), 'button') as HTMLButtonElement[]
+}
+
 async function mountAt(path: string) {
   const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }))
   const mounted = await mount(<RouterProvider router={router} />)
@@ -147,12 +165,13 @@ afterEach(() => {
 describe('SearchPage（空态）', () => {
   it('未搜索：有规则、没 q → 引导输入关键词，不发搜索请求', async () => {
     const { container, unmount } = await mountAt('/search')
-    expect(container.textContent).toContain('输入关键词开始搜索')
+    expect(getByRole(container, 'heading', { level: 2, name: '输入关键词开始搜索' })).not.toBeNull()
     expect(container.textContent).toContain('已加载 2 个源，2 个启用')
     expect(searchMagnets).not.toHaveBeenCalled()
     // 顶栏入口
-    expect(container.querySelector('a[href="/"]')).not.toBeNull()
-    expect(container.querySelector('a[href="/settings"]')).not.toBeNull()
+    const banner = getByRole(container, 'banner')
+    expect(getByRole(banner, 'link', { name: 'nagare（发现）' }).getAttribute('href')).toBe('/')
+    expect(getByRole(banner, 'link', { name: '设置' }).getAttribute('href')).toBe('/settings')
     await unmount()
   })
 
@@ -162,10 +181,10 @@ describe('SearchPage（空态）', () => {
       rules: { ...RULES, loaded: 0, errors: ['broken.yaml: 缺少 name 字段'] },
     })
     const { container, unmount } = await mountAt('/search?q=frieren')
-    expect(container.textContent).toContain('还没有规则来源')
+    expect(getByRole(container, 'heading', { level: 2, name: '还没有规则来源' })).not.toBeNull()
     expect(container.textContent).toContain('nagare 不内置任何磁力源')
-    expect(container.querySelector('a.search-empty-link')?.getAttribute('href')).toBe('/settings#sources')
-    expect(container.querySelector('.rules-errors')?.textContent).toContain('broken.yaml: 缺少 name 字段')
+    expect(getByRole(container, 'link', { name: '去设置添加规则来源' }).getAttribute('href')).toBe('/settings#sources')
+    expect(getByRole(container, 'alert', { name: /broken\.yaml: 缺少 name 字段/ })).not.toBeNull()
     // 引导文案不得出现任何具体站点
     expect(container.textContent).not.toMatch(/https?:\/\//)
     await unmount()
@@ -189,24 +208,17 @@ describe('SearchPage（空态）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
 
     expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('frieren')
-    const chips = container.querySelectorAll('.src-bar .src-chip')
-    expect(chips).toHaveLength(2)
+    expect(sourceChips(container).map(accessibleName)).toEqual(['源甲无结果，点击禁用', '源乙源异常，点击禁用'])
 
-    const zeroChip = container.querySelector('.src-chip--zero')
-    expect(zeroChip?.textContent).toContain('源甲')
-    expect(zeroChip?.textContent).toContain('无结果')
-
-    const deadChip = container.querySelector('.src-chip--dead')
-    expect(deadChip?.textContent).toContain('源乙')
-    expect(deadChip?.textContent).toContain('源异常')
-    expect(deadChip?.textContent).not.toContain('无结果')
-    expect(deadChip?.getAttribute('title')).toContain('规则解析不出任何条目')
-    expect(deadChip?.getAttribute('title')).toContain('selector "item title" matched 0 nodes')
+    // 改坏的规则说「源异常」，不说「无结果」；原因在悬停提示里
+    const deadChip = sourceChips(container)[1]!
+    expect(deadChip.getAttribute('title')).toContain('规则解析不出任何条目')
+    expect(deadChip.getAttribute('title')).toContain('selector "item title" matched 0 nodes')
 
     // 空结果文案指向源问题，而不是「没资源」
-    expect(container.textContent).toContain('没有结果，且有源出了问题')
+    expect(getByRole(container, 'heading', { level: 2, name: '没有结果，且有源出了问题' })).not.toBeNull()
     expect(container.textContent).toContain('1 个源异常')
-    expect(container.querySelector('.res-table')).toBeNull()
+    expect(queryByRole(container, 'table')).toBeNull()
     await unmount()
   })
 })
@@ -240,14 +252,15 @@ describe('SearchPage（结果与交互）', () => {
     vi.mocked(searchMagnets).mockResolvedValue(RESULT)
     const { container, unmount } = await mountAt('/search?q=frieren')
 
-    expect((container.querySelector('input[name="q"]') as HTMLInputElement).value).toBe('frieren')
-    expect(container.querySelectorAll('tbody tr')).toHaveLength(2)
-    expect(container.querySelector('th.res-seeders')).not.toBeNull()
-    const badges = Array.from(container.querySelectorAll('.res-source .badge')).map((el) => el.textContent)
-    expect(badges).toEqual(['源甲', '源乙'])
-    expect(container.querySelector('.search-status')?.textContent).toBe('2 条 · 2 个源正常')
+    expect((getByRole(container, 'textbox', { name: '搜索关键词' }) as HTMLInputElement).value).toBe('frieren')
+    const table = getByRole(container, 'table')
+    // 一行表头 + 两行结果
+    expect(getAllByRole(table, 'row')).toHaveLength(3)
+    expect(getAllByRole(table, 'columnheader').map(accessibleName)).toContain('做种')
+    expect(getAllByRole(table, 'cell', { name: /^源[甲乙]$/ }).map(accessibleName)).toEqual(['源甲', '源乙'])
+    expect(getByRole(container, 'status', { name: '2 条 · 2 个源正常' })).not.toBeNull()
     // 引擎正常时播放按钮全部可点（M3 起边下边播上线）
-    const plays = Array.from(container.querySelectorAll('.res-play-wrap button')) as HTMLButtonElement[]
+    const plays = playButtons(container)
     expect(plays).toHaveLength(2)
     expect(plays.every((button) => button.disabled)).toBe(false)
     await unmount()
@@ -261,15 +274,14 @@ describe('SearchPage（结果与交互）', () => {
     })
     const { container, unmount } = await mountAt('/search?q=frieren')
 
-    expect(container.querySelector('.alert-warn')?.textContent).toContain('磁力引擎启动失败')
-    const plays = Array.from(container.querySelectorAll('.res-play-wrap button')) as HTMLButtonElement[]
-    expect(plays.every((button) => button.disabled)).toBe(true)
+    expect(getByRole(container, 'alert', { name: /磁力引擎启动失败/ })).not.toBeNull()
+    expect(playButtons(container).every((button) => button.disabled)).toBe(true)
     await unmount()
   })
 
   /** 点第 index 行的「播放」 */
   async function clickPlay(container: HTMLElement, index: number): Promise<void> {
-    const plays = Array.from(container.querySelectorAll('.res-play-wrap button')) as HTMLButtonElement[]
+    const plays = playButtons(container)
     await act(async () => {
       plays[index]?.click()
     })
@@ -285,17 +297,15 @@ describe('SearchPage（结果与交互）', () => {
       { magnet: RESULT.items[0]?.magnet, title: RESULT.items[0]?.title },
       expect.any(AbortSignal),
     )
-    expect(container.querySelector('.tsb-bar')).not.toBeNull()
-    expect(container.querySelector('.tsb-readout')?.textContent).toContain('分享者 3')
+    const bar = getByRole(container, 'region', { name: '磁力缓冲进度' })
+    expect(bar.textContent).toContain('分享者 3')
 
-    const plays = Array.from(container.querySelectorAll('.res-play-wrap button')) as HTMLButtonElement[]
+    const plays = playButtons(container)
     expect(plays[0]?.textContent).toBe('启动中 …')
     expect(plays[0]?.disabled).toBe(true)
     // 同一时刻只允许一条磁力：另一行禁用并说明原因
     expect(plays[1]?.disabled).toBe(true)
-    expect(
-      container.querySelectorAll('.res-play-wrap')[1]?.getAttribute('title'),
-    ).toContain('已有一条磁力在播放')
+    expect(description(plays[1]!)).toContain('已有一条磁力在播放')
 
     await unmount()
   })
@@ -305,18 +315,15 @@ describe('SearchPage（结果与交互）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
     await clickPlay(container, 0)
 
-    const cancel = Array.from(container.querySelectorAll('.tsb-actions button')).find(
-      (button) => button.textContent === '取消',
-    ) as HTMLButtonElement
+    const cancel = getByRole(getByRole(container, 'region', { name: '磁力缓冲进度' }), 'button', { name: '取消' })
     await act(async () => {
       cancel.click()
     })
     await act(async () => {})
 
     expect(stopTorrent).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('.tsb-bar')).toBeNull()
-    const plays = Array.from(container.querySelectorAll('.res-play-wrap button')) as HTMLButtonElement[]
-    expect(plays.every((button) => button.disabled)).toBe(false)
+    expect(queryByRole(container, 'region', { name: '磁力缓冲进度' })).toBeNull()
+    expect(playButtons(container).every((button) => button.disabled)).toBe(false)
 
     await unmount()
   })
@@ -335,12 +342,12 @@ describe('SearchPage（结果与交互）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
     await clickPlay(container, 0)
 
-    const dialog = container.querySelector('[role="dialog"]')
-    expect(dialog).not.toBeNull()
-    expect(container.querySelectorAll('.ep-item')).toHaveLength(2)
+    const dialog = getByRole(container, 'dialog', { name: '选择要播放的剧集' })
+    const files = getAllByRole(dialog, 'button', { name: /^播放 / })
+    expect(files.map(accessibleName)).toEqual(['播放 01ep01.mkv1 KB', '播放 02ep02.mkv1 KB'])
 
     await act(async () => {
-      container.querySelectorAll<HTMLButtonElement>('.ep-item')[1]?.click()
+      files[1]?.click()
     })
     await act(async () => {})
 
@@ -349,7 +356,7 @@ describe('SearchPage（结果与交互）', () => {
       { magnet: RESULT.items[0]?.magnet, title: RESULT.items[0]?.title, fileIndex: 4 },
       expect.any(AbortSignal),
     )
-    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(queryByRole(container, 'dialog')).toBeNull()
 
     await unmount()
   })
@@ -364,13 +371,11 @@ describe('SearchPage（结果与交互）', () => {
       files: [{ index: 0, name: 'ep01.mkv', path: 'ep01.mkv', sizeBytes: 1024, episode: 1 }],
     })
     const { container, unmount } = await mountAt('/search?q=frieren')
-    const trigger = container.querySelectorAll<HTMLButtonElement>('.res-play-wrap button')[0]
+    const trigger = playButtons(container)[0]
     await clickPlay(container, 0)
-    expect(container.querySelector('[role="dialog"]')).not.toBeNull()
+    const dialog = getByRole(container, 'dialog', { name: '选择要播放的剧集' })
 
-    const cancel = Array.from(container.querySelectorAll('.ep-actions button')).find(
-      (button) => button.textContent === '取消',
-    ) as HTMLButtonElement
+    const cancel = getByRole(dialog, 'button', { name: '取消' })
     await act(async () => {
       cancel.click()
     })
@@ -378,7 +383,7 @@ describe('SearchPage（结果与交互）', () => {
       await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
     })
 
-    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(queryByRole(container, 'dialog')).toBeNull()
     expect(document.activeElement).toBe(trigger)
 
     await unmount()
@@ -393,17 +398,14 @@ describe('SearchPage（结果与交互）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
     await clickPlay(container, 0)
 
-    const cancel = Array.from(container.querySelectorAll('.tsb-actions button')).find(
-      (button) => button.textContent === '取消',
-    ) as HTMLButtonElement
+    const cancel = getByRole(getByRole(container, 'region', { name: '磁力缓冲进度' }), 'button', { name: '取消' })
     await act(async () => {
       cancel.click()
     })
     await act(async () => {})
 
-    const status = container.querySelector('.torrent-global-error')?.textContent ?? ''
-    expect(status).toContain('后端没有响应')
-    expect(status).toContain('清空磁力缓存')
+    const status = getByRole(container, 'alert', { name: /后端没有响应/ })
+    expect(status.textContent).toContain('清空磁力缓存')
 
     await unmount()
   })
@@ -415,12 +417,10 @@ describe('SearchPage（结果与交互）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
     await clickPlay(container, 0)
 
-    expect(container.querySelector('.tsb-bar--error')).not.toBeNull()
-    expect(container.querySelector('.tsb-phase[role="alert"]')?.textContent).toBe(
-      '找不到可用的分享者，换一条资源试试',
-    )
-    const plays = Array.from(container.querySelectorAll('.res-play-wrap button')) as HTMLButtonElement[]
-    expect(plays.every((button) => button.disabled)).toBe(false)
+    const bar = getByRole(container, 'region', { name: '磁力播放失败' })
+    expect(getByRole(bar, 'alert').textContent).toBe('找不到可用的分享者，换一条资源试试')
+    expect(getByRole(bar, 'button', { name: '重试' })).not.toBeNull()
+    expect(playButtons(container).every((button) => button.disabled)).toBe(false)
 
     await unmount()
   })
@@ -430,7 +430,8 @@ describe('SearchPage（结果与交互）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
     expect(searchMagnets).toHaveBeenCalledTimes(1)
 
-    const chip = container.querySelector('.src-bar button.src-chip') as HTMLButtonElement
+    const chip = sourceChips(container)[0]!
+    expect(accessibleName(chip)).toBe('源甲1 条，正常，点击禁用')
     expect(chip.getAttribute('aria-pressed')).toBe('true')
     await act(async () => {
       chip.click()
@@ -446,8 +447,8 @@ describe('SearchPage（结果与交互）', () => {
 
   it('提交表单：关键词写进 URL ?q=，并触发搜索', async () => {
     const { container, router, unmount } = await mountAt('/search')
-    const input = container.querySelector('input[name="q"]') as HTMLInputElement
-    const form = container.querySelector('form[role="search"]') as HTMLFormElement
+    const input = getByRole(container, 'textbox', { name: '搜索关键词' }) as HTMLInputElement
+    const form = getByRole(container, 'search', { name: '磁力搜索' }) as HTMLFormElement
 
     await act(async () => {
       // React 受控输入：走原生 setter 再派发 input 事件

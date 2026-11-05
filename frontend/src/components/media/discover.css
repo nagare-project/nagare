@@ -97,6 +97,9 @@
 .catalog-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .catalog-search .btn { height: var(--touch-min); padding: 0 20px; }
 .catalog-search-results { display: flex; flex-direction: column; gap: var(--sp-lg); }
+.catalog-search-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-sm) var(--sp-lg); }
+.catalog-search-head .row-title { flex: none; }
+.catalog-search-magnet { position: relative; font-size: var(--type-label-size); font-weight: 500; white-space: nowrap; border-radius: 4px; }
 .catalog-search-results .row-title { font-size: clamp(20px, 3vw, var(--type-h2-size)); font-weight: var(--type-h2-weight); letter-spacing: var(--type-h2-tracking); }
 @media (max-width: 600px) { .catalog-search { flex-wrap: wrap; } .catalog-search-field { flex-basis: 100%; } }
 
