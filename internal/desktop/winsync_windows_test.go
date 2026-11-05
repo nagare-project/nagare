@@ -94,8 +94,8 @@ func fakeSession(t *testing.T, l *testLoop) (*videoSession, *fakeMpv) {
 	c := newHostIPC(client, func(string, json.RawMessage) {})
 	s.ipc.Store(c)
 	t.Cleanup(func() {
+		_ = server.Close() // 先关 mpv 那头：宿主读到的是连接结束，不是「读不下去」的错误
 		c.close()
-		_ = server.Close()
 	})
 	l.onUI(t, func() {
 		l.a.attachSession(s)
