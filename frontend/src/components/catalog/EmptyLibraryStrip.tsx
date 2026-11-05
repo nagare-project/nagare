@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchLibrary } from '../../lib/endpoints'
+import { handOffFocus, pageHeading } from '../../lib/focus'
 import { Icon } from '../ui/Icon'
 import { RouteLink } from './RouteLink'
 
@@ -43,9 +44,17 @@ function useLibraryEmpty(): boolean {
 export function EmptyLibraryStrip() {
   const empty = useLibraryEmpty()
   const [dismissed, setDismissed] = useState(readDismissed)
+  // 关掉之后这一条连同关闭按钮一起消失：焦点交给页面主标题，不掉到 <body> 上（与顶部提示条同一手法）
+  const handOff = useRef(false)
+  useEffect(() => {
+    if (!dismissed || !handOff.current) return
+    handOff.current = false
+    handOffFocus(pageHeading())
+  }, [dismissed])
   if (!empty || dismissed) return null
 
   function dismiss() {
+    handOff.current = true
     setDismissed(true)
     try {
       window.localStorage.setItem(EMPTY_LIBRARY_DISMISS_KEY, '1')

@@ -126,7 +126,8 @@ describe('发现页的作品搜索（路由一层）', () => {
     const clear = [...container.querySelectorAll('button')].find((b) => b.textContent === '清除')!
     await act(async () => clear.click())
     await settle()
-    expect(validated(router)).not.toHaveProperty('q')
+    expect(validated(router).q).toBeUndefined()
+    expect(router.state.location.href).not.toContain('q=')
     expect(container.textContent).toContain('大家都在看')
     await unmount()
   })
