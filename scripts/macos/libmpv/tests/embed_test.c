@@ -2,9 +2,10 @@
 // 并且 render API（OpenGL，nagare 窗口里嵌 mpv 走的就是这条路）真的能把画面画出来。
 //
 //   embed_test                    建句柄 → config=no、vo=libmpv → 初始化 → 退出
-//   embed_test --render <文件>    在离屏 CGL 上下文里建 render context，播 <文件> 并把若干帧画进
-//                                 FBO，读回像素确认不是空白。CGL 上下文建不起来（没有可用的 GL）
-//                                 时以 77 退出，表示「跳过」
+//   embed_test --render <文件>    在离屏 CGL 上下文里建 render context，播 <文件> 并把帧画进 FBO，
+//                                 读回像素确认不是空白：有显卡时看第 30 帧；软件渲染器（没有 GPU 的
+//                                 runner）上从第 30 帧起每帧都看，直到画出来、播到片尾或到期限。
+//                                 CGL 上下文建不起来（没有可用的 GL）时以 77 退出，表示「跳过」
 //
 // 编译：clang -arch arm64 -arch x86_64 -mmacosx-version-min=13.0 -I<产物>/include embed_test.c
 //       -L<产物>/Frameworks -lmpv.2 -framework OpenGL -Wl,-rpath,@executable_path/../Frameworks
@@ -27,11 +28,19 @@
 #define HEIGHT 96
 #define FRAMES_WANTED 30
 
-// read_frame 读回 fbo 里的画面：亮度均值（三通道之和）与「和左下角第一个像素颜色不同」的像素数
-static void read_frame(GLuint fbo, long *sum, int *distinct) {
+#define TIMEOUT_SECONDS 30.0
+
+// read_frame 读回 fbo 里的画面：三通道之和（算亮度均值用）与「和左下角第一个像素颜色不同」的像素数。
+// 读失败（GL 报错）返回 -1，免得把读失败当成画面是空的
+static int read_frame(GLuint fbo, long *sum, int *distinct) {
     static unsigned char pixels[WIDTH * HEIGHT * 4];
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    GLenum gl_err = glGetError();
+    if (gl_err != GL_NO_ERROR) {
+        fprintf(stderr, "embed_test: glReadPixels failed: GL error 0x%x\n", gl_err);
+        return -1;
+    }
     *sum = 0;
     *distinct = 0;
     unsigned char first[3] = {pixels[0], pixels[1], pixels[2]};
@@ -41,8 +50,8 @@ static void read_frame(GLuint fbo, long *sum, int *distinct) {
             (*distinct)++;
         }
     }
+    return 0;
 }
-#define TIMEOUT_SECONDS 30.0
 
 static int fail(const char *what, int err) {
     fprintf(stderr, "embed_test: %s failed: %s\n", what, err < 0 ? mpv_error_string(err) : "");
@@ -167,6 +176,9 @@ static int render(const char *file, const char *hwdec) {
         fprintf(stderr, "embed_test: framebuffer incomplete\n");
         return 1;
     }
+    // 先清成纯黑：mpv 一帧都没画进来时读回的是 0 个不同像素，而不是驱动给的未初始化内容
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     mpv_handle *h = mpv_create();
     if (!h) {
@@ -215,11 +227,16 @@ static int render(const char *file, const char *hwdec) {
         {MPV_RENDER_PARAM_FLIP_Y, &flip},
         {MPV_RENDER_PARAM_INVALID, NULL},
     };
-    // 够了帧数之后每画一帧读回来看一次，看到彩色测试图就停。没有 GPU 的 runner 上软件渲染器偶尔头几十帧
-    // 只画出底色和字幕（读回来几乎是一种颜色），一直等到期限还是这样才算没画出来
+    // 有显卡时照旧只看第 30 帧。软件渲染器（没有 GPU 的 runner）上偶尔头几十帧读回来几乎是一种颜色
+    // （CI 里见过两次：只有底色和字幕），所以从第 30 帧起每帧都读，看到彩色测试图就停；播到片尾
+    // （keep-open 停在最后一帧，不会再有新帧）或到期限还是空的才算没画出来。
     long sum = 0;
-    int distinct = 0;
-    while (now_seconds() < deadline) {
+    int distinct = 0, first_good = 0, blank_samples = 0, eof = 0;
+    if (mpv_observe_property(h, 0, "eof-reached", MPV_FORMAT_FLAG) < 0) {
+        fprintf(stderr, "embed_test: cannot observe eof-reached\n");
+        goto done;
+    }
+    while (!eof && now_seconds() < deadline) {
         mpv_event *ev = mpv_wait_event(h, 0.005);
         if (ev->event_id == MPV_EVENT_END_FILE) {
             mpv_event_end_file *end = ev->data;
@@ -227,6 +244,16 @@ static int render(const char *file, const char *hwdec) {
                 fprintf(stderr, "embed_test: playback error: %s\n", mpv_error_string(end->error));
                 goto done;
             }
+        }
+        if (ev->event_id == MPV_EVENT_PROPERTY_CHANGE) {
+            mpv_event_property *prop = ev->data;
+            if (strcmp(prop->name, "eof-reached") == 0 && prop->format == MPV_FORMAT_FLAG && *(int *)prop->data) {
+                eof = 1;
+            }
+        }
+        if (ev->event_id == MPV_EVENT_SHUTDOWN) {
+            fprintf(stderr, "embed_test: mpv shut down during playback\n");
+            goto done;
         }
         if (mpv_render_context_update(rctx) & MPV_RENDER_UPDATE_FRAME) {
             err = mpv_render_context_render(rctx, rparams);
@@ -237,8 +264,15 @@ static int render(const char *file, const char *hwdec) {
             mpv_render_context_report_swap(rctx);
             frames++;
             if (frames >= FRAMES_WANTED) {
-                read_frame(fbo, &sum, &distinct);
+                if (read_frame(fbo, &sum, &distinct) < 0) {
+                    goto done;
+                }
                 if (distinct >= WIDTH * HEIGHT / 4) {
+                    first_good = frames;
+                    break;
+                }
+                blank_samples++;
+                if (!software) {
                     break;
                 }
             }
@@ -246,8 +280,8 @@ static int render(const char *file, const char *hwdec) {
     }
     char *cur = mpv_get_property_string(h, "hwdec-current");
     char *vo = mpv_get_property_string(h, "current-vo");
-    printf("frames=%d hwdec-current=%s current-vo=%s mean=%.1f differing-pixels=%d\n", frames,
-           cur ? cur : "?", vo ? vo : "?", sum / (3.0 * WIDTH * HEIGHT), distinct);
+    printf("frames=%d hwdec-current=%s current-vo=%s mean=%.1f differing-pixels=%d first-good-frame=%d blank-samples=%d\n",
+           frames, cur ? cur : "?", vo ? vo : "?", sum / (3.0 * WIDTH * HEIGHT), distinct, first_good, blank_samples);
     mpv_free(cur);
     mpv_free(vo);
     // testsrc2 是彩色测试图：画出来的帧应当有大量互不相同的像素
