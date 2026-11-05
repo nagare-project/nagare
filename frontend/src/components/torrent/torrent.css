@@ -33,7 +33,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--player-track);
+  background: var(--progress-track);
   pointer-events: none;
 }
 

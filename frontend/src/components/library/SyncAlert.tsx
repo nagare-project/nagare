@@ -19,7 +19,7 @@ interface SyncAlertProps {
  * 不做「知道了」按钮：它描述的不是一条过时的通知，而是一个仍然成立的事实
  *（那一集确实还没同步）。回写成功后后端自己会把它清掉，横幅随之消失。
  *
- * 没记上的集下次启动时会自动补记；还有会再试的集（pending > 0）时给「重试」当场再补。
+ * 没记上的集在登录成功后、下次启动时都会自动补记；还有会再试的集（pending > 0）时给「重试」当场再补。
  * 被规则挡下的那种（集号换算不出来）补发不会再试，只能按恢复动作手动去标，所以不给按钮。
  */
 export function SyncAlert({ status, onRetry }: SyncAlertProps) {
@@ -50,7 +50,7 @@ export function SyncAlert({ status, onRetry }: SyncAlertProps) {
       )}
       {pending > 0 && (
         <span className="alert-warn-recovery lib-sync-retry">
-          <span>共有 {pending} 集等着补记，下次启动 nagare 时会自动补上。</span>
+          <span>共有 {pending} 集等着补记，登录后或下次启动 nagare 时会自动补上。</span>
           <button type="button" className="btn btn--sm" {...inFlight(busy, () => void handleRetry())}>
             {busy ? '重试中 …' : '重试'}
           </button>

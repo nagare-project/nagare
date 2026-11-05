@@ -49,13 +49,13 @@ describe('SyncAlert', () => {
     await unmount()
   })
 
-  it('有待补记的集时说出个数和「下次启动会自动补上」', async () => {
+  it('有待补记的集时说出个数，以及登录后、下次启动都会自动补上', async () => {
     const { container, unmount } = await mount(
       <SyncAlert status={statusWith({ ...FAILED, pending: 3 })} onRetry={vi.fn(async () => {})} />,
     )
     const text = getByRole(container, 'status').textContent ?? ''
     expect(text).toContain('共有 3 集等着补记')
-    expect(text).toContain('下次启动')
+    expect(text).toContain('登录后或下次启动 nagare 时会自动补上')
     // 恢复动作不再说「重看这一集才会再试」
     expect(text).not.toContain('重看')
     await unmount()
@@ -83,8 +83,8 @@ describe('SyncAlert', () => {
 describe('describeSyncRetry', () => {
   it('补完了、到了单轮上限、没补成、没东西可补各有一句话', () => {
     expect(describeSyncRetry({ synced: 2, remaining: 0 })).toEqual({ tone: 'ok', text: '补记上 2 集，都记到账号了' })
-    expect(describeSyncRetry({ synced: 10, remaining: 3 }).text).toContain('还有 3 集没记上')
-    expect(describeSyncRetry({ synced: 0, remaining: 1 }).tone).toBe('dim')
+    expect(describeSyncRetry({ synced: 10, remaining: 3 }).text).toBe('补记上 10 集，还有 3 集没记上：再点一次「重试」，登录后或下次启动时也会自动补记')
+    expect(describeSyncRetry({ synced: 0, remaining: 1 })).toEqual({ tone: 'dim', text: '这次没能补记，还有 1 集等着：登录后或下次启动时会再试' })
     expect(describeSyncRetry({ synced: 0, remaining: 0 }).text).toBe('没有需要补记的集')
   })
 
