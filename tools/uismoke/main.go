@@ -15,7 +15,9 @@
 //
 // 时间写成占位串，回答时换成当时的时间：放送表只显示近七日、媒体库扫描太久会触发自动重扫，
 // 写死的时间戳过几天就让页面换了样子。"@now" 是 Unix 秒，"@nowms" 是毫秒，"@nowiso" 是 RFC 3339 字符串
-// （仍带引号），后面都可跟 +N / -N 秒，例如 "@now+7200" 是两小时后、"@nowiso-7200" 是两小时前。
+// （仍带引号），后面都可跟 +N / -N 秒（N 最多 9 位），例如 "@now+7200" 是两小时后、"@nowiso-7200" 是两小时前。
+// 换法的用例在 testdata/expand-now.json：前端的严格解码测试（frontend/src/lib/smokeFixtures.test.ts）照同一套规则
+// 换完再解码每份假数据，两边共用这份用例。
 package main
 
 import (
@@ -51,7 +53,7 @@ const shutdownTimeout = 5 * time.Second
 var tokenShape = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // nowToken 匹配假数据里的时间占位串（连同引号，换成数字）。
-var nowToken = regexp.MustCompile(`"@now(ms|iso)?([+-][0-9]+)?"`)
+var nowToken = regexp.MustCompile(`"@now(ms|iso)?([+-][0-9]{1,9})?"`)
 
 func main() {
 	log.SetFlags(0)
@@ -211,7 +213,7 @@ func expandNow(body []byte, now time.Time) []byte {
 		sub := nowToken.FindSubmatch(match)
 		var offset int64
 		if len(sub[2]) > 0 {
-			// 正则已保证是带符号的十进制数；超出 int64 的写法本来就没有意义，按 0 处理
+			// 正则已保证是最多 9 位的带符号十进制数，ParseInt 不会失败，乘上秒也不会溢出
 			offset, _ = strconv.ParseInt(string(sub[2]), 10, 64)
 		}
 		at := now.Add(time.Duration(offset) * time.Second)

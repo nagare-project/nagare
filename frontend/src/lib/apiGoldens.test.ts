@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { CheckContext, emptyObject, errorEnvelope, okEnvelope, type Schema } from '../test/contract'
+import { CheckContext, emptyObject, errorEnvelope, okEnvelope, type Contract } from '../test/contract'
 import * as c from '../test/apiContracts'
 
 /**
@@ -12,8 +12,6 @@ import * as c from '../test/apiContracts'
  */
 
 const GOLDEN_DIR = fileURLToPath(new URL('../../../testdata/api/', import.meta.url))
-
-type Contract = Pick<Schema<unknown>, 'check'>
 
 const CONTRACTS: Record<string, Contract> = {
   // 媒体库与作品关联

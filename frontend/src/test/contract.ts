@@ -26,6 +26,9 @@ export type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T ext
 
 /** 约束里只能用 any：Schema 是不变的，Schema<string> 不是 Schema<unknown> */
 export type AnySchema = Schema<any>
+
+/** 只用来检查一份数据的 schema（不关心它推出的类型）：测试里按名字登记一张表时用 */
+export type Contract = Pick<Schema<unknown>, 'check'>
 type Shape = Record<string, AnySchema>
 type Simplify<T> = { [K in keyof T]: T[K] } & {}
 type ObjType<R extends Shape, O extends Shape> = Simplify<
@@ -41,6 +44,24 @@ interface ObjectNode {
  * 或者挂在从没出现过的可选字段下的对象，连同它的可选字段一起漏查 —— 所以没走到过的节点本身也算没覆盖。
  */
 const objectsWithOptional: ObjectNode[] = []
+
+/** 为假时新建的对象节点不进上面的登记表（见 withoutCoverage） */
+let registerForCoverage = true
+
+/**
+ * 在 build 里建出来的 schema 不参与覆盖检查：给还没有黄金文件的接口用（test/smokeContracts.ts）。
+ * 不这样做的话，它们的可选字段一导入就登记，黄金文件的覆盖检查会因为「从没被检查到」而失败 ——
+ * 是否失败还取决于两份测试文件是不是共用一份模块。
+ */
+export function withoutCoverage<T>(build: () => T): T {
+  const previous = registerForCoverage
+  registerForCoverage = false
+  try {
+    return build()
+  } finally {
+    registerForCoverage = previous
+  }
+}
 
 interface UnionNode {
   readonly size: number
@@ -173,7 +194,7 @@ export function obj<R extends Shape, O extends Shape>(required: R, optional: O):
 export function obj(required: Shape, optional?: Shape): AnySchema {
   const opt: Shape = optional ?? {}
   const node: ObjectNode = { optional: Object.keys(opt) }
-  if (node.optional.length > 0) objectsWithOptional.push(node)
+  if (registerForCoverage && node.optional.length > 0) objectsWithOptional.push(node)
   return {
     check(value, path, ctx) {
       if (!isPlainObject(value)) {

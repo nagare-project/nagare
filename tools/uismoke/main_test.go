@@ -13,24 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// 用例与前端的严格解码测试（frontend/src/lib/smokeFixtures.test.ts）共用：那边照同一套规则换占位串，
+// 两边各跑一遍这份文件，规则只改了一边就有一边红。
 func TestExpandNowReplacesPlaceholders(t *testing.T) {
-	now := time.Unix(1_800_000_000, 0)
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"秒", `{"at":"@now"}`, `{"at":1800000000}`},
-		{"毫秒", `{"at":"@nowms"}`, `{"at":1800000000000}`},
-		{"往后", `{"at":"@now+7200"}`, `{"at":1800007200}`},
-		{"往前（毫秒）", `{"at":"@nowms-60"}`, `{"at":1799999940000}`},
-		{"RFC 3339 字符串", `{"fetchedAt":"@nowiso"}`, `{"fetchedAt":"2027-01-15T08:00:00Z"}`},
-		{"RFC 3339 往前", `{"fetchedAt":"@nowiso-7200"}`, `{"fetchedAt":"2027-01-15T06:00:00Z"}`},
-		{"普通字符串不动", `{"title":"@nowhere","at":"now"}`, `{"title":"@nowhere","at":"now"}`},
+	raw, err := os.ReadFile(filepath.Join("testdata", "expand-now.json"))
+	require.NoError(t, err)
+	var corpus struct {
+		Now   int64 `json:"now"`
+		Cases []struct {
+			Name string `json:"name"`
+			In   string `json:"in"`
+			Want string `json:"want"`
+		} `json:"cases"`
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, string(expandNow([]byte(tc.in), now)))
+	require.NoError(t, json.Unmarshal(raw, &corpus))
+	require.NotEmpty(t, corpus.Cases)
+	now := time.Unix(corpus.Now, 0)
+	for _, tc := range corpus.Cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			assert.Equal(t, tc.Want, string(expandNow([]byte(tc.In), now)))
 		})
 	}
 }
