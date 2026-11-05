@@ -26,6 +26,8 @@ type retryClient struct {
 	// entered 每次进入 MarkWatched 时收到一个信号（可为 nil）；release 非 nil 时 MarkWatched 等它关闭才返回
 	entered chan struct{}
 	release chan struct{}
+	// inFlight / maxInFlight：同时在 MarkWatched 里的调用数与它到过的最大值（两轮补发同时跑就会到 2）
+	inFlight, maxInFlight int
 }
 
 func (c *retryClient) Match(context.Context, animego.MatchInput) (animego.MatchResult, error) {
@@ -35,6 +37,15 @@ func (c *retryClient) Comments(context.Context, int64) ([]danmaku.Comment, error
 func (c *retryClient) EnsureSubscription(context.Context, int) error              { return nil }
 func (c *retryClient) LoggedIn() bool                                             { return c.loggedIn }
 func (c *retryClient) MarkWatched(_ context.Context, id, ep int) error {
+	c.mu.Lock()
+	c.inFlight++
+	c.maxInFlight = max(c.maxInFlight, c.inFlight)
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.inFlight--
+		c.mu.Unlock()
+	}()
 	if c.entered != nil {
 		c.entered <- struct{}{}
 	}

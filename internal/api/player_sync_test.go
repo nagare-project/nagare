@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nagare-project/nagare/internal/animego"
 	"github.com/nagare-project/nagare/internal/httpserver"
 	"github.com/nagare-project/nagare/internal/player"
 )
@@ -56,4 +57,44 @@ func TestPlayerSyncRetryRequiresTheCustomHeaderThroughTheRealServerChain(t *test
 
 	assert.Equal(t, http.StatusOK, call("/api/player/sync/retry", true))
 	assert.Equal(t, 1, retried)
+}
+
+// 登录成功之后在后台补发一轮：启动时那一轮还没登录、什么都没补，不能等到下次启动。
+// 会话先落盘、再起补发：补发里的请求可能刷新会话（轮换 refresh cookie），这时登录这边再拿
+// 登录那一刻的会话快照落盘，就把刷新后的盖掉了 —— 下次启动拿着作废的 cookie 静默掉线。
+func TestLoginKicksAPendingSyncRound(t *testing.T) {
+	env := newEnv(t)
+	var atKick string
+	env.player.onKick = func() { atKick = env.store.AnimegoSession().RefreshCookie }
+
+	rec := env.do(t, http.MethodPost, "/api/animego/login", `{"email":"a@b.c","password":"pw"}`)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, []string{"player.sync-kick"}, *env.calls, "登录成功要补发一轮，且只补一轮")
+	assert.Equal(t, "rc", atKick, "补发起来之前，会话就该已经落盘")
+}
+
+// 登录没成功（密码错、被限流、连不上、请求本身不对）：账号还是写不进去，不补发。
+func TestFailedLoginDoesNotKickASyncRound(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		loginErr error
+		body     string
+		status   int
+	}{
+		{"密码错", &animego.Error{Kind: animego.ErrBadRequest, Op: "login", Status: http.StatusUnauthorized}, `{"email":"a@b.c","password":"x"}`, http.StatusBadRequest},
+		{"被限流", &animego.Error{Kind: animego.ErrRateLimited, Op: "login"}, `{"email":"a@b.c","password":"x"}`, http.StatusTooManyRequests},
+		{"连不上", &animego.Error{Kind: animego.ErrUnavailable, Op: "login"}, `{"email":"a@b.c","password":"x"}`, http.StatusBadGateway},
+		{"请求体不是 JSON", nil, `{broken`, http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newEnv(t)
+			env.auth.loginErr = tc.loginErr
+
+			rec := env.do(t, http.MethodPost, "/api/animego/login", tc.body)
+
+			assert.Equal(t, tc.status, rec.Code, rec.Body.String())
+			assert.Empty(t, *env.calls, "登录没成功就补发了")
+		})
+	}
 }

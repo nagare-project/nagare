@@ -35,6 +35,8 @@ type PlayerAPI interface {
 	RefreshShaders() (bool, error)
 	// RetryPendingSyncs 补发看完了、还没记到账号的集（横幅上的「重试」）。
 	RetryPendingSyncs(ctx context.Context) player.SyncRetryResult
+	// KickPendingSyncs 在后台补发一轮、立刻返回（登录成功之后）。
+	KickPendingSyncs()
 }
 
 // AnimegoAuth 是处理器需要的 animego 会话能力子集。
@@ -352,6 +354,11 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		RefreshCookie: sess.RefreshCookie,
 	}); err != nil {
 		log.Printf("api: 持久化 animego 会话失败：%v", err)
+	}
+	// 没登录时看完、没记到账号的集，现在写得进去了：在后台补发一轮，不拖住登录的答复。
+	// 放在会话落盘之后：补发里的请求可能刷新会话，上面那份登录时的快照不能晚于它落盘。
+	if h.deps.Player != nil {
+		h.deps.Player.KickPendingSyncs()
 	}
 	httpserver.WriteJSON(w, http.StatusOK, map[string]any{"user": map[string]string{"email": user.Email}})
 }
