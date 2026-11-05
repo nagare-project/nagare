@@ -35,6 +35,22 @@ describe('groupSeries', () => {
     expect(series[0]!.episodeCount).toBe(2)
   })
 
+  it('海报色阶跟着封面走：取自提供封面的那个分组；没有封面的作品不带色阶', () => {
+    const tones = { hue: 30, tone: '#e0b49a', quiet: '#c29a82', mid: '#8a6450', low: '#2b1d15', onTone: '#120a06' }
+    const [work, bare] = groupSeries([
+      cluster('first', [item('f1', 1), item('f2', 2)], { matched: { anilistId: 9 }, posterTones: null }),
+      cluster('covered', [item('c1', 1)], { matched: { anilistId: 9 }, cover: '/art/c', posterTones: tones }),
+      cluster('bare', [item('b1', 1)]),
+    ])
+    expect(work!.cover).toBe('/art/c')
+    expect(work!.posterTones).toEqual(tones)
+    expect(bare!.posterTones).toBeUndefined()
+    // 合并成一张剧集表时同样：封面与色阶来自同一个分组
+    const merged = mergeSeries(work!.clusters).cluster
+    expect(merged.cover).toBe('/art/c')
+    expect(merged.posterTones).toEqual(tones)
+  })
+
   it('手动认定过的版本排在最前，作品名用认定的', () => {
     const series = groupSeries([
       cluster('auto', [item('a1', 1), item('a2', 2)], { matched: { anilistId: 9, title: '自动认出的名字' } }),

@@ -3,16 +3,17 @@ import { act } from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../test/harness'
+import { getByRole, getByText, queryByRole } from '../test/queries'
 import type { LibraryCluster, LibraryData } from '../lib/endpoints'
 import { AnimePage } from './AnimePage'
 
-const shared = vi.hoisted(() => ({ clusterKey: 'k1', data: null as LibraryData | null, apply: vi.fn(), playFile: vi.fn(), picks: [] as number[] }))
+const shared = vi.hoisted(() => ({ clusterKey: 'k1', data: null as LibraryData | null, state: null as unknown, reload: vi.fn(), apply: vi.fn(), playFile: vi.fn(), picks: [] as number[] }))
 vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ clusterKey: shared.clusterKey }),
   useRouter: () => null,
   Link: ({ to, children, className }: { to: string; children: ReactNode; className?: string }) => <a href={to} className={className}>{children}</a>,
 }))
-vi.mock('../hooks/useLibrary', () => ({ useLibrary: () => ({ state: { phase: 'ready', data: shared.data }, reload: vi.fn() }) }))
+vi.mock('../hooks/useLibrary', () => ({ useLibrary: () => ({ state: shared.state ?? { phase: 'ready', data: shared.data }, reload: shared.reload }) }))
 vi.mock('../hooks/usePlayerStatus', () => ({ usePlayerStatus: () => ({ status: null, apply: shared.apply }) }))
 vi.mock('../lib/endpoints', () => ({ playFile: shared.playFile }))
 // 对应作品面板自己有测试；这里只看 hero 的「认作品」有没有把请求递过去
@@ -30,10 +31,11 @@ const make = (patch: Partial<LibraryCluster>): LibraryCluster => ({
   groups: [{ groupKey: 'main', label: '正片', sortMode: 'episode', items: files('k1') }], ...patch,
 })
 const library = (...clusters: LibraryCluster[]): LibraryData => ({ folders: [], clusters, continueWatching: [], scannedAt: 1 })
-const buttonNamed = (container: HTMLElement, text: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)
 
 beforeEach(() => {
   shared.clusterKey = 'k1'
+  shared.state = null
+  shared.reload.mockReset()
   shared.picks = []
   shared.playFile.mockReset().mockResolvedValue({ title: '第 2 集', danmaku: { state: 'none' } })
   shared.apply.mockReset()
@@ -44,14 +46,16 @@ describe('本地分组页', () => {
   it('没认出作品：没有海报，标题取自文件夹，主按钮是「认作品」，打开对应作品面板的选作品对话框', async () => {
     shared.data = library(make({}))
     const { container, unmount } = await mount(<AnimePage />)
-    expect(container.querySelector('h1')?.textContent).toBe('Some Folder')
-    expect(container.querySelector('.work-hero-poster')).toBeNull()
-    const pick = buttonNamed(container, '认作品')!
+    expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe('Some Folder')
+    // 没有海报、也没有背景图：页面上一张图都没有
+    expect(container.querySelector('img')).toBeNull()
+    const pick = getByRole(container, 'button', { name: '认作品' })
+    expect(pick.getAttribute('aria-haspopup')).toBe('dialog')
+    // 一页只有一个实心按钮：「认作品」是它，播放降成玻璃按钮
     expect(pick.className).toContain('hero-btn--solid')
     await act(async () => pick.click())
     expect(shared.picks.at(-1)).toBe(1)
-    // 播放还在，降成玻璃按钮：一页只有一个实心
-    expect(buttonNamed(container, '播放第 2 集')?.className).toContain('hero-btn--heavy')
+    expect(getByRole(container, 'button', { name: '播放第 2 集' }).className).toContain('hero-btn--heavy')
     await unmount()
   })
 
@@ -62,12 +66,16 @@ describe('本地分组页', () => {
       posterTones: { hue: 30, tone: '#e0b49a', quiet: '#c29a82', mid: '#8a6450', low: '#2b1d15', onTone: '#120a06' },
     }))
     const { container, unmount } = await mount(<AnimePage />)
-    expect(container.querySelector('h1')?.textContent).toBe('认定的作品')
-    expect(container.textContent).toContain('文件夹：Some Folder')
-    expect(container.querySelector<HTMLElement>('main')!.style.getPropertyValue('--poster-tone')).toBe('#e0b49a')
-    expect(buttonNamed(container, '认作品')).toBeUndefined()
-    expect([...container.querySelectorAll('a')].find(a => a.textContent === '作品详情')?.getAttribute('href')).toBe('/entry?id=42')
-    await act(async () => buttonNamed(container, '播放第 2 集')!.click())
+    expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe('认定的作品')
+    expect(getByText(container, /文件夹：Some Folder/)).toBeDefined()
+    expect(getByRole(container, 'main').style.getPropertyValue('--poster-tone')).toBe('#e0b49a')
+    expect(queryByRole(container, 'button', { name: '认作品' })).toBeNull()
+    expect(getByRole(container, 'link', { name: '作品详情' }).getAttribute('href')).toBe('/entry?id=42')
+    // 返回媒体库的链接在标题上方
+    expect(getByRole(container, 'link', { name: '媒体库' }).getAttribute('href')).toBe('/library')
+    const play = getByRole(container, 'button', { name: '播放第 2 集' })
+    expect(play.className).toContain('hero-btn--solid')
+    await act(async () => play.click())
     expect(shared.playFile).toHaveBeenCalledExactlyOnceWith('k1-2')
     expect(shared.apply).toHaveBeenCalledWith(expect.objectContaining({ playing: true, fileId: 'k1-2' }))
     await unmount()
@@ -77,10 +85,10 @@ describe('本地分组页', () => {
     shared.data = library(make({}))
     shared.playFile.mockRejectedValueOnce(new Error('未找到 mpv'))
     const { container, unmount } = await mount(<AnimePage />)
-    const row = [...container.querySelectorAll<HTMLButtonElement>('li > button')].find(b => b.textContent?.startsWith('播放第 01 集：'))!
-    await act(async () => row.click())
+    const episodes = getByRole(container, 'region', { name: /^本地剧集/ })
+    await act(async () => getByRole(episodes, 'button', { name: /^播放第 01 集：/ }).click())
     expect(shared.playFile).toHaveBeenCalledExactlyOnceWith('k1-1')
-    expect(container.querySelector('[role=status]')?.textContent).toBe('未找到 mpv')
+    expect(getByRole(container, 'status').textContent).toBe('未找到 mpv')
     await unmount()
   })
 
@@ -88,8 +96,23 @@ describe('本地分组页', () => {
     shared.data = library(make({}))
     shared.clusterKey = 'gone'
     const { container, unmount } = await mount(<AnimePage />)
-    expect(container.textContent).toContain('找不到这部作品')
-    expect(container.querySelector('a')?.getAttribute('href')).toBe('/library')
+    expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe('找不到这部作品')
+    expect(getByRole(container, 'link', { name: '回到媒体库' }).getAttribute('href')).toBe('/library')
     await unmount()
+  })
+
+  it('读媒体库时是 hero 的骨架；读失败说出原因并能重试', async () => {
+    shared.state = { phase: 'loading' }
+    const loading = await mount(<AnimePage />)
+    expect(getByRole(loading.container, 'status', { name: '正在读取媒体库' })).toBeDefined()
+    await loading.unmount()
+
+    shared.state = { phase: 'error', message: '后端没有响应' }
+    const failed = await mount(<AnimePage />)
+    expect(getByRole(failed.container, 'heading', { level: 1 }).textContent).toBe('读取媒体库失败')
+    expect(failed.container.textContent).toContain('后端没有响应')
+    await act(async () => getByRole(failed.container, 'button', { name: '重试' }).click())
+    expect(shared.reload).toHaveBeenCalledOnce()
+    await failed.unmount()
   })
 })

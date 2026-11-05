@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
+import { getAllByRole, getByRole, queryByRole } from '../../test/queries'
 import type { LibraryCluster } from '../../lib/endpoints'
 import type { MediaSummary } from '../media/types'
 import { AssociationPanel } from './AssociationPanel'
@@ -45,11 +46,16 @@ function cluster(patch: Partial<LibraryCluster> = {}): LibraryCluster {
   return { clusterKey: 'k1', title: 'Sousou no Frieren', season: null, confidence: 0.9, episodeCount: 2, groups: [], ...patch }
 }
 
+/** 可见文字里带着这几个字的按钮（对话框没打开时也找得到，好断言它还关着） */
 function button(container: HTMLElement, text: string): HTMLButtonElement {
-  const found = [...container.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes(text))
+  const found = getAllByRole(container, 'button', { hidden: true }).find((b) => b.textContent?.includes(text))
   if (!found) throw new Error(`找不到按钮：${text}`)
-  return found
+  return found as HTMLButtonElement
 }
+/** 选作品对话框（关着时读屏碰不到，照样取得到它来看开没开） */
+const pickDialog = (container: HTMLElement) => getByRole(container, 'dialog', { hidden: true })
+/** 面板上的错误说明（不是对话框里那一条） */
+const panelAlert = (container: HTMLElement) => getAllByRole(container, 'alert', { hidden: true }).find((a) => a.closest('dialog') === null) ?? null
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 4; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
@@ -62,7 +68,7 @@ describe('AssociationPanel', () => {
     const { container, unmount } = await mount(<AssociationPanel cluster={cluster({ matched: { anilistId: 154587, title: '葬送的芙莉莲' } })} onChanged={onChanged} />)
 
     expect(container.textContent).toContain('自动匹配到「葬送的芙莉莲」，还没确认')
-    expect(container.querySelector('a')?.getAttribute('href')).toBe('/entry?id=154587')
+    expect(getByRole(container, 'link', { name: '葬送的芙莉莲' }).getAttribute('href')).toBe('/entry?id=154587')
 
     await act(async () => button(container, '确认').click())
 
@@ -79,7 +85,7 @@ describe('AssociationPanel', () => {
     const empty = await mount(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} />)
     expect(empty.container.textContent).toContain('还没有对应的作品')
     expect(button(empty.container, '选择作品')).toBeTruthy()
-    expect([...empty.container.querySelectorAll('button')].some((b) => b.textContent === '确认')).toBe(false)
+    expect(getAllByRole(empty.container, 'button').some((b) => b.textContent === '确认')).toBe(false)
     await empty.unmount()
   })
 
@@ -90,8 +96,7 @@ describe('AssociationPanel', () => {
     const { container, unmount } = await mount(<AssociationPanel cluster={c} onChanged={onChanged} />)
 
     expect(container.textContent).toContain('第 1–3 集之前记到了「认错的番」上')
-    const fix = [...container.querySelectorAll('a')].find((a) => a.textContent?.includes('去「认错的番」改进度'))
-    expect(fix?.getAttribute('href')).toBe('/entry?id=999')
+    expect(getByRole(container, 'link', { name: '去「认错的番」改进度' }).getAttribute('href')).toBe('/entry?id=999')
 
     await act(async () => button(container, '已处理').click())
 
@@ -120,7 +125,7 @@ describe('AssociationPanel', () => {
 
     await act(async () => button(container, '回到自动匹配').click())
     await act(async () => {
-      container.querySelector('.assoc-confirm')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      getByRole(container, 'group', { name: '确认回到自动匹配' }).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
     expect(container.textContent).not.toContain('清单也会一起删掉')
     expect(api.setAssociation).not.toHaveBeenCalled()
@@ -140,11 +145,13 @@ describe('AssociationPanel', () => {
 
     await act(async () => button(container, '确认').click())
     // 还在重读媒体库：按旧数据画的按钮不能点
-    expect([...container.querySelectorAll<HTMLButtonElement>('.assoc-panel-actions button')].every((b) => b.disabled)).toBe(true)
+    expect((getAllByRole(getByRole(container, 'region', { name: '对应作品' }), 'button') as HTMLButtonElement[]).every((b) => b.disabled)).toBe(true)
     expect(container.textContent).toContain('正在保存')
 
     await act(async () => finishReload())
-    expect(document.activeElement).toBe(container.querySelector('.assoc-panel-status'))
+    // 焦点放到（更新后的）状态行上：读屏接着念这一句
+    expect(document.activeElement?.tagName).toBe('P')
+    expect(document.activeElement?.textContent).toContain('自动匹配到「某番」')
     await unmount()
   })
 
@@ -155,8 +162,8 @@ describe('AssociationPanel', () => {
 
     await act(async () => button(container, '已处理').click())
 
-    const alert = container.querySelector<HTMLElement>('[role="alert"]')
-    expect(alert?.textContent).toContain('已经没有作品关联')
+    const alert = getByRole(container, 'alert')
+    expect(alert.textContent).toContain('已经没有作品关联')
     expect(document.activeElement).toBe(alert)
     await unmount()
   })
@@ -170,7 +177,7 @@ describe('AssociationPanel', () => {
     await act(async () => button(container, '回到自动匹配').click())
 
     expect(api.setAssociation).toHaveBeenCalledWith('k1', { mode: 'auto' })
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('正在播放这部作品')
+    expect(getByRole(container, 'alert').textContent).toContain('正在播放这部作品')
     expect(onChanged).not.toHaveBeenCalled()
     await unmount()
   })
@@ -189,7 +196,7 @@ describe('AssociationDialog（经面板打开）', () => {
     await act(async () => button(container, '更换').click())
     await settle()
 
-    expect(container.querySelector('dialog')?.hasAttribute('open')).toBe(true)
+    expect(pickDialog(container).hasAttribute('open')).toBe(true)
     expect(api.fetchCatalogSearch).toHaveBeenCalledWith('Sousou no Frieren', expect.any(AbortSignal))
     expect(container.textContent).toContain('2023 · TV · 28 集')
     expect(button(container, '别的番').textContent).toContain('自动匹配')
@@ -199,7 +206,7 @@ describe('AssociationDialog（经面板打开）', () => {
 
     expect(api.setAssociation).toHaveBeenCalledWith('k1', { mode: 'manual', anilistId: 154587 })
     expect(onChanged).toHaveBeenCalled()
-    expect(container.querySelector('dialog')?.hasAttribute('open')).toBe(false)
+    expect(pickDialog(container).hasAttribute('open')).toBe(false)
     await unmount()
   })
 
@@ -211,7 +218,7 @@ describe('AssociationDialog（经面板打开）', () => {
     await settle()
     expect(container.textContent).toContain('没有找到')
 
-    const input = container.querySelector<HTMLInputElement>('.assoc-search input')!
+    const input = getByRole(container, 'textbox', { name: '搜索作品名' }) as HTMLInputElement
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Frieren')
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -223,8 +230,8 @@ describe('AssociationDialog（经面板打开）', () => {
     await act(async () => button(container, '不是目录里的作品').click())
     await settle()
     expect(api.setAssociation).toHaveBeenCalledWith('k1', { mode: 'none' })
-    expect(container.querySelector('dialog [role="alert"]')?.textContent).toContain('已经没有这个作品分组')
-    expect(container.querySelector('dialog')?.hasAttribute('open')).toBe(true)
+    expect(getByRole(pickDialog(container), 'alert').textContent).toContain('已经没有这个作品分组')
+    expect(pickDialog(container).hasAttribute('open')).toBe(true)
     await unmount()
   })
 
@@ -237,7 +244,7 @@ describe('AssociationDialog（经面板打开）', () => {
     // 先制造一个面板错误（确认条留着没关）
     await act(async () => button(container, '回到自动匹配').click())
     await act(async () => button(container, '确定删除并回到自动匹配').click())
-    expect(container.querySelector('.assoc-panel > [role="alert"]')?.textContent).toContain('旧错误')
+    expect(panelAlert(container)?.textContent).toContain('旧错误')
     expect(container.textContent).toContain('清单也会一起删掉')
 
     await act(async () => button(container, '更换').click())
@@ -247,7 +254,7 @@ describe('AssociationDialog（经面板打开）', () => {
 
     expect(onChanged).toHaveBeenCalled()
     expect(container.textContent).not.toContain('清单也会一起删掉')
-    expect(container.querySelector('.assoc-panel > [role="alert"]')).toBeNull()
+    expect(panelAlert(container)).toBeNull()
     expect(document.activeElement).toBe(button(container, '更换'))
     await unmount()
   })
@@ -262,12 +269,12 @@ describe('AssociationDialog（经面板打开）', () => {
     await act(async () => button(container, '葬送的芙莉莲').click())
 
     // 保存期间也能关
-    await act(async () => container.querySelector<HTMLButtonElement>('.assoc-dialog-close')!.click())
-    expect(container.querySelector('dialog')?.hasAttribute('open')).toBe(false)
+    await act(async () => getByRole(pickDialog(container), 'button', { name: '关闭' }).click())
+    expect(pickDialog(container).hasAttribute('open')).toBe(false)
     await act(async () => fail(new Error('animego 暂时不可达')))
     await settle()
 
-    expect(container.querySelector('.assoc-panel > [role="alert"]')?.textContent).toContain('animego 暂时不可达')
+    expect(panelAlert(container)?.textContent).toContain('暂时不可达')
     await unmount()
   })
 
@@ -275,13 +282,13 @@ describe('AssociationDialog（经面板打开）', () => {
     api.fetchCatalogSearch.mockReturnValueOnce(new Promise(() => {})).mockResolvedValue([frieren])
     const { container, unmount } = await mount(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} />)
     await act(async () => button(container, '选择作品').click())
-    await act(async () => container.querySelector<HTMLButtonElement>('.assoc-dialog-close')!.click())
+    await act(async () => getByRole(pickDialog(container), 'button', { name: '关闭' }).click())
 
     await act(async () => button(container, '选择作品').click())
     await settle()
 
     expect(api.fetchCatalogSearch).toHaveBeenCalledTimes(2)
-    expect(container.querySelector('.assoc-result')?.textContent).toContain('葬送的芙莉莲')
+    expect(getAllByRole(pickDialog(container), 'listitem')[0]?.textContent).toContain('葬送的芙莉莲')
     await unmount()
   })
 
@@ -289,12 +296,12 @@ describe('AssociationDialog（经面板打开）', () => {
     api.fetchCatalogSearch.mockResolvedValue([])
     const { container, unmount } = await mount(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} />)
     await act(async () => button(container, '选择作品').click())
-    const dialog = container.querySelector('dialog')!
+    const dialog = pickDialog(container)
     dialog.getBoundingClientRect = () => ({ left: 100, right: 500, top: 100, bottom: 500, width: 400, height: 400, x: 100, y: 100, toJSON: () => ({}) })
     const at = (type: string, x: number, target: Element = dialog) =>
       act(async () => { target.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: x })) })
 
-    await at('pointerdown', 200, container.querySelector('.assoc-search input')!)
+    await at('pointerdown', 200, getByRole(dialog, 'textbox', { name: '搜索作品名' }))
     await at('click', 10)
     expect(dialog.hasAttribute('open')).toBe(true)
 
@@ -326,15 +333,16 @@ describe('AssociationDialog（经面板打开）', () => {
     document.body.appendChild(opener)
     const ref = { current: opener }
     const { container, rerender, unmount } = await mount(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} pickRequest={0} pickOpener={ref} />)
-    const dialog = container.querySelector('dialog')!
+    const dialog = pickDialog(container)
     expect(dialog.hasAttribute('open')).toBe(false)
+    expect(queryByRole(container, 'dialog')).toBeNull()
 
     await rerender(<AssociationPanel cluster={cluster()} onChanged={vi.fn()} pickRequest={1} pickOpener={ref} />)
     await settle()
     expect(dialog.hasAttribute('open')).toBe(true)
 
     ;(document.activeElement as HTMLElement | null)?.blur()
-    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="关闭"]')!.click())
+    await act(async () => getByRole(dialog, 'button', { name: '关闭' }).click())
     await settle()
     expect(document.activeElement).toBe(opener)
     // 同一个请求号重渲染不会再开一次

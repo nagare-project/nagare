@@ -8,6 +8,7 @@ import type { LibraryData, PlayerStatus, SettingsData, UpdateView } from '../lib
 import { TOKEN_STORAGE_KEY } from '../lib/token'
 import { router } from '../routes'
 import { mount } from '../test/harness'
+import { accessibleName, getAllByRole, getByRole, getByText, queryByRole, queryByText } from '../test/queries'
 import { installLocalStorage } from '../test/storage'
 import { SKIP_FOLDERS_KEY } from '../components/library/onboardingSkip'
 import { AUTO_RESCAN_AFTER_MS, resetAutoRescanForTest } from '../hooks/useAutoRescan'
@@ -158,17 +159,18 @@ afterEach(() => {
   window.sessionStorage.clear()
 })
 
-/** 读屏念出来的文字：去掉 aria-hidden 的装饰（jsdom 没有可访问名称计算，这里近似） */
-function spoken(element: Element): string {
-  const copy = element.cloneNode(true) as Element
-  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove()
-  return copy.textContent ?? ''
-}
 /** 作品网格（列表名「媒体库」）里的每张卡：链接的名字就是卡片上的可见文字，作品名打头 */
-const works = (container: HTMLElement) => [...container.querySelectorAll<HTMLAnchorElement>('ul[aria-label="媒体库"] a')]
-/** 「还没认出的 N 组」：默认折叠的那一节 */
-const unrecognized = (container: HTMLElement) => container.querySelector<HTMLDetailsElement>('details.unrec')
-const filterButton = (container: HTMLElement, text: string) => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="按观看状态筛选"] button')].find((b) => b.textContent === text)!
+const works = (container: HTMLElement) => {
+  const grid = queryByRole(container, 'list', { name: '媒体库' })
+  return grid === null ? [] : (getAllByRole(grid, 'link') as HTMLAnchorElement[])
+}
+/** 「还没认出的 N 组」：默认折叠的那一节（标题就是它的 summary） */
+const unrecognized = (container: HTMLElement) => queryByText(container, /^还没认出的 \d+ 组$/)?.closest('details') ?? null
+/** 那一节里的分组链接：收起时读屏碰不到，照样数得到 */
+const unrecognizedLinks = (container: HTMLElement) => getAllByRole(unrecognized(container)!, 'link', { hidden: true })
+const filterButton = (container: HTMLElement, text: string) => getByRole(getByRole(container, 'group', { name: '按观看状态筛选' }), 'button', { name: text }) as HTMLButtonElement
+/** 页面上各条状态（role=status）的文字 */
+const statuses = (container: HTMLElement) => getAllByRole(container, 'status').map((el) => el.textContent ?? '')
 
 describe('LibraryPage（整页冒烟）', () => {
   it('低置信又没认过的作品标「待确认」；认过作品就不标，并改用作品名、两种名字都能搜到', async () => {
@@ -181,25 +183,24 @@ describe('LibraryPage（整页冒烟）', () => {
 
     // 认过的进作品网格，不标「待确认」
     expect(works(container)).toHaveLength(1)
-    expect(spoken(works(container)[0]!)).toMatch(/^认定的作品/)
+    expect(accessibleName(works(container)[0]!)).toMatch(/^认定的作品/)
     expect(works(container)[0]!.textContent).not.toContain('待确认')
     // 没认出的收进末尾默认折叠的一节，标「待确认」，主操作是认作品
     const rest = unrecognized(container)!
-    expect(rest.querySelector('summary')?.textContent).toContain('还没认出的 1 组')
     expect(rest.open).toBe(false)
-    const row = rest.querySelector('a')!
-    expect(row.textContent).toContain('Unsure Show')
-    expect(row.textContent).toContain('待确认')
-    expect(row.textContent).toContain('认作品')
-    expect(row.getAttribute('href')).toBe('/anime/unsure')
+    const [row] = unrecognizedLinks(container)
+    expect(row!.textContent).toContain('Unsure Show')
+    expect(row!.textContent).toContain('待确认')
+    expect(row!.textContent).toContain('认作品')
+    expect(row!.getAttribute('href')).toBe('/anime/unsure')
 
-    const search = container.querySelector<HTMLInputElement>('input[aria-label="筛选媒体库"]')!
+    const search = getByRole(container, 'textbox', { name: '筛选媒体库' }) as HTMLInputElement
     for (const q of ['Chosen Folder', '认定的']) {
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, q)
         search.dispatchEvent(new Event('input', { bubbles: true }))
       })
-      expect(works(container).map((a) => spoken(a).startsWith('认定的作品'))).toEqual([true])
+      expect(works(container).map((a) => accessibleName(a).startsWith('认定的作品'))).toEqual([true])
       expect(unrecognized(container)).toBeNull()
     }
     await unmount()
@@ -218,13 +219,14 @@ describe('LibraryPage（整页冒烟）', () => {
 
     const posters = works(container)
     expect(posters).toHaveLength(1)
-    expect(spoken(posters[0]!)).toMatch(/^Re：从零开始的异世界生活 第四季/)
+    expect(accessibleName(posters[0]!)).toMatch(/^Re：从零开始的异世界生活 第四季/)
     expect(posters[0]!.textContent).toContain('2 个版本')
     expect(posters[0]!.querySelector('img')?.getAttribute('src')).toBe('/art/cap/ani')
     expect(posters[0]!.getAttribute('href')).toBe('/entry?id=189046')
-    expect(container.querySelector('#collection-heading')?.textContent).toBe('作品 1')
-    expect(container.querySelector('.lib-identify')?.textContent).toContain('正在识别作品 1/2')
-    expect(container.querySelector('.lib-identify')?.getAttribute('aria-live')).toBeNull()
+    expect(getByRole(container, 'heading', { level: 2, name: '作品 1' })).toBeDefined()
+    // 识别进度单独一行，不在 live region 里（每几秒变一次，读屏不该一条条念）
+    const identify = getByText(container, /^正在识别作品 1\/2/)
+    expect(identify.closest('[aria-live], [role="status"]')).toBeNull()
     await unmount()
   })
 
@@ -233,9 +235,43 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFetch(SETTINGS, library)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     expect(works(container)).toHaveLength(1)
-    expect(works(container)[0]!.textContent).toContain('认作品中…')
+    expect(accessibleName(works(container)[0]!)).toContain('认作品中…')
     expect(works(container)[0]!.querySelector('img')).toBeNull()
     expect(unrecognized(container)).toBeNull()
+    await unmount()
+  })
+
+  it('海报色写在每张作品卡自己的根元素上（悬停描边用）；没有色阶的卡不写', async () => {
+    const library = structuredClone(LIBRARY)
+    const base = library.clusters[0]!
+    const toned = { ...structuredClone(base), clusterKey: 'toned', cover: '/art/cap/toned', matched: { anilistId: 1, title: '有色阶的作品' }, posterTones: { hue: 30, tone: '#e0b49a', quiet: '#c29a82', mid: '#8a6450', low: '#2b1d15', onTone: '#120a06' } }
+    const plain = { ...structuredClone(base), clusterKey: 'plain', cover: '/art/cap/plain', matched: { anilistId: 2, title: '灰封面的作品' }, posterTones: null }
+    for (const item of plain.groups[0]!.items) item.fileId = `plain-${item.fileId}`
+    library.clusters = [toned, plain]
+    stubFetch(SETTINGS, library)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const [first, second] = works(container)
+    expect(first!.closest('li')!.style.getPropertyValue('--poster-tone-mid')).toBe('#8a6450')
+    expect(second!.closest('li')!.getAttribute('style')).toBeNull()
+    await unmount()
+  })
+
+  it('扫描读不到的文件夹：横幅里写出路径与原因，并指向设置里的文件夹管理', async () => {
+    const library = structuredClone(LIBRARY)
+    library.folders = [...library.folders, { id: 'folder-2', path: '/Volumes/外接盘/番剧', addedAt: 1, error: '目录不存在（移动硬盘没接上？）' }]
+    stubFetch(SETTINGS, library)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const banner = getByText(container, /^有 1 个文件夹这次没能扫描/).closest('[role="status"]')!
+    expect(getByText(banner as HTMLElement, '/Volumes/外接盘/番剧')).toBeDefined()
+    expect(banner.textContent).toContain('目录不存在（移动硬盘没接上？）')
+    expect(getByRole(banner as HTMLElement, 'link', { name: /检查文件夹/ }).getAttribute('href')).toBe('/settings#folders')
+    await unmount()
+  })
+
+  it('所有文件夹都扫描正常时不出这条横幅', async () => {
+    stubFetch()
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    expect(container.textContent).not.toContain('没能扫描')
     await unmount()
   })
 
@@ -252,7 +288,7 @@ describe('LibraryPage（整页冒烟）', () => {
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     const posts = fetchMock.mock.calls.filter(([input, init]) => String(input).includes('/api/library/rescan') && (init as RequestInit | undefined)?.method === 'POST')
     expect(posts).toHaveLength(1)
-    expect(container.querySelector('.lib-status')?.textContent).not.toContain('失败')
+    expect(statuses(container).some((text) => text.includes('失败'))).toBe(false)
     await unmount()
   })
 
@@ -265,11 +301,11 @@ describe('LibraryPage（整页冒烟）', () => {
     expect(filterButton(container, '在看').getAttribute('aria-pressed')).toBe('true')
     // 还没认出作品：在「还没认出」那一节里；网格是空的，所以那一节自己展开
     expect(unrecognized(container)?.open).toBe(true)
-    expect(unrecognized(container)?.querySelector('a')?.textContent).toContain('葬送的芙莉莲')
+    expect(getAllByRole(unrecognized(container)!, 'link')[0]?.textContent).toContain('葬送的芙莉莲')
     await act(async () => { filterButton(container, '已看完').click() })
     expect(works(container)).toHaveLength(0)
     expect(unrecognized(container)).toBeNull()
-    expect(container.querySelector('[role=status].collection-empty')?.textContent).toContain('没有符合条件的作品')
+    expect(getByText(container, /^没有符合条件的作品/).getAttribute('role')).toBe('status')
     await unmount()
   })
 
@@ -287,27 +323,27 @@ describe('LibraryPage（整页冒烟）', () => {
       expect.arrayContaining(['/api/library', '/api/settings', '/api/player/status', '/api/update']),
     )
     // 没有新版本：不出提示条
-    expect(document.querySelector('.update-banner')).toBeNull()
+    expect(document.body.textContent).not.toContain('新版本')
 
-    // 页头与 mpv 状态点
-    expect(container.querySelector('h1')?.textContent).toContain('媒体库')
-    expect(container.querySelector('.mpv-dot--ok')).not.toBeNull()
-    expect(container.querySelector('.alert-warn')).toBeNull()
+    // 页头与 mpv 状态：点的颜色之外，状态以文字念得到
+    expect(getByRole(container, 'heading', { level: 1 }).textContent).toContain('媒体库')
+    expect(getByText(container, 'mpv 已就绪 · 0.38.0').getAttribute('title')).toBe('mpv 已就绪 · 0.38.0')
+    expect(getAllByRole(container, 'alert')).toHaveLength(0)
 
     // 还没认出作品的分组：标题 + 季 + 集数；置信度 0.93 不出「待确认」。网格里一部都没有时这一节自己展开
     const rest = unrecognized(container)!
     expect(rest.open).toBe(true)
-    const row = rest.querySelector('a')!
-    expect(row.textContent).toContain('葬送的芙莉莲')
-    expect(row.textContent).toContain('第 1 季 · 2 集')
+    const [row] = getAllByRole(rest, 'link')
+    expect(row!.textContent).toContain('葬送的芙莉莲')
+    expect(row!.textContent).toContain('第 1 季 · 2 集')
     expect(container.textContent).not.toContain('待确认')
 
     // 剧集列表【不】在库页上：它住在 /anime/$clusterKey，这一行链过去
-    expect(container.querySelectorAll('li > button')).toHaveLength(0)
-    expect(row.getAttribute('href')).toBe('/anime/frieren')
+    expect(getAllByRole(container, 'button', { name: /^播放/ })).toHaveLength(0)
+    expect(row!.getAttribute('href')).toBe('/anime/frieren')
 
-    // 未在播放：不出现在播条
-    expect(container.querySelector('.np-bar')).toBeNull()
+    // 未在播放：没有播放条（也就没有「停止」）
+    expect(queryByRole(container, 'button', { name: '停止' })).toBeNull()
 
     await unmount()
   })
@@ -315,20 +351,21 @@ describe('LibraryPage（整页冒烟）', () => {
   it('mpv 未找到：状态点变红，提示条里给出「去设置安装 mpv」链接', async () => {
     stubFetch(MPV_MISSING)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    expect(container.querySelector('.mpv-dot--missing')).not.toBeNull()
-    const alert = container.querySelector('.alert-warn')
-    expect(alert?.textContent).toContain('未检测到 mpv')
-    expect(alert?.querySelector('a')?.getAttribute('href')).toBe('/settings#player')
-    expect(alert?.querySelector('a')?.textContent).toContain('去设置安装 mpv')
+    expect(getByText(container, 'mpv 未找到')).toBeDefined()
+    const alert = getByRole(container, 'alert')
+    expect(alert.textContent).toContain('未检测到 mpv')
+    const link = getByRole(alert, 'link', { name: /去设置安装 mpv/ })
+    expect(link.getAttribute('href')).toBe('/settings#player')
     await unmount()
   })
 
   it('桌面窗口里 mpv 是内置的：状态点是绿的、说明是内置，不出「未检测到 mpv」的提示条', async () => {
     stubFetch(MPV_EMBEDDED)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    expect(container.querySelector('.mpv-dot--ok')).not.toBeNull()
-    expect(container.querySelector('.mpv-dot--missing')).toBeNull()
-    expect(container.querySelector('.mpv-chip')?.getAttribute('title')).toContain('内置')
+    const chip = getByText(container, /^mpv 已就绪/)
+    expect(chip.textContent).toContain('内置')
+    expect(chip.getAttribute('title')).toContain('内置')
+    expect(queryByText(container, 'mpv 未找到')).toBeNull()
     expect(container.textContent).not.toContain('未检测到 mpv')
     expect(container.textContent).not.toContain('去设置安装 mpv')
     await unmount()
@@ -487,14 +524,14 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFetch(SETTINGS, withDrops)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
 
-    const drops = container.querySelector('.drops')
-    expect(drops, '扫描跳过了东西，界面上却没有任何痕迹').not.toBeNull()
-    expect(drops?.querySelector('.drops-count')?.textContent).toBe('3 项没有进库')
-    // 收起状态下也要看得见原因 —— 只说「3 项没有进库」等于什么都没说
-    expect(drops?.querySelector('.drops-why')?.textContent).toContain('符号链接')
+    const count = queryByText(container, '3 项没有进库')
+    expect(count, '扫描跳过了东西，界面上却没有任何痕迹').not.toBeNull()
+    // 收起状态下也要看得见原因 —— 只说「3 项没有进库」等于什么都没说（原因写在 summary 里）
+    const summary = count!.closest('summary')!
+    expect(summary.textContent).toContain('符号链接')
 
     // 恢复动作：这才是这块东西存在的理由
-    const recoveries = [...container.querySelectorAll('.drops-recovery')].map((e) => e.textContent)
+    const recoveries = getAllByRole(summary.closest('details')!, 'listitem', { hidden: true }).map((li) => li.textContent ?? '').filter((text) => text.includes('→'))
     expect(recoveries[0]).toContain('真实路径')
     expect(recoveries).toHaveLength(2)
     // 具体是哪个文件，用户得能照着去找
@@ -527,20 +564,19 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFetch(SETTINGS, allDropped)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
 
-    expect(container.querySelector('.page-notice-title')?.textContent).toBe('没有发现视频文件')
-    expect(container.querySelector('.page-notice-copy')?.textContent).toContain('3 项都被跳过了')
-    // 空库时原因就是这一页的全部内容，所以默认展开
-    const drops = container.querySelector('.drops')
-    expect(drops?.hasAttribute('open')).toBe(true)
-    // 同一条信息不该在一屏里出现两次
-    expect(container.querySelectorAll('.drops')).toHaveLength(1)
+    expect(getByRole(container, 'heading', { level: 2, name: '没有发现视频文件' })).toBeDefined()
+    expect(getByText(container, /3 项都被跳过了/)).toBeDefined()
+    // 空库时原因就是这一页的全部内容，所以默认展开；同一条信息不该在一屏里出现两次
+    const counts = container.textContent?.match(/3 项没有进库/g) ?? []
+    expect(counts).toHaveLength(1)
+    expect(getByText(container, '3 项没有进库').closest('details')?.open).toBe(true)
     await unmount()
   })
 
   it('什么都没跳过时完全不出这一块 —— 每次扫描都吓用户一跳是另一种病', async () => {
     stubFetch()
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    expect(container.querySelector('.drops')).toBeNull()
+    expect(container.textContent).not.toContain('没有进库')
     await unmount()
   })
 
@@ -564,22 +600,22 @@ describe('LibraryPage（整页冒烟）', () => {
     })
     const { container, unmount } = await mount(<RouterProvider router={router} />)
 
-    const alerts = [...container.querySelectorAll('.alert-warn')].map((e) => e.textContent ?? '')
+    const alerts = statuses(container)
     const sync = alerts.find((t) => t.includes('animego 账号'))
     expect(sync, `没有任何横幅提到同步失败，实际横幅：${JSON.stringify(alerts)}`).toBeDefined()
     // 是哪一集 —— 只说「同步失败」用户无从下手
     expect(sync).toContain('葬送的芙莉莲')
     expect(sync).toContain('第3集')
     expect(sync).toContain('animego 服务暂不可达')
-    // 恢复动作
-    expect(container.querySelector('.alert-warn-recovery')?.textContent).toContain('再试一次')
+    // 恢复动作：另起一行
+    expect(getByText(container, /^→ 确认网络后/).textContent).toContain('再试一次')
     await unmount()
   })
 
   it('没有同步失败时不出这条横幅', async () => {
     stubFetch()
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    const alerts = [...container.querySelectorAll('.alert-warn')].map((e) => e.textContent ?? '')
+    const alerts = statuses(container)
     expect(alerts.filter((t) => t.includes('animego 账号'))).toEqual([])
     await unmount()
   })
@@ -605,8 +641,8 @@ describe('LibraryPage（整页冒烟）', () => {
     })
     const { container, unmount } = await mount(<RouterProvider router={router} />)
 
-    const retry = [...container.querySelectorAll('.alert-warn button')].find((b) => b.textContent === '重试') as HTMLButtonElement | undefined
-    expect(retry, '会再试的同步失败要给「重试」').toBeDefined()
+    const retry = queryByRole(container, 'button', { name: '重试' })
+    expect(retry, '会再试的同步失败要给「重试」').not.toBeNull()
     await act(async () => { retry!.click() })
     for (let i = 0; i < 5; i++) await act(async () => { await Promise.resolve() })
 
@@ -615,8 +651,8 @@ describe('LibraryPage（整页冒烟）', () => {
     const init = posts[0]![1] as RequestInit
     expect(init.method).toBe('POST')
     expect(new Headers(init.headers).get('X-Nagare-Token')).toBe('9f86d081884c7d659a2feaa0c55ad015')
-    expect(container.querySelector('.lib-status')?.textContent).toContain('补记上 1 集')
-    expect(container.querySelector('.alert-warn button')).toBeNull()
+    expect(statuses(container).some((text) => text.includes('补记上 1 集'))).toBe(true)
+    expect(queryByRole(container, 'button', { name: '重试' })).toBeNull()
     await unmount()
   })
 
