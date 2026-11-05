@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { inFlight } from '../../lib/busy'
 import type { ReloadResult, RulesConfigPatch, RulesInfo, SyncResult } from '../../lib/endpoints'
 import { errorText, formatClock } from '../../lib/format'
 import { mono } from '../../theme'
@@ -53,6 +54,7 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
 
   function handleSave(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
+    if (busy) return
     const nextRemote = remoteUrl.trim()
     const nextLocal = localDir.trim()
     if (nextRemote !== '' && !HTTPS_PREFIX.test(nextRemote)) {
@@ -82,7 +84,6 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
     })
   }
 
-  const canSync = rules.remoteUrl !== '' && !busy
   const view = resultView(state)
 
   return (
@@ -100,7 +101,7 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
           placeholder="规则仓库的 HTTPS 地址"
           spellCheck={false}
           autoComplete="off"
-          disabled={busy}
+          readOnly={busy}
         />
       </div>
       <div className="field">
@@ -116,17 +117,17 @@ export function RulesConfigForm({ rules, onSave, onSync, onReload }: RulesConfig
           placeholder="本机规则目录的绝对路径（开发用，可留空）"
           spellCheck={false}
           autoComplete="off"
-          disabled={busy}
+          readOnly={busy}
         />
       </div>
       <div className="form-actions">
-        <button type="submit" className="btn" disabled={busy}>
+        <button type="submit" className="btn" {...inFlight(busy)}>
           {state.phase === 'busy' && state.action === 'save' ? '保存中 …' : '保存'}
         </button>
-        <button type="button" className="btn" onClick={handleSync} disabled={!canSync} aria-describedby={rules.remoteUrl === '' ? 'rules-sync-hint' : undefined}>
+        <button type="button" className="btn" disabled={rules.remoteUrl === ''} {...inFlight(busy, handleSync)} aria-describedby={rules.remoteUrl === '' ? 'rules-sync-hint' : undefined}>
           {state.phase === 'busy' && state.action === 'sync' ? '同步中 …' : '同步规则'}
         </button>
-        <button type="button" className="btn" onClick={handleReload} disabled={busy}>
+        <button type="button" className="btn" {...inFlight(busy, handleReload)}>
           {state.phase === 'busy' && state.action === 'reload' ? '加载中 …' : '重新加载'}
         </button>
         {rules.remoteUrl === '' && (

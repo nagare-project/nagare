@@ -1,3 +1,4 @@
+import { inFlight } from '../../lib/busy'
 import type { SourceOutcome } from '../../lib/endpoints'
 import { mono } from '../../theme'
 import { describeOutcome, isSourceEnabled } from './sourceState'
@@ -64,13 +65,11 @@ export function SourceStateChip({ name, outcome, onToggle, busy = false }: Sourc
       data-tooltip={view.tooltip}
       aria-pressed={enabled}
       data-state={outcome.state}
-      onClick={() => onToggle(!enabled)}
-      disabled={busy}
+      {...inFlight(busy, () => onToggle(!enabled))}
     >
       {body}
-      <span className="visually-hidden">
-        {outcome.state === 'ok' ? '，正常' : ''}，点击{enabled ? '禁用' : '启用'}
-      </span>
+      {/* 启用与否由 aria-pressed 念（「已按下」= 启用），不再另说「点击禁用 / 启用」 */}
+      {outcome.state === 'ok' && <span className="visually-hidden">，正常</span>}
     </button>
   )
 }

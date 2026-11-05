@@ -21,6 +21,7 @@ import { RouteLink } from '../components/catalog/RouteLink'
 import { LoginHint, WorkHeroSkeleton } from '../components/library/WorkStates'
 import { LibraryAnimeLink } from '../components/library/LibraryAnimeLink'
 import { fetchLibrary } from '../lib/endpoints'
+import { inFlight } from '../lib/busy'
 import type { LibraryCluster } from '../lib/endpoints'
 import { clusterWork } from '../lib/librarySeries'
 import { posterToneStyle } from '../lib/posterTones'
@@ -102,7 +103,7 @@ function EntryContent({ media }: { media: MediaSummary }) {
           <>
             {primary && (
               // 播放的进度与出错说明都画在「本地媒体库」那个标签里：先切过去，否则停在「在线播放」时失败是静默的
-              <button type="button" className="hero-btn hero-btn--solid" disabled={primary.busy} onClick={() => { setPanel('local'); primary.play() }}>
+              <button type="button" className="hero-btn hero-btn--solid" {...inFlight(primary.busy, () => { setPanel('local'); primary.play() })}>
                 <Icon name="play" size={16} />{primary.busy ? '正在启动…' : primary.label}
               </button>
             )}

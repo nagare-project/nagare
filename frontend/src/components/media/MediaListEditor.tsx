@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { COLLECTION_LABELS, entryStatus } from '../../lib/media'
 import type { CollectionEdit, CollectionStatus } from '../../lib/media'
 import { errorText } from '../../lib/format'
@@ -50,19 +51,19 @@ export function MediaListEditor({ media, onOpenChange = () => {}, labelled = fal
       onClick={event => { if (event.target === dialog.current && !pending) dialog.current.close() }}>
       <form onSubmit={event => { event.preventDefault(); void submit() }}>
         <h2>{media.title}</h2>
-        <button type="button" className="icon-button media-list-close" aria-label="关闭收藏编辑" disabled={pending} onClick={() => dialog.current?.close()}><Icon name="close" size={18} /></button>
+        <button type="button" className="icon-button media-list-close" aria-label="关闭收藏编辑" {...inFlight(pending, () => dialog.current?.close())}><Icon name="close" size={18} /></button>
         <div className="media-list-fields">
           <label>观看状态<select aria-label="观看状态" value={draft.status} disabled={pending} onChange={event => { const status = event.target.value as CollectionStatus; setDraft({ ...draft, status, progress: status === 'completed' && media.episodes ? media.episodes : draft.progress }) }}>
             {(Object.keys(COLLECTION_LABELS) as CollectionStatus[]).map(status => <option key={status} value={status}>{COLLECTION_LABELS[status]}</option>)}
           </select></label>
-          <label>评分<input type="number" min={1} max={10} step={1} value={draft.score ?? ''} placeholder="未评分" disabled={pending} onChange={event => setDraft({ ...draft, score: event.target.value === '' ? null : Number(event.target.value) })} /></label>
-          <label>观看进度<input type="number" min={0} max={media.episodes ?? 5000} step={1} value={draft.progress} required disabled={pending} onChange={event => setDraft({ ...draft, progress: Number(event.target.value) })} /></label>
+          <label>评分<input type="number" min={1} max={10} step={1} value={draft.score ?? ''} placeholder="未评分" readOnly={pending} onChange={event => setDraft({ ...draft, score: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+          <label>观看进度<input type="number" min={0} max={media.episodes ?? 5000} step={1} value={draft.progress} required readOnly={pending} onChange={event => setDraft({ ...draft, progress: Number(event.target.value) })} /></label>
         </div>
         <p className="media-list-note">状态、评分和进度同步到 animego 账号。</p>
         {error && <p className="result result--err" role="alert">{error}</p>}
-        <footer>{entry && <div className="media-list-delete"><button type="button" className="icon-button" aria-label="删除收藏" disabled={pending} onClick={() => setConfirmDelete(!confirmDelete)}><Icon name="trash" size={20} /></button>
-          {confirmDelete && <button type="button" className="btn btn--danger" disabled={pending} onClick={() => void submit(true)}>确认删除</button>}</div>}
-          <button type="submit" className="btn btn--primary" disabled={pending}>{pending ? '正在保存…' : '保存'}</button></footer>
+        <footer>{entry && <div className="media-list-delete"><button type="button" className="icon-button" aria-label="删除收藏" {...inFlight(pending, () => setConfirmDelete(!confirmDelete))}><Icon name="trash" size={20} /></button>
+          {confirmDelete && <button type="button" className="btn btn--danger" {...inFlight(pending, () => void submit(true))}>确认删除</button>}</div>}
+          <button type="submit" className="btn btn--primary" {...inFlight(pending)}>{pending ? '正在保存…' : '保存'}</button></footer>
       </form>
     </dialog>
   </>

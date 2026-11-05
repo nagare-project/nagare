@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { copyText } from '../../lib/clipboard'
 import type { SearchItem } from '../../lib/endpoints'
 import { formatPublished } from '../../lib/format'
@@ -6,8 +7,8 @@ import { mono } from '../../theme'
 import '../../styles/panels.css'
 import './search.css'
 
-/** 「已复制」提示停留多久后恢复按钮文案 */
-const COPY_FEEDBACK_MS = 1800
+/** 「已复制」提示停留多久后恢复按钮文案（表格的播报区也在这之后清空） */
+export const COPY_FEEDBACK_MS = 1800
 
 type CopyState = 'idle' | 'copied' | 'failed'
 
@@ -51,7 +52,7 @@ const PLAY_HINT: Record<PlayStage, string | null> = {
 export interface PlayControl {
   /**
    * 播放这一条。第二个参数是被点下的那个按钮元素 —— 选集弹窗关闭后要把焦点
-   * 交还给它，而弹窗自己读 document.activeElement 是读不到的（按钮点下即禁用）。
+   * 交还给它（弹窗打开后 document.activeElement 已经在弹窗里了）。
    */
   onPlay: (item: SearchItem, trigger: HTMLButtonElement) => void
   /** 正占着后端的那条磁力；null = 空闲 */
@@ -67,6 +68,11 @@ export interface ResultRowProps {
   /** 表头是否有「做种」列（整表统一，由 ResultTable 决定） */
   showSeeders: boolean
   play: PlayControl
+  /**
+   * 复制完要念的一句（「已复制磁力：<标题>」）。播报区整张表只有一个（ResultTable 里），
+   * 不是每行一个：每行一个的话，连着复制两行时两处一起念
+   */
+  onCopyResult?: (text: string) => void
 }
 
 /** 本行的播放按钮该是什么状态 */
@@ -81,7 +87,7 @@ export function playStage(magnet: string, play: PlayControl): PlayStage {
  * 「复制磁力」走 lib/clipboard 的 copyText；「播放」把这条磁力交给 useTorrentPlay，
  * 进行中 / 被别的行占着 / 引擎不可用时禁用，并把原因写在 title 与 aria-label 里。
  */
-export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProps) {
+export function ResultRow({ item, sourceName, showSeeders, play, onCopyResult }: ResultRowProps) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const timerRef = useRef<number | null>(null)
   const ids = useId()
@@ -98,7 +104,9 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
   }, [])
 
   async function handleCopy(): Promise<void> {
-    setCopyState((await copyText(item.magnet)) ? 'copied' : 'failed')
+    const copied = await copyText(item.magnet)
+    setCopyState(copied ? 'copied' : 'failed')
+    onCopyResult?.(copied ? `已复制磁力：${item.title}` : `复制磁力失败：${item.title}`)
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     timerRef.current = window.setTimeout(() => setCopyState('idle'), COPY_FEEDBACK_MS)
   }
@@ -143,16 +151,15 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
         <button type="button" className={copyClass} onClick={() => void handleCopy()} aria-labelledby={`${copyLabelId} ${titleId}`}>
           <span id={copyLabelId}>{COPY_LABEL[copyState]}</span>
         </button>
-        <span className="visually-hidden" role="status" aria-live="polite">
-          {copyState === 'idle' ? '' : COPY_LABEL[copyState]}
-        </span>
         {/* 禁用的按钮收不到 hover 事件，title 挂在外层 span 上才提示得出来 */}
         <span className="res-play-wrap" title={hint ?? undefined}>
           <button
             type="button"
             className={stage === 'active' ? 'btn btn--sm res-play res-play--active' : 'btn btn--sm res-play'}
-            onClick={(event) => play.onPlay(item, event.currentTarget)}
-            disabled={stage !== 'idle'}
+            // 本行正在起播 / 正在播：请求在途，只是暂时不能点（aria-disabled，焦点不丢 —— 选集弹窗关上时焦点要还到这里）；
+            // 别的行占着、引擎不可用：与本行的请求无关，照旧 disabled
+            disabled={stage === 'blocked' || stage === 'disabled'}
+            {...inFlight(stage === 'pending' || stage === 'active', (event) => play.onPlay(item, event.currentTarget))}
             aria-labelledby={`${playLabelId} ${titleId}`}
             aria-describedby={hint === null ? undefined : hintId}
           >

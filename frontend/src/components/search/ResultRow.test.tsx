@@ -97,8 +97,26 @@ describe('ResultRow', () => {
     })
     expect(writeText).toHaveBeenCalledExactlyOnceWith(MAGNET)
     expect(button.textContent).toBe('已复制 ✓')
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('已复制 ✓')
     await unmount()
+  })
+
+  it('整张表只有一个「已复制」播报区：复制哪一行就念哪一行，过一会儿清空', async () => {
+    vi.useFakeTimers()
+    try {
+      stubClipboard(vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined))
+      const items = [makeItem(), makeItem({ title: '[Other] 另一条', magnet: OTHER_MAGNET })]
+      const { container, unmount } = await mount(<ResultTable items={items} names={{ 'src-a': '源甲' }} play={makePlay()} />)
+      expect(getAllByRole(container, 'status')).toHaveLength(1)
+      await act(async () => getByRole(container, 'button', { name: /^复制磁力 \[Other\]/ }).click())
+      expect(getByRole(container, 'status').textContent).toBe('已复制磁力：[Other] 另一条')
+      await act(async () => getByRole(container, 'button', { name: /^复制磁力 \[Sakurato\]/ }).click())
+      expect(getAllByRole(container, 'status').map((el) => el.textContent)).toEqual([`已复制磁力：${items[0]!.title}`])
+      await act(async () => { vi.advanceTimersByTime(2000) })
+      expect(getByRole(container, 'status').textContent).toBe('')
+      await unmount()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('剪贴板写入被拒时显示「复制失败」', async () => {
@@ -140,7 +158,9 @@ describe('ResultRow', () => {
       makePlay({ busy: { magnet: MAGNET, stage: 'pending' } }),
     )
     const play = playButton(container)
-    expect(play.disabled).toBe(true)
+    // 请求在途：不可用但不是 disabled（选集弹窗关上时焦点要还到这里）
+    expect(play.getAttribute('aria-disabled')).toBe('true')
+    expect(play.disabled).toBe(false)
     expect(play.textContent).toBe('启动中 …')
     await unmount()
   })
@@ -152,7 +172,7 @@ describe('ResultRow', () => {
       makePlay({ busy: { magnet: MAGNET, stage: 'active' } }),
     )
     const play = playButton(container)
-    expect(play.disabled).toBe(true)
+    expect(play.getAttribute('aria-disabled')).toBe('true')
     expect(play.textContent).toBe('播放中')
     expect(play.classList.contains('res-play--active')).toBe(true)
     await unmount()

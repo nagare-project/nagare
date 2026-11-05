@@ -3,7 +3,7 @@ import { act } from 'react'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAppRouter } from '../routes'
-import { accessibleName, getAllByRole, getByRole, queryByRole } from '../test/queries'
+import { accessibleName, getAllByRole, getByRole, getByText, queryByRole } from '../test/queries'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
 import { TOKEN_STORAGE_KEY } from '../lib/token'
@@ -18,16 +18,21 @@ const settings = {
 
 /** 设置载荷里的封面缓存占用；null = 这次运行没有封面缓存；undefined = 旧后端没有这个字段 */
 let coverCache: { bytes: number; count: number; maxBytes: number } | null | undefined = null
+/** 后台形态与平台（「后台与退出」按它们措辞） */
+let background: { mode: string } = { mode: 'dock' }
+let platform = 'darwin'
 
 beforeEach(() => {
   coverCache = null
+  background = { mode: 'dock' }
+  platform = 'darwin'
   installLocalStorage()
   window.sessionStorage.setItem(TOKEN_STORAGE_KEY, '00000000000000000000000000000000')
   vi.stubGlobal('scrollTo', vi.fn())
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const path = new URL(String(input), 'http://localhost').pathname
     const data: Record<string, unknown> = {
-      '/api/settings': { ...settings, coverCache },
+      '/api/settings': { ...settings, coverCache, background, platform },
       '/api/library': { folders: [], clusters: [], continueWatching: [], scannedAt: null },
       '/api/sources': { sources: [], rules: { remoteUrl: '', localDir: '', dir: '', loaded: 0, errors: [], lastLoadedAt: null, lastSyncAt: null } },
       '/api/source-plugin': { config: { enabled: false, executable: '', root: '' }, status: { phase: 'disabled' }, sources: [] },
@@ -134,6 +139,62 @@ describe('设置分区', () => {
     expect(section.textContent).toContain('Dock 图标与菜单栏图标')
     expect(section.textContent).toContain('点 Dock 图标可以重新打开界面')
     expect(getByRole(section, 'button', { name: '退出 nagare' })).not.toBeNull()
+    await unmount()
+  })
+
+  // 每种后台形态各说各的「在哪里找它」：说错了，用户会去找一个不存在的图标
+  it.each([
+    { mode: 'menubar', os: 'darwin', where: '菜单栏图标', hint: '从菜单栏右上角的「流」图标可以重新打开界面或退出', quit: 'macOS 也可以从菜单栏图标退出' },
+    { mode: 'tray', os: 'windows', where: '系统托盘图标', hint: '可能折叠在任务栏的「^」里', quit: 'Windows 也可以从托盘图标退出' },
+    { mode: 'tray', os: 'linux', where: '系统托盘图标', hint: '桌面不显示托盘时，用设置页里的「退出 nagare」', quit: 'Linux 没有托盘图标，退出请用这里' },
+    { mode: 'none', os: 'linux', where: '没有图标（命令行或无托盘模式）', hint: '在启动它的终端按 Ctrl+C', quit: 'Linux 没有托盘图标，退出请用这里' },
+  ])('「后台与退出」在 $mode（$os）形态下说清在哪里找它、怎么退出', async ({ mode, os, where, hint, quit }) => {
+    background = { mode }
+    platform = os
+    const { container, unmount } = await open('/settings#background')
+    const section = getByRole(container, 'region', { name: '后台与退出' })
+    const panel = getByRole(section, 'region', { name: '后台运行' })
+    expect(getByText(panel, where).tagName).toBe('DD')
+    expect(panel.textContent).toContain(hint)
+    expect(panel.textContent).not.toContain('Dock')
+    expect(getByRole(section, 'region', { name: '退出 nagare' }).textContent).toContain(quit)
+    expect(getByRole(section, 'button', { name: '退出 nagare' })).not.toBeNull()
+    await unmount()
+  })
+
+  it('点当前所在的分区：地址不变，焦点移到这一区的标题上（读屏念出还在哪一区）', async () => {
+    const { container, router, unmount } = await open('/settings#torrent')
+    const link = getByRole(getByRole(container, 'navigation', { name: '设置分类' }), 'link', { name: '磁力播放' })
+    link.focus()
+    await act(async () => { link.click() })
+    await act(async () => {})
+    expect(router.state.location.hash).toBe('torrent')
+    expect(document.activeElement).toBe(getByRole(container, 'heading', { level: 2, name: '磁力播放' }))
+    await unmount()
+  })
+
+  it('带修饰键点导航（新标签页打开）：本页不切分区、焦点不动；之后从别的路径切过去也不抢焦点', async () => {
+    const { container, router, unmount } = await open('/settings')
+    const nav = getByRole(container, 'navigation', { name: '设置分类' })
+    const link = getByRole(nav, 'link', { name: '关于 nagare' })
+    link.focus()
+    // 链接的默认动作（开新标签页）在 jsdom 里会变成「不支持的跳转」：等页面自己的处理跑完再拦掉
+    const stopDefault = (event: Event) => event.preventDefault()
+    document.addEventListener('click', stopDefault)
+    try {
+      for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey'] as const) {
+        await act(async () => { link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, [modifier]: true })) })
+        expect(router.state.location.hash).toBe('')
+        expect(visibleSectionTitle(container)).toBe('账号')
+        expect(document.activeElement).toBe(link)
+      }
+    } finally {
+      document.removeEventListener('click', stopDefault)
+    }
+    // 那几下没有登记「切过去后移焦点」：后退 / 前进之类别的路径切到这一区时，焦点留在原处
+    await act(async () => { await router.navigate({ to: '/settings', hash: 'about' }) })
+    expect(visibleSectionTitle(container)).toBe('关于 nagare')
+    expect(document.activeElement).toBe(link)
     await unmount()
   })
 

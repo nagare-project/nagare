@@ -3,6 +3,7 @@ import { displayGroups } from '../library/displayGroups'
 import { PlaybackSurface } from './PlaybackSurface'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../../lib/api'
+import { inFlight } from '../../lib/busy'
 import { fetchLibrary, playFile, stopPlayer } from '../../lib/endpoints'
 import type { LibraryCluster, LibraryData, LibraryItem } from '../../lib/endpoints'
 import { clusterDisplayTitle, setAssociation } from '../../lib/associations'
@@ -274,16 +275,16 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
           <div className="media-play-selection">
             <div className="media-play-selection-title"><h3>{clusterDisplayTitle(selected)}</h3>{autoMatched && via !== 'legacy' && <p className="media-play-via">自动认出的本地作品，播放时会记住</p>}</div>
             <LibraryAnimeLink clusterKey={selected.clusterKey} className="btn btn--sm">在媒体库中打开</LibraryAnimeLink>
-            <button type="button" className="btn btn--sm" disabled={busy} onClick={() => { setSelectedKeys([]); setQuery(''); setLaunched(false); setNotice(null) }}>更换作品</button>
+            <button type="button" className="btn btn--sm" {...inFlight(busy, () => { setSelectedKeys([]); setQuery(''); setLaunched(false); setNotice(null) })}>更换作品</button>
           </div>
           {chosen.length > 1 && <p className="media-play-versions">本地有 {chosen.length} 个版本，同一集的其他版本列在那一集下面：{chosen.map((c, i) => <span key={c.clusterKey}>{i > 0 && '、'}<LibraryAnimeLink clusterKey={c.clusterKey} className="link">{c.title}（{c.episodeCount} 集）</LibraryAnimeLink></span>)}</p>}
-          {next && !heroPrimary && <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start(ownerOf(next), next)}>
+          {next && !heroPrimary && <button type="button" className="btn btn--primary" {...inFlight(busy, () => void start(ownerOf(next), next))}>
             <Icon name="play" size={18} />{next.progress?.positionSec && !next.progress.completed ? '继续观看' : '播放'} {next.episode === null ? next.fileName : `第 ${formatEpisode(next.episode)} 集`}
           </button>}
           {inline ? <EpisodeList cluster={selected} catalog={media} next={next} pending={busy} versions={merged?.versions} onPlay={item => void start(ownerOf(item), item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
             <h4>{group.label || '剧集'}</h4><ul className="media-play-choices">{group.items.flatMap(item => [{ item, label: '' }, ...(merged?.versions.get(item.fileId) ?? [])]).map(({ item, label }) => <li key={item.fileId}>
               {/* 名字就是可见的文件名（前面补一句「播放第 N 集：」）：另写 aria-label 的话，语音控制按看到的字点不到它 */}
-              <button type="button" className="media-play-episode" disabled={busy} onClick={() => void start(ownerOf(item), item)}>
+              <button type="button" className="media-play-episode" {...inFlight(busy, () => void start(ownerOf(item), item))}>
                 <span aria-hidden="true">{item.episode === null ? '—' : formatEpisode(item.episode)}</span><span><span className="visually-hidden">{item.episode === null ? '播放 ' : `播放第 ${formatEpisode(item.episode)} 集：`}</span>{label ? `其他版本（${label}）：${item.fileName}` : item.fileName}</span><Icon name="play" size={18} />
               </button>
             </li>)}</ul>

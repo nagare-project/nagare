@@ -5,6 +5,7 @@ import { useTorrentPlayback } from '../torrent/TorrentPlayContext'
 import { addDownload, fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
 import type { MagnetSearchContext, SearchItem, SearchResult, SourceOutcome, SourcesData, TorrentPlayRequest } from '../../lib/endpoints'
 import { isBackdropEvent } from '../../lib/dialog'
+import { inFlight } from '../../lib/busy'
 import { errorText } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import { RouteLink } from '../catalog/RouteLink'
@@ -154,6 +155,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false, drawer
 
   function submitSearch(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
+    if (local.phase === 'searching') return
     void findReleases(currentQuery())
   }
 
@@ -250,7 +252,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false, drawer
         <p className="media-play-hint">{isMovie ? '按字幕组列出这部作品的全部发布，选好字幕组再挑清晰度。' : '按字幕组列出这部作品的全部发布：合集在前，单集按集号排列。单集直接播放，合集在播放前展开文件列表挑要看的那一集。'}</p>
         <form className="media-release-search" onSubmit={submitSearch}>
           <label className="media-torrent-query"><span>作品名称</span><input className="input" type="text" inputMode="search" value={query} onChange={event => setQuery(event.target.value)} spellCheck={false} /></label>
-          <button type="submit" className="btn btn--primary" disabled={local.phase === 'searching'}><Icon name="search" size={18} />{local.phase === 'searching' ? '搜索中…' : local.phase === 'idle' ? '查找字幕组' : '重新搜索'}</button>
+          <button type="submit" className="btn btn--primary" {...inFlight(local.phase === 'searching')}><Icon name="search" size={18} />{local.phase === 'searching' ? '搜索中…' : local.phase === 'idle' ? '查找字幕组' : '重新搜索'}</button>
         </form>
         {plugin?.scope === 'episode' && <p className="media-play-hint" role="status">当前的 Nagare Source 只会按集号搜索，插件来源只列出了第 {plugin.episode} 集的发布；升级插件后可列出整部作品。</p>}
         {local.phase === 'searching' && <p className="result result--dim" role="status">正在查找字幕组与发布版本…</p>}

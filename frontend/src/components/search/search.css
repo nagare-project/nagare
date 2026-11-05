@@ -148,11 +148,11 @@ button.src-chip {
     color var(--dur-short) var(--ease-standard);
 }
 
-button.src-chip:hover:not(:disabled) {
+button.src-chip:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--bg-fill-hover);
 }
 
-button.src-chip:disabled {
+button.src-chip:is(:disabled, [aria-disabled='true']) {
   opacity: 0.55;
   cursor: default;
 }
@@ -376,14 +376,14 @@ td.res-actions {
   color: var(--accent);
 }
 
-.res-play:hover:not(:disabled) {
+.res-play:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--bg-fill-hover);
   color: var(--accent-hover);
 }
 
 /* 正在边下边播的那一行：按钮虽禁用，仍要一眼看出是它（压过 .btn:disabled 的半透明） */
 .res-play--active,
-.res-play--active:disabled {
+.res-play--active:is(:disabled, [aria-disabled='true']) {
   border-color: var(--accent);
   opacity: 1;
 }

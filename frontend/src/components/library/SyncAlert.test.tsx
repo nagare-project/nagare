@@ -33,13 +33,19 @@ describe('SyncAlert', () => {
 
     const button = retryButton(container)
     expect(button, '会再试的失败要能当场重试').toBeDefined()
+    button!.focus()
     await act(async () => { button!.click() })
     expect(onRetry).toHaveBeenCalledTimes(1)
-    expect(retryButton(container)?.disabled).toBe(true)
+    // 进行中不可用，但不是 disabled：焦点留在按钮上
+    expect(retryButton(container)?.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(retryButton(container))
     expect(retryButton(container)?.textContent).toContain('重试中')
+    await act(async () => { retryButton(container)!.click() })
+    expect(onRetry).toHaveBeenCalledTimes(1)
 
     await act(async () => { finish() })
-    expect(retryButton(container)?.disabled).toBe(false)
+    expect(retryButton(container)?.hasAttribute('aria-disabled')).toBe(false)
+    expect(document.activeElement).toBe(retryButton(container))
     await unmount()
   })
 

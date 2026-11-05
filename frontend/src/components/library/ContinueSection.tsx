@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { Icon } from '../ui/Icon'
 import { formatEpisode } from '../../lib/format'
 import { posterToneStyle } from '../../lib/posterTones'
@@ -55,7 +56,7 @@ function ContinueCard({ item, onPlay, isActive, isPending }: CardProps) {
   const meta = continueMeta(item)
   return (
     <li className={isActive ? 'cont-card cont-card--active' : 'cont-card'} style={posterToneStyle(item.posterTones)}>
-      <button type="button" className="cont-card-hit" onClick={() => onPlay(item.fileId)} disabled={isPending}>
+      <button type="button" className="cont-card-hit" {...inFlight(isPending, () => onPlay(item.fileId))}>
         <span className="cont-thumb">
           {item.cover !== undefined && !failed ? (
             <img src={item.cover} alt="" onError={() => setFailed(true)} />

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import type { PlayerStatus } from '../../lib/endpoints'
 import './sync-banner.css'
 
@@ -50,7 +51,7 @@ export function SyncAlert({ status, onRetry }: SyncAlertProps) {
       {pending > 0 && (
         <span className="alert-warn-recovery lib-sync-retry">
           <span>共有 {pending} 集等着补记，下次启动 nagare 时会自动补上。</span>
-          <button type="button" className="btn btn--sm" onClick={() => void handleRetry()} disabled={busy}>
+          <button type="button" className="btn btn--sm" {...inFlight(busy, () => void handleRetry())}>
             {busy ? '重试中 …' : '重试'}
           </button>
         </span>

@@ -27,8 +27,8 @@
   text-align: left;
 }
 button.epl-item-main { cursor: pointer; transition: background-color var(--dur-short) var(--ease-standard); }
-button.epl-item-main:hover:not(:disabled) { background: var(--row-hover); }
-button.epl-item-main:disabled { cursor: wait; opacity: 0.6; }
+button.epl-item-main:hover:not(:disabled, [aria-disabled='true']) { background: var(--row-hover); }
+button.epl-item-main:is(:disabled, [aria-disabled='true']) { cursor: wait; opacity: 0.6; }
 
 /* 已看圆点：18×18，三态同尺寸（切换已看不改变行高） */
 .epl-dot { display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid var(--text-secondary); border-radius: var(--radius-full); color: var(--bg); }

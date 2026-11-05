@@ -56,13 +56,44 @@ describe('FoldersPanel', () => {
     expect(document.activeElement).toBe(getByRole(m.container, 'heading', { level: 3, name: '已添加的文件夹' }))
   })
 
-  it('删除失败：原因写出来，那一行还在、能再点', async () => {
+  it('删除失败：原因写出来，那一行还在、能再点；焦点一直留在「删除」上（请求中它只是 aria-disabled）', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const m = await mount(<Harness fail />)
     mounted.push(m.unmount)
-    await act(async () => { getByRole(m.container, 'button', { name: '删除文件夹 /Volumes/Anime' }).click() })
+    const remove = getByRole(m.container, 'button', { name: '删除文件夹 /Volumes/Anime' }) as HTMLButtonElement
+    remove.focus()
+    await act(async () => { remove.click() })
 
     expect(getByText(m.container, '文件夹正在扫描，稍后再删')).toBeDefined()
-    expect((getByRole(m.container, 'button', { name: '删除文件夹 /Volumes/Anime' }) as HTMLButtonElement).disabled).toBe(false)
+    const again = getByRole(m.container, 'button', { name: '删除文件夹 /Volumes/Anime' }) as HTMLButtonElement
+    expect(again).toBe(remove)
+    expect(again.disabled).toBe(false)
+    expect(again.hasAttribute('aria-disabled')).toBe(false)
+    expect(document.activeElement).toBe(again)
+  })
+
+  it('删除中：各行的「删除」都不可用但仍可聚焦，再点不会再发一次', async () => {
+    let finish: () => void = () => {}
+    const removeFolder = vi.fn(() => new Promise<void>((resolve) => { finish = resolve }))
+    const library: UseLibraryResult = {
+      state: { phase: 'ready', data: { folders: FOLDERS, clusters: [], continueWatching: [], scannedAt: 1_756_600_000 } },
+      reload: async () => {},
+      addFolder: async () => { throw new Error('不在这里测') },
+      removeFolder,
+      rescan: async () => { throw new Error('不在这里测') },
+    }
+    const m = await mount(<FoldersPanel library={library} platform="darwin" />)
+    mounted.push(m.unmount)
+    const remove = getByRole(m.container, 'button', { name: '删除文件夹 /Volumes/Anime' })
+    remove.focus()
+    await act(async () => { remove.click() })
+    const pending = getByRole(m.container, 'button', { name: '删除中 …文件夹 /Volumes/Anime' })
+    expect(pending.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(pending)
+    const other = getByRole(m.container, 'button', { name: '删除文件夹 /Users/you/Movies' })
+    expect(other.getAttribute('aria-disabled')).toBe('true')
+    await act(async () => { pending.click(); other.click() })
+    expect(removeFolder).toHaveBeenCalledTimes(1)
+    await act(async () => { finish() })
   })
 })

@@ -77,15 +77,15 @@
   backdrop-filter: blur(12px);
   transition: background-color var(--dur-short) var(--ease-standard), border-color var(--dur-short) var(--ease-standard), filter var(--dur-short) var(--ease-standard);
 }
-.hero-btn:disabled { opacity: 0.35; cursor: default; }
+.hero-btn:is(:disabled, [aria-disabled='true']) { opacity: 0.35; cursor: default; }
 /* 实心：作品页唯一用 --poster-tone 做底的按钮 */
 .hero-btn--solid { background: var(--poster-tone); color: var(--poster-on-tone); font-weight: 650; }
-.hero-btn--solid:hover:not(:disabled) { filter: brightness(1.08); }
+.hero-btn--solid:hover:not(:disabled, [aria-disabled='true']) { filter: brightness(1.08); }
 /* 玻璃·重：次级入口 */
 .hero-btn--heavy { border-color: var(--glass-heavy-border); background: var(--glass-heavy); font-weight: 660; }
 /* 玻璃·轻：工具（磁力、作品详情、预告片…） */
 .hero-btn--light { border-color: var(--glass-light-border); background: var(--glass-light); color: rgba(255, 255, 255, 0.9); }
-.hero-btn--heavy:hover:not(:disabled), .hero-btn--light:hover:not(:disabled) { background: var(--glass-heavy); border-color: var(--glass-heavy-border); }
+.hero-btn--heavy:hover:not(:disabled, [aria-disabled='true']), .hero-btn--light:hover:not(:disabled, [aria-disabled='true']) { background: var(--glass-heavy); border-color: var(--glass-heavy-border); }
 
 /* ---------- 区块 ---------- */
 

@@ -60,6 +60,46 @@ describe('QuitCard', () => {
     expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 nagare' }))
   })
 
+  it('确认区里按 Esc 等于「取消」：确认区收起，焦点回到「退出 nagare」，不发退出请求', async () => {
+    const m = await mount(<QuitCard platform="darwin" onQuit={vi.fn()} />)
+    mounted.push(m.unmount)
+    await act(async () => {
+      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+    })
+    // 焦点挪到「确认退出」上再按 Esc 也一样（Esc 落在确认区的哪个按钮上都算）
+    getByRole(m.container, 'button', { name: '确认退出' }).focus()
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(confirmGroup(m.container)).toBeNull()
+    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 nagare' }))
+    expect(endpoints.shutdownNagare).not.toHaveBeenCalled()
+  })
+
+  it('请求中：「正在退出」不可用但焦点留在它身上（不掉到 <body>），Esc 与再点都不起作用', async () => {
+    endpoints.shutdownNagare.mockReturnValue(new Promise(() => {}))
+    const onQuit = vi.fn()
+    const m = await mount(<QuitCard platform="darwin" onQuit={onQuit} />)
+    mounted.push(m.unmount)
+    await act(async () => {
+      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+    })
+    const confirm = getByRole(m.container, 'button', { name: '确认退出' }) as HTMLButtonElement
+    confirm.focus()
+    await act(async () => confirm.click())
+    const busy = getByRole(m.container, 'button', { name: '正在退出 …' }) as HTMLButtonElement
+    expect(busy).toBe(confirm)
+    expect(busy.disabled).toBe(false)
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(busy)
+    await act(async () => {
+      busy.click()
+      busy.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(endpoints.shutdownNagare).toHaveBeenCalledTimes(1)
+    expect(confirmGroup(m.container)).not.toBeNull()
+  })
+
   it('退出失败：说出原因，焦点回到「退出 nagare」', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     endpoints.shutdownNagare.mockRejectedValue(new Error('后端没有响应'))

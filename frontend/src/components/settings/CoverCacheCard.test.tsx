@@ -62,6 +62,22 @@ describe('CoverCacheCard', () => {
     expect(endpoints.clearCoverCache).not.toHaveBeenCalled()
   })
 
+  it('确认区里按 Esc 等于「取消」：确认区收起，焦点回到「清空封面缓存」，不调接口', async () => {
+    const { container } = await render()
+    const clear = button(container, '清空封面缓存')!
+    clear.focus()
+    await act(async () => {
+      clear.click()
+    })
+    expect(document.activeElement).toBe(button(container, '取消'))
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(queryByRole(container, 'group', { name: '确认清空封面缓存' })).toBeNull()
+    expect(document.activeElement).toBe(button(container, '清空封面缓存'))
+    expect(endpoints.clearCoverCache).not.toHaveBeenCalled()
+  })
+
   it('确认后清空、报告新占用并刷新设置', async () => {
     endpoints.clearCoverCache.mockResolvedValue({ bytes: 0, count: 0, maxBytes: CACHE.maxBytes, skipped: 0 })
     const { container, onReload } = await render()
@@ -78,24 +94,33 @@ describe('CoverCacheCard', () => {
     expect(document.activeElement).toBe(button(container, '清空封面缓存'))
   })
 
-  it('清空中按钮禁用、状态行念「正在清空」，点了也不会重复提交', async () => {
+  it('清空中按钮不可用（aria-disabled，焦点留在原处）、状态行念「正在清空」，点了也不会重复提交、也取消不了', async () => {
     let resolve: (v: unknown) => void = () => {}
     endpoints.clearCoverCache.mockReturnValue(new Promise((r) => { resolve = r }))
     const { container } = await render()
     await act(async () => {
       button(container, '清空封面缓存')?.click()
     })
+    const confirm = button(container, '确认清空')!
+    confirm.focus()
     await act(async () => {
-      button(container, '确认清空')?.click()
+      confirm.click()
     })
     const busy = button(container, '正在清空 …')
-    expect(busy?.disabled).toBe(true)
-    expect(button(container, '取消')?.disabled).toBe(true)
+    // 不是 disabled：disabled 的按钮会把焦点丢到 <body> 上
+    expect(busy).toBe(confirm)
+    expect(busy?.disabled).toBe(false)
+    expect(busy?.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(busy)
+    expect(button(container, '取消')?.getAttribute('aria-disabled')).toBe('true')
     expect(status(container).textContent).toBe('正在清空 …')
     await act(async () => {
       busy?.click()
+      button(container, '取消')?.click()
+      busy?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
     expect(endpoints.clearCoverCache).toHaveBeenCalledTimes(1)
+    expect(getByRole(container, 'group', { name: '确认清空封面缓存' })).toBeDefined()
 
     await act(async () => {
       resolve({ bytes: 2048, count: 1, maxBytes: CACHE.maxBytes, skipped: 1 })

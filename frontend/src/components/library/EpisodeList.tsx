@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import type { LibraryCluster, LibraryItem } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import { isBackdropEvent } from '../../lib/dialog'
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
 import type { LibraryVersion } from '../../lib/librarySeries'
@@ -134,7 +135,7 @@ function EpisodeRow({ row, versions, next, unlinked, pending, activeFileId, onPl
 
   return (
     <li className={isNext ? 'epl-item epl-item--next' : 'epl-item'} title={item.fileName}>
-      <button type="button" className="epl-item-main" disabled={pending} onClick={() => onPlay(item)}>
+      <button type="button" className="epl-item-main" {...inFlight(pending, () => onPlay(item))}>
         {/* 名字从这里开始念：圆点与集号对读屏是装饰，集号已经在这句里了 */}
         <span className="visually-hidden">播放{name}：</span>
         <span className={dotClass} aria-hidden="true">
@@ -155,7 +156,7 @@ function EpisodeRow({ row, versions, next, unlinked, pending, activeFileId, onPl
             <div className="epl-versions" role="group" aria-label={`${name}的其他版本`}>
               <span aria-hidden="true">其他版本</span>
               {others.map((alt) => (
-                <button type="button" key={alt.item.fileId} className="link" disabled={pending} title={alt.item.fileName} onClick={() => onPlay(alt.item)}>
+                <button type="button" key={alt.item.fileId} className="link" title={alt.item.fileName} {...inFlight(pending, () => onPlay(alt.item))}>
                   <span className="visually-hidden">播放{name}的其他版本：</span>{alt.label}
                   {alt.item.progress?.completed && <><span aria-hidden="true"> ✓</span><span className="visually-hidden">（已看完）</span></>}
                 </button>

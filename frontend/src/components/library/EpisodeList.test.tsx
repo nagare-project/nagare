@@ -98,10 +98,13 @@ describe('作品页集数列表', () => {
     await unmount()
   })
 
-  it('播放请求在途：每一行都禁用，防连点', async () => {
-    const { container, unmount } = await mount(<EpisodeList cluster={cluster([group([item('ep1', 1)])])} pending onPlay={vi.fn()} />)
+  it('播放请求在途：每一行都不可用（aria-disabled，按下的那一行焦点不丢），防连点', async () => {
+    const onPlay = vi.fn()
+    const { container, unmount } = await mount(<EpisodeList cluster={cluster([group([item('ep1', 1)])])} pending onPlay={onPlay} />)
     expect(playable(container).length).toBeGreaterThan(0)
-    expect(playable(container).every((b) => b.disabled)).toBe(true)
+    expect(playable(container).every((b) => b.getAttribute('aria-disabled') === 'true' && !b.disabled)).toBe(true)
+    await act(async () => { for (const b of playable(container)) b.click() })
+    expect(onPlay).not.toHaveBeenCalled()
     await unmount()
   })
 

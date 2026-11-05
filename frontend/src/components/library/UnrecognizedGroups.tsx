@@ -1,21 +1,23 @@
-import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { needsConfirmation } from '../../lib/associations'
 import type { LibrarySeries } from '../../lib/librarySeries'
 import { Icon } from '../ui/Icon'
 
+export interface UnrecognizedGroupsProps {
+  series: LibrarySeries[]
+  /** 展开与否由调用方记着（见 LibraryCollection：这一节被筛选藏掉再回来时不能丢） */
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
 /**
  * 媒体库末尾的「还没认出的 N 组」（DESIGN.md「媒体库 ③」）：默认折叠，每组的主操作是「认作品」——
  * 点进这个分组的页面，在那里选对应的目录作品（选作品对话框、保存与重读都在那一页，只有一条路）。
- * 网格里一部作品都没有时默认展开：否则整个媒体库看起来是空的。
+ * 网格里一部作品都没有时由调用方展开：否则整个媒体库看起来是空的。
  */
-export function UnrecognizedGroups({ series, openByDefault }: { series: LibrarySeries[]; openByDefault: boolean }) {
-  const [open, setOpen] = useState(openByDefault)
-  // 筛选之后网格空了：自动展开（用户自己收起之后网格又有了内容，不替他再收起）
-  useEffect(() => { if (openByDefault) setOpen(true) }, [openByDefault])
-
+export function UnrecognizedGroups({ series, open, onOpenChange }: UnrecognizedGroupsProps) {
   return (
-    <details className="unrec" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className="unrec" open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
       <summary className="unrec-summary">
         <span className="lib-section-title">还没认出的 {series.length} 组</span>
         <span className="unrec-summary-hint">认出作品之后才有海报、弹幕和观看同步</span>

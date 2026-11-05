@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { DownloadsPanel } from '../components/torrent/DownloadsPanel'
 import { ApiAuthError } from '../lib/api'
+import { inFlight } from '../lib/busy'
 import { fetchTorrentStatus, stopTorrent } from '../lib/endpoints'
 import { errorText, formatBytes, formatRate } from '../lib/format'
 import { mono } from '../theme'
@@ -111,7 +112,7 @@ function ActiveTorrent({ status, busy, onStop }: { status: TorrentStatus; busy: 
         <h3 id="torrent-task-heading" className="info-panel-title torrent-task-name">
           {name}
         </h3>
-        <button type="button" className="btn btn--danger" onClick={onStop} disabled={busy}>
+        <button type="button" className="btn btn--danger" {...inFlight(busy, onStop)}>
           {busy ? '停止中 …' : '停止'}
         </button>
       </div>

@@ -3,6 +3,7 @@ import type { RefObject } from 'react'
 import { dismissSyncedElsewhere, formatEpisodeList, needsConfirmation, setAssociation } from '../../lib/associations'
 import type { AssociationChange, SyncedRecord } from '../../lib/associations'
 import type { LibraryCluster } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import { errorText } from '../../lib/format'
 import { MediaEntryLink } from '../media/MediaEntryLink'
 import { Icon } from '../ui/Icon'
@@ -114,17 +115,16 @@ export function AssociationPanel({ cluster, onChanged, pickRequest, pickOpener }
               type="button"
               className="btn btn--sm"
               aria-label={`确认对应作品是「${matched.title || `作品 ${matched.anilistId}`}」`}
-              disabled={pending}
-              onClick={() => void change({ mode: 'manual', anilistId: matched.anilistId })}
+              {...inFlight(pending, () => void change({ mode: 'manual', anilistId: matched.anilistId }))}
             >
               确认
             </button>
           )}
-          <button ref={pickButton} type="button" className="btn btn--sm" disabled={pending} onClick={() => setPicking(true)}>
+          <button ref={pickButton} type="button" className="btn btn--sm" {...inFlight(pending, () => setPicking(true))}>
             {association === undefined && !matched ? '选择作品' : '更换'}
           </button>
           {association !== undefined && (
-            <button ref={autoButton} type="button" className="btn btn--sm" disabled={pending || confirmingAuto} onClick={backToAuto}>
+            <button ref={autoButton} type="button" className="btn btn--sm" disabled={confirmingAuto} {...inFlight(pending, backToAuto)}>
               回到自动匹配
             </button>
           )}
@@ -179,10 +179,10 @@ function ConfirmAuto({ pending, onConfirm, onCancel }: { pending: boolean; onCon
       }}
     >
       <p id={textId}>回到自动匹配后，下面「之前记到别的作品」的清单也会一起删掉。确定吗？</p>
-      <button type="button" className="btn btn--sm btn--danger" disabled={pending} onClick={onConfirm}>
+      <button type="button" className="btn btn--sm btn--danger" {...inFlight(pending, onConfirm)}>
         确定删除并回到自动匹配
       </button>
-      <button ref={cancel} type="button" className="btn btn--sm" disabled={pending} onClick={onCancel}>
+      <button ref={cancel} type="button" className="btn btn--sm" {...inFlight(pending, onCancel)}>
         取消
       </button>
     </div>
@@ -228,7 +228,7 @@ function SyncedNotice({ record, pending, onDismiss }: { record: SyncedRecord; pe
       <MediaEntryLink id={record.anilistId} className="btn btn--sm">
         去「{name}」改进度
       </MediaEntryLink>
-      <button type="button" className="btn btn--sm" aria-label={`「${name}」那边已处理，不再提示`} disabled={pending} onClick={onDismiss}>
+      <button type="button" className="btn btn--sm" aria-label={`「${name}」那边已处理，不再提示`} {...inFlight(pending, onDismiss)}>
         已处理
       </button>
     </div>

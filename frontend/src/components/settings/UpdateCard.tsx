@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { isSettledPhase } from '../../hooks/useSelfUpdate'
 import type { UseSelfUpdateResult } from '../../hooks/useSelfUpdate'
 import type { UseUpdateResult } from '../../hooks/useUpdate'
@@ -128,7 +129,7 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
           <SelfUpdateSection view={state.data} selfUpdate={selfUpdate} />
 
           <div className="form-actions">
-            <button type="button" className="btn" onClick={() => void handleCheck()} disabled={busy}>
+            <button type="button" className="btn" {...inFlight(busy, () => void handleCheck())}>
               {action.phase === 'busy' && action.action === 'check' ? '检查中 …' : '立即检查'}
             </button>
           </div>
@@ -138,7 +139,7 @@ export function UpdateCard({ update, selfUpdate }: UpdateCardProps) {
             <span id="update-auto-note" className="toggle-row-note">
               开启后每天最多向 GitHub 查询一次最新发布，只发送版本号；发现新版本时页面顶部会提示，不会自动下载或替换程序。
             </span>
-            <button type="button" role="switch" className="switch" aria-checked={state.data.enabled} aria-labelledby="update-auto-label" aria-describedby="update-auto-note" onClick={() => void handleToggle(!state.data.enabled)} disabled={busy}>
+            <button type="button" role="switch" className="switch" aria-checked={state.data.enabled} aria-labelledby="update-auto-label" aria-describedby="update-auto-note" {...inFlight(busy, () => void handleToggle(!state.data.enabled))}>
               <span className="switch-knob" aria-hidden="true" />
             </button>
           </label>
@@ -226,7 +227,7 @@ function SelfUpdateSection({
     <div className="self-update">
       <div className="form-actions">
         {selfUpdate.busy && <span className="self-update-dot" aria-hidden="true" />}
-        <button type="button" className="btn btn--primary" onClick={selfUpdate.start} disabled={selfUpdate.busy}>
+        <button type="button" className="btn btn--primary" {...inFlight(selfUpdate.busy, selfUpdate.start)}>
           {selfUpdate.busy ? '更新中 …' : failed ? '重试' : '立即更新'}
         </button>
         {failed && downloadable && (

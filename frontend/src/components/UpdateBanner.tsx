@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { isSettledPhase } from '../hooks/useSelfUpdate'
 import type { UseSelfUpdateResult } from '../hooks/useSelfUpdate'
 import type { UpdateView } from '../lib/endpoints'
+import { inFlight } from '../lib/busy'
 import { handOffFocus, pageHeading } from '../lib/focus'
 import { formatVersion } from '../lib/format'
 import { selfUpdateStatus } from '../lib/selfUpdateText'
@@ -79,7 +80,7 @@ export function UpdateBanner({ view, selfUpdate }: UpdateBannerProps) {
             </a>
           )}
           {view.selfUpdate.supported && !settled && (
-            <button type="button" className="btn btn--sm" onClick={selfUpdate.start} disabled={selfUpdate.busy}>
+            <button type="button" className="btn btn--sm" {...inFlight(selfUpdate.busy, selfUpdate.start)}>
               {selfUpdate.busy ? '更新中 …' : failed ? '重试' : '立即更新'}
             </button>
           )}

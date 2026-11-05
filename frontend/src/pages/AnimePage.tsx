@@ -11,6 +11,7 @@ import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { usePlayerStatus } from '../hooks/usePlayerStatus'
 import { clusterDisplayTitle } from '../lib/associations'
+import { inFlight } from '../lib/busy'
 import { playFile } from '../lib/endpoints'
 import { errorText } from '../lib/format'
 import { clusterWork } from '../lib/librarySeries'
@@ -90,7 +91,7 @@ export function AnimePage() {
   const tones = posterToneStyle(cluster.posterTones)
   const pending = pendingFileId !== null
   const playButton = next && (
-    <button type="button" className={unrecognized ? 'hero-btn hero-btn--heavy' : 'hero-btn hero-btn--solid'} disabled={pending} onClick={() => void handlePlay(next.fileId)}>
+    <button type="button" className={unrecognized ? 'hero-btn hero-btn--heavy' : 'hero-btn hero-btn--solid'} {...inFlight(pending, () => void handlePlay(next.fileId))}>
       <Icon name="play" size={16} />{pending ? '正在启动…' : primaryLabel(next)}
     </button>
   )

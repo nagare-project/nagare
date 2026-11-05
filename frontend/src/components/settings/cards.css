@@ -228,7 +228,7 @@
   line-height: 1.45;
 }
 
-.playback-preset:hover:not(:disabled) {
+.playback-preset:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--row-hover);
 }
 
@@ -241,7 +241,7 @@
   color: var(--text);
 }
 
-.playback-preset:disabled {
+.playback-preset:is(:disabled, [aria-disabled='true']) {
   cursor: default;
 }
 

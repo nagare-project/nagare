@@ -208,7 +208,7 @@ describe('SearchPage（空态）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
 
     expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('frieren')
-    expect(sourceChips(container).map(accessibleName)).toEqual(['源甲无结果，点击禁用', '源乙源异常，点击禁用'])
+    expect(sourceChips(container).map(accessibleName)).toEqual(['源甲无结果', '源乙源异常'])
 
     // 改坏的规则说「源异常」，不说「无结果」；原因在悬停提示里
     const deadChip = sourceChips(container)[1]!
@@ -302,7 +302,9 @@ describe('SearchPage（结果与交互）', () => {
 
     const plays = playButtons(container)
     expect(plays[0]?.textContent).toBe('启动中 …')
-    expect(plays[0]?.disabled).toBe(true)
+    // 本行在起播：不可用但不是 disabled（焦点留在它身上）
+    expect(plays[0]?.getAttribute('aria-disabled')).toBe('true')
+    expect(plays[0]?.disabled).toBe(false)
     // 同一时刻只允许一条磁力：另一行禁用并说明原因
     expect(plays[1]?.disabled).toBe(true)
     expect(description(plays[1]!)).toContain('已有一条磁力在播放')
@@ -431,7 +433,7 @@ describe('SearchPage（结果与交互）', () => {
     expect(searchMagnets).toHaveBeenCalledTimes(1)
 
     const chip = sourceChips(container)[0]!
-    expect(accessibleName(chip)).toBe('源甲1 条，正常，点击禁用')
+    expect(accessibleName(chip)).toBe('源甲1 条，正常')
     expect(chip.getAttribute('aria-pressed')).toBe('true')
     await act(async () => {
       chip.click()

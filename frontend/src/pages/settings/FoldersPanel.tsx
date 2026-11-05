@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AddFolderForm } from '../../components/library/AddFolderForm'
 import type { UseLibraryResult } from '../../hooks/useLibrary'
 import type { Platform } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import { handOffFocus } from '../../lib/focus'
 import { errorText, formatDate } from '../../lib/format'
 import { mono } from '../../theme'
@@ -77,7 +78,7 @@ export function FoldersPanel({ library, platform }: FoldersPanelProps) {
                   {formatDate(folder.addedAt)}
                 </span>
                 {/* 名字以看得见的字开头（语音控制按它找），后面补上是哪个文件夹 */}
-                <button type="button" className="btn btn--sm btn--danger folder-remove" onClick={() => void handleRemove(folder.id)} disabled={removingId !== null}>
+                <button type="button" className="btn btn--sm btn--danger folder-remove" {...inFlight(removingId !== null, () => void handleRemove(folder.id))}>
                   {removingId === folder.id ? '删除中 …' : '删除'}
                   <span className="visually-hidden">文件夹 {folder.path}</span>
                 </button>

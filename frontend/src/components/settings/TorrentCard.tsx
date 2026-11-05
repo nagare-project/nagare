@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { inFlight } from '../../lib/busy'
 import { clearTorrentCache, updateTorrentConfig } from '../../lib/endpoints'
 import type { TorrentSettings } from '../../lib/endpoints'
 import { errorText, formatBytes } from '../../lib/format'
@@ -52,7 +53,8 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
   const [state, setState] = useState<ActionState>({ phase: 'idle' })
 
   const busy = state.phase === 'busy'
-  const disabled = busy || !torrent.enabled
+  // 引擎没起来时整张卡不可用（disabled）；请求进行中只是暂时不响应（inFlight / 只读，焦点留在原处，见 lib/busy.ts）
+  const engineDown = !torrent.enabled
   const trackers = parseTrackers(trackersText)
   const dirty =
     seeding !== saved.seeding ||
@@ -64,6 +66,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
 
   function handleSave(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
+    if (busy) return
     const port = parsePort(listenPort)
     if (port === null) {
       setState({ phase: 'error', message: PORT_HINT })
@@ -126,7 +129,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <span id="torrent-seeding-note" className="toggle-row-note">
             播放期间的分片交换是 BT 协议必需的，这个开关不影响它；它只决定<b>停止播放之后是否继续上传</b>。默认关闭。
           </span>
-          <button type="button" role="switch" className="switch" aria-checked={seeding} aria-labelledby="torrent-seeding-label" aria-describedby="torrent-seeding-note" onClick={() => setSeeding(!seeding)} disabled={disabled}>
+          <button type="button" role="switch" className="switch" aria-checked={seeding} aria-labelledby="torrent-seeding-label" aria-describedby="torrent-seeding-note" disabled={engineDown} {...inFlight(busy, () => setSeeding(!seeding))}>
             <span className="switch-knob" aria-hidden="true" />
           </button>
         </label>
@@ -136,7 +139,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <span id="torrent-upnp-note" className="toggle-row-note">
             让路由器把监听端口映射到外网，能连上更多分享者。路由器不支持时不影响使用。
           </span>
-          <button type="button" role="switch" className="switch" aria-checked={portForwarding} aria-labelledby="torrent-upnp-label" aria-describedby="torrent-upnp-note" onClick={() => setPortForwarding(!portForwarding)} disabled={disabled}>
+          <button type="button" role="switch" className="switch" aria-checked={portForwarding} aria-labelledby="torrent-upnp-label" aria-describedby="torrent-upnp-note" disabled={engineDown} {...inFlight(busy, () => setPortForwarding(!portForwarding))}>
             <span className="switch-knob" aria-hidden="true" />
           </button>
         </label>
@@ -145,7 +148,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <label htmlFor="torrent-listen-port" className="field-label">
             监听端口
           </label>
-          <input id="torrent-listen-port" className="input torrent-port" type="text" inputMode="numeric" value={listenPort} onChange={(event) => setListenPort(event.target.value)} spellCheck={false} autoComplete="off" disabled={disabled} aria-describedby="torrent-port-note" />
+          <input id="torrent-listen-port" className="input torrent-port" type="text" inputMode="numeric" value={listenPort} onChange={(event) => setListenPort(event.target.value)} spellCheck={false} autoComplete="off" disabled={engineDown} readOnly={busy} aria-describedby="torrent-port-note" />
           <p id="torrent-port-note" className="field-note">
             0–65535；填 0 由系统随机分配。改动后需要重启 nagare 才生效。
           </p>
@@ -156,7 +159,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <span id="torrent-default-trackers-note" className="toggle-row-note">
             tracker 只回答「谁在分享这个种子」，不存内容。索引站给的磁力常常不带 tracker，只靠 DHT 找元数据要几十秒到几分钟，带上公共 tracker 通常几秒。默认开启。
           </span>
-          <button type="button" role="switch" className="switch" aria-checked={useDefaultTrackers} aria-labelledby="torrent-default-trackers-label" aria-describedby="torrent-default-trackers-note" onClick={() => setUseDefaultTrackers(!useDefaultTrackers)} disabled={disabled}>
+          <button type="button" role="switch" className="switch" aria-checked={useDefaultTrackers} aria-labelledby="torrent-default-trackers-label" aria-describedby="torrent-default-trackers-note" disabled={engineDown} {...inFlight(busy, () => setUseDefaultTrackers(!useDefaultTrackers))}>
             <span className="switch-knob" aria-hidden="true" />
           </button>
         </label>
@@ -172,7 +175,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <label htmlFor="torrent-trackers" className="field-label">
             追加 tracker
           </label>
-          <textarea id="torrent-trackers" className="input torrent-trackers" rows={4} value={trackersText} onChange={(event) => setTrackersText(event.target.value)} spellCheck={false} autoComplete="off" disabled={disabled} aria-describedby="torrent-trackers-note" style={mono} />
+          <textarea id="torrent-trackers" className="input torrent-trackers" rows={4} value={trackersText} onChange={(event) => setTrackersText(event.target.value)} spellCheck={false} autoComplete="off" disabled={engineDown} readOnly={busy} aria-describedby="torrent-trackers-note" style={mono} />
           <p id="torrent-trackers-note" className="field-note">
             一行一个，在内置组之外追加；两者都关/留空即只用 DHT / PEX 找分享者。填的地址只会补给公开种子（给私有站种子补公共 tracker 会导致封号）。
           </p>
@@ -182,14 +185,14 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <label htmlFor="torrent-download-dir" className="field-label">
             下载目录
           </label>
-          <input id="torrent-download-dir" className="input" type="text" value={downloadDir} placeholder={saved.downloadDirIsDefault ? saved.downloadDir : '留空使用默认目录'} onChange={(event) => setDownloadDir(event.target.value)} spellCheck={false} autoComplete="off" disabled={disabled} aria-describedby="torrent-download-dir-note" />
+          <input id="torrent-download-dir" className="input" type="text" value={downloadDir} placeholder={saved.downloadDirIsDefault ? saved.downloadDir : '留空使用默认目录'} onChange={(event) => setDownloadDir(event.target.value)} spellCheck={false} autoComplete="off" disabled={engineDown} readOnly={busy} aria-describedby="torrent-download-dir-note" />
           <p id="torrent-download-dir-note" className="field-note">
             在磁力栏点「下载」后，整个种子完整下到这里，下完自动加进媒体库；没下完的部分放在里面的 .nagare-incomplete，不会进库。留空使用默认目录，改动只影响之后的新下载。与边下边播的缓存无关。
           </p>
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn--primary" disabled={disabled}>
+          <button type="submit" className="btn btn--primary" disabled={engineDown} {...inFlight(busy)}>
             {state.phase === 'busy' && state.action === 'save' ? '保存中 …' : '保存'}
           </button>
           {dirty && torrent.enabled && <span className="result result--warn torrent-dirty">有未保存的改动</span>}
@@ -214,7 +217,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
         <dd style={mono}>{saved.cacheDir === '' ? '（未设置）' : saved.cacheDir}</dd>
       </dl>
       <div className="form-actions">
-        <button type="button" className="btn btn--sm btn--danger" onClick={handleClearCache} disabled={disabled}>
+        <button type="button" className="btn btn--sm btn--danger" disabled={engineDown} {...inFlight(busy, handleClearCache)}>
           {state.phase === 'busy' && state.action === 'clear' ? '清空中 …' : '清空缓存'}
         </button>
         <span className="info-panel-note torrent-cache-note">停止播放即删除该种子的分片，启动与退出时各清空一次；这个按钮用于手动清掉残留。</span>

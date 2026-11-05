@@ -33,8 +33,8 @@
 .assoc-results { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--sp-xs); min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
 /* 浮层里的悬停不提亮颜色，换底色（颜色规则 8）；焦点照旧是全局的实线环 */
 .assoc-result { display: flex; align-items: center; gap: 12px; width: 100%; padding: var(--sp-sm); border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color var(--dur-short) var(--ease-standard); }
-.assoc-result:hover:not(:disabled) { background: var(--bg-fill-hover); }
-.assoc-result:disabled { cursor: default; opacity: 0.7; }
+.assoc-result:hover:not(:disabled, [aria-disabled='true']) { background: var(--bg-fill-hover); }
+.assoc-result:is(:disabled, [aria-disabled='true']) { cursor: default; opacity: 0.7; }
 .assoc-result-art { flex: none; display: grid; place-items: center; width: 48px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: var(--radius-sm); background: var(--bg-fill); color: var(--text-secondary); }
 .assoc-result-art img { width: 100%; height: 100%; object-fit: cover; }
 .assoc-result-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }

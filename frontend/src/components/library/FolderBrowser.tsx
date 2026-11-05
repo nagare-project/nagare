@@ -4,6 +4,7 @@ import { browseDirs } from '../../lib/endpoints'
 import type { DirListing } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { mono } from '../../theme'
+import { inFlight } from '../../lib/busy'
 import { Icon } from '../ui/Icon'
 import './folder-browser.css'
 
@@ -121,8 +122,8 @@ export function FolderBrowser({ id, onChoose, onCancel, busy = false }: FolderBr
           ref={addRef}
           type="button"
           className="btn btn--sm btn--primary"
-          onClick={() => onChoose(path)}
-          disabled={atPlaces || loading || busy}
+          disabled={atPlaces || loading}
+          {...inFlight(busy, () => onChoose(path))}
         >
           添加这个文件夹
         </button>

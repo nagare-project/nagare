@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { inDesktopWindow } from '../../lib/desktopWindow'
 import { shutdownNagare } from '../../lib/endpoints'
 import type { Platform } from '../../lib/endpoints'
@@ -68,6 +69,11 @@ export function QuitCard({ platform, inWindow = inDesktopWindow(), onQuit }: Qui
     quitButton.current?.focus()
   }, [state.phase])
 
+  function handleCancel(): void {
+    returnFocus.current = true
+    setState({ phase: 'idle' })
+  }
+
   async function handleConfirm(): Promise<void> {
     setState({ phase: 'busy' })
     try {
@@ -91,22 +97,19 @@ export function QuitCard({ platform, inWindow = inDesktopWindow(), onQuit }: Qui
       <p className="info-panel-text">{quitNote(platform, inWindow)}</p>
 
       {state.phase === 'confirming' || state.phase === 'busy' ? (
-        <div className="quit-confirm" role="group" aria-label="确认退出" aria-describedby="quit-confirm-copy">
+        // Esc 等于「取消」：焦点回到「退出 nagare」（请求已经发出去时不能取消）
+        <div className="quit-confirm" role="group" aria-label="确认退出" aria-describedby="quit-confirm-copy"
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape' || busy) return
+            event.preventDefault()
+            handleCancel()
+          }}>
           <p id="quit-confirm-copy" className="quit-confirm-copy">{inWindow ? '确定退出 nagare 吗？正在播放的视频也会停止。' : '确定退出 nagare 吗？正在播放的 mpv 也会一起关闭。'}</p>
           <div className="form-actions">
-            <button type="button" className="btn btn--destructive" onClick={() => void handleConfirm()} disabled={busy}>
+            <button type="button" className="btn btn--destructive" {...inFlight(busy, () => void handleConfirm())}>
               {busy ? '正在退出 …' : '确认退出'}
             </button>
-            <button
-              ref={cancelButton}
-              type="button"
-              className="btn"
-              onClick={() => {
-                returnFocus.current = true
-                setState({ phase: 'idle' })
-              }}
-              disabled={busy}
-            >
+            <button ref={cancelButton} type="button" className="btn" {...inFlight(busy, handleCancel)}>
               取消
             </button>
           </div>
