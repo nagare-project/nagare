@@ -50,6 +50,8 @@ func TestLoadFixturesRejectsBadInput(t *testing.T) {
 		{"数据文件缺失", `{"GET /api/x": "x.json"}`, nil},
 		{"数据文件不是 JSON", `{"GET /api/x": "x.json"}`, map[string]string{"x.json": `{"a":`}},
 		{"数据文件不在同一目录", `{"GET /api/x": "../x.json"}`, nil},
+		{"事件流里有一行不是 JSON", `{"GET /api/x": "x.ndjson"}`, map[string]string{"x.ndjson": "{\"event\":\"scope\"}\n{\"event\":\n"}},
+		{"事件流是空的", `{"GET /api/x": "x.ndjson"}`, map[string]string{"x.ndjson": "\n\n"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,4 +91,23 @@ func TestRepositoryFixturesLoadAndServe(t *testing.T) {
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/not-in-fixtures", nil))
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// 事件流原样回答：不套信封、Content-Type 是 application/x-ndjson，时间占位串照样换掉。
+func TestNDJSONFixtureServedRaw(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "routes.json", `{"GET /api/stream": "stream.ndjson"}`)
+	writeFile(t, dir, "stream.ndjson", "{\"event\":\"scope\",\"at\":\"@now\"}\n\n{\"event\":\"done\"}\n")
+	routes, err := loadFixtures(dir)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	register(routes)(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/stream", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/x-ndjson; charset=utf-8", rec.Header().Get("Content-Type"))
+	assert.NotContains(t, rec.Body.String(), "success")
+	assert.NotContains(t, rec.Body.String(), "@now")
+	assert.Contains(t, rec.Body.String(), `{"event":"done"}`)
 }

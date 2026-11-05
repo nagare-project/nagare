@@ -1,10 +1,11 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useSearch } from '@tanstack/react-router'
-import { MediaDetails, MediaExternalLinks, MediaRelations } from '../components/media/MediaDetails'
-import { MediaArtwork } from '../components/media/MediaArtwork'
 import { MediaPlayButton } from '../components/media/MediaPlayButton'
+import type { LocalPrimary } from '../components/media/MediaPlayButton'
 import { MediaSourceButton } from '../components/media/MediaSourceButton'
 import { MediaTorrentButton } from '../components/media/MediaTorrentButton'
+import { MediaListEditor } from '../components/media/MediaListEditor'
 import { TrailerPreview } from '../components/media/MediaPreview'
 import { useMediaDetails } from '../components/media/useMediaDetails'
 import { useEpisodeMetadata } from '../components/media/useEpisodeMetadata'
@@ -14,102 +15,159 @@ import { airingDistance, FORMAT_LABELS } from '../components/media/media-format'
 import { nextEpisodeAiring } from '../components/media/episode-metadata'
 import { Icon } from '../components/ui/Icon'
 import { Tabs, Tab } from '../components/ui'
+import { WorkHero } from '../components/library/WorkHero'
+import { FreshnessNote } from '../components/catalog/FreshnessNote'
+import { RouteLink } from '../components/catalog/RouteLink'
+import { LoginHint, WorkHeroSkeleton } from '../components/library/WorkStates'
 import { LibraryAnimeLink } from '../components/library/LibraryAnimeLink'
 import { fetchLibrary } from '../lib/endpoints'
 import type { LibraryCluster } from '../lib/endpoints'
 import { clusterWork } from '../lib/librarySeries'
+import { posterToneStyle } from '../lib/posterTones'
+import { EntryInfo, EntryRelations } from './entry/EntryInfo'
 import '../components/media/media-preview.css'
 import './entry.css'
+import './entry/entry-page.css'
 
-const SOURCES: Record<string, string> = { ORIGINAL: '原创', MANGA: '漫画', LIGHT_NOVEL: '轻小说', NOVEL: '小说', VIDEO_GAME: '游戏', VISUAL_NOVEL: '视觉小说', WEB_NOVEL: '网络小说', OTHER: '其他' }
-const TAB_LABELS: Record<string, string> = { local: '本地媒体库', torrent: '磁力播放', online: '在线播放' }
+const SEASONS: Record<string, string> = { WINTER: '冬', SPRING: '春', SUMMER: '夏', FALL: '秋' }
+const STATUS: Record<string, string> = { RELEASING: '放送中', NOT_YET_RELEASED: '尚未播出', FINISHED: '已完结', CANCELLED: '已取消', HIATUS: '暂停放送' }
+const PANELS = { local: '本地媒体库', online: '在线播放' } as const
+type Panel = keyof typeof PANELS
+/** 预告片只认 YouTube 视频 ID 的形状（11 位），别的不往 iframe 里放 */
+const YOUTUBE_ID = /^[\w-]{11}$/
 
+/**
+ * `/entry?id=` 目录作品页（DESIGN.md「作品页」）：hero（海报、标题、动作行）→ 剧集（本地状态叠在目录资料上；
+ * 在线播放是另一个标签）→ 作品信息 → 角色与关联。磁力是 hero 上的「磁力」按钮，打开右侧抽屉。
+ */
 export function EntryPage() {
   const { id } = useSearch({ from: '/entry' })
   const { media, loading, error, retry } = useMediaDetails(id)
-  return <main className="catalog-entry lib-shell">
-    {loading && <div className="media-detail-loading" role="status" aria-label="正在加载作品详情" />}
-    {error && <p className="result result--err" role="alert">{error} <button className="btn" onClick={retry}>重试</button> <a className="link" href="/">返回发现</a></p>}
-    {error && <LocalFallback id={id} />}
-    {media && <EntryContent key={id} media={media} />}
-  </main>
+  if (media) return <EntryContent key={id} media={media} />
+  return (
+    <main className="work-page">
+      {loading && <WorkHeroSkeleton label="正在加载作品详情" />}
+      {error && (
+        <div className="work-body entry-fallback">
+          <p className="result result--err" role="alert">{error} <button type="button" className="link" onClick={retry}>重试</button> <RouteLink className="link" to="/">返回发现</RouteLink></p>
+          <LocalFallback id={id} />
+        </div>
+      )}
+    </main>
+  )
 }
 
 function EntryContent({ media }: { media: MediaSummary }) {
-  const [tab, setTab] = useState('local')
-  const actions = useRef<HTMLDetailsElement>(null)
-  const information = useRef<HTMLDialogElement>(null)
-  const [bannerOpacity, setBannerOpacity] = useState(1)
+  const [panel, setPanel] = useState<Panel>('local')
+  const [primary, setPrimary] = useState<LocalPrimary | null>(null)
   const collection = useCollection()
-  const watched = collection.entries.find(entry => entry.anilistId === media.id)?.currentEpisode ?? media.watched
+  const entry = collection.entries.find((item) => item.anilistId === media.id)
+  const watched = entry?.currentEpisode ?? media.watched
   const episodeMetadata = useEpisodeMetadata(media.id)
-  const titles = new Map(media.episodeTitles?.map(ep => [ep.episode, ep]))
+  const titles = new Map(media.episodeTitles?.map((ep) => [ep.episode, ep]))
   for (const ep of episodeMetadata.episodes) titles.set(ep.episode, { ...ep, title: titles.get(ep.episode)?.title || ep.title })
   const nextAiring = nextEpisodeAiring(media, episodeMetadata.episodes)
   const playbackMedia = { ...media, watched, episodeTitles: [...titles.values()] }
+  const tones = posterToneStyle(media.posterTones)
 
   useEffect(() => {
     window.scrollTo(0, 0)
     const previous = document.title
     document.title = `${media.title} · nagare`
-    const scroll = () => setBannerOpacity(Math.max(0, 1 - window.scrollY / 480))
-    scroll()
-    window.addEventListener('scroll', scroll, { passive: true })
-    return () => { document.title = previous; window.removeEventListener('scroll', scroll) }
+    return () => { document.title = previous }
   }, [media.id, media.title])
 
-  return <>
-    <div className="catalog-entry-backdrop" style={{ opacity: bannerOpacity }} aria-hidden="true">
-      <MediaArtwork src={media.banner ?? media.cover} title={media.title} />
-    </div>
-    <header className="catalog-entry-header">
-      <MediaDetails media={media} page>
-        <div className="media-preview-actions"><MediaExternalLinks media={media} />{media.trailerId && <TrailerPreview media={media} />}</div>
-      </MediaDetails>
-    </header>
-    <div className="catalog-entry-toolbar">
-      <details ref={actions} className="catalog-entry-tools"><summary aria-label="作品操作"><span aria-hidden="true">⋮</span></summary><div className="catalog-entry-menu">
-        <a className="icon-button" href="/library" aria-label="管理本地媒体库" title="管理本地媒体库"><Icon name="folder" size={18} />管理本地媒体库</a>
-        <button type="button" className="icon-button" onClick={() => { if (actions.current) actions.current.open = false; information.current?.showModal() }} aria-label="作品信息" title="作品信息"><Icon name="info" size={18} />作品信息</button>
-      </div></details>
-      <Tabs value={tab} onChange={setTab} label="播放来源">
-        <Tab value="local"><Icon name="lists" size={18} />本地媒体库</Tab>
-        <Tab value="torrent"><Icon name="monitor" size={18} />磁力播放</Tab>
-        <Tab value="online"><Icon name="broadcast" size={18} />在线播放</Tab>
-      </Tabs>
-    </div>
-    {nextAiring && <p className="catalog-entry-airing"><strong>第 {nextAiring.episode} 集 {airingDistance(nextAiring.at)}播出</strong><span><Icon name="calendar" size={16} /><time dateTime={new Date(nextAiring.at * 1000).toISOString()}>{new Date(nextAiring.at * 1000).toLocaleDateString('zh-CN', { weekday: 'long' })}</time></span></p>}
-    <section className="catalog-entry-content" aria-label={TAB_LABELS[tab]}>
-      {episodeMetadata.error && <p className="episode-art-notice" role="status">逐集图片暂不可用，正在使用作品封面。<button type="button" className="link" onClick={episodeMetadata.retry}>重新加载图片</button></p>}
-      {/* 首次打开后保留来源面板，切换时不丢失选择和请求。 */}
-      <div hidden={tab !== 'local'}><MediaPlayButton media={playbackMedia} inline /></div>
-      <SourcePanel active={tab === 'torrent'}><MediaTorrentButton media={playbackMedia} inline /></SourcePanel>
-      <SourcePanel active={tab === 'online'}><MediaSourceButton media={playbackMedia} inline /></SourcePanel>
-      <dialog ref={information} className="media-description-dialog catalog-entry-information" aria-label="作品信息" onClick={event => { if (event.target === information.current) information.current.close() }}><button type="button" className="icon-button" aria-label="关闭作品信息" onClick={() => information.current?.close()}><Icon name="close" /></button><h2>作品信息</h2><dl className="catalog-entry-facts">
-        {Object.entries({ '类型': FORMAT_LABELS[media.format ?? ''] || media.format, '原作': SOURCES[media.source ?? ''] || media.source, '集数': media.episodes, '单集时长': media.duration ? `${media.duration} 分钟` : undefined, '首播日期': media.startDate, '制作公司': media.studios?.join(' / '), '原名': media.titleNative }).map(([label, value]) => value ? <div key={label}><dt>{label}</dt><dd>{value}</dd></div> : null)}
-      </dl></dialog>
-    </section>
-    <MediaRelations media={media} />
-  </>
+  const meta = [
+    FORMAT_LABELS[media.format ?? ''] || media.format,
+    media.year ? `${media.year}${media.season ? ` ${SEASONS[media.season] ?? ''}` : ''}` : null,
+    media.episodes ? `${media.episodes} 集` : null,
+    media.duration ? `${media.duration} 分钟/集` : null,
+    media.status ? STATUS[media.status] ?? media.status : null,
+    watched > 0 ? `看到第 ${watched} 集` : null,
+  ]
+
+  return (
+    <main className="work-page entry-page" style={tones}>
+      <WorkHero
+        cover={media.cover}
+        backdrop={media.banner ?? media.cover}
+        backdropIsCover={!media.banner}
+        toned={tones !== undefined}
+        title={media.title}
+        romaji={media.titleRomaji}
+        native={media.titleNative}
+        meta={meta}
+        actions={
+          <>
+            {primary && (
+              // 播放的进度与出错说明都画在「本地媒体库」那个标签里：先切过去，否则停在「在线播放」时失败是静默的
+              <button type="button" className="hero-btn hero-btn--solid" disabled={primary.busy} onClick={() => { setPanel('local'); primary.play() }}>
+                <Icon name="play" size={16} />{primary.busy ? '正在启动…' : primary.label}
+              </button>
+            )}
+            <MediaListEditor media={media} labelled />
+            <MediaTorrentButton media={playbackMedia} drawer />
+            {media.trailerId && YOUTUBE_ID.test(media.trailerId) && <TrailerPreview media={media} className="hero-btn hero-btn--light" />}
+          </>
+        }
+      >
+        {!!media.score && <p className="entry-score">评分 <strong>{(media.score / 10).toFixed(1)}</strong></p>}
+        {/* 离线 / 过期时说清作品资料是什么时候的（与发现页同一条细条） */}
+        <FreshnessNote freshness={media.freshness} className="work-freshness" />
+        {nextAiring && (
+          <p className="entry-airing">
+            第 {nextAiring.episode} 集 {airingDistance(nextAiring.at)}播出 · <time dateTime={new Date(nextAiring.at * 1000).toISOString()}>{new Date(nextAiring.at * 1000).toLocaleDateString('zh-CN', { weekday: 'long' })}</time>
+          </p>
+        )}
+      </WorkHero>
+      <div className="work-body">
+        <LoginHint />
+        <section className="work-section" aria-labelledby="entry-episodes-heading">
+          <div className="work-section-head">
+            <h2 id="entry-episodes-heading" className="work-section-title">剧集</h2>
+            <Tabs value={panel} onChange={(value) => setPanel(value as Panel)} label="播放来源">
+              <Tab value="local">{PANELS.local}</Tab>
+              <Tab value="online">{PANELS.online}</Tab>
+            </Tabs>
+          </div>
+          {episodeMetadata.error && <p className="entry-notice" role="status">逐集资料暂不可用，先用作品自带的标题。<button type="button" className="link" onClick={episodeMetadata.retry}>重新加载</button></p>}
+          {/* 首次打开后保留来源面板，切换时不丢失选择和请求 */}
+          <div role="tabpanel" aria-label={PANELS.local} hidden={panel !== 'local'}>
+            <MediaPlayButton media={playbackMedia} inline onPrimaryChange={setPrimary} />
+          </div>
+          <SourcePanel active={panel === 'online'} label={PANELS.online}><MediaSourceButton media={playbackMedia} inline /></SourcePanel>
+        </section>
+        <EntryInfo media={media} />
+        <EntryRelations media={media} />
+      </div>
+    </main>
+  )
 }
 
 /**
- * 作品详情读不出来（离线、animego 不可用）时，媒体库里这部作品的本地文件仍然能看：
+ * 作品详情读不出来（离线、目录服务不可用）时，媒体库里这部作品的本地文件仍然能看：
  * 媒体库海报点进来就是这一页，不能让断网把本地播放也一起挡掉。
  */
 function LocalFallback({ id }: { id: number }) {
   const [clusters, setClusters] = useState<LibraryCluster[]>([])
   useEffect(() => {
     let alive = true
-    fetchLibrary().then(data => { if (alive) setClusters(data.clusters.filter(c => clusterWork(c)?.anilistId === id)) }).catch(() => {})
+    fetchLibrary()
+      .then((data) => { if (alive) setClusters(data.clusters.filter((c) => clusterWork(c)?.anilistId === id)) })
+      .catch((err: unknown) => console.error('读取媒体库失败', err))
     return () => { alive = false }
   }, [id])
   if (clusters.length === 0) return null
-  return <p className="result result--dim">本地媒体库里有这部作品，可以直接打开文件列表播放：{clusters.map((c, i) => <span key={c.clusterKey}>{i > 0 && '、'}<LibraryAnimeLink clusterKey={c.clusterKey} className="link">{c.title}（{c.episodeCount} 集）</LibraryAnimeLink></span>)}</p>
+  return (
+    <p className="work-strip">
+      作品资料读不到，媒体库里有这部作品的本地文件，可以直接打开播放：
+      {clusters.map((c, i) => <span key={c.clusterKey}>{i > 0 && '、'}<LibraryAnimeLink clusterKey={c.clusterKey} className="link">{c.title}（{c.episodeCount} 集）</LibraryAnimeLink></span>)}
+    </p>
+  )
 }
 
-function SourcePanel({ active, children }: { active: boolean; children: ReactNode }) {
+function SourcePanel({ active, label, children }: { active: boolean; label: string; children: ReactNode }) {
   const [visited, setVisited] = useState(active)
   useEffect(() => { if (active) setVisited(true) }, [active])
-  return <div hidden={!active}>{(active || visited) && children}</div>
+  return <div role="tabpanel" aria-label={label} hidden={!active}>{(active || visited) && children}</div>
 }

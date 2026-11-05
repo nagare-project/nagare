@@ -3,6 +3,7 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installLocalStorage } from '../../test/storage'
 import { mount } from '../../test/harness'
+import { accessibleName, getAllByRole, getByRole, queryByRole } from '../../test/queries'
 import { addDownload, fetchSettings, fetchSources, searchMagnets, streamPluginMagnets } from '../../lib/endpoints'
 import type { SearchItem } from '../../lib/endpoints'
 import type { SettingsData, SourcesData } from '../../lib/endpoints'
@@ -63,25 +64,42 @@ afterEach(() => {
   if (close) Object.defineProperty(HTMLDialogElement.prototype, 'close', close); else Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
 })
 
+// 弹窗 / 抽屉没打开时读屏碰不到里面的东西；这里查的是面板的内容，一律带 hidden
+const ALL = { hidden: true } as const
+/** 作品名称输入框所在的表单：提交 = 搜索 */
 const search = async (container: HTMLElement) => act(async () => {
-  container.querySelector<HTMLFormElement>('.media-release-search')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  (getByRole(container, 'textbox', { name: '作品名称', ...ALL }) as HTMLInputElement).form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 })
-const rows = (container: HTMLElement) => [...container.querySelectorAll<HTMLLIElement>('.media-resource-list li')]
+const queryInput = (container: HTMLElement) => getByRole(container, 'textbox', { name: '作品名称', ...ALL }) as HTMLInputElement
+/** 整块结果（按字幕组浏览） */
+const results = (container: HTMLElement) => getByRole(container, 'region', { name: '按字幕组浏览磁力资源', ...ALL })
+/** 当前选中的字幕组的发布列表（「<组名> 的资源」） */
+const resources = (container: HTMLElement) => queryByRole(container, 'group', { name: /的资源$/, ...ALL })
+const rows = (container: HTMLElement) => { const panel = resources(container); return panel === null ? [] : getAllByRole(panel, 'listitem', ALL) }
 const titles = (container: HTMLElement) => rows(container).map(row => row.querySelector('strong')?.textContent)
-const groupNames = (container: HTMLElement) => [...container.querySelectorAll('.media-fansub-chip strong')].map(node => node.textContent)
-const button = (container: HTMLElement, text: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.includes(text))
-const pick = async (container: HTMLElement, group: string) => act(async () => container.querySelector<HTMLButtonElement>(`[aria-label="字幕组 ${group}"]`)!.click())
+/** 字幕组按钮：名字就是可见文字「字幕组 <组名> …」 */
+const chips = (container: HTMLElement) => { const row = queryByRole(container, 'group', { name: '选择字幕组', ...ALL }); return row === null ? [] : getAllByRole(row, 'button', ALL) as HTMLButtonElement[] }
+const groupNames = (container: HTMLElement) => chips(container).map(item => item.querySelector('strong')?.textContent?.replace(/^字幕组 /, ''))
+const button = (container: HTMLElement, text: string) => getAllByRole(container, 'button', ALL).find(item => item.textContent?.includes(text)) as HTMLButtonElement | undefined
+const chip = (container: HTMLElement, group: string) => chips(container).find(item => item.querySelector('strong')?.textContent === `字幕组 ${group}`) ?? null
+/** 一行发布的主操作：单集「播放」，合集与认不出集号的「选择文件」 */
+const playIn = (row: HTMLElement) => getByRole(row, 'button', { name: /^(播放|选择文件)$/, ...ALL }) as HTMLButtonElement
+/** 卡片上的弹窗入口 */
+const cardEntry = (container: HTMLElement) => getByRole(container, 'button', { name: `按字幕组查找磁力：${media.title}` })
+const dialogOf = (container: HTMLElement) => getByRole(container, 'dialog', ALL) as HTMLDialogElement
+const pick = async (container: HTMLElement, group: string) => act(async () => chip(container, group)!.click())
 
 describe('作品页磁力：不选集数，直接按字幕组分类', () => {
   it('切到磁力标签就直接搜，没有集数选择；单集播放带作品身份与条目自己的集号', async () => {
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    expect(container.querySelector('.torrent-episode-picker')).toBeNull()
-    expect(container.querySelector('[aria-label="集数"]')).toBeNull()
+    // 没有选集：没有「集数」一组按钮，也没有下拉
+    expect(queryByRole(container, 'group', { name: '集数', ...ALL })).toBeNull()
+    expect(queryByRole(container, 'combobox', ALL)).toBeNull()
     expect(searchMagnets).toHaveBeenCalledExactlyOnceWith(media.title, { altTitles: ['テスト'] })
     // 老插件只会按集号问：给它下一集没看的；按作品搜的插件不看这个
     expect(vi.mocked(streamPluginMagnets).mock.calls[0]?.[1]).toEqual({ episode: 2, anilistId: 7, altTitles: ['テスト'] })
-    expect(container.querySelector('.media-resource-results')?.textContent).toContain('1 个字幕组 · 1 个版本')
-    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
+    expect(results(container).textContent).toContain('1 个字幕组 · 1 个版本')
+    await act(async () => playIn(rows(container)[0]!).click())
     expect(shared.play.mock.calls[0]?.[0]).toEqual({ magnet, title: '[Group] 测试动画 02', episodeHint: 2, ...identity })
     await unmount()
   })
@@ -97,7 +115,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
 
   it('改过搜索词就只搜用户写的，不再追加目录里的其他写法', async () => {
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    const input = container.querySelector<HTMLInputElement>('.media-torrent-query input')!
+    const input = queryInput(container)
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '测试动画 1080p')
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -120,7 +138,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     expect(rows(container)[3]?.textContent).toContain('SP 1')
     expect(rows(container)[3]?.textContent).not.toContain('第 1 集')
     expect(button(container, '选择文件')).toBeDefined()
-    expect(container.querySelector('.media-resource-results')?.textContent).toContain('2 个字幕组 · 7 个版本')
+    expect(results(container).textContent).toContain('2 个字幕组 · 7 个版本')
     await pick(container, 'B组')
     expect(titles(container)).toEqual(['[B组] 测试动画 2', '[B组] 测试动画 3'])
     await unmount()
@@ -133,12 +151,12 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     ] })
     localStorage.setItem('nagare:fansub:7', 'B组')
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    const chips = [...container.querySelectorAll<HTMLButtonElement>('.media-fansub-chip')]
-    expect(chips.map(item => item.querySelector('strong')?.textContent)).toEqual(['B组', 'A组'])
-    expect(chips[0]?.getAttribute('aria-pressed')).toBe('true')
-    await act(async () => chips[1]!.click())
+    const groups = chips(container)
+    expect(groups.map(item => item.querySelector('strong')?.textContent)).toEqual(['字幕组 B组', '字幕组 A组'])
+    expect(groups[0]?.getAttribute('aria-pressed')).toBe('true')
+    await act(async () => groups[1]!.click())
     expect(titles(container)).toEqual(['[A组] 测试动画 [1-3]', '[A组] 测试动画 2', '[A组] 测试动画 02 v2'])
-    await act(async () => rows(container)[1]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
+    await act(async () => playIn(rows(container)[1]!).click())
     expect(shared.play.mock.calls[0]?.[0].episodeHint).toBe(2)
     expect(localStorage.getItem('nagare:fansub:7')).toBe('A组')
     await unmount()
@@ -168,7 +186,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
   it('播放合集不带集号：合集标题里的数字不是集号，交给播放前的文件列表', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [batch(3, 'A组', 1, 28)] })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
+    await act(async () => playIn(rows(container)[0]!).click())
     expect(shared.play.mock.calls[0]?.[0]).toEqual({ magnet: batch(3, 'A组', 1, 28).magnet, title: '[A组] 测试动画 [1-28]', ...identity })
     await unmount()
   })
@@ -180,7 +198,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
       onEvent({ event: 'done' })
     })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
+    await act(async () => playIn(rows(container)[0]!).click())
     expect(shared.play.mock.calls[0]?.[0]).toMatchObject({ suggestedFileIndex: 4 })
     expect(shared.play.mock.calls[0]?.[0].episodeHint).toBeUndefined()
     await unmount()
@@ -189,7 +207,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
   it('OVA 作品自己的发布标着 OVA：照常按集号定位', async () => {
     vi.mocked(searchMagnets).mockResolvedValue({ query: '', sources: [], items: [release(1, 'A组', 2, { kind: 'ova' })] })
     const { container, unmount } = await mount(<MediaTorrentButton media={{ ...media, format: 'OVA' }} inline />)
-    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
+    await act(async () => playIn(rows(container)[0]!).click())
     expect(shared.play.mock.calls[0]?.[0].episodeHint).toBe(2)
     await unmount()
   })
@@ -208,7 +226,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(streamPluginMagnets).mockRejectedValueOnce(new Error('插件掉线'))
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    const alert = [...container.querySelectorAll('[role="alert"]')].find(node => node.textContent?.includes('插件来源搜索中断'))
+    const alert = getAllByRole(container, 'alert', ALL).find(node => node.textContent?.includes('插件来源搜索中断'))
     expect(alert?.textContent).toContain('插件掉线')
     await act(async () => button(container, '重新搜索插件来源')!.click())
     expect(streamPluginMagnets).toHaveBeenCalledTimes(2)
@@ -222,7 +240,7 @@ describe('作品页磁力：不选集数，直接按字幕组分类', () => {
     const movie = { ...media, format: 'MOVIE', episodes: 1, watched: 0 }
     const { container, unmount } = await mount(<MediaTorrentButton media={movie} inline />)
     expect(rows(container)).toHaveLength(1)
-    await act(async () => rows(container)[0]!.querySelector<HTMLButtonElement>('button.btn--primary')!.click())
+    await act(async () => playIn(rows(container)[0]!).click())
     expect(shared.play.mock.calls[0]?.[0]).toEqual({ magnet: release(1, 'A组').magnet, title: '[A组] 测试剧场版 [1080p]', ...identity })
     await unmount()
   })
@@ -234,12 +252,12 @@ describe('磁力栏「下载」：完整下到下载目录，下完进媒体库'
       batch(1, 'A组', 1, 12), release(2, 'A组', 1, { torrentUrl: 'https://example.invalid/a.torrent' }),
     ] })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    const downloadOf = (index: number) => [...rows(container)[index]!.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === '下载')
+    const downloadOf = (index: number) => getAllByRole(rows(container)[index]!, 'button', ALL).find(item => item.textContent === '下载') as HTMLButtonElement | undefined
     await act(async () => downloadOf(0)!.click())
     expect(addDownload).toHaveBeenCalledExactlyOnceWith({ magnet: batch(1, 'A组', 1, 12).magnet }, '[A组] 测试动画 [1-12]')
     expect(rows(container)[0]?.textContent).toContain('已加入下载')
     expect(container.textContent).toContain('已加入下载：[A组] 测试动画 [1-12]。下完会自动出现在媒体库里。')
-    expect(container.querySelector('a[href="/torrents"]')).not.toBeNull()
+    expect(getByRole(container, 'link', { name: '查看下载', ...ALL }).getAttribute('href')).toBe('/torrents')
     expect(shared.play).not.toHaveBeenCalled()
 
     await act(async () => downloadOf(1)!.click())
@@ -251,7 +269,7 @@ describe('磁力栏「下载」：完整下到下载目录，下完进媒体库'
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(addDownload).mockRejectedValueOnce(new Error('这是私有站（PT）的种子，nagare 不下载'))
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    const download = () => [...rows(container)[0]!.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === '下载')
+    const download = () => getAllByRole(rows(container)[0]!, 'button', ALL).find(item => item.textContent === '下载') as HTMLButtonElement | undefined
     await act(async () => download()!.click())
     expect(container.textContent).toContain('私有站')
     expect(download()?.disabled).toBe(false)
@@ -289,12 +307,12 @@ describe('按字幕组浏览磁力版本', () => {
     const first = release(1, 'A组', 2)
     vi.mocked(searchMagnets).mockResolvedValue({ query: media.title, sources: [], items: [first, { ...first, source: 'plugin:test', seeders: 42 }, release(2, '', 2)] })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
-    const chips = [...container.querySelectorAll<HTMLButtonElement>('.media-fansub-chip')]
-    expect(chips).toHaveLength(2)
+    const groups = chips(container)
+    expect(groups).toHaveLength(2)
     await pick(container, 'A组')
     expect(rows(container)).toHaveLength(1)
-    expect(container.querySelector('.media-resource-list')?.textContent).toContain('做种 42')
-    expect(chips.some(item => item.textContent?.includes('未分类'))).toBe(true)
+    expect(resources(container)?.textContent).toContain('做种 42')
+    expect(groups.some(item => item.textContent?.includes('未分类'))).toBe(true)
     await unmount()
   })
 
@@ -303,13 +321,13 @@ describe('按字幕组浏览磁力版本', () => {
     vi.mocked(streamPluginMagnets).mockImplementation(async (_q, _c, onEvent) => { emits.push(onEvent); await new Promise<void>(() => {}) })
     const { container, rerender, unmount } = await mount(<MediaTorrentButton media={media} inline />)
     await act(async () => emits[0]!({ event: 'item', item: release(2, '新组', 2) }))
-    const groupChip = container.querySelector<HTMLButtonElement>('[aria-label="字幕组 新组"]')!
+    const groupChip = chip(container, '新组')!
     await act(async () => groupChip.click())
     await act(async () => emits[0]!({ event: 'item', item: release(3, '另一组', 2) }))
     expect(groupChip.getAttribute('aria-pressed')).toBe('true')
     await rerender(<MediaTorrentButton media={{ ...media, id: 9, title: '另一部作品' }} inline />)
     await act(async () => emits[0]!({ event: 'item', item: release(4, '过期组', 2) }))
-    expect(container.querySelector('[aria-label="字幕组 过期组"]')).toBeNull()
+    expect(chip(container, '过期组')).toBeNull()
     await unmount()
   })
 
@@ -320,21 +338,21 @@ describe('按字幕组浏览磁力版本', () => {
     const { container, unmount } = await mount(<MediaTorrentButton media={media} inline />)
     await search(container)
     await act(async () => emits[0]!({ event: 'item', item: release(5, '旧组', 3) }))
-    expect(container.querySelector('[aria-label="字幕组 旧组"]')).toBeNull()
+    expect(chip(container, '旧组')).toBeNull()
     await act(async () => emits[1]!({ event: 'item', item: release(6, '新组', 3) }))
-    expect(container.querySelector('[aria-label="字幕组 新组"]')).not.toBeNull()
+    expect(chip(container, '新组')).not.toBeNull()
     await unmount()
   })
 
   it('弹窗入口：打开才搜；已经搜过的再打开不重搜', async () => {
     const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
     expect(searchMagnets).not.toHaveBeenCalled()
-    const dialog = container.querySelector<HTMLDialogElement>('dialog')!
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    const dialog = dialogOf(container)
+    await act(async () => cardEntry(container).click())
     expect(searchMagnets).toHaveBeenCalledOnce()
     expect(rows(container)).toHaveLength(1)
     await act(async () => dialog.close())
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    await act(async () => cardEntry(container).click())
     expect(searchMagnets).toHaveBeenCalledOnce()
     await unmount()
   })
@@ -344,16 +362,16 @@ describe('按字幕组浏览磁力版本', () => {
     vi.mocked(searchMagnets).mockReturnValueOnce(new Promise(resolve => { finishLocal = () => resolve({ query: media.title, items: [], sources: [] }) }))
     vi.mocked(streamPluginMagnets).mockImplementation(async () => { await new Promise<void>(() => {}) })
     const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
-    const dialog = container.querySelector<HTMLDialogElement>('dialog')!
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    const dialog = dialogOf(container)
+    await act(async () => cardEntry(container).click())
     await act(async () => dialog.close())
     await act(async () => finishLocal!())
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    await act(async () => cardEntry(container).click())
     expect(searchMagnets).toHaveBeenCalledTimes(2)
     expect(rows(container)).toHaveLength(1)
 
     await act(async () => dialog.close())
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
+    await act(async () => cardEntry(container).click())
     expect(container.textContent).toContain('窗口关闭时插件来源还没搜完')
     expect(button(container, '重新搜索插件来源')).toBeDefined()
     await unmount()
@@ -362,13 +380,53 @@ describe('按字幕组浏览磁力版本', () => {
   it('搜索失败可重试，弹窗入口保留关闭与播放行为', async () => {
     vi.mocked(searchMagnets).mockRejectedValueOnce(new Error('暂时断线'))
     const { container, unmount } = await mount(<MediaTorrentButton media={media} />)
-    await act(async () => container.querySelector<HTMLButtonElement>('.discover-card-torrent')!.click())
-    expect(container.querySelector<HTMLDialogElement>('dialog')?.open).toBe(true)
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('暂时断线')
-    await act(async () => container.querySelector<HTMLButtonElement>('[role="alert"] button')!.click())
-    expect(container.querySelector('.media-resource-list')).not.toBeNull()
-    await act(async () => container.querySelector<HTMLButtonElement>('.media-resource-list button.btn--primary')!.click())
-    expect(container.querySelector<HTMLDialogElement>('dialog')?.open).toBe(false)
+    await act(async () => cardEntry(container).click())
+    expect(dialogOf(container).open).toBe(true)
+    const failure = getByRole(container, 'alert', ALL)
+    expect(failure.textContent).toContain('暂时断线')
+    await act(async () => getByRole(failure, 'button', { name: '重试', ...ALL }).click())
+    expect(resources(container)).not.toBeNull()
+    await act(async () => playIn(rows(container)[0]!).click())
+    expect(dialogOf(container).open).toBe(false)
+    await unmount()
+  })
+
+  it('作品页的磁力抽屉：「磁力」打开抽屉就搜，行为与弹窗一样；只有按下与松开都在遮罩上才关，关掉后焦点回到「磁力」', async () => {
+    const { container, unmount } = await mount(<MediaTorrentButton media={media} drawer />)
+    // 抽屉模式没有卡片上的「字幕组」入口
+    expect(queryByRole(container, 'button', { name: /^按字幕组查找磁力/, ...ALL })).toBeNull()
+    // 入口的名字以可见的「磁力」打头（语音控制按看到的字点得到），后面补一句做什么
+    const trigger = getByRole(container, 'button', { name: '磁力：按字幕组查找这部作品的发布' })
+    expect(trigger.getAttribute('aria-haspopup')).toBe('dialog')
+    const drawer = dialogOf(container)
+    // 抽屉的名字：上面的小标题 + 作品名
+    expect(accessibleName(drawer)).toBe(`磁力边下边播 ${media.title}`)
+    expect(getByRole(drawer, 'heading', { level: 2, ...ALL }).textContent).toBe(media.title)
+    await act(async () => trigger.click())
+    expect(drawer.open).toBe(true)
+    expect(searchMagnets).toHaveBeenCalledOnce()
+    expect(rows(container)).toHaveLength(1)
+    // 下载整部照常可用
+    expect(button(container, '下载')).toBeDefined()
+
+    drawer.getBoundingClientRect = () => ({ left: 600, right: 1000, top: 0, bottom: 800, width: 400, height: 800, x: 600, y: 0, toJSON: () => ({}) })
+    const at = (type: string, x: number, target: Element = drawer) =>
+      act(async () => { target.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: 100 })) })
+    // 在抽屉里按下、拖到遮罩上松手（拖选文字）：不关
+    await at('pointerdown', 700, queryInput(container))
+    await at('click', 10)
+    expect(drawer.open).toBe(true)
+    await at('pointerdown', 10)
+    await at('click', 10)
+    expect(drawer.open).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+
+    // 关闭按钮同样还焦点
+    await act(async () => trigger.click())
+    await act(async () => getByRole(drawer, 'button', { name: '关闭磁力抽屉' }).click())
+    expect(drawer.open).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+    expect(searchMagnets).toHaveBeenCalledOnce()
     await unmount()
   })
 

@@ -14,7 +14,7 @@
  * 前者我们说了算，后者说了不算。
  */
 
-import type { PosterTones } from '../../lib/endpoints'
+import type { CatalogFreshness, PosterTones } from '../../lib/endpoints'
 
 /** 一部作品在网格 / 轮播里的最小投影 */
 export interface MediaSummary {
@@ -56,6 +56,8 @@ export interface MediaSummary {
   rankings?: { rank: number; type: string; context: string; year: number; season: string }[]
   /** 封面的海报色阶（服务端算好的 sRGB）；null / 缺省 = 中性色。写在使用它的元素自身（lib/posterTones.ts） */
   posterTones?: PosterTones | null
+  /** 作品详情的来历：只在不是刚从上游取回时出现（离线、缓存过期） */
+  freshness?: CatalogFreshness
 }
 
 /** 公开的逐集资料，图片为服务端登记后的本机地址。 */

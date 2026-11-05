@@ -136,5 +136,13 @@
       "episode": 5,
       "title": "第 5 话的标题"
     }
-  ]
+  ],
+  "posterTones": {
+    "hue": 252.3,
+    "tone": "#a2b6e3",
+    "quiet": "#8597c6",
+    "mid": "#4f6290",
+    "low": "#141b2b",
+    "onTone": "#04070f"
+  }
 }

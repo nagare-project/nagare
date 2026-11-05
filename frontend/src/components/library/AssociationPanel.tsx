@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { dismissSyncedElsewhere, formatEpisodeList, needsConfirmation, setAssociation } from '../../lib/associations'
 import type { AssociationChange, SyncedRecord } from '../../lib/associations'
 import type { LibraryCluster } from '../../lib/endpoints'
@@ -15,7 +16,14 @@ import './association.css'
  * 所有改动（包括从选作品对话框里保存的）都走同一条路：保存 → 重读媒体库，期间按钮全部禁用，
  * 免得重读完成前点到按旧数据画出来的按钮，把刚做的选择又盖掉。
  */
-export function AssociationPanel({ cluster, onChanged }: { cluster: LibraryCluster; onChanged: () => Promise<void> | void }) {
+export function AssociationPanel({ cluster, onChanged, pickRequest, pickOpener }: {
+  cluster: LibraryCluster
+  onChanged: () => Promise<void> | void
+  /** 面板外面（作品页 hero 的「认作品」）要打开选作品对话框：每加一就打开一次 */
+  pickRequest?: number
+  /** 从面板外面打开时，关掉后焦点还给它（它保存后可能已经不在了，那就还给面板里的「更换」） */
+  pickOpener?: RefObject<HTMLElement | null>
+}) {
   const [picking, setPicking] = useState(false)
   const [confirmingAuto, setConfirmingAuto] = useState(false)
   const [pending, setPending] = useState(false)
@@ -29,9 +37,18 @@ export function AssociationPanel({ cluster, onChanged }: { cluster: LibraryClust
   // 操作之后焦点该去哪：点过的按钮在保存期间被禁用、成功后多半还会消失，焦点会掉到页面顶部。
   // 等 React 把新内容提交之后再移（否则读屏念的是旧句子），而且只在焦点还在面板里或掉到了
   // body 时才移 —— 用户在慢的重读期间已经 Tab 到别处，不该被拽回来。
-  const focusNext = useRef<'status' | 'error' | 'pick' | 'auto' | null>(null)
+  const focusNext = useRef<'status' | 'error' | 'pick' | 'auto' | 'opener' | null>(null)
+  const lastPickRequest = useRef(pickRequest ?? 0)
+  const openedFromOutside = useRef(false)
   const { association, matched } = cluster
   const synced = association?.syncedElsewhere ?? []
+
+  useEffect(() => {
+    if (pickRequest === undefined || pickRequest === lastPickRequest.current) return
+    lastPickRequest.current = pickRequest
+    openedFromOutside.current = true
+    setPicking(true)
+  }, [pickRequest])
 
   useEffect(() => {
     const target = focusNext.current
@@ -39,6 +56,10 @@ export function AssociationPanel({ cluster, onChanged }: { cluster: LibraryClust
     focusNext.current = null
     const active = document.activeElement
     if (active !== null && active !== document.body && !panel.current?.contains(active)) return
+    if (target === 'opener') {
+      ;(pickOpener?.current?.isConnected ? pickOpener.current : pickButton.current)?.focus()
+      return
+    }
     ;({ status, error: errorLine, pick: pickButton, auto: autoButton })[target].current?.focus()
   })
 
@@ -88,9 +109,10 @@ export function AssociationPanel({ cluster, onChanged }: { cluster: LibraryClust
         </p>
         <div className="assoc-panel-actions">
           {association === undefined && matched && (
+            // 不用实心按钮：作品页唯一的实心按钮是 hero 里的海报色主按钮（DESIGN.md「一页只有一个实心按钮」）
             <button
               type="button"
-              className="btn btn--sm btn--primary"
+              className="btn btn--sm"
               aria-label={`确认对应作品是「${matched.title || `作品 ${matched.anilistId}`}」`}
               disabled={pending}
               onClick={() => void change({ mode: 'manual', anilistId: matched.anilistId })}
@@ -131,7 +153,8 @@ export function AssociationPanel({ cluster, onChanged }: { cluster: LibraryClust
           setPicking(false)
           // Safari 里鼠标点按钮不会聚焦它，原生 dialog 的焦点归还会落空：显式还给打开它的按钮
           // （保存还没结束时它是禁用的，等保存完再还）
-          focusNext.current = 'pick'
+          focusNext.current = openedFromOutside.current ? 'opener' : 'pick'
+          openedFromOutside.current = false
         }}
         onChoose={(choice) => apply(() => setAssociation(cluster.clusterKey, choice))}
         onLateError={setError}

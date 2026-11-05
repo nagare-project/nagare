@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import './episode-artwork.css'
 
 /** 优先逐集截图，其次作品横图和海报，与 Seanime 的图片回退顺序一致。 */
 export function EpisodeArtwork({ image, banner, cover }: { image?: string; banner?: string; cover?: string }) {

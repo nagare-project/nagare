@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SearchItem, SourceOutcome, SourcesData } from '../../lib/endpoints'
 import { parsePublished } from '../../lib/format'
+import { RouteLink } from '../catalog/RouteLink'
 import { releaseChineseScore } from './chineseSubtitles'
 import { isBatchRelease } from './releaseEpisodes'
 
@@ -126,7 +127,7 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
   // 本机规则和插件 BT 来源都没有时才算「没配源」；插件给了结果就照常展示
   if (sources.sources.length === 0 && outcomes.length === 0 && !pluginPending && pluginError === null) return <div className="media-resource-empty">
     <p className="result result--warn">尚未配置资源源：启用本地来源插件（Nagare Source）或添加规则仓库。</p>
-    <a className="btn btn--sm" href="/settings#sources">去设置</a>
+    <RouteLink className="btn btn--sm" to="/settings#sources">去设置</RouteLink>
   </div>
 
   const trouble = outcomes.filter(outcome => outcome.state === 'dead' || outcome.state === 'failed')
@@ -145,7 +146,8 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
       {mark === 'adding' ? '加入中…' : mark === 'added' ? '已加入下载' : '下载'}
     </button>
   }
-  const playButton = (item: SearchItem, group: string, label: string) => <button type="button" className="btn btn--sm btn--primary" disabled={busy || engineDown}
+  // 行内的「播放」是次按钮：一块界面只留一个实心按钮（上面的搜索），每行一个实心会互抢视线（DESIGN.md）
+  const playButton = (item: SearchItem, group: string, label: string) => <button type="button" className="btn btn--sm media-resource-play" disabled={busy || engineDown}
     title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
     onClick={event => play(item, event.currentTarget, group)}>{label}</button>
   const rowLabel = (item: SearchItem) => [
@@ -160,15 +162,16 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
     <div className="media-play-selection"><h3>字幕组</h3><span className="result result--dim">{countLabel}{pluginPending ? ' · 插件来源仍在搜索…' : ''}</span></div>
     {/* 流入时每条都会改动计数：读屏只在搜完时念一次 */}
     <span className="visually-hidden" role="status">{pluginPending ? '插件来源仍在搜索' : countLabel}</span>
-    {engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<a className="link" href="/settings#torrent">查看设置</a></p>}
+    {engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<RouteLink className="link" to="/settings#torrent">查看设置</RouteLink></p>}
     {trouble.length > 0 && <p className="result result--warn" role="status">{sourceTrouble(trouble)}</p>}
     {pluginError !== null && <p className="result result--warn" role="alert">插件来源搜索中断：{pluginError} <button type="button" className="link" onClick={props.onRetryPlugin}>重新搜索插件来源</button></p>}
     {total === 0 ? <EmptyReleases pluginPending={pluginPending} /> : <div className="media-fansub-browser">
       <div className="media-fansub-row" role="group" aria-label="选择字幕组">
         {groups.map(group => <button type="button" key={group.name} aria-pressed={active?.name === group.name}
           className={active?.name === group.name ? 'media-fansub-chip media-fansub-chip--active' : 'media-fansub-chip'}
-          aria-label={`字幕组 ${group.name}`} onClick={() => setChosen(group.name)}>
-          <span className="media-fansub-avatar" aria-hidden="true">{group.name.slice(0, 2)}</span><strong>{group.name}</strong>
+          onClick={() => setChosen(group.name)}>
+          {/* 名字就是可见文字（前面补一句「字幕组」）：另写 aria-label 的话，语音控制按看到的字点不到它 */}
+          <span className="media-fansub-avatar" aria-hidden="true">{group.name.slice(0, 2)}</span><strong><span className="visually-hidden">字幕组 </span>{group.name}</strong>
           <span>{group.items.length} 个版本{group.items.some(isBatchRelease) ? ' · 含合集' : ''}{group.name === remembered ? ' · 上次选择' : ''}</span>
         </button>)}
       </div>

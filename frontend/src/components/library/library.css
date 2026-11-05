@@ -1,5 +1,4 @@
 @import './artwork.css';
-@import './entry.css';
 
 /* ============================================================
    媒体库 feature 样式：mpv 状态 · 空态 · 簇卡片 · 剧集行 · 添加表单。
@@ -26,28 +25,29 @@
 
 /* ---------- 顶栏内的 mpv 状态 ---------- */
 
-/* mpv 状态芯片：点 + 微标签 */
+/* mpv 状态芯片：点 + 微标签（状态的文字给读屏，见 LibraryPage 的 MpvChip） */
 .mpv-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0.5em;
-  font-size: 0.84rem;
-  color: var(--fg-muted);
+  gap: var(--sp-sm);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
 }
 
 .mpv-dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: var(--fg-subtle);
+  border-radius: var(--radius-full);
+  background: var(--text-secondary);
 }
 
 .mpv-dot--ok {
-  background: var(--ok);
+  background: var(--success);
 }
 
 .mpv-dot--missing {
-  background: var(--err);
+  background: var(--error);
 }
 
 /* mpv 缺失提示条（设置页的 mpv 卡也用它） */

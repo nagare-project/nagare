@@ -14,7 +14,7 @@ export function toSummary(media: SummaryMediaData): MediaSummary {
     studios: media.studios, nextAiring: media.nextAiring, recentAiring: media.recentAiring,
     relations: media.relations?.map(r => ({ type: r.type, media: toSummary(r.media) })),
     recommendations: media.recommendations?.map(toSummary), characters: media.characters,
-    episodeTitles: media.episodeTitles, posterTones: media.posterTones }
+    episodeTitles: media.episodeTitles, posterTones: media.posterTones, freshness: media.freshness }
 }
 export type DiscoverSections = { key: string; title: string; items: MediaSummary[]; error?: string }[]
 /** 发现页：板块 + 这份数据的来历（离线 / 过期时才有，界面据此显示「离线 · 更新于 …」） */
