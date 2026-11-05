@@ -80,23 +80,7 @@ test.describe('宽屏顶栏（1440px）', () => {
     await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '发现', exact: true })).toHaveAttribute('aria-current', 'page')
   })
 
-  test('设置：逐个分区切换，每次只有一个当前项；扩展从设置进', async ({ page }) => {
-    const problems = watchProblems(page)
-    await openApp(page, '/settings')
-    const nav = page.getByRole('navigation', { name: '设置分类' })
-    const sections = ['应用', '账号', '本地媒体库', '媒体播放器', '磁力播放', '来源', '更新', '关于']
-    for (const name of sections) {
-      await nav.getByRole('link', { name, exact: true }).click()
-      // 分区标题（有的分区里第一张卡片的标题与它同名，取第一个）
-      await expect(page.getByRole('heading', { level: 2, name, exact: true }).first()).toBeVisible()
-      await expect(nav.locator('a[aria-current="page"]')).toHaveCount(1)
-      await expect(nav.locator('a[aria-current="page"]')).toHaveText(name)
-    }
-    await nav.getByRole('link', { name: '扩展', exact: true }).click()
-    await expect(page).toHaveURL((url) => url.pathname === '/extensions')
-    await expect(page.getByRole('heading', { level: 1, name: '扩展' })).toBeVisible()
-    expect(problems.errors).toEqual([])
-  })
+  // 设置页的分区切换（每次只有一个当前项、扩展从设置进、只用键盘切换）挪到了 settings.spec.ts
 
   test('媒体库里点播放：发出 POST /api/play，带上这一集的文件 id', async ({ page }) => {
     const problems = watchProblems(page)
