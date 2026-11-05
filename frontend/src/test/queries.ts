@@ -8,14 +8,16 @@
  * 这里是 ARIA 角色与可访问名称的近似实现，只覆盖本项目界面里用得到的那部分：
  * - 角色：常用元素的隐含角色 + 显式 role。
  * - 名字：aria-labelledby > aria-label > 内容文字（去掉 aria-hidden，图片取 alt）> 表单控件的 <label> > title。
+ *   列表、导航、区块、对话框这类容器只认作者给的名字，不拿内容文字顶替（见 NAME_FROM_AUTHOR_ONLY）。
  * - 默认跳过读屏碰不到的元素：hidden / aria-hidden / inert 的子树、没打开的 <dialog>、
  *   收起的 <details> 里除 <summary> 以外的内容。
  */
 
 export type Role =
-  | 'alert' | 'button' | 'checkbox' | 'combobox' | 'dialog' | 'group' | 'heading' | 'img' | 'link'
-  | 'list' | 'listitem' | 'main' | 'menu' | 'menuitem' | 'navigation' | 'note' | 'progressbar'
-  | 'region' | 'status' | 'tab' | 'tablist' | 'tabpanel' | 'textbox'
+  | 'alert' | 'banner' | 'button' | 'cell' | 'checkbox' | 'columnheader' | 'combobox' | 'dialog' | 'form'
+  | 'group' | 'heading' | 'img' | 'link' | 'list' | 'listitem' | 'main' | 'menu' | 'menuitem' | 'navigation'
+  | 'note' | 'progressbar' | 'region' | 'row' | 'search' | 'status' | 'switch' | 'tab' | 'table' | 'tablist'
+  | 'tabpanel' | 'textbox'
 
 export interface RoleOptions {
   /** 可访问名称：字符串是全等（空白折叠后），正则是匹配 */
@@ -29,6 +31,15 @@ export interface RoleOptions {
 /** 每个角色的隐含元素（显式 role 另算） */
 const IMPLICIT: Record<Role, string> = {
   alert: '',
+  // 页头只在不属于某个区块（main / section / article / aside / nav）时才是 banner，见 getAllByRole
+  banner: 'header',
+  cell: 'td',
+  columnheader: 'th',
+  form: 'form[aria-label], form[aria-labelledby]',
+  row: 'tr',
+  search: 'search',
+  switch: '',
+  table: 'table',
   button: 'button, input[type="button"], input[type="submit"], input[type="reset"]',
   checkbox: 'input[type="checkbox"]',
   combobox: 'select:not([multiple])',
@@ -54,6 +65,25 @@ const IMPLICIT: Record<Role, string> = {
 }
 
 const collapse = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/**
+ * 这些角色的名字只能由作者给（aria-labelledby / aria-label，fieldset 另认 legend）。
+ * 没标名字的列表或区块要是拿整段文字当「名字」，按名字查照样查得到，读屏却什么都念不出来。
+ */
+const NAME_FROM_AUTHOR_ONLY: ReadonlySet<Role> = new Set<Role>([
+  'banner', 'dialog', 'form', 'group', 'list', 'main', 'menu', 'navigation', 'progressbar', 'region', 'search',
+  'table', 'tablist', 'tabpanel',
+])
+
+/** 元素的角色：显式 role 优先，否则按隐含元素认；认不出（div、span）时为 null */
+function roleOf(element: Element): Role | null {
+  const explicit = element.getAttribute('role')
+  if (explicit !== null) return explicit as Role
+  for (const [role, selector] of Object.entries(IMPLICIT) as [Role, string][]) {
+    if (selector !== '' && element.matches(selector)) return role
+  }
+  return null
+}
 
 /** 这个元素读屏碰不到：自己或祖先被藏起来了 */
 export function isInaccessible(element: Element): boolean {
@@ -100,6 +130,12 @@ export function accessibleName(element: Element): string {
   if (element.tagName === 'IMG') return collapse(element.getAttribute('alt') ?? '')
   const control = controlLabel(element)
   if (control !== null && collapse(control) !== '') return collapse(control)
+  if (element.tagName === 'FIELDSET') {
+    const legend = [...element.children].find((child) => child.tagName === 'LEGEND')
+    if (legend !== undefined) return collapse(contentText(legend))
+  }
+  const role = roleOf(element)
+  if (role !== null && NAME_FROM_AUTHOR_ONLY.has(role)) return collapse(element.getAttribute('title') ?? '')
   const isField = element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement
   const text = isField ? '' : collapse(contentText(element))
   if (text !== '') return text
@@ -124,6 +160,7 @@ export function getAllByRole(root: ParentNode, role: Role, options: RoleOptions 
     const explicit = element.getAttribute('role')
     // 显式写了别的角色（role="tab" 的 button、role="presentation" 的 li）就不是隐含角色了
     if (explicit !== null && explicit !== role) return false
+    if (role === 'banner' && explicit === null && element.parentElement?.closest('main, section, article, aside, nav') != null) return false
     if (!options.hidden && isInaccessible(element)) return false
     if (options.level !== undefined && headingLevel(element) !== options.level) return false
     return options.name === undefined || matches(accessibleName(element), options.name)
