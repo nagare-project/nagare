@@ -178,4 +178,9 @@ func TestFullscreenFromMpvWritesNothingBack(t *testing.T) {
 	flushIPC(t, s)
 	assert.Equal(t, []mpvWrite{{"window-maximized", false}, {"window-maximized", true}, {"window-maximized", false}, {"window-maximized", true}},
 		f.takeWrites(), "只有进出全屏时 window-maximized 的变化；同步记录：\n%s", trace())
+
+	// 切换完了，用户在窗口上的操作照常写回去（「切换中途不写」没有留在那里）
+	l.onUI(t, func() { pShowWindow.Call(a.top, swRestore) })
+	flushIPC(t, s)
+	assert.Equal(t, []mpvWrite{{"window-maximized", false}}, f.takeWrites(), "用户还原：写回假；同步记录：\n%s", trace())
 }

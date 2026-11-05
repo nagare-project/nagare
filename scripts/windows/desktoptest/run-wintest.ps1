@@ -493,26 +493,38 @@ Step '单按 Alt' {
     Mpv '["set_property","pause",false]' | Out-Null
 }
 
-# 全屏这一组没过时报出两边此刻的真实状态：宿主的、mpv 报来的、直接问 mpv 的、最近的同步事件
+# 全屏这一组没过时报出两边此刻的真实状态：宿主的、mpv 报来的、直接问 mpv 的、最近的同步事件（遥控没答也照样返回）
 function Fs-Diag([string]$what) {
-    $s = State
+    $s = $null
+    try { $s = State } catch { }
     $live = '问不到'
     try { $live = [string](Mpv '["get_property","fullscreen"]').data } catch { }
     $log = @($s.winlog | Select-Object -Last 24) -join ' | '
-    return ("$what；宿主 fullscreen=$($s.fullscreen) maximized=$($s.maximized) mode=$($s.mode)；mpv 报来的 fullscreen=$(Prop $s 'fullscreen')、直接问到的=$live；最近的同步：$log")
+    return ("$what；宿主 fullscreen=$($s.fullscreen) maximized=$($s.maximized) mode=$($s.mode) sessionId=$($s.sessionId)；" +
+            "mpv 报来的 fullscreen=$(Prop $s 'fullscreen')、直接问到的=$live；最近的同步：$log")
 }
 
 # Enter（mpv 的 cycle fullscreen）进全屏、经 IPC 改 fullscreen=no 退出，两头都要停得住 —— 不能进去了又自己弹出来、
 # 出来了又自己进去（第二次进全屏起，宿主换样式时系统当场发一个半路上的 WM_SIZE；宿主把那一刻的「没全屏」写给 mpv
 # 的话，晚到的回声会把窗口来回弹）。过了返回空串，没过返回诊断。
 function Fullscreen-RoundTrip {
-    Tap 0x0D
-    if (-not (Wait-Until { (State).fullscreen } 5)) { return (Fs-Diag 'Enter 之后 5 秒没进全屏') }
-    if (-not (Hold-Steady { (State).fullscreen } 1.5)) { return (Fs-Diag '进了全屏，1.5 秒里又自己退了出来') }
-    Mpv '["set_property","fullscreen",false]' | Out-Null
-    if (-not (Wait-Until { -not (State).fullscreen } 5)) { return (Fs-Diag 'mpv 改 fullscreen=no 之后 5 秒没退出全屏') }
-    if (-not (Hold-Steady { -not (State).fullscreen } 1.5)) { return (Fs-Diag '退出了全屏，1.5 秒里又自己进去了') }
-    return ''
+    $passed = $false
+    try {
+        Tap 0x0D
+        if (-not (Wait-Until { (State).fullscreen } 5)) { return (Fs-Diag 'Enter 之后 5 秒没进全屏') }
+        if (-not (Hold-Steady { (State).fullscreen } 1.5)) { return (Fs-Diag '进了全屏，1.5 秒里又自己退了出来') }
+        Mpv '["set_property","fullscreen",false]' | Out-Null
+        if (-not (Wait-Until { -not (State).fullscreen } 5)) { return (Fs-Diag 'mpv 改 fullscreen=no 之后 5 秒没退出全屏') }
+        if (-not (Hold-Steady { -not (State).fullscreen } 1.5)) { return (Fs-Diag '退出了全屏，1.5 秒里又自己进去了') }
+        $passed = $true
+        return ''
+    } finally {
+        # 没过（或中途出错）时把窗口收回到不全屏（诊断已经在上面取好了）：不然后面的最大化、下一集、返回几项跟着一起错，
+        # 看不出真正坏的是哪一项
+        if (-not $passed) {
+            try { Mpv '["set_property","fullscreen",false]' | Out-Null; [void](Wait-Until { -not (State).fullscreen } 5) } catch { }
+        }
+    }
 }
 
 Step '全屏' {
@@ -606,7 +618,7 @@ Step '返回' {
     Tap 0x1B
     $ok = Wait-Until { $s = State; $s.mode -eq 'web' -and $s.sessionId -eq 0 } 10
     # 没回去时多半还在全屏里（全屏时 Esc 只退出全屏）：报出两边的全屏状态与最近的同步事件
-    $d = if ($ok) { '' } else { Fs-Diag "按 Esc 之后 10 秒没回到网页层（sessionId=$((State).sessionId)）" }
+    $d = if ($ok) { '' } else { Fs-Diag '按 Esc 之后 10 秒没回到网页层' }
     Start-Sleep -Seconds 2
     $p = Progress $ep[2]
     $shot = Snap 'back-to-library'

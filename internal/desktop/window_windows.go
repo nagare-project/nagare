@@ -263,7 +263,7 @@ func (a *app) focusVideo() {
 // 换样式、挪位置时系统在这几个调用里面当场发 WM_SIZE，那几下是半路上的状态：第二次进全屏起，去掉标题栏的那一下
 // 就来一个（CI 冒烟的记录：客户区先变成整个窗口那么大，这时 fs.on 还是假），之后才铺满显示器。宿主要是照半路的状态
 // 写给 mpv（fullscreen=假，到位后又写真），mpv 的通知取在两下之间时那个假晚到，会被当成 mpv 要退出全屏 —— 窗口
-// 自己弹出来、再进去，来回打乒乓，最后停在哪边看运气。所以切换中途只排版（topProc），到位之后按最终状态写一次。
+// 自己弹出来、再进去，来回打乒乓，最后停在哪边看运气。所以切换中途只排版（hostChanged 不写），到位之后按最终状态写一次。
 func (a *app) setFullscreen(on bool) {
 	if on == a.fs.on || a.top == 0 {
 		return
@@ -272,12 +272,13 @@ func (a *app) setFullscreen(on bool) {
 	a.hostChanged()
 }
 
-// switchFullscreen 是进出全屏的那几下窗口调用；这期间 fs.switching 为真（topProc 的 WM_SIZE 据此不写给 mpv）。
+// switchFullscreen 是进出全屏的那几下窗口调用；这期间 fs.switching 为真（hostChanged 据此不写给 mpv）。
 func (a *app) switchFullscreen(on bool) {
 	traceWin("全屏切换开始 → %v", on)
+	outer := a.fs.switching
 	a.fs.switching = true
 	defer func() {
-		a.fs.switching = false
+		a.fs.switching = outer
 		traceWin("全屏切换完成 → %v", on)
 	}()
 	if on {
@@ -323,8 +324,12 @@ func (a *app) hostState() hostWindow {
 	}
 }
 
-// hostChanged：顶层窗口的状态变了（用户点了标题栏、Win+↑、宿主执行了 mpv 的请求），写回 mpv。
+// hostChanged：顶层窗口的状态变了（用户点了标题栏、Win+↑、宿主执行了 mpv 的请求），写回 mpv。进出全屏的中途
+// 什么都不写：那是半路上的状态，切换完成后 setFullscreen 按最终状态再调一次。
 func (a *app) hostChanged() {
+	if a.fs.switching {
+		return
+	}
 	if s := a.session; s != nil && s.sync != nil {
 		host := a.hostState()
 		writes := s.sync.fromHost(host)
@@ -411,9 +416,8 @@ func topProc(hwnd uintptr, m uint32, w, l uintptr) (r uintptr) {
 	case wmSize:
 		traceWin("宿主 WM_SIZE type=%d %dx%d", w, loword(l), hiword(l))
 		a.layout()
-		// 进出全屏的中途不写给 mpv：那是半路上的状态，到位之后 setFullscreen 按最终状态写一次
-		if w != sizeMinimized && !a.fs.switching {
-			a.hostChanged()
+		if w != sizeMinimized {
+			a.hostChanged() // 进出全屏的中途它什么都不写（见 setFullscreen）
 		}
 		return 0
 	case wmMove:
