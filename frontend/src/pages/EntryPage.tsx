@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { MediaPlayButton } from '../components/media/MediaPlayButton'
@@ -14,7 +14,7 @@ import type { MediaSummary } from '../components/media/types'
 import { airingDistance, FORMAT_LABELS } from '../components/media/media-format'
 import { nextEpisodeAiring } from '../components/media/episode-metadata'
 import { Icon } from '../components/ui/Icon'
-import { Tabs, Tab } from '../components/ui'
+import { Tabs, Tab, TabPanel } from '../components/ui'
 import { WorkHero } from '../components/library/WorkHero'
 import { FreshnessNote } from '../components/catalog/FreshnessNote'
 import { RouteLink } from '../components/catalog/RouteLink'
@@ -59,6 +59,7 @@ export function EntryPage() {
 
 function EntryContent({ media }: { media: MediaSummary }) {
   const [panel, setPanel] = useState<Panel>('local')
+  const tabs = useId()
   const [primary, setPrimary] = useState<LocalPrimary | null>(null)
   const collection = useCollection()
   const entry = collection.entries.find((item) => item.anilistId === media.id)
@@ -125,17 +126,17 @@ function EntryContent({ media }: { media: MediaSummary }) {
         <section className="work-section" aria-labelledby="entry-episodes-heading">
           <div className="work-section-head">
             <h2 id="entry-episodes-heading" className="work-section-title">剧集</h2>
-            <Tabs value={panel} onChange={(value) => setPanel(value as Panel)} label="播放来源">
+            <Tabs id={tabs} value={panel} onChange={(value) => setPanel(value as Panel)} label="播放来源">
               <Tab value="local">{PANELS.local}</Tab>
               <Tab value="online">{PANELS.online}</Tab>
             </Tabs>
           </div>
           {episodeMetadata.error && <p className="entry-notice" role="status">逐集资料暂不可用，先用作品自带的标题。<button type="button" className="link" onClick={episodeMetadata.retry}>重新加载</button></p>}
           {/* 首次打开后保留来源面板，切换时不丢失选择和请求 */}
-          <div role="tabpanel" aria-label={PANELS.local} hidden={panel !== 'local'}>
+          <TabPanel tabs={tabs} value="local" hidden={panel !== 'local'}>
             <MediaPlayButton media={playbackMedia} inline onPrimaryChange={setPrimary} />
-          </div>
-          <SourcePanel active={panel === 'online'} label={PANELS.online}><MediaSourceButton media={playbackMedia} inline /></SourcePanel>
+          </TabPanel>
+          <SourcePanel tabs={tabs} active={panel === 'online'}><MediaSourceButton media={playbackMedia} inline /></SourcePanel>
         </section>
         <EntryInfo media={media} />
         <EntryRelations media={media} />
@@ -166,8 +167,9 @@ function LocalFallback({ id }: { id: number }) {
   )
 }
 
-function SourcePanel({ active, label, children }: { active: boolean; label: string; children: ReactNode }) {
+/** 「在线播放」面板：第一次切过来才挂内容（不先发查找请求），之后切走也保留 */
+function SourcePanel({ tabs, active, children }: { tabs: string; active: boolean; children: ReactNode }) {
   const [visited, setVisited] = useState(active)
   useEffect(() => { if (active) setVisited(true) }, [active])
-  return <div role="tabpanel" aria-label={label} hidden={!active}>{(active || visited) && children}</div>
+  return <TabPanel tabs={tabs} value="online" hidden={!active}>{(active || visited) && children}</TabPanel>
 }

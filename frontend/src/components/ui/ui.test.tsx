@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act, useState } from 'react'
+import { act, useId, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
-import { Badge, Button, Input, Panel, Result, Switch, Tab, TabCount, Tabs } from './index'
+import { accessibleName, getAllByRole, getByRole } from '../../test/queries'
+import { Badge, Button, Input, Panel, Result, Switch, Tab, TabCount, TabPanel, Tabs } from './index'
 
 /**
  * 原子件层的测试。
@@ -129,16 +130,41 @@ describe('Panel', () => {
 describe('Tabs', () => {
   function Host() {
     const [v, setV] = useState('a')
+    const id = useId()
     return (
-      <Tabs value={v} onChange={setV} label="档位">
-        <Tab value="a">甲</Tab>
-        <Tab value="b">
-          乙<TabCount n={3} />
-        </Tab>
-        <Tab value="c">丙</Tab>
-      </Tabs>
+      <>
+        <Tabs id={id} value={v} onChange={setV} label="档位">
+          <Tab value="a">甲</Tab>
+          <Tab value="b">
+            乙<TabCount n={3} />
+          </Tab>
+          <Tab value="c">丙</Tab>
+        </Tabs>
+        {['a', 'b', 'c'].map((value) => (
+          <TabPanel key={value} tabs={id} value={value} hidden={v !== value}>
+            面板 {value}
+          </TabPanel>
+        ))}
+      </>
     )
   }
+
+  it('标签与面板互相指向：标签 aria-controls 到面板，面板以标签命名（读屏念「甲 标签面板」）', async () => {
+    const { container, unmount } = await mount(<Host />)
+    for (const tab of getAllByRole(container, 'tab')) {
+      const panel = document.getElementById(tab.getAttribute('aria-controls') ?? '')
+      expect(panel?.getAttribute('role')).toBe('tabpanel')
+      expect(panel?.getAttribute('aria-labelledby')).toBe(tab.id)
+    }
+    // 只有当前档的面板读得到；它的名字就是标签上的字
+    expect(getAllByRole(container, 'tabpanel').map(accessibleName)).toEqual(['甲'])
+    await act(async () => {
+      getByRole(container, 'tab', { name: '乙3' }).click()
+    })
+    expect(getByRole(container, 'tabpanel').textContent).toBe('面板 b')
+    expect(accessibleName(getByRole(container, 'tabpanel'))).toBe('乙3')
+    await unmount()
+  })
 
   it('只有当前档进 Tab 键序列，其余用箭头走（WAI-ARIA 的 tablist 约定）', async () => {
     const { container, unmount } = await mount(<Host />)
