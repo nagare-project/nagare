@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { keepArrowFocus } from '../../lib/focus'
+import { useArrowFocus } from '../../hooks/useArrowFocus'
 import { posterToneStyle } from '../../lib/posterTones'
 import { Icon } from '../ui/Icon'
 import { MediaArtwork } from '../media/MediaArtwork'
@@ -18,16 +18,13 @@ export function ScheduleEpisodeStrip({ title, items, now }: { title: string; ite
   const [edges, setEdges] = useState({ start: true, end: true })
   const prevArrow = useRef<HTMLButtonElement>(null)
   const nextArrow = useRef<HTMLButtonElement>(null)
+  // 滚到头时那个箭头变 disabled：焦点交给另一头（不掉到 <body>）
+  useArrowFocus(edges, prevArrow, nextArrow)
   const reduced = useReducedMotionPreference()
   useEffect(() => {
     const element = row.current
     if (!element) return
-    const sync = () => {
-      const next = { start: element.scrollLeft < 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 }
-      // 滚到头时箭头马上变 disabled：先把焦点交给另一头（见 keepArrowFocus）
-      keepArrowFocus(next, { start: prevArrow.current, end: nextArrow.current })
-      setEdges(next)
-    }
+    const sync = () => setEdges({ start: element.scrollLeft < 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 })
     sync()
     element.addEventListener('scroll', sync, { passive: true })
     const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync)

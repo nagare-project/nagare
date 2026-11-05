@@ -118,6 +118,18 @@ describe('海报行的翻页控件', () => {
     await unmount()
   })
 
+  it('只有两页：从第一页一下翻到头时另一头的箭头刚刚才变得可点，焦点照样交过去', async () => {
+    const { container, unmount } = await render(2)
+    const [prev] = buttons(container, /^热门向前翻页$/)
+    const [next] = buttons(container, /^热门向后翻页$/)
+    expect(prev?.disabled).toBe(true)
+    next!.focus()
+    await act(async () => next!.click())
+    expect(next?.disabled).toBe(true)
+    expect(document.activeElement).toBe(prev)
+    await unmount()
+  })
+
   it('行用标题命名（section + aria-labelledby），标题是二级标题', async () => {
     const { container, unmount } = await render(2)
     const section = container.querySelector('section')!

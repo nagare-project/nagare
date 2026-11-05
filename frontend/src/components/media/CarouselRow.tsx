@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
-import { keepArrowFocus } from '../../lib/focus'
+import { useArrowFocus } from '../../hooks/useArrowFocus'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
@@ -36,6 +36,8 @@ export function CarouselRow({ title, children, filters, action }: CarouselRowPro
   const [edges, setEdges] = useState({ start: true, end: true })
   const prevArrow = useRef<HTMLButtonElement>(null)
   const nextArrow = useRef<HTMLButtonElement>(null)
+  // 翻到头时那个箭头变 disabled：焦点交给另一头（不掉到 <body>）
+  useArrowFocus(edges, prevArrow, nextArrow)
   const [viewport, api] = useEmblaCarousel({
     align: 'start',
     dragFree: true,
@@ -48,12 +50,9 @@ export function CarouselRow({ title, children, filters, action }: CarouselRowPro
   useEffect(() => {
     if (!api) return
     const sync = () => {
-      const next = { start: !api.canScrollPrev(), end: !api.canScrollNext() }
-      // Embla 在翻页的同一刻发 select：趁箭头还没变 disabled，把焦点交给另一头
-      keepArrowFocus(next, { start: prevArrow.current, end: nextArrow.current })
       setSnaps(api.scrollSnapList())
       setSelected(api.selectedScrollSnap())
-      setEdges(next)
+      setEdges({ start: !api.canScrollPrev(), end: !api.canScrollNext() })
     }
     const down = () => setDragging(true)
     const up = () => setDragging(false)

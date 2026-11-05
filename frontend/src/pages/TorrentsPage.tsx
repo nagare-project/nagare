@@ -90,11 +90,10 @@ export function TorrentsPage() {
         <h2 id="streaming-heading" className="torrents-section-title">
           边下边播
         </h2>
-        {error !== null && (
-          <p className="result result--err" role="status" aria-live="polite">
-            {error}
-          </p>
-        )}
+        {/* 常驻的播报区：出错时才显示，平时是空的、视觉上藏着。跟着错误一起插进来的话，读屏多半念不出来 */}
+        <p className={error === null ? 'visually-hidden' : 'result result--err'} role="status">
+          {error}
+        </p>
         {status?.active === true ? <ActiveTorrent status={status} busy={busy} onStop={() => void handleStop()} /> : <IdleNotice />}
       </section>
 
