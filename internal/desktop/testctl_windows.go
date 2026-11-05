@@ -4,7 +4,8 @@ package desktop
 
 // 测试构建（-tags desktoptest）才有的遥控：设了 NAGARE_DESKTOP_TEST_ADDR（只许回环地址）与
 // NAGARE_DESKTOP_TEST_SECRET_FILE 就在那里开一个 HTTP 遥控，给 Windows 冒烟测试（CI）与用户手里的测试包
-// （scripts/windows/desktoptest/）截窗口、合成真实输入、读状态、经 IPC 问 mpv。正式构建没有这个文件。
+// （scripts/windows/desktoptest/）截窗口、合成真实输入、读状态、经 IPC 问 mpv、取窗口状态同步的记录（/winlog）。
+// 正式构建没有这个文件。
 // 门与 macOS 那份相同（testctl_guard.go）：Host 必须正好是监听地址，每个请求带每次运行随机生成的密钥。
 //
 // 另有两个开关模拟退路（启动前设好环境变量）：
@@ -25,8 +26,13 @@ import (
 	"time"
 )
 
-// winTraceKeep 是遥控留着的窗口状态同步事件条数（只留最近的，测试失败时报出来）。
-const winTraceKeep = 48
+const (
+	// winTraceKeep 是遥控至少留着的窗口状态同步事件条数（只留最近的；超过两倍时裁回这么多）。整份由 /winlog 给，
+	// 测试收尾时存进报告（winlog.txt）
+	winTraceKeep = 4000
+	// winTraceState 是 /state 里带的最近几条（失败时报出来；每次轮询都带，不能太长）
+	winTraceState = 48
+)
 
 // winTrace 是 testHooks.trace 记下的事件（界面线程写，遥控的 HTTP goroutine 读）。
 var winTrace struct {
@@ -40,15 +46,20 @@ func recordWinTrace(line string) {
 	defer winTrace.mu.Unlock()
 	line = fmt.Sprintf("%6dms %s", time.Since(winTrace.start).Milliseconds(), line)
 	winTrace.lines = append(winTrace.lines, line)
-	if n := len(winTrace.lines); n > winTraceKeep {
+	if n := len(winTrace.lines); n > 2*winTraceKeep {
 		winTrace.lines = append([]string(nil), winTrace.lines[n-winTraceKeep:]...)
 	}
 }
 
-func winTraceSnapshot() []string {
+// winTraceSnapshot 是最近的 last 条（0 = 留着的全部）。
+func winTraceSnapshot(last int) []string {
 	winTrace.mu.Lock()
 	defer winTrace.mu.Unlock()
-	return append([]string(nil), winTrace.lines...)
+	lines := winTrace.lines
+	if last > 0 && len(lines) > last {
+		lines = lines[len(lines)-last:]
+	}
+	return append([]string(nil), lines...)
 }
 
 func init() {
@@ -86,6 +97,10 @@ func init() {
 	mux.HandleFunc("/show", func(w http.ResponseWriter, _ *http.Request) {
 		Show()
 		fmt.Fprintln(w, "ok")
+	})
+	mux.HandleFunc("/winlog", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprintln(w, strings.Join(winTraceSnapshot(0), "\n"))
 	})
 	go func() {
 		log.Printf("desktop: 测试遥控在 %s", addr)
@@ -154,7 +169,7 @@ func fillState(out map[string]any) {
 		out["ipcInput"] = ipcInput
 		out["sessionId"] = a.sessionID
 		out["quitting"] = a.quitting
-		out["winlog"] = winTraceSnapshot()
+		out["winlog"] = winTraceSnapshot(winTraceState)
 		if s := a.session; s != nil {
 			child := s.child.Load()
 			out["child"] = child != 0

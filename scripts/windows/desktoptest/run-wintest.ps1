@@ -83,6 +83,19 @@ function Wait-Until([scriptblock]$cond, [int]$TimeoutSec = 15, [int]$IntervalMs 
     return $false
 }
 
+# 条件在 $Sec 秒里一直成立（每 100 毫秒看一次）：窗口到了某个状态之后没有自己又变回去。看的时候出错（遥控一时没答）
+# 不算变回去，接着看。
+function Hold-Steady([scriptblock]$cond, [double]$Sec = 1.5) {
+    $deadline = (Get-Date).AddSeconds($Sec)
+    while ((Get-Date) -lt $deadline) {
+        $held = $true
+        try { $held = [bool](& $cond) } catch { }
+        if (-not $held) { return $false }
+        Start-Sleep -Milliseconds 100
+    }
+    return $true
+}
+
 function Free-Port {
     $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0)
     $l.Start(); $p = $l.LocalEndpoint.Port; $l.Stop(); return $p
@@ -480,6 +493,28 @@ Step '单按 Alt' {
     Mpv '["set_property","pause",false]' | Out-Null
 }
 
+# 全屏这一组没过时报出两边此刻的真实状态：宿主的、mpv 报来的、直接问 mpv 的、最近的同步事件
+function Fs-Diag([string]$what) {
+    $s = State
+    $live = '问不到'
+    try { $live = [string](Mpv '["get_property","fullscreen"]').data } catch { }
+    $log = @($s.winlog | Select-Object -Last 24) -join ' | '
+    return ("$what；宿主 fullscreen=$($s.fullscreen) maximized=$($s.maximized) mode=$($s.mode)；mpv 报来的 fullscreen=$(Prop $s 'fullscreen')、直接问到的=$live；最近的同步：$log")
+}
+
+# Enter（mpv 的 cycle fullscreen）进全屏、经 IPC 改 fullscreen=no 退出，两头都要停得住 —— 不能进去了又自己弹出来、
+# 出来了又自己进去（第二次进全屏起，宿主换样式时系统当场发一个半路上的 WM_SIZE；宿主把那一刻的「没全屏」写给 mpv
+# 的话，晚到的回声会把窗口来回弹）。过了返回空串，没过返回诊断。
+function Fullscreen-RoundTrip {
+    Tap 0x0D
+    if (-not (Wait-Until { (State).fullscreen } 5)) { return (Fs-Diag 'Enter 之后 5 秒没进全屏') }
+    if (-not (Hold-Steady { (State).fullscreen } 1.5)) { return (Fs-Diag '进了全屏，1.5 秒里又自己退了出来') }
+    Mpv '["set_property","fullscreen",false]' | Out-Null
+    if (-not (Wait-Until { -not (State).fullscreen } 5)) { return (Fs-Diag 'mpv 改 fullscreen=no 之后 5 秒没退出全屏') }
+    if (-not (Hold-Steady { -not (State).fullscreen } 1.5)) { return (Fs-Diag '退出了全屏，1.5 秒里又自己进去了') }
+    return ''
+}
+
 Step '全屏' {
     $s = State; $c = Center $s
     Front
@@ -494,11 +529,29 @@ Step '全屏' {
     Start-Sleep -Milliseconds 500
     $s = State
     Add-Step 'Esc 退出全屏，仍在播放' ($ok2 -and $s.mode -eq 'video') ("mode=$($s.mode)") (Snap 'fullscreen-exit')
-    Tap 0x0D
-    $ok3 = Wait-Until { (State).fullscreen } 5
-    Mpv '["set_property","fullscreen",false]' | Out-Null
-    $ok4 = Wait-Until { -not (State).fullscreen } 5
-    Add-Step 'Enter 进全屏、mpv 改 fullscreen=no 退出（属性→窗口）' ($ok3 -and $ok4) '' ''
+    $d = Fullscreen-RoundTrip
+    Add-Step 'Enter 进全屏、mpv 改 fullscreen=no 退出（属性→窗口），两头都停得住' ($d -eq '') $d ''
+}
+
+# 诊断用（CI 上临时设 NAGARE_WINTEST_FS_REPEAT=<轮数>）：把上面 Enter 进、改属性退的一组反复做，量偶发的比例。
+# 每轮先回到开头（片子只有 40 秒，播完会换集）、先确认不在全屏里。
+$fsRepeat = 0
+if ($env:NAGARE_WINTEST_FS_REPEAT) { $fsRepeat = [int]$env:NAGARE_WINTEST_FS_REPEAT }
+for ($round = 1; $round -le $fsRepeat; $round++) {
+    Step "全屏反复进出（第 $round 轮）" {
+        Mpv '["seek",0,"absolute"]' | Out-Null
+        Mpv '["set_property","fullscreen",false]' | Out-Null
+        [void](Wait-Until { -not (State).fullscreen } 5)
+        Start-Sleep -Milliseconds 300
+        $d = Fullscreen-RoundTrip
+        Add-Step "全屏反复进出（第 $round 轮）" ($d -eq '') $d ''
+    }
+}
+if ($fsRepeat -gt 0) {
+    try {
+        Mpv '["set_property","fullscreen",false]' | Out-Null
+        [void](Wait-Until { -not (State).fullscreen } 5)
+    } catch { Note "反复进出之后退出全屏失败：$($_.Exception.Message)" }
 }
 
 # 直接问 mpv 此刻的 window-maximized（遥控状态里的是 mpv 最近一次报来的，可能早就过时了）；问不到是 $null
@@ -573,11 +626,13 @@ Step '返回' {
     Start-Sleep -Seconds 3
     Tap 0x1B
     $ok = Wait-Until { $s = State; $s.mode -eq 'web' -and $s.sessionId -eq 0 } 10
+    # 没回去时多半还在全屏里（全屏时 Esc 只退出全屏）：报出两边的全屏状态与最近的同步事件
+    $d = if ($ok) { '' } else { Fs-Diag "按 Esc 之后 10 秒没回到网页层（sessionId=$((State).sessionId)）" }
     Start-Sleep -Seconds 2
     $p = Progress $ep[2]
     $shot = Snap 'back-to-library'
     $pos = if ($null -ne $p) { $p.positionSec } else { 0 }
-    Add-Step 'Esc 返回媒体库（换回网页层）' $ok '' $shot
+    Add-Step 'Esc 返回媒体库（换回网页层）' $ok $d $shot
     Add-Step '返回后第 2 集的进度已写下' ($pos -gt 0) ("positionSec=$pos") ''
 }
 
@@ -623,6 +678,9 @@ Step '第二次启动' {
     # 万一退回了开浏览器（旧行为），CI 上把它关掉，免得挡住后面的截图
     if ($CI) { Get-Process -Name msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
 }
+
+# 窗口同步的整份记录（测试构建记着最近几千条）存进报告：失败时看得到前因后果，不只 /state 里那几十条
+try { Ctl '/winlog' | Set-Content -Encoding UTF8 (Join-Path $reportDir 'winlog.txt') } catch { Note "窗口同步记录没存下来：$($_.Exception.Message)" }
 
 Step '退出' {
     Api 'POST' '/api/player/stop' | Out-Null

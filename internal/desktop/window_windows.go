@@ -262,6 +262,7 @@ func (a *app) setFullscreen(on bool) {
 	if on == a.fs.on || a.top == 0 {
 		return
 	}
+	traceWin("全屏切换开始 → %v", on)
 	if on {
 		a.fs.placement = windowPlacement{Length: uint32(unsafe.Sizeof(windowPlacement{}))}
 		pGetWindowPlacement.Call(a.top, uintptr(unsafe.Pointer(&a.fs.placement)))
@@ -280,6 +281,7 @@ func (a *app) setFullscreen(on bool) {
 		pSetWindowPlacement.Call(a.top, uintptr(unsafe.Pointer(&a.fs.placement)))
 		pSetWindowPos.Call(a.top, 0, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoZOrder|swpNoOwnerZOrder|swpFrameChanged)
 	}
+	traceWin("全屏切换完成 → %v", on)
 	a.hostChanged()
 }
 
