@@ -188,15 +188,38 @@ export function getByRole(root: ParentNode, role: Role, options: RoleOptions = {
   return found
 }
 
+/** 这个子节点（相对它的父元素）读屏碰不到：规则同 isInaccessible，只看节点自己这一层 */
+function hiddenChild(node: Element): boolean {
+  if (node.hasAttribute('hidden') || node.getAttribute('aria-hidden') === 'true' || node.hasAttribute('inert')) return true
+  if (node instanceof HTMLElement && node.style.display === 'none') return true
+  if (['SCRIPT', 'STYLE', 'TEMPLATE'].includes(node.tagName)) return true
+  if (node.tagName === 'DIALOG' && !node.hasAttribute('open')) return true
+  const parent = node.parentElement
+  return parent?.tagName === 'DETAILS' && !parent.hasAttribute('open') && node.tagName !== 'SUMMARY'
+}
+
+/**
+ * 子树里用户读得到的文字：去掉 aria-hidden / hidden / inert 的子树（装饰的「✓」「·」、藏起来的说明），
+ * 与 contentText 不同的是图片不拿 alt 顶替 —— 按文字找的是页面上的字，不是名字。
+ */
+function readableText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+  if (!(node instanceof Element) || hiddenChild(node)) return ''
+  return [...node.childNodes].map(readableText).join('')
+}
+
 /**
  * 自己的文字（空白折叠后）符合的最深一层元素：字符串是全等，正则是匹配。
- * 默认跳过读屏碰不到的元素。
+ * 默认跳过读屏碰不到的元素，文字里也不算读屏碰不到的那部分（aria-hidden、hidden 的子树）：
+ * 「已看<span aria-hidden> ✓</span>」按「已看」找得到、按「已看 ✓」找不到。
+ * hidden: true 时两样都不排除，按 DOM 里的全部文字找（查装饰本身时用）。
  */
 export function getAllByText(root: ParentNode, text: string | RegExp, options: { hidden?: boolean } = {}): HTMLElement[] {
   const all = [...root.querySelectorAll<HTMLElement>('*')].filter((element) => {
     if (['SCRIPT', 'STYLE'].includes(element.tagName)) return false
     if (!options.hidden && isInaccessible(element)) return false
-    return matches(collapse(element.textContent ?? ''), text)
+    const own = options.hidden ? element.textContent ?? '' : [...element.childNodes].map(readableText).join('')
+    return matches(collapse(own), text)
   })
   // 只留最深的那层：父元素的文字也会「符合」，但用户读到的是子元素那一句
   return all.filter((element) => !all.some((other) => other !== element && element.contains(other)))

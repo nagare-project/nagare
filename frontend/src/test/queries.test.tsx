@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { mount } from './harness'
-import { accessibleName, getAllByRole, getByRole, getByText, queryByRole } from './queries'
+import { accessibleName, getAllByRole, getAllByText, getByRole, getByText, queryByRole, queryByText } from './queries'
 
 describe('按角色与文字找元素（测试工具）', () => {
   it('名字：aria-labelledby > aria-label > 内容文字（去掉 aria-hidden，图片念 alt）', async () => {
@@ -96,6 +96,28 @@ describe('按角色与文字找元素（测试工具）', () => {
     expect(getByRole(container, 'group', { name: '画质档位' })).toBeDefined()
     // 提示类角色照旧按内容找：测试里认的就是它念出来的那句话
     expect(getByRole(container, 'note', { name: /踢下线/ })).toBeDefined()
+    await unmount()
+  })
+
+  it('按文字找只认读得到的字：aria-hidden、hidden 子树里的字不算，也不拼进外层的文字', async () => {
+    const { container, unmount } = await mount(
+      <div>
+        <p>已看<span aria-hidden="true"> ✓</span></p>
+        <p><span aria-hidden="true">· </span>第 2 集</p>
+        <div aria-hidden="true">装饰的已看</div>
+        <p>正在读取<span hidden>（藏起来的说明）</span></p>
+        <section><span hidden>已看</span></section>
+      </div>,
+    )
+    // 外层的「已看 ✓」里，读屏只念「已看」：按「已看」找到的是那一段，而不是藏起来的那几处
+    expect(getAllByText(container, '已看').map((el) => el.tagName)).toEqual(['P'])
+    expect(queryByText(container, '已看 ✓')).toBeNull()
+    expect(getByText(container, '第 2 集').tagName).toBe('P')
+    expect(queryByText(container, /装饰/)).toBeNull()
+    expect(getByText(container, '正在读取').tagName).toBe('P')
+    // hidden: true 时照旧按 DOM 里的全部文字找（查装饰本身用）
+    expect(getAllByText(container, '已看', { hidden: true }).map((el) => el.tagName)).toEqual(['SPAN'])
+    expect(getByText(container, '装饰的已看', { hidden: true }).tagName).toBe('DIV')
     await unmount()
   })
 })
