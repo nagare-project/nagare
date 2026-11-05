@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Icon } from '../ui/Icon'
 import { formatEpisode } from '../../lib/format'
+import { posterToneStyle } from '../../lib/posterTones'
 import type { ContinueItem } from '../../lib/endpoints'
 
 /** 继续观看最多几条（DESIGN.md「媒体库 ①」）：再多就成了第二个媒体库 */
@@ -53,7 +54,7 @@ function ContinueCard({ item, onPlay, isActive, isPending }: CardProps) {
   const pct = item.durationSec > 0 ? Math.min(100, (item.positionSec / item.durationSec) * 100) : 0
   const meta = continueMeta(item)
   return (
-    <li className={isActive ? 'cont-card cont-card--active' : 'cont-card'}>
+    <li className={isActive ? 'cont-card cont-card--active' : 'cont-card'} style={posterToneStyle(item.posterTones)}>
       <button type="button" className="cont-card-hit" onClick={() => onPlay(item.fileId)} disabled={isPending}>
         <span className="cont-thumb">
           {item.cover !== undefined && !failed ? (

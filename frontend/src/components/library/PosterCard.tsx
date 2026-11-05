@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { needsConfirmation } from '../../lib/associations'
 import { seriesProgress } from '../../lib/librarySeries'
+import { posterToneStyle } from '../../lib/posterTones'
 import type { LibrarySeries } from '../../lib/librarySeries'
 import { PosterTile } from './PosterTile'
 import type { PosterBadge } from './PosterTile'
@@ -9,6 +10,7 @@ import type { PosterBadge } from './PosterTile'
  * 媒体库的一张作品卡（DESIGN.md「媒体库 ②」）。认出了目录作品的进作品页（本地剧集、磁力、在线都在那里），
  * 没认出的、或认出的作品与同作品的其他版本季数对不上的，进媒体库里这个分组的页面（在那里认作品）。
  * identifying：后台还在认作品、这个分组还没认出来 —— 灰色占位 +「认作品中…」，认出后原地换成海报。
+ * 海报色写在卡片根元素自己身上（只用于悬停边框）；没有色阶时落回中性值。
  */
 export function PosterCard({ series, identifying = false }: { series: LibrarySeries; identifying?: boolean }) {
   const { work, ambiguous, title, cover, clusters, episodeCount, season } = series
@@ -27,7 +29,7 @@ export function PosterCard({ series, identifying = false }: { series: LibrarySer
   const body = <PosterTile cover={identifying ? undefined : cover} title={title} meta={meta} badges={badges} />
 
   return (
-    <li className={identifying ? 'poster-tile poster-tile--pending' : 'poster-tile'}>
+    <li className={identifying ? 'poster-tile poster-tile--pending' : 'poster-tile'} style={identifying ? undefined : posterToneStyle(series.posterTones)}>
       {work && !ambiguous ? (
         <Link to="/entry" search={{ id: work.anilistId }} className="poster-tile-hit">{body}</Link>
       ) : (

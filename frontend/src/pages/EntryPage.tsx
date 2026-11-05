@@ -16,6 +16,9 @@ import { nextEpisodeAiring } from '../components/media/episode-metadata'
 import { Icon } from '../components/ui/Icon'
 import { Tabs, Tab } from '../components/ui'
 import { WorkHero } from '../components/library/WorkHero'
+import { FreshnessNote } from '../components/catalog/FreshnessNote'
+import { RouteLink } from '../components/catalog/RouteLink'
+import { LoginHint, WorkHeroSkeleton } from '../components/library/WorkStates'
 import { LibraryAnimeLink } from '../components/library/LibraryAnimeLink'
 import { fetchLibrary } from '../lib/endpoints'
 import type { LibraryCluster } from '../lib/endpoints'
@@ -43,11 +46,13 @@ export function EntryPage() {
   if (media) return <EntryContent key={id} media={media} />
   return (
     <main className="work-page">
-      <div className="work-body entry-fallback">
-        {loading && <div className="entry-skeleton" role="status" aria-label="正在加载作品详情" />}
-        {error && <p className="result result--err" role="alert">{error} <button type="button" className="link" onClick={retry}>重试</button> <a className="link" href="/">返回发现</a></p>}
-        {error && <LocalFallback id={id} />}
-      </div>
+      {loading && <WorkHeroSkeleton label="正在加载作品详情" />}
+      {error && (
+        <div className="work-body entry-fallback">
+          <p className="result result--err" role="alert">{error} <button type="button" className="link" onClick={retry}>重试</button> <RouteLink className="link" to="/">返回发现</RouteLink></p>
+          <LocalFallback id={id} />
+        </div>
+      )}
     </main>
   )
 }
@@ -106,6 +111,8 @@ function EntryContent({ media }: { media: MediaSummary }) {
         }
       >
         {!!media.score && <p className="entry-score">评分 <strong>{(media.score / 10).toFixed(1)}</strong></p>}
+        {/* 离线 / 过期时说清作品资料是什么时候的（与发现页同一条细条） */}
+        <FreshnessNote freshness={media.freshness} className="work-freshness" />
         {nextAiring && (
           <p className="entry-airing">
             第 {nextAiring.episode} 集 {airingDistance(nextAiring.at)}播出 · <time dateTime={new Date(nextAiring.at * 1000).toISOString()}>{new Date(nextAiring.at * 1000).toLocaleDateString('zh-CN', { weekday: 'long' })}</time>
@@ -113,7 +120,7 @@ function EntryContent({ media }: { media: MediaSummary }) {
         )}
       </WorkHero>
       <div className="work-body">
-        {media.freshness?.offline && <p className="work-strip" role="status">离线 · 显示的是 {freshnessLabel(media.freshness.fetchedAt)}的作品资料</p>}
+        <LoginHint />
         <section className="work-section" aria-labelledby="entry-episodes-heading">
           <div className="work-section-head">
             <h2 id="entry-episodes-heading" className="work-section-title">剧集</h2>
@@ -134,16 +141,6 @@ function EntryContent({ media }: { media: MediaSummary }) {
       </div>
     </main>
   )
-}
-
-/** 「3 小时前」「昨天」一类的粗略时间：离线条只要让人知道资料有多旧 */
-function freshnessLabel(fetchedAt: string): string {
-  const at = Date.parse(fetchedAt)
-  if (!Number.isFinite(at)) return '上次取到'
-  const hours = Math.max(0, Math.round((Date.now() - at) / 3_600_000))
-  if (hours < 1) return '不到一小时前'
-  if (hours < 48) return `${hours} 小时前`
-  return `${Math.round(hours / 24)} 天前`
 }
 
 /**

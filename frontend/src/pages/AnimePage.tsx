@@ -4,6 +4,7 @@ import { Icon } from '../components/ui/Icon'
 import { AssociationPanel } from '../components/library/AssociationPanel'
 import { EpisodeList } from '../components/library/EpisodeList'
 import { WorkHero } from '../components/library/WorkHero'
+import { LoginHint, WorkHeroSkeleton } from '../components/library/WorkStates'
 import { MediaEntryLink } from '../components/media/MediaEntryLink'
 import { nextLibraryEpisode, primaryLabel } from '../components/media/MediaPlayButton'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
@@ -50,8 +51,8 @@ export function AnimePage() {
   if (library.state.phase === 'unauthorized') return <UnauthorizedNotice />
   if (library.state.phase === 'loading') {
     return (
-      <main className="lib-shell">
-        <p className="result result--dim" style={mono} role="status">正在读取媒体库 …</p>
+      <main className="work-page">
+        <WorkHeroSkeleton label="正在读取媒体库" />
       </main>
     )
   }
@@ -59,8 +60,9 @@ export function AnimePage() {
     return (
       <main className="lib-shell">
         <div className="page-notice">
-          <h2 className="page-notice-title">读取媒体库失败</h2>
+          <h1 className="page-notice-title">读取媒体库失败</h1>
           <p className="page-notice-copy">{library.state.message}</p>
+          <p className="page-notice-actions"><button type="button" className="btn btn--sm" onClick={() => void library.reload()}>重试</button></p>
         </div>
       </main>
     )
@@ -71,7 +73,7 @@ export function AnimePage() {
     return (
       <main className="lib-shell">
         <div className="page-notice">
-          <h2 className="page-notice-title">找不到这部作品</h2>
+          <h1 className="page-notice-title">找不到这部作品</h1>
           <p className="page-notice-copy">它可能已经被移出媒体库，或者重新扫描后归到了别的分组里。</p>
           <p className="page-notice-actions"><Link to="/library" className="btn btn--sm">回到媒体库</Link></p>
         </div>
@@ -94,7 +96,7 @@ export function AnimePage() {
   )
 
   return (
-    <main className={playing !== null ? 'work-page work-page--with-bar' : 'work-page'} style={tones}>
+    <main className="work-page" style={tones}>
       <WorkHero
         cover={cluster.cover}
         showPoster={!unrecognized || cluster.cover !== undefined}
@@ -118,6 +120,7 @@ export function AnimePage() {
       />
       <div className="work-body">
         {error !== null && <p className="result result--err" style={mono} role="status" aria-live="polite">{error}</p>}
+        <LoginHint />
         {/* 同一个路由组件在作品之间切换时会复用：按分组重置面板状态 */}
         <AssociationPanel key={cluster.clusterKey} cluster={cluster} onChanged={library.reload} pickRequest={pickRequest} pickOpener={pickOpener} />
         <section className="work-section" aria-labelledby="anime-episodes-heading">

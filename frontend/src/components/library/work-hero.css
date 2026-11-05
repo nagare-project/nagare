@@ -6,7 +6,6 @@
 
 /* 页面根：整宽，内容各自收在 --content-max 里（hero 的背景照片要铺满整宽） */
 .work-page { position: relative; isolation: isolate; display: flex; flex-direction: column; width: 100%; padding-bottom: var(--sp-xxxl); }
-.work-page--with-bar { padding-bottom: 7.5rem; }
 .work-body { display: flex; flex-direction: column; gap: var(--sp-xl); width: 100%; max-width: calc(var(--content-max) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
 
 /* ---------- hero ---------- */
@@ -21,6 +20,8 @@
 .work-hero-inner {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
+  /* 海报比文字高出的部分全给第一行：文字紧贴在动作行上面，而不是悬在海报中间 */
+  grid-template-rows: 1fr auto;
   grid-template-areas: 'poster text' 'poster actions';
   /* hero 底对齐：副标题多一行会把标题往上推 */
   align-items: end;
@@ -48,6 +49,8 @@
 .work-hero-title { flex: none; max-width: 22em; font-size: clamp(24px, 4vw, var(--type-h1-size)); font-weight: var(--type-h1-weight); letter-spacing: var(--type-h1-tracking); line-height: 1.25; overflow-wrap: anywhere; text-wrap: pretty; }
 .work-hero-native { color: var(--text-secondary); font-family: var(--font-jp); font-size: var(--type-body-sm-size); overflow-wrap: anywhere; }
 .work-hero-meta { color: var(--text-secondary); font-size: var(--type-label-size); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* 离线细条（catalog.css 的 .freshness-note）坐在自己的遮罩面上，不需要文字阴影 */
+.work-hero-text .work-freshness { align-self: flex-start; text-shadow: none; }
 
 /* ---------- 动作行：三档权重，一页只有一个实心（DESIGN.md「作品页」） ---------- */
 
@@ -84,9 +87,6 @@
 .hero-btn--light { border-color: var(--glass-light-border); background: var(--glass-light); color: rgba(255, 255, 255, 0.9); }
 .hero-btn--heavy:hover:not(:disabled), .hero-btn--light:hover:not(:disabled) { background: var(--glass-heavy); border-color: var(--glass-heavy-border); }
 
-/* 动作行旁边的一行说明（库里没有文件、正在启动…） */
-.work-hero-note { flex-basis: 100%; color: var(--text-secondary); font-size: var(--type-caption-size); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
-
 /* ---------- 区块 ---------- */
 
 .work-section { display: flex; flex-direction: column; gap: var(--sp-md); min-width: 0; }
@@ -96,8 +96,19 @@
 .work-section-title > small { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .work-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-sm) var(--sp-md); }
 
-/* 细条说明（离线、目录读不到时退化成本地页） */
+/* 细条说明（目录读不到时退化成本地页、没登录时的一句提示） */
 .work-strip { padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-secondary); font-size: var(--type-caption-size); }
+.work-strip--hint { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); padding-block: var(--sp-xs); }
+.work-strip--hint > p { min-width: 0; }
+.work-strip-close { flex: none; }
+
+/* 读取中：hero 的骨架（DESIGN.md「状态表 · 作品页」） */
+.work-skeleton-block, .work-skeleton-line { background: var(--bg-card); animation: work-pulse 1s ease-in-out infinite alternate; }
+.work-hero--skeleton .work-hero-poster { box-shadow: none; }
+.work-skeleton-line { display: block; width: min(40%, 320px); height: 16px; border-radius: var(--radius-sm); }
+.work-skeleton-line--title { width: min(60%, 480px); height: 32px; }
+.work-skeleton-line--button { width: 132px; height: var(--touch-min); }
+@keyframes work-pulse { to { opacity: 0.5; } }
 
 @media (max-width: 900px) {
   .work-hero-inner { grid-template-columns: 160px minmax(0, 1fr); gap: var(--sp-md) var(--sp-lg); }
@@ -114,4 +125,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .hero-btn { transition: none; }
+  .work-skeleton-block, .work-skeleton-line { animation: none; }
 }

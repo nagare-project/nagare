@@ -1,5 +1,5 @@
 import { clusterDisplayTitle } from './associations'
-import type { LibraryCluster, LibraryGroup, LibraryItem } from './endpoints'
+import type { LibraryCluster, LibraryGroup, LibraryItem, PosterTones } from './endpoints'
 
 /**
  * 按作品归组（移植自 animego「我的库」的 dedupeSeries：同一个作品 ID 的系列合并成一张卡）。
@@ -43,6 +43,8 @@ export interface LibrarySeries {
   ambiguous?: boolean
   title: string
   cover?: string
+  /** cover 那张封面的海报色阶（与封面取自同一个分组）；没有封面或还没算出时缺省 / null */
+  posterTones?: PosterTones | null
   /** 这部作品的全部本地分组（不同字幕组、不同文件夹），主版本在前 */
   clusters: LibraryCluster[]
   /** 本地有的集数：同一集的多个版本只算一次 */
@@ -169,12 +171,12 @@ export function groupSeries(clusters: LibraryCluster[]): LibrarySeries[] {
     const ordered = orderVersions(series.clusters)
     const works = ordered.map(clusterWork).filter((w): w is ClusterWork => w !== undefined)
     const work = works.find(w => w.confirmed) ?? works[0]
-    const cover = ordered.find(c => c.cover !== undefined)?.cover
+    const withCover = ordered.find(c => c.cover !== undefined)
     return {
       ...series,
       ...(work ? { work } : {}),
       title: work?.title || clusterDisplayTitle(ordered[0]!),
-      ...(cover === undefined ? {} : { cover }),
+      ...(withCover === undefined ? {} : { cover: withCover.cover, posterTones: withCover.posterTones ?? null }),
       clusters: ordered,
       episodeCount: localEpisodeCount(ordered),
       season: ordered[0]!.season,
@@ -234,11 +236,12 @@ export function mergeSeries(clusters: LibraryCluster[]): MergedSeries {
   const groups: LibraryGroup[] = [{ groupKey: '__series__', label: '', sortMode: 'episode', items: main }]
   if (extras.length > 0) groups.push({ groupKey: '__series_extras__', label: '特典与其他', sortMode: 'alpha', items: extras })
   const first = ordered[0]!
-  const cover = ordered.find(c => c.cover !== undefined)?.cover
+  // 封面与它的海报色阶取自同一个分组：色阶是按那张图算的
+  const withCover = ordered.find(c => c.cover !== undefined)
   const cluster: LibraryCluster = {
     ...first,
     episodeCount: episodes.length || extras.length,
-    ...(cover === undefined ? {} : { cover }),
+    ...(withCover === undefined ? {} : { cover: withCover.cover, posterTones: withCover.posterTones ?? null }),
     groups,
   }
   return { cluster, versions, owner }

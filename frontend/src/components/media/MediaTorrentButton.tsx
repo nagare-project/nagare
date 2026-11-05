@@ -7,6 +7,7 @@ import type { MagnetSearchContext, SearchItem, SearchResult, SourceOutcome, Sour
 import { isBackdropEvent } from '../../lib/dialog'
 import { errorText } from '../../lib/format'
 import { Icon } from '../ui/Icon'
+import { RouteLink } from '../catalog/RouteLink'
 import { catalogIdentity, defaultTorrentEpisode, extraKindsFor, playbackHints, seasonOfTitle } from './releaseEpisodes'
 import { releaseKey, TorrentReleaseResults } from './TorrentReleaseResults'
 import type { MediaSummary } from './types'
@@ -53,6 +54,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false, drawer
   const trigger = useRef<HTMLButtonElement>(null)
   const downOnBackdrop = useRef(false)
   const headingId = useId()
+  const kickerId = useId()
   const requestVersion = useRef(0)
   const pluginAbort = useRef<AbortController | null>(null)
   const pluginRequest = useRef(0)
@@ -225,7 +227,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false, drawer
       <Icon name="download" size={16} />磁力<span className="visually-hidden">：按字幕组查找这部作品的发布</span>
     </button>}
     <PlaybackSurface inline={inline} ref={dialog} className={drawer ? 'media-drawer' : 'media-play-dialog media-torrent-dialog'}
-      {...(drawer ? { 'aria-labelledby': headingId } : { 'aria-label': `${media.title} 磁力资源` })}
+      {...(drawer ? { 'aria-labelledby': `${kickerId} ${headingId}` } : { 'aria-label': `${media.title} 磁力资源` })}
       onClose={() => {
         requestVersion.current += 1
         pluginAbort.current?.abort()
@@ -238,7 +240,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false, drawer
       }}
       {...closeOnBackdrop}>
       {drawer && <div className="media-drawer-head">
-        <div><p className="media-play-kicker">磁力边下边播</p><h2 id={headingId}>{media.title}</h2></div>
+        <div><p id={kickerId} className="media-play-kicker">磁力边下边播</p><h2 id={headingId}>{media.title}</h2></div>
         <button type="button" className="icon-button" aria-label="关闭磁力抽屉" onClick={() => dialog.current?.close()}><Icon name="close" /></button>
       </div>}
       <div className="media-play-body">
@@ -254,7 +256,7 @@ export function MediaTorrentButton({ media, onOpenChange, inline = false, drawer
         {local.phase === 'searching' && <p className="result result--dim" role="status">正在查找字幕组与发布版本…</p>}
         {local.phase === 'error' && <p className="result result--err" role="alert">{local.message} <button type="button" className="link" onClick={() => void findReleases(currentQuery())}>重试</button></p>}
         {downloadNotice && <p className={downloadNotice.tone === 'ok' ? 'result result--ok' : 'result result--err'} role="status">
-          {downloadNotice.text} <a className="link" href="/torrents">查看下载</a>
+          {downloadNotice.text} <RouteLink className="link" to="/torrents">查看下载</RouteLink>
         </p>}
         {local.phase === 'ready' && <TorrentReleaseResults key={local.query} items={items} outcomes={outcomes} sources={local.sources}
           engineDown={local.engineDown} pluginPending={plugin?.pending ?? true} pluginError={plugin?.error ?? null}

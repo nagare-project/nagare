@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SearchItem, SourceOutcome, SourcesData } from '../../lib/endpoints'
 import { parsePublished } from '../../lib/format'
+import { RouteLink } from '../catalog/RouteLink'
 import { releaseChineseScore } from './chineseSubtitles'
 import { isBatchRelease } from './releaseEpisodes'
 
@@ -126,7 +127,7 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
   // 本机规则和插件 BT 来源都没有时才算「没配源」；插件给了结果就照常展示
   if (sources.sources.length === 0 && outcomes.length === 0 && !pluginPending && pluginError === null) return <div className="media-resource-empty">
     <p className="result result--warn">尚未配置资源源：启用本地来源插件（Nagare Source）或添加规则仓库。</p>
-    <a className="btn btn--sm" href="/settings#sources">去设置</a>
+    <RouteLink className="btn btn--sm" to="/settings#sources">去设置</RouteLink>
   </div>
 
   const trouble = outcomes.filter(outcome => outcome.state === 'dead' || outcome.state === 'failed')
@@ -160,7 +161,7 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
     <div className="media-play-selection"><h3>字幕组</h3><span className="result result--dim">{countLabel}{pluginPending ? ' · 插件来源仍在搜索…' : ''}</span></div>
     {/* 流入时每条都会改动计数：读屏只在搜完时念一次 */}
     <span className="visually-hidden" role="status">{pluginPending ? '插件来源仍在搜索' : countLabel}</span>
-    {engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<a className="link" href="/settings#torrent">查看设置</a></p>}
+    {engineDown && <p className="result result--err" role="alert">磁力引擎不可用。<RouteLink className="link" to="/settings#torrent">查看设置</RouteLink></p>}
     {trouble.length > 0 && <p className="result result--warn" role="status">{sourceTrouble(trouble)}</p>}
     {pluginError !== null && <p className="result result--warn" role="alert">插件来源搜索中断：{pluginError} <button type="button" className="link" onClick={props.onRetryPlugin}>重新搜索插件来源</button></p>}
     {total === 0 ? <EmptyReleases pluginPending={pluginPending} /> : <div className="media-fansub-browser">

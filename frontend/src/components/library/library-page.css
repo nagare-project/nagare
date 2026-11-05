@@ -18,7 +18,10 @@
 .cont-card { min-width: 0; }
 .cont-card-hit { display: flex; flex-direction: column; gap: var(--sp-sm); width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .cont-card-hit:disabled { opacity: 0.6; cursor: wait; }
-.cont-thumb { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--radius-md); background: var(--bg-card); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.cont-thumb { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--radius-md); background: var(--bg-card); }
+/* 图片描边画在图的上面（inset 阴影不进盒模型）；悬停时换成这部作品的海报色（卡片根元素的行内样式给） */
+.cont-thumb::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); pointer-events: none; transition: box-shadow var(--dur-short) var(--ease-standard); }
+.cont-card-hit:hover .cont-thumb::after { box-shadow: inset 0 0 0 1px var(--poster-tone-mid); }
 .cont-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 22%; transition: transform var(--dur-medium) var(--ease-enter); }
 .cont-card-hit:hover .cont-thumb img { transform: scale(1.04); }
 .cont-thumb-blank { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-tertiary); font-size: 28px; }
@@ -42,7 +45,8 @@
 .collection-search svg { position: absolute; left: 12px; pointer-events: none; }
 .collection-search .input { height: var(--touch-min); padding-left: 38px; border-radius: var(--radius-full); font-size: var(--type-body-size); }
 .collection-sort { width: 132px; height: var(--touch-min); font-size: var(--type-label-size); }
-.collection-filters { display: flex; gap: var(--sp-sm); overflow-x: auto; }
+/* 横向可滚：滚动容器会裁掉伸出去的焦点环（2px 间隔 + 2px 环），四周留出这 4px 再用负边距抵掉 */
+.collection-filters { display: flex; gap: var(--sp-sm); margin: calc(-1 * var(--sp-xs)); padding: var(--sp-xs); overflow-x: auto; }
 .collection-filter { flex: none; min-height: 36px; padding: 0 var(--sp-md); border: 0; border-radius: var(--radius-full); background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--type-label-size); font-weight: 500; cursor: pointer; }
 .collection-filter:hover { background: var(--bg-fill); color: var(--text); }
 .collection-filter[aria-pressed='true'] { background: var(--accent-dim); color: var(--text); }
@@ -66,6 +70,13 @@
 .unrec-meta { color: var(--text-secondary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; }
 .unrec-action { display: inline-flex; flex: none; align-items: center; gap: var(--sp-xs); color: var(--accent); font-size: var(--type-label-size); font-weight: 500; }
 
+/* 扫描读不到的文件夹：横幅里逐个列出路径与原因 */
+.lib-folder-errors { display: flex; flex-direction: column; gap: var(--sp-xs); }
+.lib-folder-errors-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; color: var(--text); }
+.lib-folder-errors-list > li { display: flex; flex-wrap: wrap; gap: 0 var(--sp-sm); }
+.lib-folder-errors-path { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.lib-folder-errors-why { color: var(--text-secondary); }
+
 /* 状态徽标：语义色文字 + 同色 12% 底（DESIGN.md 颜色规则 6） */
 .status-badge { flex: none; padding: 2px var(--sp-sm); border-radius: var(--radius-full); font-size: var(--type-micro-size); font-weight: var(--type-micro-weight); white-space: nowrap; }
 .status-badge--warning { background: var(--warning-dim); color: var(--warning); }
@@ -73,7 +84,7 @@
 /* 手机：继续观看横向一条（滑动或 Tab 过去都会滚到），不把作品网格挤到第三屏 */
 @media (max-width: 600px) {
   .lib-shell.library-page { padding-inline: var(--sp-md); }
-  .cont-row { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 78%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: var(--sp-xs); }
+  .cont-row { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 78%; margin: calc(-1 * var(--sp-xs)); padding: var(--sp-xs); overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--sp-xs); }
   .cont-card { scroll-snap-align: start; }
   .cont-play { opacity: 1; }
   .collection-tools { width: 100%; margin-left: 0; }
@@ -81,6 +92,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cont-thumb img, .cont-play, .unrec-hit, .unrec-summary::before { transition: none; }
+  .cont-thumb img, .cont-thumb::after, .cont-play, .unrec-hit, .unrec-summary::before { transition: none; }
   .cont-card-hit:hover .cont-thumb img { transform: none; }
 }

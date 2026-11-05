@@ -1,9 +1,10 @@
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { MediaEntryLink } from '../../components/media/MediaEntryLink'
+import { RouteLink } from '../../components/catalog/RouteLink'
+import { DiscoverCard } from '../../components/media/DiscoverCard'
 import { FORMAT_LABELS } from '../../components/media/media-format'
 import type { MediaSummary } from '../../components/media/types'
-import { PosterTile } from '../../components/library/PosterTile'
+import '../../components/catalog/catalog.css'
 
 const SOURCES: Record<string, string> = { ORIGINAL: '原创', MANGA: '漫画', LIGHT_NOVEL: '轻小说', NOVEL: '小说', VIDEO_GAME: '游戏', VISUAL_NOVEL: '视觉小说', WEB_NOVEL: '网络小说', OTHER: '其他' }
 const RELATIONS: Record<string, string> = { PREQUEL: '前作', SEQUEL: '续作', SIDE_STORY: '番外', ALTERNATIVE: '其他版本', SUMMARY: '总集篇', PARENT: '本篇', OTHER: '相关作品', SPIN_OFF: '衍生作品' }
@@ -39,7 +40,7 @@ export function EntryInfo({ media }: { media: MediaSummary }) {
           )}
           {media.genres.length > 0 && (
             <ul className="entry-tags" aria-label="类型">
-              {media.genres.map((genre) => <li key={genre}><a className="entry-tag" href={`/?genre=${encodeURIComponent(genre)}`}>{genre}</a></li>)}
+              {media.genres.map((genre) => <li key={genre}><RouteLink to="/" search={{ genre }} className="entry-tag">{genre}</RouteLink></li>)}
             </ul>
           )}
         </div>
@@ -51,7 +52,7 @@ export function EntryInfo({ media }: { media: MediaSummary }) {
   )
 }
 
-/** 角色、关联作品、相关推荐 */
+/** 角色、关联作品、相关推荐。作品卡与发现页同一种（DiscoverCard）：点进作品页，宽屏悬停浮出播放与磁力 */
 export function EntryRelations({ media }: { media: MediaSummary }) {
   const characters = media.characters ?? []
   const relations = media.relations ?? []
@@ -72,12 +73,12 @@ export function EntryRelations({ media }: { media: MediaSummary }) {
       )}
       {relations.length > 0 && (
         <RelatedSection title="关联作品">
-          <ul className="tile-grid">{relations.slice(0, 6).map((relation) => <CatalogTile key={`${relation.type}-${relation.media.id}`} media={relation.media} badge={RELATIONS[relation.type] ?? relation.type} />)}</ul>
+          <ul className="catalog-grid">{relations.slice(0, 6).map((relation) => <DiscoverCard key={`${relation.type}-${relation.media.id}`} media={relation.media} badge={RELATIONS[relation.type] ?? relation.type} />)}</ul>
         </RelatedSection>
       )}
       {recommendations.length > 0 && (
         <RelatedSection title="相关推荐">
-          <ul className="tile-grid">{recommendations.slice(0, 12).map((item) => <CatalogTile key={item.id} media={item} />)}</ul>
+          <ul className="catalog-grid">{recommendations.slice(0, 12).map((item) => <DiscoverCard key={item.id} media={item} />)}</ul>
         </RelatedSection>
       )}
     </>
@@ -91,17 +92,5 @@ function RelatedSection({ title, children }: { title: string; children: ReactNod
       <h2 id={headingId} className="work-section-title">{title}</h2>
       {children}
     </section>
-  )
-}
-
-/** 目录里的一部作品：海报卡，点进它的作品页 */
-function CatalogTile({ media, badge }: { media: MediaSummary; badge?: string }) {
-  const meta = [media.year, media.format && (FORMAT_LABELS[media.format] ?? media.format), media.episodes ? `${media.episodes} 集` : null].filter(Boolean).join(' · ')
-  return (
-    <li className="poster-tile">
-      <MediaEntryLink id={media.id} className="poster-tile-hit">
-        <PosterTile cover={media.cover} title={media.title} meta={meta} badges={badge ? [{ text: badge }] : []} />
-      </MediaEntryLink>
-    </li>
   )
 }

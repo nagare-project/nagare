@@ -10,6 +10,7 @@ import type { LibraryAssociation } from '../../lib/associations'
 import { errorText, formatEpisode } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import { LibraryAnimeLink } from '../library/LibraryAnimeLink'
+import { RouteLink } from '../catalog/RouteLink'
 import { forgetLegacyChoice, isAssociatedWith, readLegacyChoice, resolveLocalCluster } from './localAssociation'
 import type { LocalResolution } from './localAssociation'
 import { mergeSeries } from '../../lib/librarySeries'
@@ -256,7 +257,7 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
 
         {inline && library && !selected && <div className="media-play-empty">
           <p>把这部番的文件放进媒体库就能播。{library.clusters.length > 0 && '已经在媒体库里的，从下面选出对应的本地文件夹。'}</p>
-          <a className="link" href="/library">去媒体库添加文件夹</a>
+          <RouteLink className="link" to="/library">去媒体库添加文件夹</RouteLink>
         </div>}
         {library && !selected && (!inline || library.clusters.length > 0) && <>
           <p className="media-play-hint">选择这部作品在媒体库中的版本，点播放时会记住你的选择（之后也可以在媒体库的作品页更改）。</p>
@@ -264,10 +265,10 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
             <input type="text" inputMode="search" className="input" aria-label="查找本地作品" placeholder="输入本地作品名…" value={query} onChange={event => setQuery(event.target.value)} />
             {query && <button type="button" className="btn btn--sm" onClick={() => setQuery('')}>显示全部</button>}
           </div>
-          {visible.length ? <ul className="media-play-choices">{visible.map(cluster => <li key={cluster.clusterKey}>
+          {visible.length ? <ul className="media-play-choices" aria-label="媒体库里的本地作品">{visible.map(cluster => <li key={cluster.clusterKey}>
             <LocalChoice cluster={cluster} mediaId={media.id} onChoose={() => { setSelectedKeys([cluster.clusterKey]); setVia(isAssociatedWith(cluster, media.id) ? 'manual' : undefined); setError(null); setNotice(null) }} />
           </li>)}</ul> : <p className="media-play-hint" role="status">{library.clusters.length ? '没有找到同名的本地作品。可以显示全部，按文件夹中的名称选择。' : '媒体库里还没有视频，请先导入本地文件。'}</p>}
-          {!inline && <a className="link" href="/library">管理媒体库</a>}
+          {!inline && <RouteLink className="link" to="/library">管理媒体库</RouteLink>}
         </>}
         {selected && <>
           <div className="media-play-selection">
@@ -281,8 +282,9 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
           </button>}
           {inline ? <EpisodeList cluster={selected} catalog={media} next={next} pending={busy} versions={merged?.versions} onPlay={item => void start(ownerOf(item), item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
             <h4>{group.label || '剧集'}</h4><ul className="media-play-choices">{group.items.flatMap(item => [{ item, label: '' }, ...(merged?.versions.get(item.fileId) ?? [])]).map(({ item, label }) => <li key={item.fileId}>
-              <button type="button" className="media-play-episode" disabled={busy} onClick={() => void start(ownerOf(item), item)} aria-label={`播放 ${item.fileName}`}>
-                <span>{item.episode === null ? '—' : formatEpisode(item.episode)}</span><span>{label ? `其他版本（${label}）：${item.fileName}` : item.fileName}</span><Icon name="play" size={18} />
+              {/* 名字就是可见的文件名（前面补一句「播放第 N 集：」）：另写 aria-label 的话，语音控制按看到的字点不到它 */}
+              <button type="button" className="media-play-episode" disabled={busy} onClick={() => void start(ownerOf(item), item)}>
+                <span aria-hidden="true">{item.episode === null ? '—' : formatEpisode(item.episode)}</span><span><span className="visually-hidden">{item.episode === null ? '播放 ' : `播放第 ${formatEpisode(item.episode)} 集：`}</span>{label ? `其他版本（${label}）：${item.fileName}` : item.fileName}</span><Icon name="play" size={18} />
               </button>
             </li>)}</ul>
           </section>)}
@@ -308,7 +310,7 @@ function LocalChoice({ cluster, mediaId, onChoose }: { cluster: LibraryCluster; 
     const taken = association.mode === 'none' ? '已标为不是目录里的作品' : `已对应「${association.title || `作品 ${association.anilistId}`}」`
     return <div className="media-play-choice media-play-choice--taken">
       <Icon name="folder" size={20} /><span>{title}<small>{folder}{meta} · {taken}</small></span>
-      <LibraryAnimeLink clusterKey={cluster.clusterKey} className="link" aria-label={`去「${title}」的作品页更改对应作品`}>去作品页更改</LibraryAnimeLink>
+      <LibraryAnimeLink clusterKey={cluster.clusterKey} className="link">去<span className="visually-hidden">「{title}」的</span>作品页更改<span className="visually-hidden">对应作品</span></LibraryAnimeLink>
     </div>
   }
   // 没认过的：说出自动匹配到了谁 —— 同名文件夹分属不同季时，这是挑对的唯一线索

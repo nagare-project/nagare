@@ -47,11 +47,9 @@
 .entry-characters strong { overflow: hidden; font-size: var(--type-body-sm-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .entry-characters small { overflow: hidden; color: var(--text-secondary); font-size: var(--type-caption-size); text-overflow: ellipsis; white-space: nowrap; }
 
-/* ---------- 读取中 / 读不到 ---------- */
+/* ---------- 读不到（读取中的骨架与 /anime 共用，见 work-hero.css） ---------- */
 
 .entry-fallback { gap: var(--sp-md); padding-top: var(--sp-xl); }
-.entry-skeleton { height: 360px; border-radius: var(--radius-lg); background: var(--bg-card); animation: entry-pulse 1s ease-in-out infinite alternate; }
-@keyframes entry-pulse { to { opacity: 0.5; } }
 
 @media (max-width: 900px) {
   .entry-info { grid-template-columns: minmax(0, 1fr); gap: var(--sp-lg); }
@@ -62,8 +60,4 @@
   .entry-page .work-section-head .tabs { width: 100%; }
   .entry-page .work-section-head .tab { flex: 1; justify-content: center; }
   .entry-characters { grid-template-columns: minmax(0, 1fr); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .entry-skeleton { animation: none; }
 }

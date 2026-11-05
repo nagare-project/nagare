@@ -18,9 +18,10 @@
   background: var(--bg-card);
   color: var(--text);
   text-decoration: none;
-  transition: transform var(--dur-medium) var(--ease-enter), box-shadow var(--dur-medium) var(--ease-enter);
+  transition: transform var(--dur-medium) var(--ease-enter), box-shadow var(--dur-medium) var(--ease-enter), border-color var(--dur-medium) var(--ease-enter);
 }
-.poster-tile-hit:hover { transform: translateY(-4px); box-shadow: var(--shadow-card-hover); }
+/* 悬停：抬起 + 边框换成这部作品的海报色（卡片根元素的行内样式给；没有时是中性灰） */
+.poster-tile-hit:hover { transform: translateY(-4px); border-color: var(--poster-tone-mid); box-shadow: var(--shadow-card-hover); }
 
 .poster-tile-art { position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; background: var(--bg-elevated); }
 .poster-tile-art img { display: block; width: 100%; height: 100%; object-fit: cover; }

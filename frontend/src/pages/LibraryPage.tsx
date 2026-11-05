@@ -4,6 +4,7 @@ import { ContinueSection } from '../components/library/ContinueSection'
 import { LibraryCollection } from '../components/library/LibraryCollection'
 import { Icon } from '../components/ui/Icon'
 import { AddFolderForm } from '../components/library/AddFolderForm'
+import { FolderErrors } from '../components/library/FolderErrors'
 import { GettingStarted } from '../components/library/GettingStarted'
 import { readSkipFolders, writeSkipFolders } from '../components/library/onboardingSkip'
 import { NowPlayingBar } from '../components/library/NowPlayingBar'
@@ -174,6 +175,7 @@ export function LibraryPage() {
 
       {!noFolders && <MpvAlert state={settings.state} />}
       <SyncAlert status={player.status} onRetry={handleRetrySync} />
+      {library.state.phase === 'ready' && <FolderErrors folders={library.state.data.folders} />}
 
       <p
         className={statusLine === null ? 'result lib-status' : `result lib-status result--${statusLine.tone}`}
@@ -239,23 +241,26 @@ function IdentifyLine({ state }: { state: LibraryState }) {
   )
 }
 
-/** mpv 状态点：ready 且找到 → 亮青；找不到 → 红；其余（加载中/失败）→ 灰 */
+/**
+ * mpv 状态点：找到 → 绿；找不到 → 红；其余（加载中/失败）→ 灰。
+ * 点的颜色只是视觉：同一句状态以文字写在后面（读屏念得到，不只靠颜色），鼠标悬停时 title 也是它。
+ */
 function MpvChip({ state }: { state: SettingsState }) {
   const mpv = state.phase === 'ready' ? state.data.mpv : null
   const dotClass =
     mpv === null ? 'mpv-dot' : mpv.found ? 'mpv-dot mpv-dot--ok' : 'mpv-dot mpv-dot--missing'
-  const title =
+  const status =
     mpv === null
-      ? 'mpv 状态未知'
+      ? '状态未知'
       : mpv.embedded === true
-        ? 'mpv 已就绪 · 内置在 nagare 的窗口里'
+        ? '已就绪 · 内置在 nagare 的窗口里'
         : mpv.found
-          ? `mpv 已就绪${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
-          : 'mpv 未找到'
+          ? `已就绪${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
+          : '未找到'
   return (
-    <span className="mpv-chip" title={title}>
+    <span className="mpv-chip" title={`mpv ${status}`}>
       <span className={dotClass} aria-hidden="true" />
-      mpv
+      mpv<span className="visually-hidden"> {status}</span>
     </span>
   )
 }
