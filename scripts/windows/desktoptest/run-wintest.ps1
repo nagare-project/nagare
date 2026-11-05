@@ -375,7 +375,7 @@ Step '启动' {
     $ok = Wait-Until { $s = State; $s.visible -and $s.webReady } 40
     # 等网页真的画出来（首屏是 SPA，网页层就绪之后还要一两秒）
     $script:hintText = ''
-    [void](Wait-Until { $script:hintText = (Ctl '/js' @{ code = "(document.querySelector('.background-hint-text') || {}).textContent || ''" }).Trim().Trim('"'); $script:hintText -ne '' } 15)
+    [void](Wait-Until { $script:hintText = (Ctl '/js' @{ code = "(document.querySelector('aside[aria-label=后台运行提示]') || {}).textContent || ''" }).Trim().Trim('"'); $script:hintText -ne '' } 15)
     Start-Sleep -Seconds 1
     $s = State
     $shot = Snap 'startup'
