@@ -7,7 +7,7 @@ import { getAllByRole, getAllByText, getByRole, queryByRole } from '../../test/q
 import { installLocalStorage } from '../../test/storage'
 import { CatalogNotice } from './CatalogStates'
 import { EmptyLibraryStrip } from './EmptyLibraryStrip'
-import { FreshnessNote } from './FreshnessNote'
+import { ANNOUNCE_CLEAR_MS, BACK_ONLINE_TEXT, FreshnessNote } from './FreshnessNote'
 
 vi.mock('../../lib/endpoints', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../lib/endpoints')>()
@@ -71,9 +71,12 @@ describe('「离线 · 更新于 …」细条（FreshnessNote）', () => {
     expect(shownNote(container)).toBe('离线 · 更新于 5 分钟前')
     expect(announcement(container)).toBe('离线 · 更新于 5 分钟前')
 
+    // 念完一会儿播报区清空（逐行浏览时不重复念、也不留一句停在「5 分钟前」的旧话）
+    await act(async () => { vi.advanceTimersByTime(ANNOUNCE_CLEAR_MS) })
+    expect(announcement(container)).toBe('')
     await act(async () => { vi.advanceTimersByTime(60_000) })
     expect(shownNote(container)).toBe('离线 · 更新于 6 分钟前')
-    expect(announcement(container)).toBe('离线 · 更新于 5 分钟前')
+    expect(announcement(container)).toBe('')
     // 看得见的那句不是 live region：它每分钟变一次
     expect(getAllByRole(container, 'status')).toHaveLength(1)
     await unmount()
@@ -82,8 +85,20 @@ describe('「离线 · 更新于 …」细条（FreshnessNote）', () => {
   it('离线 → 重新连上：念一句「已重新连上目录服务」，细条让出的位置留着', async () => {
     const { container, rerender, unmount } = await mount(<FreshnessNote freshness={offline(30)} />)
     await rerender(<FreshnessNote freshness={fresh()} />)
-    expect(announcement(container)).toBe('已重新连上目录服务')
+    expect(announcement(container)).toBe(BACK_ONLINE_TEXT)
     expect(shownNote(container)).toBeNull()
+    await unmount()
+  })
+
+  it('离线时换了一份正在读（季度页换季度时数据先清空）：不算重新连上，不念「已重新连上」', async () => {
+    const { container, rerender, unmount } = await mount(<FreshnessNote freshness={offline(30)} />)
+    await act(async () => { vi.advanceTimersByTime(ANNOUNCE_CLEAR_MS) })
+    await rerender(<FreshnessNote freshness={undefined} />)
+    expect(announcement(container)).toBe('')
+    // 新的一份还是离线的：已经在离线里了，不再念一遍
+    await rerender(<FreshnessNote freshness={offline(40)} />)
+    expect(announcement(container)).toBe('')
+    expect(shownNote(container)).toBe('离线 · 更新于 40 分钟前')
     await unmount()
   })
 

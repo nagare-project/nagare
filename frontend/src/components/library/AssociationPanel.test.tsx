@@ -137,6 +137,26 @@ describe('AssociationPanel', () => {
     await unmount()
   })
 
+  it('确认删除的请求发出去之后按 Esc 不起作用：确认区不收起（收起会让人以为取消了，删除照样做完）', async () => {
+    let finish: (value: null) => void = () => {}
+    api.setAssociation.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    const c = cluster({ association: { mode: 'manual', anilistId: 1, title: '对的番', setAt: 1, syncedElsewhere: [{ anilistId: 999, episodes: [1] }] } })
+    const { container, unmount } = await mount(<AssociationPanel cluster={c} onChanged={vi.fn()} />)
+    await act(async () => button(container, '回到自动匹配').click())
+    const confirm = button(container, '确定删除并回到自动匹配')
+    confirm.focus()
+    await act(async () => confirm.click())
+    expect(confirm.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(confirm)
+    await act(async () => {
+      confirm.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(getByRole(container, 'group', { name: '确认回到自动匹配' })).toBeDefined()
+    expect(api.setAssociation).toHaveBeenCalledTimes(1)
+    await act(async () => finish(null))
+    await unmount()
+  })
+
   it('保存成功后焦点放到状态行上（点过的按钮已经没了），保存与重读期间按钮全不可用', async () => {
     api.setAssociation.mockResolvedValue({ mode: 'manual', anilistId: 1, setAt: 1 })
     let finishReload = () => {}

@@ -208,7 +208,7 @@ describe('SearchPage（空态）', () => {
     const { container, unmount } = await mountAt('/search?q=frieren')
 
     expect(searchMagnets).toHaveBeenCalledExactlyOnceWith('frieren')
-    expect(sourceChips(container).map(accessibleName)).toEqual(['源甲无结果', '源乙源异常'])
+    expect(sourceChips(container).map(accessibleName)).toEqual(['源甲无结果，启用此源', '源乙源异常，启用此源'])
 
     // 改坏的规则说「源异常」，不说「无结果」；原因在悬停提示里
     const deadChip = sourceChips(container)[1]!
@@ -433,7 +433,7 @@ describe('SearchPage（结果与交互）', () => {
     expect(searchMagnets).toHaveBeenCalledTimes(1)
 
     const chip = sourceChips(container)[0]!
-    expect(accessibleName(chip)).toBe('源甲1 条，正常')
+    expect(accessibleName(chip)).toBe('源甲1 条，正常，启用此源')
     expect(chip.getAttribute('aria-pressed')).toBe('true')
     await act(async () => {
       chip.click()

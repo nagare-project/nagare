@@ -74,8 +74,8 @@ describe('SourceStateChip', () => {
     const button = container.querySelector('button.src-chip') as HTMLButtonElement
     expect(button.getAttribute('aria-pressed')).toBe('true')
     // 名字 = 看得见的「源甲 3 条」（「·」只是装饰）+ 给读屏的状态说明
-    // 启用与否由 aria-pressed 念，名字里不再重复「点击禁用 / 启用」
-    expect(accessibleName(button)).toBe('源甲3 条，正常')
+    // 名字说清这个开关管什么；开没开由 aria-pressed 念，不再说随状态翻转的「点击禁用 / 启用」
+    expect(accessibleName(button)).toBe('源甲3 条，正常，启用此源')
     expect(button.hasAttribute('aria-label')).toBe(false)
     await act(async () => {
       button.click()
@@ -91,7 +91,7 @@ describe('SourceStateChip', () => {
     )
     const button = container.querySelector('button.src-chip') as HTMLButtonElement
     expect(button.getAttribute('aria-pressed')).toBe('false')
-    expect(accessibleName(button)).toBe('源甲已禁用')
+    expect(accessibleName(button)).toBe('源甲已禁用，启用此源')
     await act(async () => {
       button.click()
     })

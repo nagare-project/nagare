@@ -3,7 +3,8 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { CatalogNotice, PosterSkeletons } from '../components/catalog/CatalogStates'
 import { FreshnessNote } from '../components/catalog/FreshnessNote'
 import { RouteLink } from '../components/catalog/RouteLink'
-import { SEASONS, SEASON_LABEL, adjacentSeason, currentSeason } from '../components/catalog/season'
+import { SEASONAL_SORTS, SEASONS, SEASON_LABEL, adjacentSeason, currentSeason } from '../components/catalog/season'
+import type { SeasonalSortKey } from '../components/catalog/season'
 import { DiscoverCard } from '../components/media/DiscoverCard'
 import { GENRES, genreQuery } from '../components/media/DiscoverGenres'
 import type { MediaSummary } from '../components/media/types'
@@ -22,8 +23,8 @@ const FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const
 const FORMAT_LABEL: Record<string, string> = { TV: 'TV', TV_SHORT: '短篇', MOVIE: '剧场版', OVA: 'OVA', ONA: 'ONA', SPECIAL: '特别篇' }
 const STATUSES = ['RELEASING', 'FINISHED', 'NOT_YET_RELEASED'] as const
 const STATUS_LABEL: Record<string, string> = { RELEASING: '连载中', FINISHED: '已完结', NOT_YET_RELEASED: '未播出' }
-const SORTS = ['score', 'title', 'format'] as const
-type SortKey = (typeof SORTS)[number]
+const SORTS = SEASONAL_SORTS
+type SortKey = SeasonalSortKey
 const SORT_LABEL: Record<SortKey, string> = { score: '按评分', title: '按标题', format: '按格式' }
 const MIN_YEAR = 1990
 

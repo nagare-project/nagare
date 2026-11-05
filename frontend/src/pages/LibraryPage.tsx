@@ -164,8 +164,7 @@ export function LibraryPage() {
             <button
               type="button"
               className="btn btn--sm"
-              disabled={library.state.phase !== 'ready'}
-              {...inFlight(rescanBusy, () => void handleRescan())}
+              {...inFlight(rescanBusy || library.state.phase !== 'ready', () => void handleRescan())}
             >
               <Icon name="refresh" size={16} />{rescanBusy ? '扫描中 …' : '重新扫描'}
             </button>

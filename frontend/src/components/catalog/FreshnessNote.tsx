@@ -4,6 +4,11 @@ import { freshnessNotable, freshnessText } from '../../lib/freshness'
 
 /** 「N 分钟前」每分钟走一格就够了 */
 const TICK_MS = 60_000
+/**
+ * 播报念完之后清空：播报区留着字的话，读屏逐行浏览时会把它与看得见的那句各念一遍，
+ * 而且播报的字停在进入离线那一刻（「5 分钟前」），看得见的那句却在走格
+ */
+export const ANNOUNCE_CLEAR_MS = 7000
 
 interface FreshnessNoteProps {
   freshness: CatalogFreshness | undefined
@@ -44,12 +49,18 @@ export function FreshnessNote({ freshness, refreshing = false, className }: Fres
     return () => window.clearInterval(timer)
   }, [notable, fetchedAt])
 
-  // 只在进出离线的那一下换播报的字；之后的变化（时间走格、换数据）都不碰它
+  // 只在进出离线的那一下换播报的字；之后的变化（时间走格、换数据）都不碰它。
+  // 没有数据（换季度、换作品时正在读）不算在线也不算离线：不能因此念一句「已重新连上」
   useEffect(() => {
-    if (offline === announcedOffline.current) return
+    if (freshness === undefined || offline === announcedOffline.current) return
     announcedOffline.current = offline
-    setAnnouncement(offline && freshness !== undefined ? freshnessText(freshness, Date.now()) : BACK_ONLINE_TEXT)
+    setAnnouncement(offline ? freshnessText(freshness, Date.now()) : BACK_ONLINE_TEXT)
   }, [offline, freshness])
+  useEffect(() => {
+    if (announcement === '') return
+    const timer = window.setTimeout(() => setAnnouncement(''), ANNOUNCE_CLEAR_MS)
+    return () => window.clearTimeout(timer)
+  }, [announcement])
 
   const classes = ['freshness-note', className].filter(Boolean).join(' ')
   const live = <span className="visually-hidden" role="status">{announcement}</span>

@@ -44,12 +44,12 @@ export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin', p
   const returnFocus = useRef(false)
   const panelId = useId()
 
-  // 面板收起后把焦点还给「浏览…」。要等这次渲染完：添加进行中按钮是禁用的，禁用的按钮拿不到焦点
+  // 面板收起后把焦点还给「浏览…」。要等这次渲染完（面板卸掉之后），添加还在进行时等它结束
   useEffect(() => {
     if (browsing || busy || !returnFocus.current) return
     returnFocus.current = false
     browseRef.current?.focus()
-  }, [browsing, state.phase])
+  }, [browsing, busy])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()

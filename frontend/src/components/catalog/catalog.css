@@ -19,6 +19,7 @@
 
 /* 季度 / 追番分段下面的那一块（当前那一档的标签面板）：里面的块照旧按页面的列间距排 */
 .catalog-panel { display: flex; flex-direction: column; gap: var(--sp-xl); }
+.catalog-panel[hidden] { display: none; }
 
 /* 页头：标题 + 右侧控件；标题不参与收缩（中文一收缩就成了一字一行），放不下时控件整组换行 */
 .catalog-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-md) var(--sp-lg); }

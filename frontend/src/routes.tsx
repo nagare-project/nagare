@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, lazyRouteComponent, redirect } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 import { RootLayout } from './components/RootLayout'
+import { SEASONAL_SORTS } from './components/catalog/season'
 import { AnimePage } from './pages/AnimePage'
 import { AutoDownloaderPage } from './pages/AutoDownloaderPage'
 import { DebridPage } from './pages/DebridPage'
@@ -76,8 +77,6 @@ const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists'
 const entryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/entry', validateSearch: (search: Record<string, unknown>) => ({ id: Number.isSafeInteger(Number(search.id)) && Number(search.id) > 0 ? Number(search.id) : 0 }), component: lazyRouteComponent(() => import('./pages/EntryPage'), 'EntryPage') })
 const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
 
-/** 季度页能认的排序（与 SeasonalPage 的 SORTS 一致；默认按评分，不写进地址） */
-const SEASONAL_SORTS = ['score', 'title', 'format']
 
 /**
  * 季度页的地址参数。认不出来的键【显式】写成 undefined 而不是省掉：根路由不校验参数，
@@ -93,7 +92,7 @@ function validateSeasonalSearch(search: Record<string, unknown>): Record<string,
     genre: text(search.genre),
     format: text(search.format),
     status: text(search.status),
-    sort: SEASONAL_SORTS.includes(text(search.sort) ?? '') ? search.sort : undefined,
+    sort: (SEASONAL_SORTS as readonly string[]).includes(text(search.sort) ?? '') ? search.sort : undefined,
   }
 }
 

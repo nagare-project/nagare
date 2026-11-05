@@ -63,11 +63,13 @@ describe('目录数据的读取', () => {
     const result: { current?: CatalogResource<Payload> } = {}
     const { container, unmount } = await mount(<Probe resourceKey="discover" load={load} result={result} />)
     await flush()
+    // 读屏在进入离线时听到一次
+    expect(getByRole(container, 'status').textContent).toBe('离线 · 更新于 1 小时前')
     await flush(STALE_REFETCH_MS * 2)
     expect(load).toHaveBeenCalledTimes(1)
-    // 看得见的细条，与读屏听到的那一次（进入离线时念一次）
+    // 看得见的细条一直在；播报念过之后已经清空
     expect(container.querySelector('p')?.textContent).toBe('离线 · 更新于 1 小时前')
-    expect(getByRole(container, 'status').textContent).toBe('离线 · 更新于 1 小时前')
+    expect(getByRole(container, 'status').textContent).toBe('')
     await unmount()
   })
 

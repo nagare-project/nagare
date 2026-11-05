@@ -20,7 +20,11 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), 'http://localhost')
     if (url.pathname === '/api/seasonal') requested.push(url.search)
-    const data = url.pathname === '/api/seasonal' ? { items: [] } : {}
+    const data: Record<string, unknown> = {
+      '/api/seasonal': { items: [] },
+      '/api/discover': { sections: [] },
+      '/api/library': { folders: [{ id: 'f', path: '/番剧', addedAt: 1 }], clusters: [], continueWatching: [], scannedAt: 1 },
+    }[url.pathname] ?? {}
     return new Response(JSON.stringify({ success: true, data }), { headers: { 'Content-Type': 'application/json' } })
   }))
 })
@@ -34,7 +38,12 @@ async function open(path: string) {
   await router.load()
   const mounted = await mount(<RouterProvider router={router} />)
   await act(async () => {})
-  return mounted
+  return { ...mounted, router }
+}
+
+/** 路由校验之后交给页面的参数（最里层那个 match 的 search） */
+function validated(router: ReturnType<typeof createAppRouter>): Record<string, unknown> {
+  return { ...(router.state.matches.at(-1)?.search as Record<string, unknown> | undefined) }
 }
 
 describe('季度页的地址参数', () => {
@@ -59,6 +68,17 @@ describe('季度页的地址参数', () => {
     expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe('2024 年春季新番')
     expect((getByRole(container, 'combobox', { name: '排序' }) as HTMLSelectElement).value).toBe('title')
     expect(requested.at(-1)).toBe('?season=SPRING&year=2024')
+    await unmount()
+  })
+})
+
+describe('发现页的地址参数', () => {
+  it('认不出的 q / genre（数组、数字）不会原样漏给页面：当作没带，照常显示发现页', async () => {
+    const { container, router, unmount } = await open('/?q=%5B1%5D&genre=1')
+    expect(validated(router).q).toBeUndefined()
+    expect(validated(router).genre).toBeUndefined()
+    expect(getByRole(container, 'heading', { level: 1, name: '发现' })).toBeDefined()
+    expect(container.textContent).not.toContain('搜索「')
     await unmount()
   })
 })

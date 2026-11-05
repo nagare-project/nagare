@@ -30,7 +30,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
     await apply({ enabled, executable: executable.trim(), root: root.trim() })
   }
 
-  async function useBundled(): Promise<void> {
+  async function adoptBundled(): Promise<void> {
     await apply({ enabled: true, executable: '', root: '', useBundled: true })
   }
 
@@ -57,7 +57,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
       {view.bundled.active
         ? '正在使用安装包内置的 Nagare Source（只含 BT 来源，在线来源需另行提供仓库地址）。'
         : '这个安装包内置了 Nagare Source（只含 BT 来源）。'}
-      {!view.bundled.active && <> <button type="button" className="link" {...inFlight(busy, () => void useBundled())}>使用内置插件</button></>}
+      {!view.bundled.active && <> <button type="button" className="link" {...inFlight(busy, () => void adoptBundled())}>使用内置插件</button></>}
     </p>}
 
     {plugin.state.phase === 'loading' && <p className="result result--dim" role="status">正在读取插件设置…</p>}

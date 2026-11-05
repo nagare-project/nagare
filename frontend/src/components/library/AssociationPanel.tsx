@@ -35,7 +35,7 @@ export function AssociationPanel({ cluster, onChanged, pickRequest, pickOpener }
   const errorLine = useRef<HTMLParagraphElement>(null)
   const pickButton = useRef<HTMLButtonElement>(null)
   const autoButton = useRef<HTMLButtonElement>(null)
-  // 操作之后焦点该去哪：点过的按钮在保存期间被禁用、成功后多半还会消失，焦点会掉到页面顶部。
+  // 操作之后焦点该去哪：点过的按钮成功后多半会消失（保存期间它只是 aria-disabled，焦点还在），焦点会掉到页面顶部。
   // 等 React 把新内容提交之后再移（否则读屏念的是旧句子），而且只在焦点还在面板里或掉到了
   // body 时才移 —— 用户在慢的重读期间已经 Tab 到别处，不该被拽回来。
   const focusNext = useRef<'status' | 'error' | 'pick' | 'auto' | 'opener' | null>(null)
@@ -152,7 +152,7 @@ export function AssociationPanel({ cluster, onChanged, pickRequest, pickOpener }
         onClose={() => {
           setPicking(false)
           // Safari 里鼠标点按钮不会聚焦它，原生 dialog 的焦点归还会落空：显式还给打开它的按钮
-          // （保存还没结束时它是禁用的，等保存完再还）
+          // （保存还没结束时等保存完再还：那时按钮已经按新数据重画）
           focusNext.current = openedFromOutside.current ? 'opener' : 'pick'
           openedFromOutside.current = false
         }}
@@ -175,7 +175,10 @@ function ConfirmAuto({ pending, onConfirm, onCancel }: { pending: boolean; onCon
       aria-label="确认回到自动匹配"
       aria-describedby={textId}
       onKeyDown={(event) => {
-        if (event.key === 'Escape') onCancel()
+        // 请求已经发出去时 Esc 不起作用：收起确认区会让人以为取消了，删除其实照样做完
+        if (event.key !== 'Escape' || pending) return
+        event.preventDefault()
+        onCancel()
       }}
     >
       <p id={textId}>回到自动匹配后，下面「之前记到别的作品」的清单也会一起删掉。确定吗？</p>

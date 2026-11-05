@@ -192,11 +192,14 @@ test.describe('宽屏（1440px）', () => {
   })
 
   test('请求在途的按钮不会把焦点丢到 <body>：删文件夹失败、清空封面缓存进行中，焦点都留在按下的那颗上', async ({ page }) => {
+    // 两个请求都由测试自己放行：在途期间的断言不靠固定的等待时间
     let release: () => void = () => {}
     const held = new Promise<void>((resolve) => { release = resolve })
+    let failDelete: () => void = () => {}
+    const deleteHeld = new Promise<void>((resolve) => { failDelete = resolve })
     await page.route((url) => url.pathname.startsWith('/api/library/folders/'), async (route) => {
       if (route.request().method() !== 'DELETE') return route.fallback()
-      await new Promise((resolve) => setTimeout(resolve, 400))
+      await deleteHeld
       await route.fulfill({ status: 409, json: { success: false, data: null, error: '文件夹正在扫描，稍后再删' } })
     })
     await page.route((url) => url.pathname === '/api/cover-cache/clear', async (route) => {
@@ -209,6 +212,7 @@ test.describe('宽屏（1440px）', () => {
     const pending = page.getByRole('button', { name: /^删除中/ })
     await expect(pending).toHaveAttribute('aria-disabled', 'true')
     await expect(pending).toBeFocused()
+    failDelete()
     await expect(page.getByText('文件夹正在扫描，稍后再删')).toBeVisible()
     await expect(remove).toBeFocused()
     await expect(remove).not.toHaveAttribute('aria-disabled', 'true')
@@ -228,9 +232,12 @@ test.describe('宽屏（1440px）', () => {
 
   test('登录失败：在密码框里按回车提交，请求期间与失败之后焦点都还在密码框里，改一下再回车就能重试', async ({ page }) => {
     let attempts = 0
+    // 第一次登录由测试放行：「请求中」的断言与那一下多余的回车都落在请求还没回来的时候
+    let answerFirst: () => void = () => {}
+    const firstHeld = new Promise<void>((resolve) => { answerFirst = resolve })
     await page.route((url) => url.pathname === '/api/animego/login', async (route) => {
       attempts += 1
-      await new Promise((resolve) => setTimeout(resolve, 400))
+      if (attempts === 1) await firstHeld
       await route.fulfill({ status: 401, json: { success: false, data: null, error: '邮箱或密码不对' } })
     })
     await openApp(page, '/settings#account')
@@ -243,6 +250,7 @@ test.describe('宽屏（1440px）', () => {
     await expect(password).toHaveJSProperty('readOnly', true)
     // 请求中再按回车不会再发一次
     await password.press('Enter')
+    answerFirst()
     await expect(page.getByRole('status').filter({ hasText: '邮箱或密码不对' })).toBeVisible()
     await expect(password).toBeFocused()
     expect(attempts).toBe(1)

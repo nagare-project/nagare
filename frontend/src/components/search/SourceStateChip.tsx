@@ -68,8 +68,9 @@ export function SourceStateChip({ name, outcome, onToggle, busy = false }: Sourc
       {...inFlight(busy, () => onToggle(!enabled))}
     >
       {body}
-      {/* 启用与否由 aria-pressed 念（「已按下」= 启用），不再另说「点击禁用 / 启用」 */}
-      {outcome.state === 'ok' && <span className="visually-hidden">，正常</span>}
+      {/* 名字末尾说清这个开关管什么（「启用此源」），开没开由 aria-pressed 念（「已按下」= 启用）；
+          不再说「点击禁用 / 启用」—— 那句随状态翻转，和按下状态说的是同一件事 */}
+      <span className="visually-hidden">{outcome.state === 'ok' ? '，正常' : ''}，启用此源</span>
     </button>
   )
 }
