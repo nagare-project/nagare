@@ -115,10 +115,13 @@ type episodeLoop struct {
 	closing bool
 	// sidecar 是换过来的这一集要外挂的对白字幕，文件加载好时 sub-add 一次（开播那一集走 --sub-file）。
 	sidecar string
-	// keepOpenDropped：这一集里 keep-open 是我们关掉的（没有下一集了），关的时候还没处理到这一集到尾。
-	// mpv 可能在关之前就已经停在了最后一帧，到尾的事件还排在通道里：停住的文件不会因为 keep-open 关了
-	// 就结束（见 upnext.go），所以这之后再来的到尾一律算数，并由我们关窗（见 reachedEOF）。
+	// keepOpenDropped：这一集里 keep-open 是我们关掉的（没有下一集了，或者关的时候窗口已经在关）。
+	// 关的时候没看到这一集到尾，不等于 mpv 没停住：它可能在关之前就停在了最后一帧，到尾的事件还排在
+	// 通道里，而停住的文件不会因为 keep-open 关了就结束（见 upnext.go）。所以之后再来的到尾要盯着，见 reachedEOF。
 	keepOpenDropped bool
+	// parkGrace：keep-open 半路关掉之后到了尾，等 mpv 自己结束文件、退出的期限（parkGraceC 为 nil = 没在等）。
+	parkGrace  *time.Timer
+	parkGraceC <-chan time.Time
 }
 
 func newEpisodeLoop(sess *session) *episodeLoop {
@@ -129,13 +132,24 @@ func newEpisodeLoop(sess *session) *episodeLoop {
 	}
 }
 
-func (l *episodeLoop) stop() { l.fallback.Stop() }
+func (l *episodeLoop) stop() {
+	l.fallback.Stop()
+	l.stopParkGrace()
+}
+
+// stopParkGrace 停掉「等 mpv 自己退出」的期限（没在等就什么都不做）。
+func (l *episodeLoop) stopParkGrace() {
+	if l.parkGrace != nil {
+		l.parkGrace.Stop()
+	}
+	l.parkGrace, l.parkGraceC = nil, nil
+}
 
 // note 记下这一集的结束状态（窗口终结时据此判断看完与否、是不是播放失败）。
 //
 // keep-open=no 时每个文件播完都有一个 Ended，跟着它走。开着 keep-open 时还要跟 EOF / EOFCleared
 // 的沿：播到尾 mpv 停在最后一帧不结束文件，拖回去再播到尾不会再来 Ended（每个文件只发一次），
-// 停在尾巴上换集也可能没有 Ended(stop)。keep-open 被我们关掉之后来的 EOF 同样算（见 keepOpenDropped）。
+// 停在尾巴上换集也可能没有 Ended(stop)。
 func (l *episodeLoop) note(ev mpv.Event, keepOpen bool) {
 	switch ev.Kind {
 	case mpv.EventEnded:
@@ -144,7 +158,7 @@ func (l *episodeLoop) note(ev mpv.Event, keepOpen bool) {
 			l.sawEOF = true
 		}
 	case mpv.EventEOF:
-		if keepOpen || l.keepOpenDropped {
+		if keepOpen {
 			l.sawEOF, l.endedReason = true, "eof"
 		}
 	case mpv.EventEOFCleared:
@@ -195,6 +209,8 @@ func (m *Manager) watchWindow(pb *playback) {
 			m.maybeArrange(w)
 		case <-w.loop.fallback.C:
 			m.fileReady(w)
+		case <-w.loop.parkGraceC:
+			m.parkGraceExpired(w)
 		case <-w.nav.countdownC:
 			m.countdownFired(w)
 		case <-w.nav.slowC:

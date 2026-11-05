@@ -20,6 +20,11 @@ import (
 // upNextDelay 是「下一集」卡片的倒计时：到点自动切过去。测试里改短。
 var upNextDelay = 5 * time.Second
 
+// parkGracePeriod：keep-open 是这一集半路关掉的，之后播到了尾 —— 给 mpv 这么久自己结束文件、退出
+// （keep-open=no 时的正常收场，几毫秒的事）；到点还没退，就是它在 keep-open 关掉之前已经停在了最后一帧，
+// 由我们关窗（见 reachedEOF）。测试里改短。
+var parkGracePeriod = 2 * time.Second
+
 // uiProbeInterval：界面脚本加载好时发的 ready 可能在 IPC 连上之前就发完了。有下一集、还没认定
 // 界面就绪时，播放中隔这么久试推一次状态，推得过去就认定就绪（见 pushWindowState）。测试里改短。
 var uiProbeInterval = time.Second
@@ -53,7 +58,7 @@ func (w *windowLoop) parkedAtEOF() bool {
 // 设不上只记日志：退化成播完即关窗，⏭ 照常可用。
 //
 // 已经停在最后一帧时下一集没了：关掉 keep-open 不会让 mpv 关窗，由我们关（与最后一集播完一样）。
-// 关的时候还没处理到这一集到尾，不等于 mpv 没停住：记下 keepOpenDropped，到尾的事件一来照样关窗。
+// 关的时候还没处理到这一集到尾，不等于 mpv 没停住：记下 keepOpenDropped，之后的到尾由 reachedEOF 盯着。
 func (m *Manager) syncKeepOpen(w *windowLoop) {
 	want := w.pb.uiReady.Load() && w.loop.sess.navSnapshot().Next != nil
 	if want == w.nav.keepOpen {
@@ -95,9 +100,10 @@ func (m *Manager) probeUI(w *windowLoop) {
 }
 
 // reachedEOF 处理播到尾（eof-reached 的上升沿）。keep-open 一直关着时 mpv 自己结束文件、关窗，照旧。
-// 这一集里 keep-open 被我们关掉过（keepOpenDropped）就分不清了：mpv 可能是关之前就停住了、
-// 到尾的事件晚到了一步，停住的文件不会自己结束 —— 由我们关窗。mpv 要是本来就在自己退出，
-// 也只是多发一次 quit（Close 幂等，关闭引发的退出不算播放失败）。
+// 这一集里 keep-open 被我们关掉过（keepOpenDropped）就分不清了：可能是 keep-open=no 的正常收场（mpv
+// 马上自己退出），也可能是关之前就停住了、到尾的事件晚到了一步（停住的文件不会自己结束）。从事件上看不出来
+// （停住时 mpv.Player 同样补发一个 Ended(eof)），所以给它 parkGracePeriod 自己退出，到点还在就由我们关窗。
+// 期间拖回去（eof-reached 落下）就不再等：之后再播到尾，keep-open 早已关上，mpv 会自己退出。
 //
 // 开着 keep-open 时 mpv 停在最后一帧，由这里决定接下来：
 //   - 网络流在远没播完时就到了尾（下载停滞、连接断了）：这是来源故障，关窗并记一次播放失败；
@@ -105,9 +111,9 @@ func (m *Manager) probeUI(w *windowLoop) {
 //     有下一集就出倒计时卡片，下一集不见了就照常关窗。
 func (m *Manager) reachedEOF(w *windowLoop) {
 	if !w.nav.keepOpen {
-		if w.loop.keepOpenDropped {
-			log.Printf("player: 到尾了，keep-open 是这一集半路关掉的（mpv 可能已经停在最后一帧），关窗")
-			m.closeWindow(w)
+		if w.loop.keepOpenDropped && w.loop.parkGraceC == nil && !w.loop.closing {
+			w.loop.parkGrace = time.NewTimer(parkGracePeriod)
+			w.loop.parkGraceC = w.loop.parkGrace.C
 		}
 		return
 	}
@@ -137,9 +143,19 @@ func (m *Manager) reachedEOF(w *windowLoop) {
 	m.startCountdown(w, next)
 }
 
+// parkGraceExpired：keep-open 半路关掉之后到了尾，mpv 过了 parkGracePeriod 还没退出 —— 它是在 keep-open
+// 关掉之前就停在了最后一帧，不会自己结束文件。照「最后一集播完」关窗，这一集照常记为看完。
+func (m *Manager) parkGraceExpired(w *windowLoop) {
+	w.loop.parkGrace, w.loop.parkGraceC = nil, nil
+	log.Printf("player: 播到尾了 mpv 却没有退出（keep-open 关掉之前它就停在了最后一帧），关窗")
+	m.closeWindow(w)
+}
+
 // leftEOF 处理 eof-reached 落下（用户从尾巴上拖回去了）：「下一集」那一套悄悄收掉 —— 倒计时、
 // 由倒计时或卡片上的按钮发起的准备、错误卡片。用户自己按 ⏭ 发起的准备不动（他就是要换集）。
+// 正在等 mpv 自己退出（parkGrace）的也不等了：文件不在尾巴上了，之后再播到尾 mpv 会自己退出。
 func (m *Manager) leftEOF(w *windowLoop) {
+	w.loop.stopParkGrace()
 	if w.loop.closing {
 		// 我们关的窗：eof-reached 落下是文件被卸载，不是用户拖回去了
 		return
