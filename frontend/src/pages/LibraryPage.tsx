@@ -20,6 +20,7 @@ import { describeSyncRetry, retryPendingSyncs } from '../lib/syncRetry'
 import type { LibraryState } from '../hooks/useLibrary'
 import type { Platform } from '../lib/endpoints'
 import type { SettingsState } from '../hooks/useSettings'
+import { inFlight } from '../lib/busy'
 import { errorText, formatClock } from '../lib/format'
 import { mono } from '../theme'
 import '../components/library/library.css'
@@ -147,7 +148,6 @@ export function LibraryPage() {
   const playing = player.status?.playing === true ? player.status : null
   // 一个文件夹都没有时由引导屏接管：「重新扫描」无物可扫，mpv 缺失也已在引导卡里讲清
   const noFolders = library.state.phase === 'ready' && library.state.data.folders.length === 0
-  const canRescan = library.state.phase === 'ready' && !noFolders && !rescanBusy
   const statusLine = pickStatusLine(notice, player.error, library.state)
 
   return (
@@ -164,8 +164,7 @@ export function LibraryPage() {
             <button
               type="button"
               className="btn btn--sm"
-              onClick={() => void handleRescan()}
-              disabled={!canRescan}
+              {...inFlight(rescanBusy || library.state.phase !== 'ready', () => void handleRescan())}
             >
               <Icon name="refresh" size={16} />{rescanBusy ? '扫描中 …' : '重新扫描'}
             </button>

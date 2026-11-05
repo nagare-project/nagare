@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { UseSourcePluginResult } from '../../hooks/useSourcePlugin'
+import { inFlight } from '../../lib/busy'
 import type { PluginSource } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { mono } from '../../theme'
@@ -25,10 +26,11 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
 
   async function handleSave(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
+    if (busy) return
     await apply({ enabled, executable: executable.trim(), root: root.trim() })
   }
 
-  async function useBundled(): Promise<void> {
+  async function adoptBundled(): Promise<void> {
     await apply({ enabled: true, executable: '', root: '', useBundled: true })
   }
 
@@ -55,7 +57,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
       {view.bundled.active
         ? '正在使用安装包内置的 Nagare Source（只含 BT 来源，在线来源需另行提供仓库地址）。'
         : '这个安装包内置了 Nagare Source（只含 BT 来源）。'}
-      {!view.bundled.active && <> <button type="button" className="link" onClick={() => void useBundled()} disabled={busy}>使用内置插件</button></>}
+      {!view.bundled.active && <> <button type="button" className="link" {...inFlight(busy, () => void adoptBundled())}>使用内置插件</button></>}
     </p>}
 
     {plugin.state.phase === 'loading' && <p className="result result--dim" role="status">正在读取插件设置…</p>}
@@ -70,7 +72,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
           <span id="source-plugin-enabled-label" className="toggle-row-label">启用 Nagare Source</span>
           <span id="source-plugin-enabled-note" className="toggle-row-note">关闭时会立即终止来源进程。</span>
           <button type="button" role="switch" className="switch" aria-checked={enabled}
-            aria-labelledby="source-plugin-enabled-label" aria-describedby="source-plugin-enabled-note" onClick={() => setEnabled(!enabled)} disabled={busy}>
+            aria-labelledby="source-plugin-enabled-label" aria-describedby="source-plugin-enabled-note" {...inFlight(busy, () => setEnabled(!enabled))}>
             <span className="switch-knob" aria-hidden="true" />
           </button>
         </label>
@@ -78,17 +80,17 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
           <label htmlFor="source-plugin-executable" className="field-label">插件可执行文件</label>
           <input id="source-plugin-executable" className="input" value={executable} style={mono}
             onChange={event => setExecutable(event.target.value)} placeholder="/absolute/path/to/nagare-source"
-            spellCheck={false} autoComplete="off" disabled={busy} required={enabled} />
+            spellCheck={false} autoComplete="off" readOnly={busy} required={enabled} />
         </div>
         <div className="field">
           <label htmlFor="source-plugin-root" className="field-label">Nagare Source 仓库目录</label>
           <input id="source-plugin-root" className="input" value={root} style={mono}
             onChange={event => setRoot(event.target.value)} placeholder="/absolute/path/to/source-repository"
-            spellCheck={false} autoComplete="off" disabled={busy} required={enabled} aria-describedby="source-plugin-root-note" />
+            spellCheck={false} autoComplete="off" readOnly={busy} required={enabled} aria-describedby="source-plugin-root-note" />
           <p id="source-plugin-root-note" className="field-note">两个路径都必须是本机绝对路径。插件只能通过回环地址与 nagare 通信。</p>
         </div>
         <div className="form-actions">
-          <button type="submit" className="btn btn--primary" disabled={busy}>{busy ? '正在验证…' : '保存并应用'}</button>
+          <button type="submit" className="btn btn--primary" {...inFlight(busy)}>{busy ? '正在验证…' : '保存并应用'}</button>
           {/* 常驻的空 live region：与结果同时插进来的话，读屏多半念不出来 */}
           <span className={result === null ? 'result' : 'result result--ok'} role="status">{result}</span>
         </div>

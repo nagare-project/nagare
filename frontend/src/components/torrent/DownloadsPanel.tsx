@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { fetchDownloads, removeDownload } from '../../lib/endpoints'
 import type { DownloadsData, DownloadTask } from '../../lib/endpoints'
 import { handOffFocus } from '../../lib/focus'
@@ -153,7 +154,7 @@ function DownloadRow({ task, busy, onRemove }: { task: DownloadTask; busy: boole
             去媒体库
           </RouteLink>
         )}
-        <button type="button" className="btn btn--sm btn--danger" disabled={busy} onClick={onRemove}>
+        <button type="button" className="btn btn--sm btn--danger" {...inFlight(busy, onRemove)}>
           {busy ? '处理中…' : removeLabel}
           <span className="visually-hidden">：{name}</span>
         </button>

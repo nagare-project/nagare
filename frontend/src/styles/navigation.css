@@ -233,8 +233,8 @@ html:has(.nav-drawer[open]) { overflow: hidden; scrollbar-gutter: stable; }
 
 /* 页面里通用的方形图标按钮（关闭、翻页、工具） */
 .icon-button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; text-decoration: none; }
-.icon-button:hover:not(:disabled) { color: var(--text); background: var(--bg-fill); }
-.icon-button:disabled { opacity: .35; cursor: default; }
+.icon-button:hover:not(:disabled, [aria-disabled='true']) { color: var(--text); background: var(--bg-fill); }
+.icon-button:is(:disabled, [aria-disabled='true']) { opacity: .35; cursor: default; }
 
 /* ---------- 响应式 ---------- */
 

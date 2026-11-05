@@ -4,6 +4,7 @@ import { PlaybackSurface } from './PlaybackSurface'
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { PluginSource, SourceCandidate } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import { formatBytes } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import { airedEpisodeCount } from './releaseEpisodes'
@@ -59,6 +60,7 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
 
   function submitManual(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
+    if (source.busy) return
     findEpisode(Number(manualEpisode))
   }
 
@@ -82,7 +84,7 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
 
         <form className="media-manual-episode" onSubmit={submitManual}>
           <label><span>{numbers.length ? '指定其他集' : '目标集数'}</span><input className="input" type="number" min="1" step="1" required value={manualEpisode} onChange={event => setManualEpisode(event.target.value)} /></label>
-          <button type="submit" className="btn btn--primary" disabled={source.busy}>{source.busy ? '处理中…' : '查找并播放'}</button>
+          <button type="submit" className="btn btn--primary" {...inFlight(source.busy)}>{source.busy ? '处理中…' : '查找并播放'}</button>
           {searching && <button type="button" className="btn" onClick={source.cancelSearch}>停止继续找源</button>}
         </form>
 
@@ -188,8 +190,8 @@ function CandidateResults({ session, busy, onPlay }: {
               </strong>
               <span>{candidateDetails(candidate, sources)}</span>
             </div>
-            <button type="button" className="btn btn--sm btn--primary" disabled={busy && !active}
-              onClick={() => onPlay(candidate)}>{active ? (session.phase === 'starting' ? '启动中…' : '正在播放') : attempted ? '重试' : '播放'}</button>
+            <button type="button" className="btn btn--sm btn--primary"
+              {...inFlight(busy && !active, () => onPlay(candidate))}>{active ? (session.phase === 'starting' ? '启动中…' : '正在播放') : attempted ? '重试' : '播放'}</button>
           </li>
         })}</ul>}
       {(hidden > 0 || expanded) && list.length > COLLAPSED_CANDIDATES && <button type="button" className="link source-expand" onClick={() => setExpanded(value => !value)}>

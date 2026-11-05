@@ -1,4 +1,5 @@
 import type { DanmakuStatus, PlayingStatus } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import { formatDuration, progressPercent } from '../../lib/format'
 import { mono } from '../../theme'
 import './now-playing.css'
@@ -43,16 +44,14 @@ export function NowPlayingBar({ status, busy, onTogglePause, onStop }: NowPlayin
         <button
           type="button"
           className="btn btn--sm"
-          onClick={() => onTogglePause(!paused)}
-          disabled={busy}
+          {...inFlight(busy, () => onTogglePause(!paused))}
         >
           {paused ? '继续' : '暂停'}
         </button>
         <button
           type="button"
           className="btn btn--sm btn--danger"
-          onClick={onStop}
-          disabled={busy}
+          {...inFlight(busy, onStop)}
         >
           停止
         </button>

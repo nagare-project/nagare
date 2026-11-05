@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { SourceOutcome } from '../../lib/endpoints'
-import { accessibleName } from '../../test/queries'
+import { accessibleName, getByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 import { SourceStateChip } from './SourceStateChip'
 
@@ -74,7 +74,8 @@ describe('SourceStateChip', () => {
     const button = container.querySelector('button.src-chip') as HTMLButtonElement
     expect(button.getAttribute('aria-pressed')).toBe('true')
     // 名字 = 看得见的「源甲 3 条」（「·」只是装饰）+ 给读屏的状态说明
-    expect(accessibleName(button)).toBe('源甲3 条，正常，点击禁用')
+    // 名字说清这个开关管什么；开没开由 aria-pressed 念，不再说随状态翻转的「点击禁用 / 启用」
+    expect(accessibleName(button)).toBe('源甲3 条，正常，启用此源')
     expect(button.hasAttribute('aria-label')).toBe(false)
     await act(async () => {
       button.click()
@@ -90,7 +91,7 @@ describe('SourceStateChip', () => {
     )
     const button = container.querySelector('button.src-chip') as HTMLButtonElement
     expect(button.getAttribute('aria-pressed')).toBe('false')
-    expect(accessibleName(button)).toBe('源甲已禁用，点击启用')
+    expect(accessibleName(button)).toBe('源甲已禁用，启用此源')
     await act(async () => {
       button.click()
     })
@@ -98,11 +99,16 @@ describe('SourceStateChip', () => {
     await unmount()
   })
 
-  it('busy 时按钮禁用', async () => {
+  it('busy 时按钮不可用（aria-disabled，焦点不丢），点了不切换', async () => {
+    const onToggle = vi.fn()
     const { container, unmount } = await mount(
-      <SourceStateChip name="源甲" outcome={outcome()} onToggle={() => {}} busy />,
+      <SourceStateChip name="源甲" outcome={outcome()} onToggle={onToggle} busy />,
     )
-    expect((container.querySelector('button.src-chip') as HTMLButtonElement).disabled).toBe(true)
+    const chip = getByRole(container, 'button', { name: /^源甲/ }) as HTMLButtonElement
+    expect(chip.getAttribute('aria-disabled')).toBe('true')
+    expect(chip.disabled).toBe(false)
+    await act(async () => chip.click())
+    expect(onToggle).not.toHaveBeenCalled()
     await unmount()
   })
 })

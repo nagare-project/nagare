@@ -1,4 +1,4 @@
-import { createContext, useContext, useId } from 'react'
+import { createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 
 /**
@@ -10,9 +10,14 @@ import type { ReactNode } from 'react'
  *
  * 收成复合组件之后，选中态由 Context 持有，调用方只写结构：
  *
- *   <Tabs value={s} onChange={setS} label="观看状态">
+ *   const tabs = useId()
+ *   <Tabs id={tabs} value={s} onChange={setS} label="观看状态">
  *     <Tab value="watching">在看<TabCount n={5} /></Tab>
  *   </Tabs>
+ *   <TabPanel tabs={tabs} value="watching" hidden={s !== 'watching'}>…</TabPanel>
+ *
+ * 面板往往不和标签排在一起（标签在标题行右边、面板在下面），所以两边靠同一个 id 关联：
+ * 标签 aria-controls → 面板，面板 aria-labelledby → 标签（读屏念的面板名就是标签上的字）。
  *
  * 键盘行为按 WAI-ARIA 的 tablist 惯例：左右箭头在档之间移动、Home/End 跳两端。
  * 手写版本没有这个，而对只用键盘的人来说，没有它这排标签就得一个个 Tab 键过去。
@@ -21,8 +26,18 @@ import type { ReactNode } from 'react'
 interface TabsContextValue {
   value: string
   onChange: (next: string) => void
-  /** 同一组标签共享的 id 前缀，用于生成稳定的 tab id */
+  /** 同一组标签与面板共享的 id 前缀（Tabs 的 id），用于生成稳定的标签 / 面板 id */
   groupId: string
+}
+
+/** 标签的 id：面板的 aria-labelledby 指向它 */
+function tabId(group: string, value: string): string {
+  return `${group}-tab-${value}`
+}
+
+/** 面板的 id：标签的 aria-controls 指向它 */
+function panelId(group: string, value: string): string {
+  return `${group}-panel-${value}`
 }
 
 const TabsContext = createContext<TabsContextValue | null>(null)
@@ -34,6 +49,8 @@ function useTabs(): TabsContextValue {
 }
 
 export interface TabsProps {
+  /** 这组标签的 id（调用方 useId() 生成）：TabPanel 用同一个值找到自己的标签 */
+  id: string
   value: string
   onChange: (next: string) => void
   /** 读屏念出来的这组标签是什么 */
@@ -43,9 +60,7 @@ export interface TabsProps {
   center?: boolean
 }
 
-export function Tabs({ value, onChange, label, children, center = false }: TabsProps) {
-  const groupId = useId()
-
+export function Tabs({ id: groupId, value, onChange, label, children, center = false }: TabsProps) {
   // 左右箭头在同组标签间移动焦点并切换。取 DOM 里的实际顺序而不是维护一份
   // 列表 —— 后者会和 JSX 的真实顺序漂移。
   function handleKeyDown(e: React.KeyboardEvent<HTMLElement>): void {
@@ -99,7 +114,8 @@ export function Tab({ value, children }: TabProps) {
     <button
       type="button"
       role="tab"
-      id={`${ctx.groupId}-${value}`}
+      id={tabId(ctx.groupId, value)}
+      aria-controls={panelId(ctx.groupId, value)}
       aria-selected={selected}
       // 未选中的档退出 Tab 键序列：一排标签在 tablist 里算【一个】停靠点，
       // 进去之后用箭头走。这是 WAI-ARIA 对 tablist 的规定，也让 Tab 键
@@ -110,6 +126,27 @@ export function Tab({ value, children }: TabProps) {
     >
       {children}
     </button>
+  )
+}
+
+export interface TabPanelProps {
+  /** 对应那组 Tabs 的 id */
+  tabs: string
+  /** 对应哪一档 */
+  value: string
+  /** 不是当前档时藏起来（不卸载：切走再回来，面板里的选择与请求还在） */
+  hidden: boolean
+  /** 面板自己的版式类（面板夹在页面的 flex 列里时，让里面的块照旧按列间距排） */
+  className?: string
+  children?: ReactNode
+}
+
+/** 一档的面板：以它的标签命名，hidden 时读屏也读不到 */
+export function TabPanel({ tabs, value, hidden, className, children }: TabPanelProps) {
+  return (
+    <div role="tabpanel" id={panelId(tabs, value)} aria-labelledby={tabId(tabs, value)} hidden={hidden} className={className}>
+      {children}
+    </div>
   )
 }
 

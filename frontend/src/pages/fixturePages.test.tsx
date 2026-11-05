@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { act } from 'react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { getByRole } from '../test/queries'
+import { getAllByRole, getAllByText, getByRole } from '../test/queries'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
 import { DiscoverPage } from './DiscoverPage'
@@ -78,6 +78,19 @@ describe('假数据页面', () => {
     await unmount()
   })
 
+  it('发现：页面有一个 h1（视觉上不显示）；关掉空库说明后焦点落在它上面', async () => {
+    installLocalStorage()
+    vi.mocked(fetchLibrary).mockResolvedValueOnce({ folders: [], clusters: [], continueWatching: [], scannedAt: null } as LibraryData)
+    const { container, unmount } = await mount(<DiscoverPage />)
+    const title = getByRole(container, 'heading', { level: 1, name: '发现' })
+    expect(title.className).toContain('visually-hidden')
+    const close = getByRole(container, 'button', { name: '关闭这条说明' })
+    close.focus()
+    await act(async () => close.click())
+    expect(document.activeElement).toBe(title)
+    await unmount()
+  })
+
   it('发现：板块按后端给的顺序一行一行画，每行都有作品卡', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
     const rows = discoverRows(container)
@@ -118,8 +131,9 @@ describe('假数据页面', () => {
       { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
     ], freshness: { fetchedAt: new Date(Date.now() - 2 * 3600_000).toISOString(), stale: false, offline: true } })
     const { container, unmount } = await mount(<DiscoverPage />)
-    const status = [...container.querySelectorAll('[role="status"]')].find(el => el.textContent?.startsWith('离线'))
-    expect(status?.textContent).toBe('离线 · 更新于 2 小时前')
+    // 看得见的一句，与读屏在进入离线时听到的那一次
+    expect(getAllByText(container, '离线 · 更新于 2 小时前')).toHaveLength(2)
+    expect(getAllByRole(container, 'status').filter(el => el.textContent?.startsWith('离线')).map(el => el.textContent)).toEqual(['离线 · 更新于 2 小时前'])
     expect(discoverRows(container).map(rowTitle)).toEqual(['本季新番'])
     await unmount()
   })
@@ -127,8 +141,9 @@ describe('假数据页面', () => {
   it('发现：一份缓存都没有又连不上时，整页说明「媒体库照常可用」，给去媒体库与重试', async () => {
     vi.mocked(fetchDiscover).mockRejectedValueOnce(new Error('无法连接到目录服务'))
     const { container, unmount } = await mount(<DiscoverPage />)
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe('连不上目录服务，媒体库照常可用')
-    expect(container.textContent).toContain('无法连接到目录服务')
+    // 标题仍是标题；播报包着标题与原因一起念
+    expect(getByRole(container, 'heading', { level: 2, name: '连不上目录服务，媒体库照常可用' })).toBeDefined()
+    expect(getByRole(container, 'alert').textContent).toBe('连不上目录服务，媒体库照常可用无法连接到目录服务')
     expect([...container.querySelectorAll('a')].find(a => a.textContent === '去媒体库')?.getAttribute('href')).toBe('/library')
     const retry = [...container.querySelectorAll('button')].find(b => b.textContent === '重试')!
     await act(async () => retry.click())

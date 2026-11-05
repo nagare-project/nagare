@@ -206,6 +206,50 @@ describe('LibraryPage（整页冒烟）', () => {
     await unmount()
   })
 
+  it('「还没认出」用户展开过：筛选把这一节整个藏掉、再清掉筛选回来时，仍是展开的', async () => {
+    const library = structuredClone(LIBRARY)
+    const unsure = { ...structuredClone(library.clusters[0]!), clusterKey: 'unsure', title: 'Unsure Show' }
+    const chosen = { ...structuredClone(library.clusters[0]!), clusterKey: 'chosen', title: 'Chosen Folder', association: { mode: 'manual' as const, anilistId: 7, title: '认定的作品', setAt: 1 } }
+    library.clusters = [unsure, chosen]
+    stubFetch(SETTINGS, library)
+    const { container, unmount } = await mount(<RouterProvider router={router} />)
+    const search = getByRole(container, 'textbox', { name: '筛选媒体库' }) as HTMLInputElement
+    const type = async (q: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, q)
+      search.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    // 网格里有作品：默认收起；用户自己展开
+    expect(unrecognized(container)?.open).toBe(false)
+    await act(async () => {
+      const details = unrecognized(container)!
+      details.open = true
+      details.dispatchEvent(new Event('toggle'))
+    })
+    expect(unrecognized(container)?.open).toBe(true)
+
+    await type('认定的')
+    expect(unrecognized(container)).toBeNull()
+    await type('')
+    expect(unrecognized(container)?.open).toBe(true)
+
+    // 收起也一样记得：网格空了才替用户展开，网格又有内容时不替他收起
+    await act(async () => {
+      const details = unrecognized(container)!
+      details.open = false
+      details.dispatchEvent(new Event('toggle'))
+    })
+    await type('认定的')
+    await type('')
+    expect(unrecognized(container)?.open).toBe(false)
+    await type('Unsure')
+    expect(works(container)).toHaveLength(0)
+    expect(unrecognized(container)?.open).toBe(true)
+    await type('')
+    expect(unrecognized(container)?.open).toBe(true)
+    await unmount()
+  })
+
   it('自动认出的同一部作品的几个版本并成一张海报，链到作品详情页；识别进行中状态行说出进度', async () => {
     const library = structuredClone(LIBRARY)
     const base = library.clusters[0]!

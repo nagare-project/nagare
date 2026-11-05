@@ -85,6 +85,36 @@ describe('AccountPanel', () => {
     expect(onReload).not.toHaveBeenCalled()
   })
 
+  it('登录中：输入框只读、「登录中」不可用，但焦点留在原处（不掉到 <body>）；失败回来时还在那里，再点就能重试', async () => {
+    let reject: (err: Error) => void = () => {}
+    endpoints.animegoLogin.mockReturnValueOnce(new Promise((_, r) => { reject = r }))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const m = await mount(<Harness initial={LOGGED_OUT} next={LOGGED_IN} onReload={vi.fn()} />)
+    mounted.push(m.unmount)
+    await submitLogin(m.container, 'you@example.com', 'wrong')
+
+    const pending = getByRole(m.container, 'button', { name: '登录中 …' }) as HTMLButtonElement
+    expect(pending.disabled).toBe(false)
+    expect(pending.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(pending)
+    const email = getByRole(m.container, 'textbox', { name: '邮箱' }) as HTMLInputElement
+    expect(email.readOnly).toBe(true)
+    expect(email.disabled).toBe(false)
+    // 请求中再点（或在输入框里回车）不会再发一次
+    await act(async () => { pending.click() })
+    expect(endpoints.animegoLogin).toHaveBeenCalledTimes(1)
+
+    await act(async () => { reject(new Error('邮箱或密码不对')) })
+    const submit = getByRole(m.container, 'button', { name: '登录' })
+    expect(submit).toBe(pending)
+    expect(submit.hasAttribute('aria-disabled')).toBe(false)
+    expect(document.activeElement).toBe(submit)
+    expect(email.readOnly).toBe(false)
+    endpoints.animegoLogin.mockRejectedValueOnce(new Error('还是不对'))
+    await act(async () => { submit.click() })
+    expect(endpoints.animegoLogin).toHaveBeenCalledTimes(2)
+  })
+
   it('没填邮箱或密码就提交：不发请求，直接说缺什么', async () => {
     const m = await mount(<Harness initial={LOGGED_OUT} next={LOGGED_IN} onReload={vi.fn()} />)
     mounted.push(m.unmount)

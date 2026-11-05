@@ -59,4 +59,13 @@ describe('作品详情预览', () => {
     expect(playFile).not.toHaveBeenCalled()
     await unmount()
   })
+
+  it('开着的时候被卸掉（后台刷新换掉了它所在的那张卡）：照样报一次「关了」，调用方不会一直以为它开着', async () => {
+    const change = vi.fn()
+    const { container, unmount } = await mount(<MediaPreview media={media} onOpenChange={change}>预览</MediaPreview>)
+    await click(container, 'button')
+    expect(change.mock.calls).toEqual([[true]])
+    await unmount()
+    expect(change.mock.calls).toEqual([[true], [false]])
+  })
 })

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { copyText } from '../../lib/clipboard'
 import { redetectMpv } from '../../lib/endpoints'
 import type { DesktopInfo, MpvInfo, MpvInstallGuide, MpvSource } from '../../lib/endpoints'
@@ -117,8 +118,7 @@ export function MpvCard({ mpv, desktop, onReload }: MpvCardProps) {
           <button
             type="button"
             className={mpv.found ? 'btn' : 'btn btn--primary'}
-            onClick={() => void handleDetect()}
-            disabled={busy}
+            {...inFlight(busy, () => void handleDetect())}
           >
             {busy ? '检测中 …' : '重新检测'}
           </button>

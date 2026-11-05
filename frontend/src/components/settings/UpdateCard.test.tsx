@@ -234,14 +234,18 @@ describe('UpdateCard · 一键更新', () => {
   })
 
   it('更新中：更新 / 检查 / 自动检查开关一并禁用，并给出走秒的阶段文案', async () => {
+    const selfUpdate = fakeSelfUpdate({ phase: 'applying' }, 42)
     const m = await mount(
-      <UpdateCard update={withNewer()} selfUpdate={fakeSelfUpdate({ phase: 'applying' }, 42)} />,
+      <UpdateCard update={withNewer()} selfUpdate={selfUpdate} />,
     )
     mounted.push(m.unmount)
 
-    expect(button(m.container, '更新中 …').disabled).toBe(true)
-    expect(button(m.container, '立即检查').disabled).toBe(true)
-    expect(m.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBe(true)
+    // 不可用但不是 disabled：正在点的那颗按钮不会把焦点丢到 <body> 上
+    const pending = [button(m.container, '更新中 …'), button(m.container, '立即检查'), m.container.querySelector<HTMLButtonElement>('[role="switch"]')!]
+    expect(pending.map((b) => b.getAttribute('aria-disabled'))).toEqual(['true', 'true', 'true'])
+    expect(pending.map((b) => b.disabled)).toEqual([false, false, false])
+    await act(async () => { for (const b of pending) b.click() })
+    expect(selfUpdate.start).not.toHaveBeenCalled()
 
     const status = m.container.querySelector('.self-update-status')?.textContent ?? ''
     expect(status).toContain('正在下载并校验更新包')

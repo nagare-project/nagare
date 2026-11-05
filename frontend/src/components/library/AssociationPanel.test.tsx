@@ -137,15 +137,41 @@ describe('AssociationPanel', () => {
     await unmount()
   })
 
-  it('保存成功后焦点放到状态行上（点过的按钮已经没了），保存与重读期间按钮全禁用', async () => {
+  it('确认删除的请求发出去之后按 Esc 不起作用：确认区不收起（收起会让人以为取消了，删除照样做完）', async () => {
+    let finish: (value: null) => void = () => {}
+    api.setAssociation.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    const c = cluster({ association: { mode: 'manual', anilistId: 1, title: '对的番', setAt: 1, syncedElsewhere: [{ anilistId: 999, episodes: [1] }] } })
+    const { container, unmount } = await mount(<AssociationPanel cluster={c} onChanged={vi.fn()} />)
+    await act(async () => button(container, '回到自动匹配').click())
+    const confirm = button(container, '确定删除并回到自动匹配')
+    confirm.focus()
+    await act(async () => confirm.click())
+    expect(confirm.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(confirm)
+    await act(async () => {
+      confirm.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(getByRole(container, 'group', { name: '确认回到自动匹配' })).toBeDefined()
+    expect(api.setAssociation).toHaveBeenCalledTimes(1)
+    await act(async () => finish(null))
+    await unmount()
+  })
+
+  it('保存成功后焦点放到状态行上（点过的按钮已经没了），保存与重读期间按钮全不可用', async () => {
     api.setAssociation.mockResolvedValue({ mode: 'manual', anilistId: 1, setAt: 1 })
     let finishReload = () => {}
     const onChanged = vi.fn(() => new Promise<void>((resolve) => { finishReload = resolve }))
     const { container, unmount } = await mount(<AssociationPanel cluster={cluster({ matched: { anilistId: 1, title: '某番' } })} onChanged={onChanged} />)
 
-    await act(async () => button(container, '确认').click())
-    // 还在重读媒体库：按旧数据画的按钮不能点
-    expect((getAllByRole(getByRole(container, 'region', { name: '对应作品' }), 'button') as HTMLButtonElement[]).every((b) => b.disabled)).toBe(true)
+    const confirm = button(container, '确认')
+    confirm.focus()
+    await act(async () => confirm.click())
+    // 还在重读媒体库：按旧数据画的按钮不能点（aria-disabled：按下的那颗焦点留着，不掉到 <body>）
+    const buttons = getAllByRole(getByRole(container, 'region', { name: '对应作品' }), 'button') as HTMLButtonElement[]
+    expect(buttons.every((b) => b.getAttribute('aria-disabled') === 'true')).toBe(true)
+    expect(document.activeElement).toBe(confirm)
+    await act(async () => { for (const b of buttons) b.click() })
+    expect(api.setAssociation).toHaveBeenCalledTimes(1)
     expect(container.textContent).toContain('正在保存')
 
     await act(async () => finishReload())

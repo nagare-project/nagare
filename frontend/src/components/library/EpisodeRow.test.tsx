@@ -118,13 +118,18 @@ describe('EpisodeRow', () => {
     await unmount()
   })
 
-  it('isPending 时播放按钮禁用', async () => {
+  it('isPending 时播放按钮不可用（aria-disabled，焦点不丢），点了不播', async () => {
+    const onPlay = vi.fn()
     const { container, unmount } = await mount(
       <ul>
-        <EpisodeRow item={makeItem()} onPlay={() => {}} isPending />
+        <EpisodeRow item={makeItem()} onPlay={onPlay} isPending />
       </ul>,
     )
-    expect((container.querySelector('button.ep-play') as HTMLButtonElement).disabled).toBe(true)
+    const play = container.querySelector('button.ep-play') as HTMLButtonElement
+    expect(play.getAttribute('aria-disabled')).toBe('true')
+    expect(play.disabled).toBe(false)
+    await act(async () => play.click())
+    expect(onPlay).not.toHaveBeenCalled()
     await unmount()
   })
 })

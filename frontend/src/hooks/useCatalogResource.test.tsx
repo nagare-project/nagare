@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../test/harness'
+import { getByRole } from '../test/queries'
 import { FreshnessNote } from '../components/catalog/FreshnessNote'
 import type { CatalogFreshness } from '../lib/endpoints'
 import { STALE_REFETCH_MS, useCatalogResource } from './useCatalogResource'
@@ -62,9 +63,13 @@ describe('目录数据的读取', () => {
     const result: { current?: CatalogResource<Payload> } = {}
     const { container, unmount } = await mount(<Probe resourceKey="discover" load={load} result={result} />)
     await flush()
+    // 读屏在进入离线时听到一次
+    expect(getByRole(container, 'status').textContent).toBe('离线 · 更新于 1 小时前')
     await flush(STALE_REFETCH_MS * 2)
     expect(load).toHaveBeenCalledTimes(1)
-    expect(container.textContent).toBe('离线 · 更新于 1 小时前')
+    // 看得见的细条一直在；播报念过之后已经清空
+    expect(container.querySelector('p')?.textContent).toBe('离线 · 更新于 1 小时前')
+    expect(getByRole(container, 'status').textContent).toBe('')
     await unmount()
   })
 

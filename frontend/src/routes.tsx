@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, lazyRouteComponent, redirect } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 import { RootLayout } from './components/RootLayout'
+import { SEASONAL_SORTS } from './components/catalog/season'
 import { AnimePage } from './pages/AnimePage'
 import { AutoDownloaderPage } from './pages/AutoDownloaderPage'
 import { DebridPage } from './pages/DebridPage'
@@ -24,12 +25,12 @@ export interface DiscoverRouteParams {
   genre?: string
 }
 
+/** 认不出来的键显式写成 undefined（原因见 validateSeasonalSearch）：?q=[1]、?genre=1 不能原样漏给页面 */
 function validateDiscoverSearch(search: Record<string, unknown>): DiscoverRouteParams {
-  const out: DiscoverRouteParams = {}
-  const q = coerceQuery(search.q)
-  if (q !== undefined) out.q = q
-  if (typeof search.genre === 'string' && search.genre !== '') out.genre = search.genre
-  return out
+  return {
+    q: coerceQuery(search.q),
+    genre: typeof search.genre === 'string' && search.genre !== '' ? search.genre : undefined,
+  }
 }
 
 /** `/` 第一屏是发现页（DESIGN.md「信息架构」）：顶栏的搜索也落在这里（?q=） */
@@ -76,21 +77,30 @@ const listsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lists'
 const entryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/entry', validateSearch: (search: Record<string, unknown>) => ({ id: Number.isSafeInteger(Number(search.id)) && Number(search.id) > 0 ? Number(search.id) : 0 }), component: lazyRouteComponent(() => import('./pages/EntryPage'), 'EntryPage') })
 const scheduleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/schedule', component: SchedulePage })
 
-/** `/seasonal` 季度浏览：按年份 + 季度列 animego 目录；筛选与排序都在地址栏，可分享可回退。 */
+
+/**
+ * 季度页的地址参数。认不出来的键【显式】写成 undefined 而不是省掉：根路由不校验参数，
+ * TanStack 把这里的结果叠在地址栏原样的参数上，省掉的键会把坏值（?season=foo）原样漏给页面。
+ */
+function validateSeasonalSearch(search: Record<string, unknown>): Record<string, unknown> {
+  const season = typeof search.season === 'string' ? search.season.toUpperCase() : ''
+  const year = Number(search.year)
+  const text = (value: unknown) => (typeof value === 'string' && value !== '' ? value : undefined)
+  return {
+    season: ['WINTER', 'SPRING', 'SUMMER', 'FALL'].includes(season) ? season : undefined,
+    year: Number.isSafeInteger(year) && year >= 1990 && year <= 2100 ? year : undefined,
+    genre: text(search.genre),
+    format: text(search.format),
+    status: text(search.status),
+    sort: (SEASONAL_SORTS as readonly string[]).includes(text(search.sort) ?? '') ? search.sort : undefined,
+  }
+}
+
+/** `/seasonal` 季度浏览：按年份 + 季度列目录；筛选与排序都在地址栏，可分享可回退。 */
 const seasonalRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/seasonal',
-  validateSearch: (search: Record<string, unknown>) => {
-    const out: Record<string, unknown> = {}
-    const season = String(search.season ?? '').toUpperCase()
-    if (['WINTER', 'SPRING', 'SUMMER', 'FALL'].includes(season)) out.season = season
-    const year = Number(search.year)
-    if (Number.isSafeInteger(year) && year >= 1990 && year <= 2100) out.year = year
-    for (const key of ['genre', 'format', 'status', 'sort'] as const) {
-      if (typeof search[key] === 'string' && (search[key] as string) !== '') out[key] = search[key]
-    }
-    return out
-  },
+  validateSearch: validateSeasonalSearch,
   component: lazyRouteComponent(() => import('./pages/SeasonalPage'), 'SeasonalPage'),
 })
 

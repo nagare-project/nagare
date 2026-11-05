@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import { clearCoverCache } from '../../lib/endpoints'
 import type { CoverCacheClearResult, CoverCacheInfo } from '../../lib/endpoints'
 import { errorText, formatBytes } from '../../lib/format'
@@ -50,7 +51,8 @@ export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
   const cancelButton = useRef<HTMLButtonElement>(null)
   // 只在用户自己从确认区退出来时把焦点还给「清空」按钮；首次渲染不抢焦点
   const returnFocus = useRef(false)
-  const confirming = state.phase === 'confirming' || state.phase === 'busy'
+  const busy = state.phase === 'busy'
+  const confirming = state.phase === 'confirming' || busy
 
   useEffect(() => {
     if (state.phase === 'confirming') {
@@ -108,13 +110,19 @@ export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
       <p className="info-panel-text">发现页与媒体库的海报图存在本机。超过上限时自动删掉最久没看的，媒体库与离线目录用到的最后才删。清空之后海报会在下次显示时重新下载，断网时没有缓存的海报不显示。</p>
 
       {confirming ? (
-        <div className="quit-confirm" role="group" aria-label="确认清空封面缓存" aria-describedby="cover-cache-confirm-copy">
+        // Esc 等于「取消」：焦点回到「清空封面缓存」（请求已经发出去时不能取消）
+        <div className="quit-confirm" role="group" aria-label="确认清空封面缓存" aria-describedby="cover-cache-confirm-copy"
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape' || busy) return
+            event.preventDefault()
+            handleCancel()
+          }}>
           <p id="cover-cache-confirm-copy" className="quit-confirm-copy">确定清空封面缓存吗？</p>
           <div className="form-actions">
-            <button type="button" className="btn btn--destructive" onClick={() => void handleConfirm()} disabled={state.phase === 'busy'}>
-              {state.phase === 'busy' ? '正在清空 …' : '确认清空'}
+            <button type="button" className="btn btn--destructive" {...inFlight(busy, () => void handleConfirm())}>
+              {busy ? '正在清空 …' : '确认清空'}
             </button>
-            <button ref={cancelButton} type="button" className="btn" onClick={handleCancel} disabled={state.phase === 'busy'}>
+            <button ref={cancelButton} type="button" className="btn" {...inFlight(busy, handleCancel)}>
               取消
             </button>
           </div>

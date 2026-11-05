@@ -1,6 +1,7 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SearchItem } from '../../lib/endpoints'
 import { mono } from '../../theme'
-import { ResultRow } from './ResultRow'
+import { COPY_FEEDBACK_MS, ResultRow } from './ResultRow'
 import type { PlayControl } from './ResultRow'
 import './search.css'
 
@@ -16,6 +17,17 @@ export interface ResultTableProps {
 
 /** 结果表：紧凑密度、mono 数字；「做种」列只在有任一条带 seeders 时出现 */
 export function ResultTable({ items, names, play }: ResultTableProps) {
+  // 整张表共用一个「已复制」播报区（常驻、先空着，读屏才念）；过一会儿清空，下次复制同一行也会再念
+  const [copyNote, setCopyNote] = useState('')
+  const noteTimer = useRef<number | null>(null)
+  const announceCopy = useCallback((text: string) => {
+    setCopyNote(text)
+    if (noteTimer.current !== null) window.clearTimeout(noteTimer.current)
+    noteTimer.current = window.setTimeout(() => setCopyNote(''), COPY_FEEDBACK_MS)
+  }, [])
+  useEffect(() => () => {
+    if (noteTimer.current !== null) window.clearTimeout(noteTimer.current)
+  }, [])
   const showSeeders = items.some((item) => typeof item.seeders === 'number')
   const isTruncated = items.length > MAX_RENDERED_RESULTS
   const visible = isTruncated ? items.slice(0, MAX_RENDERED_RESULTS) : items
@@ -61,10 +73,14 @@ export function ResultTable({ items, names, play }: ResultTableProps) {
               sourceName={names[item.source] ?? item.source}
               showSeeders={showSeeders}
               play={play}
+              onCopyResult={announceCopy}
             />
           ))}
         </tbody>
       </table>
+      <p className="visually-hidden" role="status">
+        {copyNote}
+      </p>
       {isTruncated && (
         <p className="result result--dim res-truncated" style={mono} role="status">
           只显示前 {MAX_RENDERED_RESULTS} 条（共 {items.length} 条），换个更具体的关键词缩小范围

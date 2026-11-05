@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { LibraryCluster } from '../../lib/endpoints'
+// 本文件里 inFlight 是在途搜索请求的 ref，按钮的「请求中」改名引入
+import { inFlight as inFlightButton } from '../../lib/busy'
 import { isBackdropEvent } from '../../lib/dialog'
 import { errorText } from '../../lib/format'
 import { fetchCatalogSearch } from '../../lib/media'
@@ -188,7 +190,7 @@ export function AssociationDialog({ cluster, open, onClose, onChoose, onLateErro
 
         <footer className="assoc-dialog-footer">
           <p>自己录的视频、目录里找不到的作品：</p>
-          <button type="button" className="btn btn--sm" disabled={busy || cluster.association?.mode === 'none'} onClick={() => void choose({ mode: 'none' })}>
+          <button type="button" className="btn btn--sm" disabled={cluster.association?.mode === 'none'} {...inFlightButton(busy, () => void choose({ mode: 'none' }))}>
             {pending === 'none' ? '正在保存…' : '不是目录里的作品'}
           </button>
         </footer>
@@ -242,7 +244,7 @@ function ResultButton({ media, current, matched, pending, onChoose }: {
   const meta = [media.year, media.format && (FORMAT_LABELS[media.format] ?? media.format), media.episodes ? `${media.episodes} 集` : undefined].filter(Boolean).join(' · ')
   const hasCover = media.cover !== undefined && failedSrc !== media.cover
   return (
-    <button type="button" className="assoc-result" disabled={pending !== null || current} onClick={() => onChoose(media.id)}>
+    <button type="button" className="assoc-result" disabled={current} {...inFlightButton(pending !== null, () => onChoose(media.id))}>
       <span className="assoc-result-art">{hasCover ? <img src={media.cover} alt="" loading="lazy" onError={() => setFailedSrc(media.cover)} /> : <span aria-hidden="true">流</span>}</span>
       <span className="assoc-result-text">
         <span className="assoc-result-title">{media.title}</span>

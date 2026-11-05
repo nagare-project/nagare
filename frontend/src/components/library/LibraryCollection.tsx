@@ -47,6 +47,17 @@ export function LibraryCollection({ clusters, identifying = false }: { clusters:
   const rest = identifying ? [] : visible.filter(isUnrecognized)
   const count = identifying ? series.length : series.filter((s) => !isUnrecognized(s)).length
 
+  // 「还没认出的 N 组」展开与否记在这里而不是那一节自己身上：筛选把它整个藏掉时它会卸载，
+  // 回来时用户自己的展开 / 收起不能丢。网格空了（一部都没认出、或筛选之后）就替用户展开 ——
+  // 否则整个媒体库看起来是空的；网格又有内容时不替他收起
+  const gridEmpty = grid.length === 0
+  const [unrecognizedOpen, setUnrecognizedOpen] = useState(gridEmpty)
+  const [sawGridEmpty, setSawGridEmpty] = useState(gridEmpty)
+  if (gridEmpty !== sawGridEmpty) {
+    setSawGridEmpty(gridEmpty)
+    if (gridEmpty) setUnrecognizedOpen(true)
+  }
+
   return (
     <section className="library-collection" aria-labelledby="collection-heading">
       <div className="collection-head">
@@ -68,7 +79,7 @@ export function LibraryCollection({ clusters, identifying = false }: { clusters:
       </div>
       {grid.length > 0 && <PosterGrid series={grid} {...(pendingKeys === undefined ? {} : { pendingKeys })} />}
       {grid.length === 0 && rest.length === 0 && <p className="collection-empty" role="status">没有符合条件的作品。试试其他名称或观看状态。</p>}
-      {rest.length > 0 && <UnrecognizedGroups series={rest} openByDefault={grid.length === 0} />}
+      {rest.length > 0 && <UnrecognizedGroups series={rest} open={unrecognizedOpen} onOpenChange={setUnrecognizedOpen} />}
     </section>
   )
 }

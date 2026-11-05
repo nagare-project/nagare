@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { AddFolderData, Platform } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import { errorText } from '../../lib/format'
 import { mono } from '../../theme'
 import { FolderBrowser } from './FolderBrowser'
@@ -37,20 +38,22 @@ type SubmitState =
 export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin', primarySubmit = true }: AddFolderFormProps) {
   const [path, setPath] = useState('')
   const [state, setState] = useState<SubmitState>({ phase: 'idle' })
+  const busy = state.phase === 'busy'
   const [browsing, setBrowsing] = useState(false)
   const browseRef = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef(false)
   const panelId = useId()
 
-  // 面板收起后把焦点还给「浏览…」。要等这次渲染完：添加进行中按钮是禁用的，禁用的按钮拿不到焦点
+  // 面板收起后把焦点还给「浏览…」。要等这次渲染完（面板卸掉之后），添加还在进行时等它结束
   useEffect(() => {
-    if (browsing || state.phase === 'busy' || !returnFocus.current) return
+    if (browsing || busy || !returnFocus.current) return
     returnFocus.current = false
     browseRef.current?.focus()
-  }, [browsing, state.phase])
+  }, [browsing, busy])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
+    if (busy) return
     await submit(path)
   }
 
@@ -106,25 +109,24 @@ export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin', p
           autoFocus={autoFocus}
           spellCheck={false}
           autoComplete="off"
-          disabled={state.phase === 'busy'}
+          readOnly={busy}
         />
         <button
           ref={browseRef}
           type="button"
           className="btn btn--sm"
-          onClick={() => (browsing ? closeBrowser() : setBrowsing(true))}
           aria-expanded={browsing}
           aria-controls={browsing ? panelId : undefined}
-          disabled={state.phase === 'busy'}
+          {...inFlight(busy, () => (browsing ? closeBrowser() : setBrowsing(true)))}
         >
           浏览…
         </button>
         <button
           type="submit"
           className={primarySubmit ? 'btn btn--sm btn--primary' : 'btn btn--sm'}
-          disabled={state.phase === 'busy'}
+          {...inFlight(busy)}
         >
-          {state.phase === 'busy' ? '扫描中 …' : '添加'}
+          {busy ? '扫描中 …' : '添加'}
         </button>
       </div>
       {browsing && (
@@ -132,7 +134,7 @@ export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin', p
           id={panelId}
           onChoose={(chosen) => void handleChoose(chosen)}
           onCancel={closeBrowser}
-          busy={state.phase === 'busy'}
+          busy={busy}
         />
       )}
       {/* 结果行常驻占位，出现/消失不推挤布局 */}

@@ -54,7 +54,7 @@
   color: var(--text-secondary);
 }
 
-.app-banner-quiet:hover:not(:disabled) {
+.app-banner-quiet:hover:not(:disabled, [aria-disabled='true']) {
   color: var(--text);
 }
 

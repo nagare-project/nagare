@@ -19,7 +19,7 @@
 .cont-row { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); margin: 0; padding: 0; list-style: none; }
 .cont-card { min-width: 0; }
 .cont-card-hit { display: flex; flex-direction: column; gap: var(--sp-sm); width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.cont-card-hit:disabled { opacity: 0.6; cursor: wait; }
+.cont-card-hit:is(:disabled, [aria-disabled='true']) { opacity: 0.6; cursor: wait; }
 .cont-thumb { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--radius-md); background: var(--bg-card); }
 /* 图片描边画在图的上面（inset 阴影不进盒模型）；悬停时换成这部作品的海报色（卡片根元素的行内样式给） */
 .cont-thumb::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); pointer-events: none; transition: box-shadow var(--dur-short) var(--ease-standard); }

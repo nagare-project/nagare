@@ -2,7 +2,7 @@
 import { act, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../test/harness'
-import { getAllByRole, getByRole, getByText, queryByRole } from '../test/queries'
+import { getAllByRole, getAllByText, getByRole, getByText, queryByRole, queryByText } from '../test/queries'
 import { installLocalStorage } from '../test/storage'
 import { LOGIN_HINT_DISMISS_KEY } from '../components/library/WorkStates'
 import { EntryPage } from './EntryPage'
@@ -138,11 +138,15 @@ describe('目录作品页', () => {
   it('离线时 hero 里说清作品资料是什么时候的；在线拿到的新资料不说', async () => {
     shared.detail = { freshness: { fetchedAt: new Date(Date.now() - 3 * 3600_000).toISOString(), stale: false, offline: true } }
     const offline = await mount(<EntryPage />)
-    expect(getByRole(offline.container, 'status').textContent).toBe('离线 · 更新于 3 小时前')
+    // 看得见的一句在 hero 里；读屏在进入离线时听到一次（播报区是旁边常驻的那一处）
+    const status = getByRole(offline.container, 'status')
+    expect(status.textContent).toBe('离线 · 更新于 3 小时前')
+    expect(getAllByText(offline.container, '离线 · 更新于 3 小时前').filter((el) => el !== status)).toHaveLength(1)
     await offline.unmount()
     shared.detail = {}
     const online = await mount(<EntryPage />)
-    expect(queryByRole(online.container, 'status')).toBeNull()
+    expect(getByRole(online.container, 'status').textContent).toBe('')
+    expect(queryByText(online.container, /更新于/)).toBeNull()
     await online.unmount()
   })
 

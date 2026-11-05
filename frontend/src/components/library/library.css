@@ -265,7 +265,7 @@
     color var(--dur-short) var(--ease-standard);
 }
 
-.ep-play:hover:not(:disabled) {
+.ep-play:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--accent-dim);
   border-color: var(--accent-hover);
   color: var(--accent-hover);
@@ -276,7 +276,7 @@
   outline-offset: 2px;
 }
 
-.ep-play:disabled {
+.ep-play:is(:disabled, [aria-disabled='true']) {
   opacity: 0.45;
   cursor: default;
 }

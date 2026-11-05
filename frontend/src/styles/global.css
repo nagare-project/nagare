@@ -122,7 +122,7 @@ body {
     color var(--dur-short) var(--ease-standard);
 }
 
-.btn:hover:not(:disabled) {
+.btn:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--bg-fill);
 }
 
@@ -131,7 +131,7 @@ body {
   outline-offset: 2px;
 }
 
-.btn:disabled {
+.btn:is(:disabled, [aria-disabled='true']) {
   opacity: 0.45;
   cursor: default;
 }
@@ -143,11 +143,11 @@ body {
   color: #fff;
 }
 
-.btn--primary:hover:not(:disabled) {
+.btn--primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--accent-fill-hover);
 }
 
-.btn--primary:active:not(:disabled) {
+.btn--primary:active:not(:disabled, [aria-disabled='true']) {
   background: var(--accent-fill-active);
 }
 
@@ -159,11 +159,11 @@ body {
   color: var(--text);
 }
 
-.btn--destructive:hover:not(:disabled) {
+.btn--destructive:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--error-fill-hover);
 }
 
-.btn--destructive:active:not(:disabled) {
+.btn--destructive:active:not(:disabled, [aria-disabled='true']) {
   background: var(--error-fill-active);
 }
 
@@ -174,7 +174,7 @@ body {
   color: var(--text-secondary);
 }
 
-.btn--danger:hover:not(:disabled) {
+.btn--danger:hover:not(:disabled, [aria-disabled='true']) {
   border-color: var(--error-line);
   background: var(--error-dim);
   color: var(--error);
@@ -288,7 +288,7 @@ body {
   background: var(--text);
 }
 
-.switch:disabled {
+.switch:is(:disabled, [aria-disabled='true']) {
   opacity: 0.35;
   cursor: default;
 }
@@ -342,7 +342,7 @@ button.link {
   cursor: pointer;
 }
 
-button.link:disabled {
+button.link:is(:disabled, [aria-disabled='true']) {
   color: var(--text-secondary);
   cursor: default;
   text-decoration: none;

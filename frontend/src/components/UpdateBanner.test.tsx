@@ -182,8 +182,9 @@ describe('UpdateBanner · 一键更新', () => {
   })
 
   it('更新中：文案换成阶段说明，按钮禁用；秒数对读屏隐藏（整条是 live region）', async () => {
+    const selfUpdate = fakeSelfUpdate({ phase: 'applying' }, 12)
     const m = await mount(
-      <UpdateBanner view={NEWER} selfUpdate={fakeSelfUpdate({ phase: 'applying' }, 12)} />,
+      <UpdateBanner view={NEWER} selfUpdate={selfUpdate} />,
     )
     mounted.push(m.unmount)
 
@@ -194,7 +195,10 @@ describe('UpdateBanner · 一键更新', () => {
 
     const apply = applyButton(m.container)
     expect(apply?.textContent).toBe('更新中 …')
-    expect(apply?.disabled).toBe(true)
+    // 不可用但不是 disabled（焦点不会被丢到 <body>）；点了不会再发一次
+    expect(apply?.getAttribute('aria-disabled')).toBe('true')
+    await act(async () => apply?.click())
+    expect(selfUpdate.start).not.toHaveBeenCalled()
     expect(m.container.querySelector('.update-banner-dot')).not.toBeNull()
   })
 

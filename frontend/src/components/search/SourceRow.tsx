@@ -1,4 +1,5 @@
 import type { SourceInfo, SourceOutcome } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import { isHttpUrl } from '../../lib/url'
 import { mono } from '../../theme'
 import { SourceStateChip } from './SourceStateChip'
@@ -55,8 +56,7 @@ export function SourceRow({ source, check, toggling, onToggle, onSelfCheck }: So
           className="switch"
           aria-checked={enabled}
           aria-label={`启用 ${name}`}
-          onClick={() => onToggle(!enabled)}
-          disabled={toggling}
+          {...inFlight(toggling, () => onToggle(!enabled))}
         >
           <span className="switch-knob" aria-hidden="true" />
         </button>
@@ -64,8 +64,8 @@ export function SourceRow({ source, check, toggling, onToggle, onSelfCheck }: So
         <button
           type="button"
           className="btn btn--sm"
-          onClick={onSelfCheck}
-          disabled={!hasSelfTest || checking}
+          disabled={!hasSelfTest}
+          {...inFlight(checking, onSelfCheck)}
           title={hasSelfTest ? '用规则自带的关键词探活' : '该规则未提供自检关键词'}
         >
           {checking ? '自检中 …' : '自检'}

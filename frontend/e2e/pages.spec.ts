@@ -125,6 +125,39 @@ test.describe('宽屏（1440px）', () => {
     expect(problems.errors).toEqual([])
   })
 
+  test('磁力搜索结果：整张表只有一个「已复制」播报区，复制哪一行就念哪一行', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await stubJson(page, 'GET', '/api/sources', SOURCES)
+    await stubJson(page, 'GET', '/api/search', RESULT)
+    await openApp(page, '/search?q=星屑')
+    const table = page.locator('.res-wrap')
+    await expect(page.getByRole('table')).toBeVisible()
+    await table.getByRole('button', { name: /^复制磁力 \[OtherSub\]/ }).click()
+    await expect(table.getByRole('status')).toHaveText(`已复制磁力：${RESULT.items[1]!.title}`)
+    await table.getByRole('button', { name: /^复制磁力 \[TestSub\]/ }).click()
+    await expect(table.getByRole('status')).toHaveCount(1)
+    await expect(table.getByRole('status')).toHaveText(`已复制磁力：${RESULT.items[0]!.title}`)
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(MAGNET)
+  })
+
+  test('磁力任务读不出状态：错误说在一直挂着的播报区里（同一个元素，不是跟着错误一起插进来）', async ({ page }) => {
+    let failing = false
+    await page.route((url) => url.pathname === '/api/torrent/status', async (route) => {
+      if (failing) await route.fulfill({ status: 503, json: { success: false, data: null, error: '磁力引擎没有启动' } })
+      else await route.fulfill({ json: { success: true, data: { active: false } } })
+    })
+    await openApp(page, '/torrents')
+    const streaming = page.getByRole('region', { name: '边下边播' })
+    const live = streaming.getByRole('status')
+    await expect(live).toHaveCount(1)
+    await expect(live).toHaveText('')
+    await live.evaluate((el) => { el.setAttribute('data-smoke-mark', '1') })
+    failing = true
+    await expect(live).toHaveText('磁力引擎没有启动')
+    await expect(live).toHaveAttribute('data-smoke-mark', '1')
+    expect(await blockingViolations(page)).toEqual([])
+  })
+
   test('同步横幅：点「重试」补发一轮，结果说在状态行上，补上之后横幅消失', async ({ page }) => {
     let synced = false
     await stubJson(page, 'GET', '/api/player/status', () =>

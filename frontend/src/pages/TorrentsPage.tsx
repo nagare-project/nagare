@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { DownloadsPanel } from '../components/torrent/DownloadsPanel'
 import { ApiAuthError } from '../lib/api'
+import { inFlight } from '../lib/busy'
 import { fetchTorrentStatus, stopTorrent } from '../lib/endpoints'
 import { errorText, formatBytes, formatRate } from '../lib/format'
 import { mono } from '../theme'
@@ -89,11 +90,10 @@ export function TorrentsPage() {
         <h2 id="streaming-heading" className="torrents-section-title">
           边下边播
         </h2>
-        {error !== null && (
-          <p className="result result--err" role="status" aria-live="polite">
-            {error}
-          </p>
-        )}
+        {/* 常驻的播报区：出错时才显示，平时是空的、视觉上藏着。跟着错误一起插进来的话，读屏多半念不出来 */}
+        <p className={error === null ? 'visually-hidden' : 'result result--err'} role="status">
+          {error}
+        </p>
         {status?.active === true ? <ActiveTorrent status={status} busy={busy} onStop={() => void handleStop()} /> : <IdleNotice />}
       </section>
 
@@ -111,7 +111,7 @@ function ActiveTorrent({ status, busy, onStop }: { status: TorrentStatus; busy: 
         <h3 id="torrent-task-heading" className="info-panel-title torrent-task-name">
           {name}
         </h3>
-        <button type="button" className="btn btn--danger" onClick={onStop} disabled={busy}>
+        <button type="button" className="btn btn--danger" {...inFlight(busy, onStop)}>
           {busy ? '停止中 …' : '停止'}
         </button>
       </div>

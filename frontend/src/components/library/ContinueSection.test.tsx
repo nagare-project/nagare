@@ -72,13 +72,14 @@ describe('ContinueSection', () => {
     await unmount()
   })
 
-  it('请求在途时禁用，防连点', async () => {
+  it('请求在途时不可用（aria-disabled，焦点留在卡片上），防连点', async () => {
     const onPlay = vi.fn()
     const { container, unmount } = await mount(
       <ContinueSection items={[ITEM]} onPlay={onPlay} activeFileId={null} pendingFileId="f1" />,
     )
     const btn = card(container) as HTMLButtonElement
-    expect(btn.disabled).toBe(true)
+    expect(btn.getAttribute('aria-disabled')).toBe('true')
+    expect(btn.disabled).toBe(false)
     await act(async () => btn.click())
     expect(onPlay).not.toHaveBeenCalled()
     await unmount()

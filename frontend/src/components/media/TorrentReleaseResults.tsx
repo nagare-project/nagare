@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { inFlight } from '../../lib/busy'
 import type { SearchItem, SourceOutcome, SourcesData } from '../../lib/endpoints'
 import { parsePublished } from '../../lib/format'
 import { RouteLink } from '../catalog/RouteLink'
@@ -141,15 +142,16 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
   const downloadButton = (item: SearchItem) => {
     if (onDownload === undefined) return null
     const mark = downloads?.[releaseKey(item)]
-    return <button type="button" className="btn btn--sm" disabled={mark !== undefined}
-      title="整个种子完整下到下载目录，下完自动出现在媒体库里" onClick={() => onDownload(item)}>
+    // 加入中 / 已加入都不能再点，但不写 disabled：按下的那颗按钮焦点留着（lib/busy.ts）
+    return <button type="button" className="btn btn--sm"
+      title="整个种子完整下到下载目录，下完自动出现在媒体库里" {...inFlight(mark !== undefined, () => onDownload(item))}>
       {mark === 'adding' ? '加入中…' : mark === 'added' ? '已加入下载' : '下载'}
     </button>
   }
   // 行内的「播放」是次按钮：一块界面只留一个实心按钮（上面的搜索），每行一个实心会互抢视线（DESIGN.md）
-  const playButton = (item: SearchItem, group: string, label: string) => <button type="button" className="btn btn--sm media-resource-play" disabled={busy || engineDown}
+  const playButton = (item: SearchItem, group: string, label: string) => <button type="button" className="btn btn--sm media-resource-play" disabled={engineDown}
     title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
-    onClick={event => play(item, event.currentTarget, group)}>{label}</button>
+    {...inFlight(busy, event => play(item, event.currentTarget, group))}>{label}</button>
   const rowLabel = (item: SearchItem) => [
     releaseLabel(item),
     typeof item.season === 'number' ? `第 ${item.season} 季` : null,

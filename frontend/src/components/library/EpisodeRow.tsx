@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { inFlight } from '../../lib/busy'
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
 import type { LibraryItem } from '../../lib/endpoints'
 import { mono } from '../../theme'
@@ -69,8 +70,7 @@ export function EpisodeRow({ item, onPlay, isActive = false, isPending = false }
         type="button"
         className="ep-play"
         aria-label={playLabel}
-        onClick={() => onPlay(fileId)}
-        disabled={isPending}
+        {...inFlight(isPending, () => onPlay(fileId))}
       >
         <Icon name="play" size={16} />
       </button>

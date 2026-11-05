@@ -6,6 +6,7 @@ import { useSources } from '../../hooks/useSources'
 import { useSourcePlugin } from '../../hooks/useSourcePlugin'
 import type { SettingsState } from '../../hooks/useSettings'
 import { redetectMpv } from '../../lib/endpoints'
+import { inFlight } from '../../lib/busy'
 import type { AddFolderData, MpvInstallGuide } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import '../settings/cards.css'
@@ -226,7 +227,7 @@ function MpvSetup({ hint, install, onReload }: { hint?: string; install?: MpvIns
       )}
       {install !== undefined && <InstallGuide install={install} />}
       <div className="form-actions">
-        <button type="button" className="btn btn--primary" onClick={() => void detect(true)} disabled={busy}>
+        <button type="button" className="btn btn--primary" {...inFlight(busy, () => void detect(true))}>
           {busy ? '检测中 …' : '我装好了，重新检测'}
         </button>
       </div>

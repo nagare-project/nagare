@@ -1,13 +1,14 @@
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { CatalogNotice, PosterSkeletons } from '../components/catalog/CatalogStates'
 import { FreshnessNote } from '../components/catalog/FreshnessNote'
 import { RouteLink } from '../components/catalog/RouteLink'
-import { SEASONS, SEASON_LABEL, adjacentSeason, currentSeason } from '../components/catalog/season'
+import { SEASONAL_SORTS, SEASONS, SEASON_LABEL, adjacentSeason, currentSeason } from '../components/catalog/season'
+import type { SeasonalSortKey } from '../components/catalog/season'
 import { DiscoverCard } from '../components/media/DiscoverCard'
 import { GENRES, genreQuery } from '../components/media/DiscoverGenres'
 import type { MediaSummary } from '../components/media/types'
-import { Tab, Tabs } from '../components/ui'
+import { Tab, TabPanel, Tabs } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { useCatalogResource } from '../hooks/useCatalogResource'
 import type { SeasonName } from '../lib/endpoints'
@@ -22,8 +23,8 @@ const FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const
 const FORMAT_LABEL: Record<string, string> = { TV: 'TV', TV_SHORT: '短篇', MOVIE: '剧场版', OVA: 'OVA', ONA: 'ONA', SPECIAL: '特别篇' }
 const STATUSES = ['RELEASING', 'FINISHED', 'NOT_YET_RELEASED'] as const
 const STATUS_LABEL: Record<string, string> = { RELEASING: '连载中', FINISHED: '已完结', NOT_YET_RELEASED: '未播出' }
-const SORTS = ['score', 'title', 'format'] as const
-type SortKey = (typeof SORTS)[number]
+const SORTS = SEASONAL_SORTS
+type SortKey = SeasonalSortKey
 const SORT_LABEL: Record<SortKey, string> = { score: '按评分', title: '按标题', format: '按格式' }
 const MIN_YEAR = 1990
 
@@ -59,7 +60,7 @@ function prune(search: SeasonalSearch): SeasonalSearch {
 
 /** 季度浏览（`/seasonal`）：年份 + 季度、类型 / 格式 / 状态筛选、排序都在地址栏，可分享可回退 */
 export function SeasonalPage() {
-  const search = useSearch({ strict: false }) as SeasonalSearch
+  const search = useSearch({ from: '/seasonal' }) as SeasonalSearch
   const navigate = useNavigate()
   const fallback = currentSeason()
   const season = search.season ?? fallback.season
@@ -73,6 +74,7 @@ export function SeasonalPage() {
   const next = adjacentSeason(season, year, 1)
   const hasFilters = Boolean(search.genre || search.format || search.status)
   const clearFilters = () => go({ genre: undefined, format: undefined, status: undefined })
+  const tabs = useId()
 
   return <main className="catalog-page">
     <header className="catalog-head">
@@ -80,7 +82,7 @@ export function SeasonalPage() {
       <nav className="seasonal-nav" aria-label="季度导航">
         <RouteLink to="/seasonal" search={prune({ ...search, ...prev })} className="seasonal-step"><Icon name="left" size={16} /><span className="visually-hidden">上一季：</span>{prev.year} {SEASON_LABEL[prev.season]}</RouteLink>
         <div className="catalog-segments">
-          <Tabs value={season} onChange={value => go({ season: value as SeasonName })} label="季度">
+          <Tabs id={tabs} value={season} onChange={value => go({ season: value as SeasonName })} label="季度">
             {SEASONS.map(value => <Tab key={value} value={value}>{SEASON_LABEL[value]}季</Tab>)}
           </Tabs>
         </div>
@@ -117,12 +119,15 @@ export function SeasonalPage() {
       </div>
     </section>
 
-    {resource.loading && <PosterSkeletons label={`正在读取 ${year} 年${SEASON_LABEL[season]}季`} />}
-    {resource.error && <CatalogNotice tone="error" title="季度目录读取失败" actions={<button type="button" className="btn" onClick={resource.retry}>重试</button>}>{resource.error}</CatalogNotice>}
-    {items && (filtered.length > 0
-      ? <ul className="catalog-grid">{filtered.map(media => <DiscoverCard key={media.id} media={media} />)}</ul>
-      : items.length === 0
-        ? <CatalogNotice title="这一季暂时没有作品">目录里还没有这一季的条目，换一季看看。</CatalogNotice>
-        : <CatalogNotice title="没有符合筛选的作品" actions={<button type="button" className="btn" onClick={clearFilters}>清除筛选</button>}>放宽类型、格式或状态的条件再看看。</CatalogNotice>)}
+    {/* 四个季度共用这一块：它就是当前那一季的面板 */}
+    <TabPanel tabs={tabs} value={season} hidden={false} className="catalog-panel">
+      {resource.loading && <PosterSkeletons label={`正在读取 ${year} 年${SEASON_LABEL[season]}季`} />}
+      {resource.error && <CatalogNotice tone="error" title="季度目录读取失败" actions={<button type="button" className="btn" onClick={resource.retry}>重试</button>}>{resource.error}</CatalogNotice>}
+      {items && (filtered.length > 0
+        ? <ul className="catalog-grid">{filtered.map(media => <DiscoverCard key={media.id} media={media} />)}</ul>
+        : items.length === 0
+          ? <CatalogNotice title="这一季暂时没有作品">目录里还没有这一季的条目，换一季看看。</CatalogNotice>
+          : <CatalogNotice title="没有符合筛选的作品" actions={<button type="button" className="btn" onClick={clearFilters}>清除筛选</button>}>放宽类型、格式或状态的条件再看看。</CatalogNotice>)}
+    </TabPanel>
   </main>
 }

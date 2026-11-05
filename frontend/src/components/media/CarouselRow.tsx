@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
+import { useArrowFocus } from '../../hooks/useArrowFocus'
 import { Icon } from '../ui/Icon'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
@@ -33,6 +34,10 @@ export function CarouselRow({ title, children, filters, action }: CarouselRowPro
   const [snaps, setSnaps] = useState<number[]>([])
   const [selected, setSelected] = useState(0)
   const [edges, setEdges] = useState({ start: true, end: true })
+  const prevArrow = useRef<HTMLButtonElement>(null)
+  const nextArrow = useRef<HTMLButtonElement>(null)
+  // 翻到头时那个箭头变 disabled：焦点交给另一头（不掉到 <body>）
+  useArrowFocus(edges, prevArrow, nextArrow)
   const [viewport, api] = useEmblaCarousel({
     align: 'start',
     dragFree: true,
@@ -95,10 +100,10 @@ export function CarouselRow({ title, children, filters, action }: CarouselRowPro
                 ))}
               </div>
             )}
-            <button type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}>
+            <button ref={prevArrow} type="button" className="row-arrow" aria-label={`${title}向前翻页`} aria-controls={id} disabled={edges.start} onClick={() => api?.scrollPrev(reduced)}>
               <Icon name="left" size={18} />
             </button>
-            <button type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}>
+            <button ref={nextArrow} type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={id} disabled={edges.end} onClick={() => api?.scrollNext(reduced)}>
               <Icon name="right" size={18} />
             </button>
           </div>

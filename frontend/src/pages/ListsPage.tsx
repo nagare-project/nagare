@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { CatalogNotice, PosterSkeletons } from '../components/catalog/CatalogStates'
 import { RouteLink } from '../components/catalog/RouteLink'
 import { DiscoverCard } from '../components/media/DiscoverCard'
 import { useCollection } from '../components/media/CollectionContext'
-import { Tab, TabCount, Tabs } from '../components/ui'
+import { Tab, TabCount, TabPanel, Tabs } from '../components/ui'
 import { collectionMedia, COLLECTION_LABELS, entryStatus } from '../lib/media'
 import type { CollectionStatus } from '../lib/media'
 import '../components/catalog/catalog.css'
@@ -18,16 +18,9 @@ export function ListsPage() {
   const collection = useCollection()
   const items = collection.entries.filter(entry => entryStatus(entry) === status)
   const retry = () => void collection.reload()
+  const tabs = useId()
 
-  return <main className="catalog-page">
-    <header className="catalog-head">
-      <h1 className="catalog-title">我的追番</h1>
-      {collection.loggedIn && <div className="catalog-segments">
-        <Tabs value={status} onChange={next => setStatus(next as CollectionStatus)} label="观看状态">
-          {ORDER.map(value => <Tab key={value} value={value}>{COLLECTION_LABELS[value]}<TabCount n={collection.entries.filter(entry => entryStatus(entry) === value).length} /></Tab>)}
-        </Tabs>
-      </div>}
-    </header>
+  const content = <>
     {/* 已经显示着列表时刷新失败：留着列表，只在上面说一句 */}
     {collection.error && collection.entries.length > 0 && <p className="result result--err" role="alert">{collection.error} <button type="button" className="link" onClick={retry}>重试</button></p>}
     {collection.loading
@@ -39,6 +32,19 @@ export function ListsPage() {
           : items.length === 0
             ? <CatalogNotice title={`「${COLLECTION_LABELS[status]}」里还没有作品`} actions={<RouteLink to="/" className="btn">去发现</RouteLink>}>在作品卡或作品页上点「+」，就能把它加进追番。</CatalogNotice>
             : <ul className="catalog-grid">{items.map(entry => <DiscoverCard key={entry.anilistId} media={collectionMedia(entry)} />)}</ul>}
+  </>
+
+  return <main className="catalog-page">
+    <header className="catalog-head">
+      <h1 className="catalog-title">我的追番</h1>
+      {collection.loggedIn && <div className="catalog-segments">
+        <Tabs id={tabs} value={status} onChange={next => setStatus(next as CollectionStatus)} label="观看状态">
+          {ORDER.map(value => <Tab key={value} value={value}>{COLLECTION_LABELS[value]}<TabCount n={collection.entries.filter(entry => entryStatus(entry) === value).length} /></Tab>)}
+        </Tabs>
+      </div>}
+    </header>
+    {/* 四档共用下面这一块：它就是当前那一档的面板（以那一档的标签命名） */}
+    {collection.loggedIn ? <TabPanel tabs={tabs} value={status} hidden={false} className="catalog-panel">{content}</TabPanel> : content}
   </main>
 }
 

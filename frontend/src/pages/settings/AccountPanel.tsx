@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Icon } from '../../components/ui/Icon'
+import { inFlight } from '../../lib/busy'
 import { animegoLogin, animegoLogout } from '../../lib/endpoints'
 import type { AnimegoInfo } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
@@ -32,6 +33,7 @@ export function AccountPanel({ account, onReload }: AccountPanelProps) {
 
   async function handleLogin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
+    if (busy) return
     if (email.trim() === '' || password === '') {
       setError('请输入邮箱和密码')
       return
@@ -98,26 +100,28 @@ export function AccountPanel({ account, onReload }: AccountPanelProps) {
 
       {account.loggedIn ? (
         <div className="form-actions">
-          <button ref={logoutButton} type="button" className="btn btn--destructive" onClick={() => void handleLogout()} disabled={busy}>
+          <button ref={logoutButton} type="button" className="btn btn--destructive" {...inFlight(busy, () => void handleLogout())}>
             {busy ? '处理中 …' : '退出登录'}
           </button>
         </div>
       ) : (
+        // 请求中输入框只读、按钮 aria-disabled，都不写 disabled：在密码框里按回车提交时焦点就在输入框上，
+        // 失败回来时焦点还在原处，改一下密码再回车就行（lib/busy.ts）
         <form className="account-form" onSubmit={(event) => void handleLogin(event)}>
           <div className="field">
             <label htmlFor="account-email" className="field-label">
               邮箱
             </label>
-            <input ref={emailInput} id="account-email" className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" spellCheck={false} disabled={busy} />
+            <input ref={emailInput} id="account-email" className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" spellCheck={false} readOnly={busy} />
           </div>
           <div className="field">
             <label htmlFor="account-password" className="field-label">
               密码
             </label>
-            <input id="account-password" className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" disabled={busy} />
+            <input id="account-password" className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" readOnly={busy} />
           </div>
           <div className="form-actions">
-            <button type="submit" className="btn btn--primary" disabled={busy}>
+            <button type="submit" className="btn btn--primary" {...inFlight(busy)}>
               {busy ? '登录中 …' : '登录'}
             </button>
             <span className="info-panel-note account-server" style={mono}>

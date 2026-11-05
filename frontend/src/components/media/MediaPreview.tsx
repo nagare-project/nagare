@@ -23,12 +23,21 @@ export function MediaPreview({ media: initialMedia, children, className = 'btn',
   const detail = useMediaDetails(initialMedia.id, open)
   const media = detail.media ?? initialMedia
   useEffect(() => { if (openSignal > 0) trigger.current?.click() }, [openSignal])
+  // 开 / 关都从 open 这一处报给调用方：开着的时候整个组件被卸掉（后台刷新换掉了它所在的那张卡），
+  // 清理函数照样报一次「关了」—— 否则调用方（横幅的暂停、卡片的浮层）会一直以为对话框开着
+  const notify = useRef(onOpenChange)
+  useEffect(() => { notify.current = onOpenChange })
+  useEffect(() => {
+    if (!open) return
+    notify.current?.(true)
+    return () => notify.current?.(false)
+  }, [open])
   return <>
-    <button type="button" className={className} ref={trigger} onClick={() => { setOpen(true); dialog.current?.showModal(); onOpenChange?.(true) }} aria-label={label === undefined ? `预览 ${media.title}` : label ?? undefined}>{children}</button>
+    <button type="button" className={className} ref={trigger} onClick={() => { setOpen(true); dialog.current?.showModal() }} aria-label={label === undefined ? `预览 ${media.title}` : label ?? undefined}>{children}</button>
     <dialog ref={dialog} className="media-preview" aria-labelledby={titleId} onClose={event => {
       // 内层预告片或本地选集关闭时，外层预览仍保持打开。
       if (event.target !== dialog.current) return
-      setOpen(false); trigger.current?.focus(); onOpenChange?.(false)
+      setOpen(false); trigger.current?.focus()
     }}
       onClick={(event) => { if (event.target === dialog.current) dialog.current.close() }}>
       {open && <article className="media-preview-body">

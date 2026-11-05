@@ -48,11 +48,17 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
   const [focused, setFocused] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [renderPopup, setRenderPopup] = useState(false)
+  // 按 Esc 收起了浮层（WCAG 1.4.13：悬停 / 聚焦浮出的内容要能不挪鼠标、不移焦点就收起）。
+  // 直到鼠标移开、焦点离开这张卡才算结束：再停回来、再 Tab 进来是新的一次，照常弹出
+  const [dismissed, setDismissed] = useState(false)
+  if (dismissed && !hovered && !focused) setDismissed(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const pointerFocus = useRef(false)
+  const linkRef = useRef<HTMLAnchorElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
   const popupLayout = usePopupLayout()
   const reduced = useReducedMotionPreference()
-  const open = popupLayout && (intent || focused || previewOpen)
+  const open = popupLayout && !dismissed && (intent || focused || previewOpen)
   const trailerId = useMediaTrailer(media, showTrailer && open && !previewOpen && !reduced)
   const progress = media.episodes && media.watched ? Math.min(100, media.watched / media.episodes * 100) : 0
   const completed = media.episodes !== null && media.watched >= media.episodes
@@ -63,6 +69,19 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
     const timer = setTimeout(() => setIntent(true), CARD_HOVER_INTENT_MS)
     return () => clearTimeout(timer)
   }, [hovered])
+  // 浮层开着、且里面没有开着的对话框（对话框自己处理 Esc）时，Esc 收起浮层。
+  // 挂在 document 上：鼠标悬停弹出时焦点往往不在这张卡里
+  useEffect(() => {
+    if (!open || previewOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      // 焦点在浮层里：浮层收起后是 inert 的，先把焦点交还给卡片链接
+      if (popupRef.current?.contains(document.activeElement)) linkRef.current?.focus()
+      setDismissed(true)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, previewOpen])
   useEffect(() => {
     clearTimeout(closeTimer.current)
     if (open) setRenderPopup(true)
@@ -83,7 +102,7 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
     onKeyDownCapture={() => { pointerFocus.current = false; setFocused(true) }}
     onFocusCapture={() => { if (!pointerFocus.current) setFocused(true) }}
     onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
-    <MediaEntryLink id={media.id} className="poster-card-link">
+    <MediaEntryLink ref={linkRef} id={media.id} className="poster-card-link">
       {/* 封面上的角标只是视觉；同样的信息以文字放在链接里（下面的 visually-hidden），读屏不会漏 */}
       <span className="poster-card-cover" aria-hidden="true">
         <MediaArtwork src={media.cover} title={media.title} reveal />
@@ -98,7 +117,7 @@ export function DiscoverCard({ media: initialMedia, showTrailer = true, badge }:
       </span>
       {(badge || status || entry?.score) && <span className="visually-hidden">{[badge, status?.long, entry?.score ? `我的评分 ${entry.score}` : ''].filter(Boolean).join('，')}</span>}
     </MediaEntryLink>
-    <div className="poster-card-popup" data-state={open ? 'open' : 'closed'} aria-hidden={!open} inert={!open}>
+    <div ref={popupRef} className="poster-card-popup" data-state={open ? 'open' : 'closed'} aria-hidden={!open} inert={!open}>
       {renderPopup && <div className="poster-card-popup-content">
         <MediaEntryLink id={media.id} className="poster-card-popup-banner" tabIndex={-1} aria-hidden="true">
           <MediaArtwork src={media.banner ?? media.cover} title={media.title} />
