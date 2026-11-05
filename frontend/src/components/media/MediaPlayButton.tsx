@@ -292,7 +292,9 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
         </>}
         {inline && library && !selected && <section className="media-play-catalog" aria-labelledby={`${headingId}-catalog`}>
           <h3 id={`${headingId}-catalog`}>剧集资料</h3>
-          <EpisodeList catalog={media} pending={busy} onPlay={() => {}} />
+          {/* 媒体库里有作品、只是还没选出哪一个是这部：说不准哪一集库里没有，只列目录资料 */}
+          {library.clusters.length > 0 && <p className="media-play-hint">选择并关联本地作品后，可查看剧集的入库情况。</p>}
+          <EpisodeList catalog={media} pending={busy} unlinked={library.clusters.length > 0} onPlay={() => {}} />
         </section>}
       </div>
     </PlaybackSurface>

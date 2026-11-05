@@ -116,6 +116,17 @@ describe('目录作品页', () => {
     await unmount()
   })
 
+  it('停在「在线播放」时点 hero 主按钮：先切回本地媒体库（播放的进度与失败说明画在那里），再播', async () => {
+    const { container, unmount } = await mount(<EntryPage />)
+    await act(async () => tabs(container)[1]!.click())
+    expect(tabs(container)[1]?.getAttribute('aria-selected')).toBe('true')
+    await act(async () => getByRole(container, 'button', { name: '继续看第 3 集' }).click())
+    expect(shared.play).toHaveBeenCalledOnce()
+    expect(tabs(container)[0]?.getAttribute('aria-selected')).toBe('true')
+    expect(getByRole(container, 'tabpanel', { name: '本地媒体库' }).textContent).toBe('本地选集')
+    await unmount()
+  })
+
   it('读取中是 hero 的骨架（读屏念「正在加载作品详情」）', async () => {
     route.id = LOADING
     const { container, unmount } = await mount(<EntryPage />)

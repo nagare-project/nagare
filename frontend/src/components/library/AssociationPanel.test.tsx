@@ -149,9 +149,12 @@ describe('AssociationPanel', () => {
     expect(container.textContent).toContain('正在保存')
 
     await act(async () => finishReload())
-    // 焦点放到（更新后的）状态行上：读屏接着念这一句
-    expect(document.activeElement?.tagName).toBe('P')
-    expect(document.activeElement?.textContent).toContain('自动匹配到「某番」')
+    // 焦点放到（更新后的）状态行上：读屏接着念这一句。它在面板里、是程序化聚焦的那一行（tabindex=-1），不是哪个按钮
+    const focused = document.activeElement as HTMLElement
+    expect(getByRole(container, 'region', { name: '对应作品' }).contains(focused)).toBe(true)
+    expect(focused.tagName).toBe('P')
+    expect(focused.getAttribute('tabindex')).toBe('-1')
+    expect(focused.textContent).toContain('自动匹配到「某番」')
     await unmount()
   })
 

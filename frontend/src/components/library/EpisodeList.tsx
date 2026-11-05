@@ -20,6 +20,11 @@ type Props = {
   catalog?: MediaSummary
   /** 接下来该看的那一集 */
   next?: LibraryItem
+  /**
+   * 媒体库里有本地作品、只是还没选出（或认定）哪一个是这部作品：此时说不准哪一集「库里没有」，
+   * 目录里的集照常列出，但不标「库里没有」
+   */
+  unlinked?: boolean
   pending: boolean
   activeFileId?: string
   onPlay: (item: LibraryItem) => void
@@ -30,16 +35,19 @@ type Props = {
  * 已看 ✓ / 看到一半的进度条 / 版本数 / 库里没有的集置灰。
  * 整行是一个按钮（点了就播），同一集的其他版本、浏览器内播放、本集资料是行下面各自的控件。
  */
-export function EpisodeList({ cluster, versions, catalog, next, pending, activeFileId, onPlay }: Props) {
+export function EpisodeList({ cluster, versions, catalog, next, unlinked = false, pending, activeFileId, onPlay }: Props) {
   const { sections, extras, hasPlayable } = buildEpisodeList(cluster, catalog)
   const dialog = useRef<HTMLDialogElement>(null)
   const downOnBackdrop = useRef(false)
+  /** 打开「本集资料」的那个按钮：关掉后把焦点还给它（Safari 里点按钮不聚焦，浏览器自己的归还会落空） */
+  const opener = useRef<HTMLElement | null>(null)
   const [details, setDetails] = useState<EpisodeMetadata>()
-  const showDetails = (meta: EpisodeMetadata) => {
+  const showDetails = (meta: EpisodeMetadata, from: HTMLElement) => {
+    opener.current = from
     setDetails(meta)
     dialog.current?.showModal()
   }
-  const rowProps = { versions, next, pending, activeFileId, onPlay, onDetails: showDetails }
+  const rowProps = { versions, next, unlinked, pending, activeFileId, onPlay, onDetails: showDetails }
   const many = sections.length > 1
 
   return (
@@ -65,8 +73,12 @@ export function EpisodeList({ cluster, versions, catalog, next, pending, activeF
       )}
       <dialog
         ref={dialog}
-        className="media-description-dialog"
+        className="epl-details"
         aria-label="本集资料"
+        onClose={() => {
+          if (opener.current?.isConnected) opener.current.focus()
+          opener.current = null
+        }}
         onPointerDown={(event) => { downOnBackdrop.current = dialog.current !== null && isBackdropEvent(dialog.current, event) }}
         onClick={(event) => {
           if (downOnBackdrop.current && dialog.current && isBackdropEvent(dialog.current, event)) dialog.current.close()
@@ -92,16 +104,17 @@ type RowProps = {
   row: EpisodeRowData
   versions?: Map<string, LibraryVersion[]>
   next?: LibraryItem
+  unlinked: boolean
   pending: boolean
   activeFileId?: string
   onPlay: (item: LibraryItem) => void
-  onDetails: (meta: EpisodeMetadata) => void
+  onDetails: (meta: EpisodeMetadata, opener: HTMLElement) => void
   /** 附加内容：不叫「第 N 集」，标出类型 */
   extra?: boolean
 }
 
-function EpisodeRow({ row, versions, next, pending, activeFileId, onPlay, onDetails, extra = false }: RowProps) {
-  if (row.kind === 'missing') return <MissingRow meta={row.meta} onDetails={onDetails} />
+function EpisodeRow({ row, versions, next, unlinked, pending, activeFileId, onPlay, onDetails, extra = false }: RowProps) {
+  if (row.kind === 'missing') return <MissingRow meta={row.meta} unlinked={unlinked} onDetails={onDetails} />
   const { item, meta } = row
   const others = versions?.get(item.fileId) ?? []
   const playing = activeFileId !== undefined && (item.fileId === activeFileId || others.some((alt) => alt.item.fileId === activeFileId))
@@ -157,8 +170,8 @@ function EpisodeRow({ row, versions, next, pending, activeFileId, onPlay, onDeta
   )
 }
 
-/** 目录里已经播出、媒体库里没有文件的一集：置灰，不能点 */
-function MissingRow({ meta, onDetails }: { meta: EpisodeMetadata; onDetails: (meta: EpisodeMetadata) => void }) {
+/** 目录里已经播出、媒体库里没有文件的一集：置灰，不能点。还没关联本地作品时说不准有没有，不标「库里没有」 */
+function MissingRow({ meta, unlinked, onDetails }: { meta: EpisodeMetadata; unlinked: boolean; onDetails: (meta: EpisodeMetadata, opener: HTMLElement) => void }) {
   return (
     <li className="epl-item epl-item--missing">
       <div className="epl-item-main">
@@ -168,16 +181,16 @@ function MissingRow({ meta, onDetails }: { meta: EpisodeMetadata; onDetails: (me
           <span className="epl-title">{meta.title || `第 ${meta.episode} 集`}</span>
           {meta.airDate && <span className="epl-sub"><time dateTime={meta.airDate}>播出于 {meta.airDate.replaceAll('-', '/')}</time></span>}
         </span>
-        <span className="epl-state epl-state--plain">库里没有</span>
+        {!unlinked && <span className="epl-state epl-state--plain">库里没有</span>}
       </div>
       {meta.description && <div className="epl-item-extra"><DetailsButton meta={meta} onDetails={onDetails} /></div>}
     </li>
   )
 }
 
-function DetailsButton({ meta, onDetails }: { meta: EpisodeMetadata; onDetails: (meta: EpisodeMetadata) => void }) {
+function DetailsButton({ meta, onDetails }: { meta: EpisodeMetadata; onDetails: (meta: EpisodeMetadata, opener: HTMLElement) => void }) {
   return (
-    <button type="button" className="link epl-extra-link" onClick={() => onDetails(meta)}>
+    <button type="button" className="link epl-extra-link" onClick={(event) => onDetails(meta, event.currentTarget)}>
       <Icon name="info" size={14} />本集资料<span className="visually-hidden">：第 {meta.episode} 集</span>
     </button>
   )

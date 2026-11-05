@@ -70,6 +70,12 @@ button.epl-item-main:disabled { cursor: wait; opacity: 0.6; }
 .epl-extras > summary > span { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); font-weight: 400; }
 .epl-extras > summary:hover { background: var(--row-hover); }
 
+/* 「本集资料」：Level 3 模态框（--bg-elevated + --shadow-modal + --overlay 遮罩），浮层上的字照颜色规则 8 */
+.epl-details { position: fixed; inset: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); margin: auto; padding: var(--sp-xl) var(--sp-lg) var(--sp-lg); border: 1px solid var(--popover-border); border-radius: var(--radius-xl); background: var(--bg-elevated); color: var(--text); box-shadow: var(--shadow-modal); overflow-y: auto; text-align: left; }
+.epl-details::backdrop { background: var(--overlay); }
+.epl-details > .icon-button { position: absolute; top: 12px; right: 12px; }
+.epl-details h2 { margin: 0 var(--sp-xl) var(--sp-md) 0; font-size: var(--type-h3-size); font-weight: var(--type-h3-weight); letter-spacing: var(--type-h3-tracking); line-height: 1.35; overflow-wrap: anywhere; }
+.epl-details p { font-size: var(--type-body-sm-size); line-height: 1.7; white-space: pre-line; overflow-wrap: anywhere; }
 .epl-details-date { margin-top: var(--sp-sm); color: var(--text-secondary); font-size: var(--type-caption-size); }
 
 @media (max-width: 599px) {

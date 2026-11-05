@@ -11,6 +11,8 @@ import { Icon } from '../ui/Icon'
 export function WorkHeroSkeleton({ label }: { label: string }) {
   return (
     <div className="work-hero work-hero--skeleton" role="status" aria-label={label}>
+      {/* 状态区念的是里面的字：只有 aria-label 的话，读屏不会播报 */}
+      <span className="visually-hidden">{label}…</span>
       <div className="work-hero-inner">
         <div className="work-hero-poster work-skeleton-block" />
         <div className="work-hero-text">

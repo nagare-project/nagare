@@ -26,12 +26,19 @@ const playable = (container: HTMLElement, options: { hidden?: boolean } = {}) =>
 const rows = (container: HTMLElement) => getAllByRole(container, 'listitem').map((li) => li.textContent ?? '')
 
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal')
+const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close')
 beforeEach(() => {
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: function (this: HTMLDialogElement) { this.setAttribute('open', '') } })
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value: function (this: HTMLDialogElement) {
+    if (!this.hasAttribute('open')) return
+    this.removeAttribute('open'); this.dispatchEvent(new Event('close'))
+  } })
 })
 afterEach(() => {
   if (show) Object.defineProperty(HTMLDialogElement.prototype, 'showModal', show)
   else Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal')
+  if (close) Object.defineProperty(HTMLDialogElement.prototype, 'close', close)
+  else Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
 })
 
 describe('作品页集数列表', () => {
@@ -135,6 +142,36 @@ describe('作品页集数列表', () => {
     const dialog = getByRole(container, 'dialog', { name: '本集资料' })
     expect(dialog.textContent).toContain('第二集的简介')
     expect(getByRole(dialog, 'button', { name: '关闭本集资料' })).toBeDefined()
+    await unmount()
+  })
+
+  it('「本集资料」：只有按下与松开都在框外才算点遮罩；关掉后焦点回到打开它的按钮', async () => {
+    const local = cluster([group([item('ep2', 2)])])
+    const { container, unmount } = await mount(<EpisodeList cluster={local} catalog={media} pending={false} onPlay={vi.fn()} />)
+    const opener = getByRole(container, 'button', { name: '本集资料：第 2 集' })
+    await act(async () => opener.click())
+    const dialog = getByRole(container, 'dialog', { name: '本集资料' })
+    dialog.getBoundingClientRect = () => ({ left: 100, right: 500, top: 100, bottom: 500, width: 400, height: 400, x: 100, y: 100, toJSON: () => ({}) })
+    const at = (type: string, x: number, target: Element = dialog) =>
+      act(async () => { target.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: x })) })
+    // 在框里按下、拖到遮罩上松手：不关
+    await at('pointerdown', 200, getByRole(dialog, 'button', { name: '关闭本集资料' }))
+    await at('click', 10)
+    expect(dialog.hasAttribute('open')).toBe(true)
+    // 按下与松开都在遮罩上：关，焦点回到「本集资料」
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await at('pointerdown', 10)
+    await at('click', 10)
+    expect(dialog.hasAttribute('open')).toBe(false)
+    expect(document.activeElement).toBe(opener)
+    await unmount()
+  })
+
+  it('媒体库里有作品、只是还没关联：目录里的集照常列出，但不说「库里没有」', async () => {
+    const { container, unmount } = await mount(<EpisodeList catalog={media} unlinked pending={false} onPlay={vi.fn()} />)
+    expect(rows(container)).toHaveLength(2)
+    expect(rows(container)[0]).toContain('第一集')
+    expect(container.textContent).not.toContain('库里没有')
     await unmount()
   })
 })

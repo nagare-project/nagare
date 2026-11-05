@@ -146,7 +146,8 @@ export function TorrentReleaseResults(props: ReleaseResultsProps) {
       {mark === 'adding' ? '加入中…' : mark === 'added' ? '已加入下载' : '下载'}
     </button>
   }
-  const playButton = (item: SearchItem, group: string, label: string) => <button type="button" className="btn btn--sm btn--primary" disabled={busy || engineDown}
+  // 行内的「播放」是次按钮：一块界面只留一个实心按钮（上面的搜索），每行一个实心会互抢视线（DESIGN.md）
+  const playButton = (item: SearchItem, group: string, label: string) => <button type="button" className="btn btn--sm media-resource-play" disabled={busy || engineDown}
     title={busy ? '已有磁力任务，请先停止底部状态条中的任务' : undefined}
     onClick={event => play(item, event.currentTarget, group)}>{label}</button>
   const rowLabel = (item: SearchItem) => [

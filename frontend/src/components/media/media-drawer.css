@@ -1,6 +1,7 @@
 /* 作品页的磁力抽屉（DESIGN.md「作品页 · 磁力」）：右侧滑出，<600px 变成底部面板。
    原生模态 <dialog>：焦点困在里面、Esc 关闭、关掉后焦点回到「磁力」按钮。
-   它挂在 hero 的动作行里，hero 的文字阴影会继承进来，这里显式清掉。 */
+   它挂在 hero 的动作行里，hero 的文字阴影会继承进来，这里显式清掉。
+   上下两段：标题栏固定，只有内容区滚动 —— 标题栏不压在内容上，键盘焦点落到的控件不会被它挡住（WCAG 2.4.11）。 */
 
 .media-drawer {
   position: fixed;
@@ -17,22 +18,22 @@
   color: var(--text);
   text-align: left;
   text-shadow: none;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   box-shadow: var(--shadow-modal);
 }
 /* 抽屉开着时页面不跟着滚。不像导航抽屉那样保留滚动条那一条（scrollbar-gutter）：
    固定定位排不进那一条，右侧抽屉会离窗口右边差一个滚动条宽；背后的版面在遮罩下微调一下没关系 */
 html:has(.media-drawer[open]) { overflow: hidden; }
-.media-drawer[open] { animation: drawer-in var(--dur-medium) var(--ease-enter); }
+/* 只在打开时写 display：作者样式压得过浏览器的 dialog:not([open]) { display: none }，没开时不能露出来 */
+.media-drawer[open] { display: flex; flex-direction: column; animation: drawer-in var(--dur-medium) var(--ease-enter); }
 .media-drawer::backdrop { background: var(--overlay); }
 @keyframes drawer-in { from { transform: translateX(24px); opacity: 0; } }
 
-.media-drawer-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-md); padding: var(--sp-lg) var(--sp-lg) var(--sp-md); border-bottom: 1px solid var(--hairline); background: var(--bg-elevated); }
+.media-drawer-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-md); padding: var(--sp-lg) var(--sp-lg) var(--sp-md); border-bottom: 1px solid var(--hairline); background: var(--bg-elevated); }
 .media-drawer-head > div { min-width: 0; }
 .media-drawer-head h2 { flex: none; font-size: var(--type-h3-size); font-weight: var(--type-h3-weight); letter-spacing: var(--type-h3-tracking); line-height: 1.35; overflow-wrap: anywhere; }
 .media-drawer-head .icon-button { flex: none; width: var(--touch-min); height: var(--touch-min); }
-.media-drawer .media-play-body { padding: var(--sp-md) var(--sp-lg) var(--sp-xl); }
+.media-drawer .media-play-body { flex: 1 1 auto; min-height: 0; padding: var(--sp-md) var(--sp-lg) var(--sp-xl); overflow-y: auto; overscroll-behavior: contain; }
 
 /* 浮层上的彩色字用亮一档（DESIGN.md 颜色规则 8） */
 .media-drawer .link { color: var(--accent-on-elevated); }

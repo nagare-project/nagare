@@ -149,6 +149,23 @@ describe('Discover 播放入口', () => {
     await unmount()
   })
 
+  it('媒体库里有作品、只是还没关联这一部：剧集资料照常列出，不说「库里没有」，并说明关联之后才看得到入库情况', async () => {
+    const catalog = { ...media, status: 'FINISHED', episodeTitles: [{ episode: 1, title: '第一话', airDate: '2020-01-01' }] }
+    const { container, unmount } = await mount(<MediaPlayButton media={catalog} inline />)
+    const section = getByRole(container, 'region', { name: '剧集资料' })
+    expect(section.textContent).toContain('第一话')
+    expect(section.textContent).toContain('选择并关联本地作品后，可查看剧集的入库情况')
+    expect(section.textContent).not.toContain('库里没有')
+    await unmount()
+
+    // 媒体库里一部作品都没有：那就是真的「库里没有」
+    vi.mocked(fetchLibrary).mockResolvedValue(withClusters())
+    const empty = await mount(<MediaPlayButton media={catalog} inline />)
+    expect(getByRole(empty.container, 'region', { name: '剧集资料' }).textContent).toContain('库里没有')
+    expect(empty.container.textContent).toContain('把这部番的文件放进媒体库就能播')
+    await empty.unmount()
+  })
+
   it('首次由用户选作品和真实文件：点播放时先认定，认定落地之后才播放', async () => {
     let saved!: () => void
     vi.mocked(setAssociation).mockReturnValueOnce(new Promise(done => { saved = () => done({ mode: 'manual', anilistId: 900, setAt: 2 }) }))
