@@ -18,12 +18,6 @@ func waitKicked(t *testing.T, m *Manager) {
 	require.True(t, waitTimeout(&m.kicked, 10*time.Second), "后台补发 10 秒内没有跑完")
 }
 
-func (c *retryClient) maxInFlightSnapshot() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.maxInFlight
-}
-
 // 登录之后的补发在后台跑：KickPendingSyncs 立刻返回，随后把待补的集写进账号。
 func TestKickRetriesInTheBackground(t *testing.T) {
 	client := &retryClient{loggedIn: true}

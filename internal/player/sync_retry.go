@@ -64,11 +64,18 @@ func (m *Manager) KickPendingSyncs() {
 	if m.retryLife.Err() != nil || !m.retryQueued.CompareAndSwap(false, true) {
 		return
 	}
-	m.kicked.Add(1)
-	go func() {
-		defer m.kicked.Done()
-		m.retryRound(m.retryLife, func() { m.retryQueued.Store(false) })
-	}()
+	m.kicked.Go(func() {
+		started := false
+		m.retryRound(m.retryLife, func() {
+			started = true
+			m.retryQueued.Store(false)
+		})
+		// 没轮上就结束了（现在只有退出时会这样）：也放开标记，不让它挡住之后的 kick。
+		// 轮上过的不在这里清：那时可能已经有更新的一轮排着队，清掉它的标记就会多排一轮。
+		if !started {
+			m.retryQueued.Store(false)
+		}
+	})
 }
 
 // retryRound 是 RetryPendingSyncs 的本体。onTurn 不为 nil 时，在这一轮拿到 retrySem、真正开跑时调一次
@@ -109,7 +116,7 @@ func (m *Manager) StopRetrying() { m.endRetries() }
 func (m *Manager) retryPass(ctx context.Context) SyncRetryResult {
 	var res SyncRetryResult
 	if m.opts.Client == nil || !m.opts.Client.LoggedIn() {
-		res.Reason = "还没有登录账号：到设置里登录之后再点「重试」，或等下次启动时自动补记"
+		res.Reason = "还没有登录账号：到设置里登录之后会自动补记"
 		return res
 	}
 	attempted := 0

@@ -98,3 +98,16 @@ func TestFailedLoginDoesNotKickASyncRound(t *testing.T) {
 		})
 	}
 }
+
+// 退出登录不补发（账号都没了）；没接播放器的装配里登录照常成功，不因为补发 panic。
+func TestLogoutAndPlayerlessLoginDoNotKick(t *testing.T) {
+	env := newEnv(t)
+	rec := env.do(t, http.MethodPost, "/api/animego/logout", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Empty(t, *env.calls, "退出登录不该补发")
+
+	bare := newEnvDeps(t, func(d *Deps) { d.Player = nil })
+	rec = bare.do(t, http.MethodPost, "/api/animego/login", `{"email":"a@b.c","password":"pw"}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "rc", bare.store.AnimegoSession().RefreshCookie)
+}

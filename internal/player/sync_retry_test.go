@@ -67,6 +67,12 @@ func (c *retryClient) markedSnapshot() []string {
 	return append([]string(nil), c.marked...)
 }
 
+func (c *retryClient) maxInFlightSnapshot() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.maxInFlight
+}
+
 func retryHarness(t *testing.T, client AnimegoClient) (*Manager, *store.Store) {
 	t.Helper()
 	m, st, _ := newTestManager(t, client)
