@@ -1,9 +1,6 @@
 /* ============================================================
-   磁力边下边播 feature 样式（M3）：底部状态条 · 选集弹窗。
-   原子件（.panel / .btn / .result / .badge）见 styles/global.css；
-   设置页的磁力卡片复用 pages/settings.css 的 .settings-card / .field / .form-actions，
-   其专属样式在 components/settings/cards.css。
-   颜色一律走 global.css :root 的语义色变量，本文件不自定义颜色。
+   磁力边下边播（根布局里只有一份）：底部状态条 · 选集弹窗 · 停止失败的提示。
+   颜色、尺寸、动效一律取 tokens.css 的 token 名。
    ============================================================ */
 
 /* ---------- 底部状态条 ---------- */
@@ -16,52 +13,53 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.6rem 1.1rem;
-  padding: 0.7rem clamp(1rem, 4vw, 2rem) 0.8rem;
-  border-top: 1px solid var(--border);
-  background: var(--bg-blur);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  gap: 10px var(--sp-lg);
+  padding: 12px max(var(--gutter), calc((100vw - var(--content-max)) / 2)) 14px;
+  border-top: 1px solid var(--hairline);
+  background: var(--toast);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: var(--shadow-toast);
 }
 
 .tsb-bar--error {
-  border-top-color: var(--err-line);
+  border-top-color: var(--error);
 }
 
-/* 顶缘 2px 起播缓冲进度线（与正在播放条同一语言，播放开始后就撤掉） */
+/* 顶缘 2px 起播缓冲进度线（播放开始后就撤掉）：进度是 --accent */
 .tsb-track {
   position: absolute;
   top: -1px;
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--progress-track);
+  background: var(--player-track);
   pointer-events: none;
 }
 
 .tsb-track-fill {
   height: 100%;
-  background: var(--progress-fill);
-  transition: width var(--duration-fast) linear;
+  background: var(--accent);
+  transition: width var(--dur-short) linear;
 }
 
-/* 缓冲中的呼吸点；播放中转为常亮，失败转红 */
+/* 缓冲中的呼吸点；播放中转为慢呼吸，失败转红 */
 .tsb-dot {
   flex: none;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: var(--brand-hot);
-  animation: tsb-pulse 1.4s ease-in-out infinite;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  animation: tsb-pulse 1.4s var(--ease-standard) infinite;
 }
 
 .tsb-bar--streaming .tsb-dot {
+  background: var(--success);
   animation-duration: 2.6s;
 }
 
 .tsb-dot--error {
-  background: var(--err);
-  box-shadow: none;
+  background: var(--error);
   animation: none;
 }
 
@@ -77,60 +75,74 @@
 
 .tsb-main {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
   flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .tsb-phase {
-  font-size: 0.86rem;
+  color: var(--text);
+  font-size: var(--type-label-size);
+  font-weight: 500;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
-.tsb-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.82rem;
-  color: var(--fg-muted);
+.tsb-phase.result--err {
+  color: var(--error-on-elevated);
 }
 
-/* 分享者 / 速度读数 */
+.tsb-title {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 分享者 / 速度读数（等宽数字，每秒跳动不左右抖） */
 .tsb-readout {
   display: flex;
   flex: none;
   align-items: baseline;
   gap: 0.45em;
-  font-size: 0.82rem;
-  color: var(--brand);
+  color: var(--text);
+  font-size: var(--type-caption-size);
 }
 
 /* peers=0：整块转警示色，这是「换一条资源」的判断依据，不能弱化 */
 .tsb-readout--nopeers {
-  color: var(--warn);
+  color: var(--warning);
 }
 
 .tsb-seeders {
-  color: var(--fg-muted);
+  color: var(--text-secondary);
+}
+
+.tsb-readout--nopeers .tsb-seeders {
+  color: inherit;
 }
 
 .tsb-sep {
-  opacity: 0.5;
+  color: var(--text-secondary);
 }
 
 .tsb-actions {
   display: flex;
   flex: none;
-  gap: 0.5rem;
+  gap: var(--sp-sm);
 }
 
-/* peers 长期为 0 的显式警告，占满一整行 */
+/* peers 长期为 0 / 写盘失败的显式警告，占满一整行 */
 .tsb-alert {
   flex-basis: 100%;
-  font-size: 0.84rem;
-  line-height: 1.5;
+  font-size: var(--type-caption-size);
+  line-height: 1.55;
+}
+
+.tsb-alert.result--err {
+  color: var(--error-on-elevated);
 }
 
 @media (max-width: 720px) {
@@ -140,7 +152,12 @@
   }
 }
 
-/* ---------- 选集弹窗 ---------- */
+/* 共享状态条存在时，各路由统一给页尾让位 */
+.app-main:has(~ .tsb-bar) {
+  padding-bottom: 6rem;
+}
+
+/* ---------- 选集弹窗（Level 3：浮层底 + 模态阴影 + 遮罩） ---------- */
 
 .ep-overlay {
   position: fixed;
@@ -149,114 +166,187 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(1rem, 5vh, 3rem) 1rem;
-  background: var(--scrim);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  padding: clamp(16px, 5vh, 48px) 16px;
+  background: var(--overlay);
 }
 
 .ep-dialog {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 12px;
   width: min(46rem, 100%);
   max-height: 100%;
-  padding: 1.25rem 1.25rem 1.35rem;
+  padding: var(--sp-lg);
   overflow: hidden;
+  border: 1px solid var(--popover-border);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-modal);
+  animation: ep-dialog-in var(--dur-medium) var(--ease-enter);
+}
+
+@keyframes ep-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .ep-heading {
-  font-size: 1.05rem;
-  font-weight: 500;
+  color: var(--text);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  letter-spacing: var(--type-h3-tracking);
 }
 
 .ep-desc {
-  font-size: 0.82rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: 1.6;
 }
 
 .ep-source {
   overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.82rem;
-  color: var(--fg-subtle);
 }
 
+/* 列表自己滚，标题与动作固定；行与行之间发丝线 */
 .ep-list {
-  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin: 0;
+  margin: 0 calc(-1 * var(--sp-sm));
   padding: 0;
   overflow-y: auto;
+  list-style: none;
 }
 
-/* 一行 = 一个可点的文件：集号 · 文件名 · 体积 */
+.ep-list li + li {
+  border-top: 1px solid var(--hairline);
+}
+
+/* 一行 = 一个可点的文件：集号 · 文件名 · 体积。position:relative 收住行里给读屏的隐藏文字 */
 .ep-item {
+  position: relative;
   display: grid;
   grid-template-columns: 3rem minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 0.9rem;
+  gap: var(--sp-md);
   width: 100%;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--border-dim);
+  min-height: var(--touch-min);
+  padding: 10px var(--sp-sm);
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--sunken);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 0.8rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-label-size);
   text-align: left;
   cursor: pointer;
-  transition:
-    border-color var(--duration-fast) var(--ease),
-    background-color var(--duration-fast) var(--ease);
+  transition: background-color var(--dur-short) var(--ease-standard);
 }
 
 .ep-item:hover {
-  border-color: var(--border);
-  background: var(--brand-wash);
+  background: var(--bg-fill-hover);
 }
 
+/* 行与列表同宽、列表又会裁切：焦点环收进行内，否则左右两边与首尾行的上下被切掉 */
 .ep-item:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: -2px;
+}
+
+/* 浮层上的红字用 on-elevated 那一档，--error 在浮层底上不到 4.5:1 */
+.ep-dialog .result--err {
+  color: var(--error-on-elevated);
 }
 
 .ep-ep {
-  font-size: 0.84rem;
-  color: var(--brand);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .ep-name {
+  line-height: 1.5;
   overflow-wrap: anywhere;
-  line-height: 1.45;
 }
 
 .ep-size {
-  font-size: 0.82rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
   white-space: nowrap;
 }
 
 .ep-actions {
-  flex-wrap: wrap;
-  margin-top: 0.2rem;
+  margin-top: 4px;
 }
 
 .ep-hint {
-  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
 }
 
 @media (max-width: 560px) {
   .ep-item {
     grid-template-columns: 2.4rem minmax(0, 1fr);
-    gap: 0.2rem 0.7rem;
+    gap: 2px var(--sp-sm);
   }
 
   .ep-size {
     grid-column: 2;
+  }
+}
+
+/* ---------- 停止失败：底部正中的全局提示（DESIGN.md「全局提示」） ---------- */
+
+.torrent-global-error {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  width: max-content;
+  max-width: min(38rem, calc(100vw - 32px));
+  padding: 10px 10px 10px 18px;
+  border: 1px solid var(--toast-border);
+  border-radius: var(--radius-full);
+  background: var(--toast);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: var(--shadow-toast);
+  color: var(--text);
+  font-size: var(--type-label-size);
+  transform: translateX(-50%);
+  animation: torrent-toast-in var(--dur-toast-in) var(--ease-emphasized);
+}
+
+.torrent-global-error > svg {
+  flex: none;
+  color: var(--error-on-elevated);
+}
+
+@keyframes torrent-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 600px) {
+  .torrent-global-error {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--radius-lg);
   }
 }
 
@@ -269,28 +359,9 @@
   .ep-item {
     transition: none;
   }
-}
 
-@media (max-width: 1023px) { .tsb-bar { inset-inline: 0; } }
-
-.torrent-global-error {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  max-width: min(38rem, calc(100vw - 2rem));
-  padding: .75rem 1rem;
-  border: 1px solid var(--err-line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-blur);
-  color: var(--err);
-  box-shadow: 0 12px 36px #0008;
-}
-
-/* 共享状态条存在时，各路由统一给页尾让位。 */
-.app-main:has(~ .tsb-bar) {
-  padding-bottom: 6rem;
+  .ep-dialog,
+  .torrent-global-error {
+    animation: none;
+  }
 }

@@ -1,0 +1,195 @@
+/* ============================================================
+   首次运行的准备清单（媒体库一个文件夹都没有时）：mpv / 本地文件夹 / 磁力搜索 / 账号。
+   一屏总览、每项一张信息面板（DESIGN.md「卡片 · 信息面板」），状态点 + 字说明就绪与否。
+   颜色、尺寸一律取 tokens.css 的 token 名。
+   ============================================================ */
+
+.onboard {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--sp-lg) 0 var(--sp-xxl);
+  text-align: center;
+}
+
+/* 「流」字图标：白字黑底（DESIGN.md「识别」） */
+.onboard-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.onboard-title {
+  margin-top: var(--sp-md);
+  font-size: clamp(24px, 4vw, var(--type-h1-size));
+  font-weight: var(--type-h1-weight);
+  letter-spacing: var(--type-h1-tracking);
+  line-height: 1.25;
+}
+
+.onboard-lede {
+  max-width: 36em;
+  margin: var(--sp-sm) auto 0;
+  color: var(--text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: 1.7;
+}
+
+.onboard-lede strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.onboard-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-md);
+  margin: var(--sp-xl) 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+/* 浏览面板展开时卡片会变很高：这一行不再等高拉伸，免得旁边的卡片成了一个空框 */
+.onboard-list:has(.folder-browser) {
+  align-items: start;
+}
+
+.onboard-step {
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+  padding: var(--sp-lg);
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+
+/* 状态点：已就绪绿 · 待办灰 · 必需但缺失橙（旁边另有给读屏的字） */
+.onboard-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 8px;
+  border-radius: var(--radius-full);
+}
+
+.onboard-dot--done {
+  background: var(--success);
+}
+
+.onboard-dot--todo {
+  background: var(--text-secondary);
+}
+
+.onboard-dot--required {
+  background: var(--warning);
+}
+
+.onboard-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-sm);
+  min-width: 0;
+}
+
+.onboard-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+.onboard-step-name {
+  flex: none;
+  color: var(--text);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  letter-spacing: var(--type-h3-tracking);
+}
+
+/* 「必需 / 可选」：状态徽标的样子（胶囊、小字），必需且缺失时是警示色 */
+.onboard-step .badge {
+  height: auto;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-fill);
+  color: var(--text-secondary);
+  font-size: var(--type-micro-size);
+}
+
+.onboard-step .badge--warn {
+  background: var(--warning-dim);
+  color: var(--warning);
+}
+
+.onboard-step-desc {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: 1.65;
+}
+
+.onboard-body > .btn,
+.onboard-body > a.btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.onboard-form {
+  margin-top: 4px;
+}
+
+.onboard-form .add-folder-row {
+  flex-wrap: wrap;
+}
+
+.onboard-form .add-folder-row .input {
+  flex-basis: 100%;
+}
+
+/* 卡片里的 mpv 安装方法：沿用设置页的命令块 */
+.onboard-mpv {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* 「先不添加本地文件夹」：给只用磁力的人一个出口，弱化成文字链接 */
+.onboard-skip {
+  margin-top: var(--sp-lg);
+  color: var(--text-secondary);
+  font-size: var(--type-label-size);
+}
+
+.onboard-skip-btn {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .onboard-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .onboard-step {
+    padding: var(--sp-md);
+  }
+}

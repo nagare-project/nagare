@@ -1,9 +1,5 @@
-import { useState } from 'react'
-import { Link, useLocation } from '@tanstack/react-router'
-import { Icon } from '../components/ui/Icon'
-import type { IconName } from '../components/ui/Icon'
-import type { FormEvent } from 'react'
-import { AddFolderForm } from '../components/library/AddFolderForm'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from '@tanstack/react-router'
 import { SourcesCard } from '../components/search/SourcesCard'
 import { AboutCard } from '../components/settings/AboutCard'
 import { CoverCacheCard } from '../components/settings/CoverCacheCard'
@@ -18,22 +14,34 @@ import { useLibrary } from '../hooks/useLibrary'
 import { useSelfUpdateContext } from '../hooks/useSelfUpdate'
 import { useSourcePlugin } from '../hooks/useSourcePlugin'
 import { useSettings } from '../hooks/useSettings'
+import type { SettingsState } from '../hooks/useSettings'
 import { useSources } from '../hooks/useSources'
 import { useUpdateContext } from '../hooks/useUpdate'
-import { animegoLogin, animegoLogout } from '../lib/endpoints'
-import type { AnimegoInfo, Platform } from '../lib/endpoints'
-import type { LibraryState } from '../hooks/useLibrary'
-import { errorText, formatDate } from '../lib/format'
-import { label, mono } from '../theme'
-import './settings.css'
+import { formatVersion } from '../lib/format'
+import { mono } from '../theme'
+import { AccountPanel } from './settings/AccountPanel'
+import { BackgroundPanel } from './settings/BackgroundPanel'
+import { FoldersPanel } from './settings/FoldersPanel'
+import { SettingsNav } from './settings/SettingsNav'
+import { SettingsSection, sectionHeadingId } from './settings/SettingsSection'
+import { TorrentShortcuts } from './settings/TorrentShortcuts'
+import { SETTINGS_SECTIONS, sectionFromHash } from './settings/sections'
+import type { SettingsSectionId, SettingsSectionItem } from './settings/sections'
+import '../components/catalog/catalog.css'
+import '../styles/panels.css'
+import './settings/settings.css'
 
-const SETTINGS_GROUPS: ReadonlyArray<ReadonlyArray<{ id: string; label: string; icon: IconName }>> = [
-  [{ id: 'app', label: '应用', icon: 'settings' }, { id: 'account', label: '账号', icon: 'user' }, { id: 'folders', label: '本地媒体库', icon: 'folder' }],
-  [{ id: 'player', label: '媒体播放器', icon: 'monitor' }, { id: 'torrent', label: '磁力播放', icon: 'download' }, { id: 'sources', label: '来源', icon: 'extension' }],
-  [{ id: 'update', label: '更新', icon: 'refresh' }, { id: 'about', label: '关于', icon: 'info' }],
-]
+/** 按 id 取分区（表是静态的，取不到说明 id 写错了） */
+function sectionItem(id: SettingsSectionId): SettingsSectionItem {
+  const item = SETTINGS_SECTIONS.find((candidate) => candidate.id === id)
+  if (item === undefined) throw new Error(`未知的设置分区：${id}`)
+  return item
+}
 
-/** 分区写入 URL，安装引导与文件夹入口可直达；切换时保留未提交的表单。 */
+/**
+ * `/settings` 设置页：分区写在地址的 #hash 里（安装引导、文件夹入口、搜索页可直达）。
+ * 所有分区一直挂着、只用 hidden 切换，切走再回来时没提交的表单还在。
+ */
 export function SettingsPage() {
   const settings = useSettings()
   const library = useLibrary()
@@ -42,321 +50,121 @@ export function SettingsPage() {
   const update = useUpdateContext()
   const selfUpdate = useSelfUpdateContext()
   const hash = useLocation({ select: (location) => location.hash })
-  const section = SETTINGS_GROUPS.flat().find((item) => item.id === hash) ?? SETTINGS_GROUPS[0]![0]!
+  const current = sectionFromHash(hash)
   const [hasQuit, setHasQuit] = useState(false)
+  // 用户从导航点进来的分区：切过去之后把焦点放到它的标题上，读屏念出换到了哪一区，下一下 Tab 就进到内容里
+  const pendingFocus = useRef<SettingsSectionId | null>(null)
+
+  useEffect(() => {
+    // 分区一换就作废：点了没切过去（被拦下）的那一下，不能留到以后别的路径切回来时再抢焦点
+    const wanted = pendingFocus.current
+    pendingFocus.current = null
+    if (wanted !== current.id) return
+    document.getElementById(sectionHeadingId(current.id))?.focus()
+  }, [current.id])
+
+  function handleNavigate(id: SettingsSectionId): void {
+    if (id === current.id) {
+      document.getElementById(sectionHeadingId(id))?.focus()
+      return
+    }
+    pendingFocus.current = id
+  }
 
   if (hasQuit) return <QuitNotice />
   if ([settings.state.phase, library.state.phase, sources.state.phase, sourcePlugin.state.phase].includes('unauthorized')) return <UnauthorizedNotice />
 
+  const data = settings.state.phase === 'ready' ? settings.state.data : null
+  const section = (id: SettingsSectionId) => ({ section: sectionItem(id), active: current.id === id })
+
   return (
-    <main className="settings-shell">
-      <aside className="settings-nav">
-        <h1 className="page-title">设置</h1>
-        <nav aria-label="设置分类">
-          {SETTINGS_GROUPS.map((group, i) => (
-            <div className="settings-nav-group" key={i}>
-              {group.map(({ id, label, icon }) => (
-                <Link key={id} to="/settings" hash={id} className="settings-nav-item"
-                  aria-current={section.id === id ? 'page' : undefined} activeOptions={{ includeHash: true }}>
-                  <Icon name={icon} size={18} />{label}
-                </Link>
+    <main className="catalog-page">
+      <header className="catalog-head">
+        <h1 className="catalog-title">设置</h1>
+        {data !== null && (
+          <p className="settings-version" style={mono}>
+            nagare {formatVersion(data.version)}
+          </p>
+        )}
+      </header>
+      <div className="settings-layout">
+        <SettingsNav current={current.id} onNavigate={handleNavigate} />
+        <div className="settings-content">
+          <SettingsStatus state={settings.state} onRetry={() => void settings.reload()} />
+
+          <SettingsSection {...section('account')}>
+            {/* 设置载荷缺了账号一项（接口数据不可全信）时不让整页崩掉：账号分区说明原因，其余分区照常 */}
+            {data !== null &&
+              (data.animego ? (
+                <AccountPanel account={data.animego} onReload={settings.reload} />
+              ) : (
+                <div className="info-panel">
+                  <p className="result result--warn" role="status">
+                    没有读到账号状态，账号设置暂时不可用。重启 nagare 后再试。
+                  </p>
+                </div>
               ))}
-            </div>
-          ))}
-          {/* 「扩展」是独立页面（/extensions），顶栏不再放它，入口收在设置里（DESIGN.md「桌面顶栏」） */}
-          <div className="settings-nav-group">
-            <Link to="/extensions" className="settings-nav-item"><Icon name="extension" size={18} />扩展</Link>
-          </div>
-        </nav>
-        <p className="settings-version">nagare{settings.state.phase === 'ready' ? ` v${settings.state.data.version}` : ''}</p>
-      </aside>
-      <div className="settings-content">
-        <header className="settings-section-head">
-          <Icon name={section.icon} size={26} /><h2>{section.label}</h2>
-        </header>
-        {settings.state.phase === 'loading' && <p className="result result--dim" role="status">正在读取设置 …</p>}
-        {settings.state.phase === 'error' && <section className="panel settings-card">
-          <p className="result result--err" role="alert">{settings.state.message}</p>
-          <button type="button" className="btn" onClick={() => void settings.reload()}>重试</button>
-        </section>}
-        <div className="settings-section" hidden={section.id !== 'app'}>
-          <section className="panel settings-card">
-            <h3 className="panel-heading">开始使用 nagare</h3>
-            <p className="page-notice-copy">管理本地动漫，或通过磁力边下边播。播放、弹幕与观看进度都在这里。</p>
-            <div className="settings-shortcuts">
-              <Link to="/settings" hash="folders" className="settings-shortcut"><Icon name="folder" /><span>添加媒体文件夹<small>扫描本机与外接硬盘</small></span><Icon name="right" size={18} /></Link>
-              <Link to="/settings" hash="player" className="settings-shortcut"><Icon name="monitor" /><span>配置播放器<small>检测与安装 mpv</small></span><Icon name="right" size={18} /></Link>
-              <Link to="/settings" hash="account" className="settings-shortcut"><Icon name="user" /><span>连接账号<small>弹幕与观看进度同步</small></span><Icon name="right" size={18} /></Link>
-            </div>
-          </section>
-          <QuitCard platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined} onQuit={() => setHasQuit(true)} />
-        </div>
-        <div className="settings-section" hidden={section.id !== 'account'}>
-          {/* 设置载荷缺了账号一项（接口数据不可全信）时不让整页崩掉：账号分区说明原因，其余分区照常 */}
-          {settings.state.phase === 'ready' && (settings.state.data.animego ? <AccountCard animego={settings.state.data.animego} onReload={settings.reload} /> : <section className="panel settings-card"><p className="result result--warn" role="status">没有读到账号状态，账号设置暂时不可用。重启 nagare 后再试。</p></section>)}
-        </div>
-        <div className="settings-section" hidden={section.id !== 'player'}>
-          {settings.state.phase === 'ready' && <MpvCard mpv={settings.state.data.mpv} desktop={settings.state.data.desktop} onReload={settings.reload} />}
-          {settings.state.phase === 'ready' && <PlaybackCard player={settings.state.data.player} />}
-        </div>
-        <div className="settings-section" hidden={section.id !== 'torrent'}>
-          {/* 磁力任务与磁力搜索不在顶栏里（顶栏只在有任务时出现指示），从这里随时能到 */}
-          <div className="settings-shortcuts">
-            <Link to="/torrents" className="settings-shortcut"><Icon name="download" /><span>磁力任务<small>边下边播的会话与整部下载的进度</small></span><Icon name="right" size={18} /></Link>
-            <Link to="/search" className="settings-shortcut"><Icon name="search" /><span>搜索磁力资源<small>按关键词在已启用的来源里搜</small></span><Icon name="right" size={18} /></Link>
-          </div>
-          {settings.state.phase === 'ready' && settings.state.data.torrent && <TorrentCard torrent={settings.state.data.torrent} onReload={settings.reload} />}
-        </div>
-        <div className="settings-section" hidden={section.id !== 'update'}><UpdateCard update={update} selfUpdate={selfUpdate} /></div>
-        <div className="settings-section" hidden={section.id !== 'sources'}><SourcePluginCard plugin={sourcePlugin} /><SourcesCard sources={sources} /></div>
-        <div className="settings-section" hidden={section.id !== 'folders'}>
-          <FoldersCard state={library.state} onAdd={library.addFolder} onRemove={library.removeFolder} onRetry={() => void library.reload()}
-            platform={settings.state.phase === 'ready' ? settings.state.data.platform : undefined} />
-        </div>
-        <div className="settings-section" hidden={section.id !== 'about'}>
-          {settings.state.phase === 'ready' && <AboutCard settings={settings.state.data} />}
-          {settings.state.phase === 'ready' && settings.state.data.coverCache != null && (
-            <CoverCacheCard cache={settings.state.data.coverCache} onReload={settings.reload} />
-          )}
+          </SettingsSection>
+
+          <SettingsSection {...section('folders')}>
+            <FoldersPanel library={library} platform={data?.platform} />
+          </SettingsSection>
+
+          <SettingsSection {...section('player')}>
+            {data !== null && <MpvCard mpv={data.mpv} desktop={data.desktop} onReload={settings.reload} />}
+          </SettingsSection>
+
+          <SettingsSection {...section('playback')}>{data !== null && <PlaybackCard player={data.player} />}</SettingsSection>
+
+          <SettingsSection {...section('torrent')}>
+            <TorrentShortcuts />
+            {data?.torrent && <TorrentCard torrent={data.torrent} onReload={settings.reload} />}
+          </SettingsSection>
+
+          <SettingsSection {...section('sources')}>
+            <SourcePluginCard plugin={sourcePlugin} />
+            <SourcesCard sources={sources} />
+          </SettingsSection>
+
+          <SettingsSection {...section('update')}>
+            <UpdateCard update={update} selfUpdate={selfUpdate} />
+          </SettingsSection>
+
+          <SettingsSection {...section('background')}>
+            {data?.background && <BackgroundPanel mode={data.background.mode} platform={data.platform} />}
+            <QuitCard platform={data?.platform} onQuit={() => setHasQuit(true)} />
+          </SettingsSection>
+
+          <SettingsSection {...section('about')}>
+            {data !== null && <AboutCard settings={data} />}
+            {data !== null && data.coverCache != null && <CoverCacheCard cache={data.coverCache} onReload={settings.reload} />}
+          </SettingsSection>
         </div>
       </div>
     </main>
   )
 }
 
-/** animego 账号卡：未登录 → 邮箱/密码表单；已登录 → 账号信息 + 退出 */
-function AccountCard({
-  animego,
-  onReload,
-}: {
-  animego: AnimegoInfo
-  onReload: () => Promise<void>
-}) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleLogin(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault()
-    if (email.trim() === '' || password === '') {
-      setError('请输入邮箱和密码')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      await animegoLogin(email.trim(), password)
-      window.dispatchEvent(new Event('nagare:account-changed'))
-      setPassword('')
-      await onReload()
-    } catch (err) {
-      console.error('animego 登录失败', err)
-      setError(errorText(err, '登录失败'))
-    } finally {
-      setBusy(false)
-    }
+/** 设置还在读 / 读失败：说在分区上面；不依赖设置的分区（文件夹、来源、更新）照常可用 */
+function SettingsStatus({ state, onRetry }: { state: SettingsState; onRetry: () => void }) {
+  if (state.phase === 'loading') {
+    return (
+      <p className="result result--dim" role="status">
+        正在读取设置 …
+      </p>
+    )
   }
-
-  async function handleLogout(): Promise<void> {
-    setBusy(true)
-    setError(null)
-    try {
-      await animegoLogout()
-      window.dispatchEvent(new Event('nagare:account-changed'))
-      await onReload()
-    } catch (err) {
-      console.error('animego 退出登录失败', err)
-      setError(errorText(err, '退出登录失败'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
+  if (state.phase !== 'error') return null
   return (
-    <section className="panel settings-card" aria-labelledby="account-heading">
-      <h2 id="account-heading" className="panel-heading">
-        animego 账号
-      </h2>
-      <p className="page-notice-copy">
-        登录后获取弹幕，并把看完的集数同步到账号。
+    <div className="info-panel">
+      <p className="result result--err" role="alert">
+        {state.message}
       </p>
-      {/* 已知限制，必须在登录【之前】就说：服务端的刷新凭证是「一个账号一份」而不是
-          「一个登录一份」，所以 nagare 与网站不能同时保持登录，十几分钟内必然互相挤掉。
-          这不是错误、没有任何请求会失败，因此它不会出现在任何错误提示里 ——
-          用户只会发现自己在网站上莫名被登出，然后无从解释。不写出来就等于藏着。 */}
-      <p className="alert-warn account-note">
-        同一个账号在 nagare 与网站上<strong>不能同时保持登录</strong>：服务端的刷新凭证按账号存一份，后登录的一方会在十几分钟内把先登录的挤下线。弹幕与进度回写不受影响，受影响的只是「另一边要重新登录一次」。
-      </p>
-
-      {animego.loggedIn ? (
-        <>
-          <dl className="kv-list">
-            <dt>账号</dt>
-            <dd style={mono}>{animego.email ?? '（未知）'}</dd>
-            <dt>服务器</dt>
-            <dd style={mono}>{animego.baseUrl}</dd>
-          </dl>
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn btn--sm btn--danger"
-              onClick={() => void handleLogout()}
-              disabled={busy}
-            >
-              {busy ? '处理中 …' : '退出登录'}
-            </button>
-          </div>
-        </>
-      ) : (
-        <form className="account-form" onSubmit={(event) => void handleLogin(event)}>
-          <div className="field">
-            <label htmlFor="animego-email" style={label}>
-              邮箱
-            </label>
-            <input
-              id="animego-email"
-              className="input"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-              spellCheck={false}
-              disabled={busy}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="animego-password" style={label}>
-              密码
-            </label>
-            <input
-              id="animego-password"
-              className="input"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              disabled={busy}
-            />
-          </div>
-          <div className="form-actions">
-            <button type="submit" className="btn btn--sm" disabled={busy}>
-              {busy ? '登录中 …' : '登录'}
-            </button>
-            <span className="result result--dim" style={mono}>
-              {animego.baseUrl}
-            </span>
-          </div>
-        </form>
-      )}
-
-      <p
-        className={error === null ? 'result' : 'result result--err'}
-        style={mono}
-        role="status"
-        aria-live="polite"
-      >
-        {error}
-      </p>
-    </section>
-  )
-}
-
-/** 文件夹管理卡：列表（含扫描错误展示）+ 删除 + 添加 */
-function FoldersCard({
-  state,
-  onAdd,
-  onRemove,
-  onRetry,
-  platform,
-}: {
-  state: LibraryState
-  onAdd: ReturnType<typeof useLibrary>['addFolder']
-  onRemove: (id: string) => Promise<void>
-  onRetry: () => void
-  platform?: Platform
-}) {
-  const [removingId, setRemovingId] = useState<string | null>(null)
-  const [removeError, setRemoveError] = useState<string | null>(null)
-
-  async function handleRemove(id: string): Promise<void> {
-    setRemovingId(id)
-    setRemoveError(null)
-    try {
-      await onRemove(id)
-    } catch (err) {
-      console.error('删除文件夹失败', err)
-      setRemoveError(errorText(err, '删除文件夹失败'))
-    } finally {
-      setRemovingId(null)
-    }
-  }
-
-  return (
-    <section className="panel settings-card" aria-labelledby="folders-heading">
-      <h2 id="folders-heading" className="panel-heading">
-        媒体文件夹
-      </h2>
-
-      {state.phase === 'loading' && (
-        <p className="result result--dim" style={mono} role="status">
-          正在读取文件夹列表 …
-        </p>
-      )}
-      {state.phase === 'error' && (
-        <>
-          <p className="result result--err" style={mono}>
-            {state.message}
-          </p>
-          <p>
-            <button type="button" className="btn btn--sm" onClick={onRetry}>
-              重试
-            </button>
-          </p>
-        </>
-      )}
-      {state.phase === 'ready' && (
-        <>
-          {state.data.folders.length === 0 ? (
-            <p className="result result--dim" style={mono}>
-              还没有添加任何文件夹
-            </p>
-          ) : (
-            <ul className="folder-list">
-              {state.data.folders.map((folder) => (
-                <li key={folder.id} className="folder-row">
-                  <span className="folder-path" style={mono} title={folder.path}>
-                    <bdi>{folder.path}</bdi>
-                  </span>
-                  <span className="folder-date" style={mono}>
-                    {formatDate(folder.addedAt)}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--danger"
-                    onClick={() => void handleRemove(folder.id)}
-                    disabled={removingId !== null}
-                    aria-label={`删除文件夹 ${folder.path}`}
-                  >
-                    {removingId === folder.id ? '删除中 …' : '删除'}
-                  </button>
-                  {folder.error !== undefined && folder.error !== '' && (
-                    <span className="folder-error" role="alert">
-                      扫描出错：{folder.error}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {removeError !== null && (
-            <p className="result result--err" style={mono} role="alert">
-              {removeError}
-            </p>
-          )}
-          <AddFolderForm onAdd={onAdd} platform={platform} />
-        </>
-      )}
-    </section>
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onRetry}>
+          重试
+        </button>
+      </div>
+    </div>
   )
 }

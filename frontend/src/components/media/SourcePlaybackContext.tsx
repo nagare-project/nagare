@@ -18,6 +18,7 @@ import type {
 import { errorText } from '../../lib/format'
 import { candidateChineseScore } from './chineseSubtitles'
 import { ZERO_PEER_ALERT_SECONDS } from '../torrent/TorrentStatusBar'
+import { Icon } from '../ui/Icon'
 import { catalogIdentity } from './releaseEpisodes'
 import type { MediaSummary } from './types'
 
@@ -426,6 +427,7 @@ export function SourcePlaybackProvider({ children }: { children: ReactNode }) {
   return <SourcePlaybackContext.Provider value={{ state, busy, resolve, play, cancelSearch, dismissError }}>
     {children}
     {state.phase === 'error' && <div className="torrent-global-error" role="alert">
+      <Icon name="alert" size={18} />
       <span>{state.message}</span>
       <a className="btn btn--sm" href="/settings#sources">打开来源设置</a>
       <button type="button" className="btn btn--sm" onClick={dismissError}>关闭</button>

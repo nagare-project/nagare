@@ -1,13 +1,9 @@
-.source-plugin-form { display: grid; gap: 14px; }
-.source-plugin-bundled { margin: 0 0 12px; }
+/* 设置「来源」：Nagare Source 插件面板。面板、表单、开关行见 styles/panels.css */
+.source-plugin-form { display: grid; gap: var(--sp-md); }
 .source-plugin-bundled .link { margin-left: 6px; }
-.source-plugin-toggle { display: flex; align-items: start; gap: 12px; }
-.source-plugin-toggle > span:last-child { display: grid; gap: 4px; }
-.source-plugin-toggle strong { font-size: 14px; }
-.source-plugin-toggle small, .source-plugin-note { color: var(--fg-muted); font-size: 12px; line-height: 1.55; }
-.source-plugin-sources { display: grid; gap: 10px; padding-top: 4px; }
-.source-plugin-sources h3 { font-size: 13px; color: var(--fg-muted); }
-.source-plugin-sources ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.source-plugin-sources li { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border: 1px solid var(--border-dim); border-radius: var(--radius-sm); background: var(--sunken); }
-.source-plugin-sources li > span:first-child { display: grid; gap: 3px; flex: 1; min-width: 0; }
-.source-plugin-sources li small { overflow-wrap: anywhere; color: var(--fg-muted); }
+.source-plugin-sources { display: grid; gap: var(--sp-sm); }
+.source-plugin-sources ul { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.source-plugin-sources li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--sp-md); padding: 12px 0; border-top: 1px solid var(--hairline); }
+.source-plugin-sources li > span:first-child { display: grid; flex: 1 1 12rem; gap: 2px; min-width: 0; }
+.source-plugin-sources strong { color: var(--text); font-size: var(--type-body-sm-size); font-weight: 500; }
+.source-plugin-sources small { color: var(--text-secondary); font-size: var(--type-caption-size); overflow-wrap: anywhere; }

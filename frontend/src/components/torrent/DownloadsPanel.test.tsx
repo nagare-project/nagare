@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 import { fetchDownloads, removeDownload } from '../../lib/endpoints'
 import type { DownloadTask } from '../../lib/endpoints'
@@ -24,8 +25,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
 })
-
-const button = (container: HTMLElement, text: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === text)
 
 describe('磁力任务页的下载列表', () => {
   it('列出在下的、下完的、失败的：进度、速度、落点、原因都看得见', async () => {
@@ -62,7 +61,9 @@ describe('磁力任务页的下载列表', () => {
     vi.mocked(fetchDownloads).mockResolvedValueOnce({ dir: '/dl', downloads: [task({ size: 10, bytesDone: 5 })] })
       .mockResolvedValue({ dir: '/dl', downloads: [] })
     const { container, unmount } = await mount(<DownloadsPanel />)
-    await act(async () => button(container, '取消并删除已下载部分')!.click())
+    // 名字以看得见的字开头，后面补上是哪一条（读屏逐个按钮念时听得出来）
+    const cancel = getByRole(container, 'button', { name: /^取消并删除已下载部分：/ })
+    await act(async () => cancel.click())
     expect(removeDownload).toHaveBeenCalledExactlyOnceWith('a'.repeat(40))
     expect(container.querySelector('.download-item')).toBeNull()
     await unmount()

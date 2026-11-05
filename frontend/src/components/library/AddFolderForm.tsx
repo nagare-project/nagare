@@ -4,7 +4,7 @@ import type { AddFolderData, Platform } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { mono } from '../../theme'
 import { FolderBrowser } from './FolderBrowser'
-import './library.css'
+import './add-folder.css'
 
 /** 各平台惯例的示例路径，提示「要绝对路径」；平台未知时按 macOS（M1 验收平台） */
 const PATH_PLACEHOLDER: Record<Platform, string> = {
@@ -17,6 +17,8 @@ export interface AddFolderFormProps {
   /** 提交回调（useLibrary.addFolder）；失败抛信封中文错误，由本组件就地展示 */
   onAdd: (path: string) => Promise<AddFolderData>
   autoFocus?: boolean
+  /** 「添加」是不是这一屏唯一的实心按钮；同一屏已经有更要紧的主动作（新手引导里没装 mpv）时传 false */
+  primarySubmit?: boolean
   /** 后端所在平台（决定示例路径的写法） */
   platform?: Platform
 }
@@ -32,7 +34,7 @@ type SubmitState =
  * 添加库文件夹：绝对路径文本输入 + 提交，或者点「浏览…」逐层选目录（不用手敲路径）。
  * 成功展示本次扫描统计并清空输入；失败透出后端信封里的中文错误。
  */
-export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin' }: AddFolderFormProps) {
+export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin', primarySubmit = true }: AddFolderFormProps) {
   const [path, setPath] = useState('')
   const [state, setState] = useState<SubmitState>({ phase: 'idle' })
   const [browsing, setBrowsing] = useState(false)
@@ -119,7 +121,7 @@ export function AddFolderForm({ onAdd, autoFocus = false, platform = 'darwin' }:
         </button>
         <button
           type="submit"
-          className="btn btn--sm btn--primary"
+          className={primarySubmit ? 'btn btn--sm btn--primary' : 'btn btn--sm'}
           disabled={state.phase === 'busy'}
         >
           {state.phase === 'busy' ? '扫描中 …' : '添加'}

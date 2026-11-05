@@ -33,7 +33,7 @@ export interface TorrentStatusBarProps {
 }
 
 /**
- * 底部固定的磁力状态条：分阶段文案 + 缓冲进度 + 分享者数 + 速度 + 取消。
+ * 底部固定的磁力状态条（一个以用途命名的区域，不是页脚）：分阶段文案 + 缓冲进度 + 分享者数 + 速度 + 取消。
  *
  * 三种形态：
  * - starting / selecting：完整缓冲态，进度条 + 阶段文案 + 可取消；
@@ -52,7 +52,7 @@ export function TorrentStatusBar({
 
   if (state.phase === 'error') {
     return (
-      <footer className="tsb-bar tsb-bar--error" aria-label="磁力播放失败">
+      <section className="tsb-bar tsb-bar--error" aria-label="磁力播放失败">
         <span className="tsb-dot tsb-dot--error" aria-hidden="true" />
         <div className="tsb-main">
           <p className="tsb-phase result--err" role="alert">
@@ -66,15 +66,11 @@ export function TorrentStatusBar({
           <button type="button" className="btn btn--sm" onClick={onRetry}>
             重试
           </button>
-          <button
-            type="button"
-            className="btn btn--sm btn--danger"
-            onClick={onCancel}
-          >
+          <button type="button" className="btn btn--sm" onClick={onCancel}>
             关闭
           </button>
         </div>
-      </footer>
+      </section>
     )
   }
 
@@ -83,10 +79,7 @@ export function TorrentStatusBar({
   const progressPct = ratioPercent(status?.progress ?? 0)
 
   return (
-    <footer
-      className={streaming ? 'tsb-bar tsb-bar--streaming' : 'tsb-bar'}
-      aria-label={streaming ? '正在边下边播' : '磁力缓冲进度'}
-    >
+    <section className={streaming ? 'tsb-bar tsb-bar--streaming' : 'tsb-bar'} aria-label={streaming ? '正在边下边播' : '磁力缓冲进度'}>
       {!streaming && (
         <div className="tsb-track" aria-hidden="true">
           <div className="tsb-track-fill" style={{ width: `${bufferedPct}%` }} />
@@ -123,11 +116,7 @@ export function TorrentStatusBar({
       <PeerReadout status={status} streaming={streaming} progressPct={progressPct} />
 
       <div className="tsb-actions">
-        <button
-          type="button"
-          className="btn btn--sm btn--danger"
-          onClick={onCancel}
-        >
+        <button type="button" className="btn btn--sm" onClick={onCancel}>
           {streaming ? '停止' : '取消'}
         </button>
       </div>
@@ -150,7 +139,7 @@ export function TorrentStatusBar({
             : '。这条资源可能已经没人做种了，建议取消后换一条。'}
           </p>
         )}
-    </footer>
+    </section>
   )
 }
 

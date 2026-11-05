@@ -5,6 +5,7 @@
   "dataDir": "/Users/you/Library/Application Support/nagare",
   "logPath": "/Users/you/Library/Application Support/nagare/logs/nagare.log",
   "mpv": { "found": true, "version": "0.41.0", "path": "/opt/homebrew/bin/mpv", "source": "path" },
+  "animego": { "loggedIn": false, "baseUrl": "https://account.example.invalid" },
   "player": { "anime4k": "off" },
   "background": { "mode": "dock" },
   "desktop": { "window": false },

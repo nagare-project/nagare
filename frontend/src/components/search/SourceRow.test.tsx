@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SourceInfo } from '../../lib/endpoints'
+import { getByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 import { SourceRow } from './SourceRow'
 
@@ -80,7 +81,7 @@ describe('SourceRow 开关与自检', () => {
     const onSelfCheck = vi.fn()
     const m = await mountRow(makeSource({ hasSelfTest: false }), { onSelfCheck })
     mounted.push(m.unmount)
-    const btn = m.container.querySelector<HTMLButtonElement>('[aria-label="自检 源甲"]')
+    const btn = getByRole(m.container, 'button', { name: '自检 源甲' }) as HTMLButtonElement
     expect(btn?.disabled).toBe(true)
   })
 

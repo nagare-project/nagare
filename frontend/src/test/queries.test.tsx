@@ -54,4 +54,48 @@ describe('按角色与文字找元素（测试工具）', () => {
     expect(getByText(container, /^二$/).tagName).toBe('OUTPUT')
     await unmount()
   })
+
+  it('页头只在不属于某个区块时才是 banner；表格、开关、搜索表单按角色找得到', async () => {
+    const { container, unmount } = await mount(
+      <div>
+        <header>顶栏</header>
+        <main>
+          <header>页面自己的页头</header>
+          <form role="search" aria-label="磁力搜索" />
+          <button type="button" role="switch" aria-checked="true" aria-label="持续做种" />
+          <table>
+            <thead><tr><th>标题</th></tr></thead>
+            <tbody><tr><td>第 1 集</td></tr></tbody>
+          </table>
+        </main>
+      </div>,
+    )
+    expect(getByRole(container, 'banner').textContent).toBe('顶栏')
+    expect(getByRole(container, 'search', { name: '磁力搜索' })).toBeDefined()
+    expect(getByRole(container, 'switch', { name: '持续做种' }).getAttribute('aria-checked')).toBe('true')
+    expect(getAllByRole(getByRole(container, 'table'), 'row')).toHaveLength(2)
+    expect(getByRole(container, 'columnheader').textContent).toBe('标题')
+    expect(getByRole(container, 'cell', { name: '第 1 集' })).toBeDefined()
+    await unmount()
+  })
+
+  it('列表、导航、分组这类容器不拿内容文字当名字：没标名字就是没有名字', async () => {
+    const { container, unmount } = await mount(
+      <div>
+        <nav><a href="/a">账号</a></nav>
+        <ul><li>账号</li></ul>
+        <p id="g">播放</p>
+        <ul aria-labelledby="g"><li>播放器</li></ul>
+        <fieldset><legend>画质档位</legend><input type="checkbox" aria-label="开" /></fieldset>
+        <p role="note">登录会把网站上的会话踢下线</p>
+      </div>,
+    )
+    expect(accessibleName(getByRole(container, 'navigation'))).toBe('')
+    expect(getAllByRole(container, 'list').map(accessibleName)).toEqual(['', '播放'])
+    expect(queryByRole(container, 'list', { name: /账号/ })).toBeNull()
+    expect(getByRole(container, 'group', { name: '画质档位' })).toBeDefined()
+    // 提示类角色照旧按内容找：测试里认的就是它念出来的那句话
+    expect(getByRole(container, 'note', { name: /踢下线/ })).toBeDefined()
+    await unmount()
+  })
 })

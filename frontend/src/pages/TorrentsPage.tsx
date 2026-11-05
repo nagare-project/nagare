@@ -7,8 +7,11 @@ import { fetchTorrentStatus, stopTorrent } from '../lib/endpoints'
 import { errorText, formatBytes, formatRate } from '../lib/format'
 import { mono } from '../theme'
 import type { TorrentStatus } from '../lib/endpoints'
-import '../components/library/library.css'
-import '../components/media/media.css'
+import '../components/catalog/catalog.css'
+import '../styles/panels.css'
+// 进度条 .torrent-bar 与下载列表共用，样式写在下载列表那边：这里显式引入，不靠 DownloadsPanel 碰巧也在页面上
+import '../components/torrent/downloads.css'
+import './torrents.css'
 
 /**
  * `/torrents` 磁力任务页。
@@ -74,56 +77,54 @@ export function TorrentsPage() {
   if (unauthorized) return <UnauthorizedNotice />
 
   return (
-    <main className="lib-shell">
-      <header className="page-head">
-        <h1 className="page-title">磁力任务</h1>
+    <main className="catalog-page">
+      <header className="catalog-head">
+        <div>
+          <h1 className="catalog-title">磁力任务</h1>
+          <p className="catalog-subline">边下边播的当前会话，以及点了「下载」的整部任务。</p>
+        </div>
       </header>
 
-      {error !== null && (
-        <p className="result result--err" style={mono} role="status" aria-live="polite">
-          {error}
-        </p>
-      )}
-
-      {status?.active === true ? (
-        <ActiveTorrent status={status} busy={busy} onStop={() => void handleStop()} />
-      ) : (
-        <IdleNotice />
-      )}
+      <section className="torrents-section" aria-labelledby="streaming-heading">
+        <h2 id="streaming-heading" className="torrents-section-title">
+          边下边播
+        </h2>
+        {error !== null && (
+          <p className="result result--err" role="status" aria-live="polite">
+            {error}
+          </p>
+        )}
+        {status?.active === true ? <ActiveTorrent status={status} busy={busy} onStop={() => void handleStop()} /> : <IdleNotice />}
+      </section>
 
       <DownloadsPanel />
     </main>
   )
 }
 
-function ActiveTorrent({
-  status,
-  busy,
-  onStop,
-}: {
-  status: TorrentStatus
-  busy: boolean
-  onStop: () => void
-}) {
+function ActiveTorrent({ status, busy, onStop }: { status: TorrentStatus; busy: boolean; onStop: () => void }) {
   const pct = Math.round(status.progress * 100)
+  const name = status.name ?? '（未取到种子名）'
   return (
-    <section className="panel torrent-task">
-      <header className="torrent-task-head">
-        <h2 className="panel-heading">{status.name ?? '（未取到种子名）'}</h2>
-        <button type="button" className="btn btn--sm btn--danger" onClick={onStop} disabled={busy}>
+    <section className="info-panel" aria-labelledby="torrent-task-heading">
+      <div className="info-panel-head">
+        <h3 id="torrent-task-heading" className="info-panel-title torrent-task-name">
+          {name}
+        </h3>
+        <button type="button" className="btn btn--danger" onClick={onStop} disabled={busy}>
           {busy ? '停止中 …' : '停止'}
         </button>
-      </header>
+      </div>
 
       {status.fileName !== undefined && <p className="torrent-file">{status.fileName}</p>}
 
       {status.error !== undefined && (
-        <p className="result result--err" style={mono}>
+        <p className="result result--err" role="alert">
           {status.error}
         </p>
       )}
 
-      <div className="torrent-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <div className="torrent-bar" role="progressbar" aria-label="下载进度" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
         <span className="torrent-bar-fill" style={{ width: `${pct}%` }} />
       </div>
 
@@ -150,20 +151,19 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /**
  * 边下边播的空态。刻意解释「为什么最多只有一条」，并指向下面的「下载」——
- * 用户从 seanime 过来会以为边下边播的任务也该留下来。
+ * 用户从别的播放器过来会以为边下边播的任务也该留下来。
  */
 function IdleNotice() {
   return (
-    <div className="page-notice">
-      <h2 className="page-notice-title">当前没有边下边播的会话</h2>
-      <p className="page-notice-copy">
-        边下边播的分片只在播放期间存在，停止播放即删除，所以这里最多只会有一条 —— 你正在看的那个。想把整部留下来，就在磁力栏点「下载」，进度在下面。
+    <div className="info-panel">
+      <p className="info-panel-text">
+        <strong>当前没有边下边播的会话。</strong>边下边播的分片只在播放期间存在，停止播放即删除，所以这里最多只会有一条 —— 你正在看的那个。想把整部留下来，就在磁力栏点「下载」，进度在下面。
       </p>
-      <p className="page-notice-actions">
-        <Link to="/search" className="btn btn--sm">
+      <div className="form-actions">
+        <Link to="/search" className="btn">
           去搜索磁力
         </Link>
-      </p>
+      </div>
     </div>
   )
 }

@@ -34,6 +34,8 @@ const paths = {
   check: 'm5 12 4 4L19 6',
   flag: 'M4 22V3m0 1c5-5 11 5 16 0v10c-5 5-11-5-16 0',
   heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z',
+  sparkle: 'M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4ZM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z',
+  alert: 'M12 3 2 20h20ZM12 10v4m0 3h.01',
 } as const
 
 export type IconName = keyof typeof paths

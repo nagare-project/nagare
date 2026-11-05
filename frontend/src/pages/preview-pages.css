@@ -1,0 +1,8 @@
+/* 界面预览页（自动下载、Debrid）：后端没有对接，只保证版式不散。面板见 styles/panels.css */
+.preview-page { gap: var(--sp-lg); }
+.rule-list { display: flex; flex-direction: column; gap: var(--sp-sm); margin: 0; padding: 0; list-style: none; }
+.rule { flex-direction: row; align-items: center; gap: var(--sp-md); }
+.rule-main { flex: 1; min-width: 0; }
+.rule-title { color: var(--text); font-size: var(--type-body-sm-size); font-weight: 600; }
+.rule-feed { overflow: hidden; color: var(--text-secondary); font-size: var(--type-caption-size); text-overflow: ellipsis; white-space: nowrap; }
+.rule-meta { margin-top: 2px; color: var(--text-secondary); font-size: var(--type-caption-size); }

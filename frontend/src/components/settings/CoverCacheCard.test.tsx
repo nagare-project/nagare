@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getByRole, queryByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 
 const endpoints = vi.hoisted(() => ({ clearCoverCache: vi.fn() }))
@@ -10,12 +11,12 @@ import { CoverCacheCard, clearedText } from './CoverCacheCard'
 
 const CACHE = { bytes: 120 * 1024 * 1024, count: 640, maxBytes: 300 * 1024 * 1024 }
 
-function button(container: HTMLElement, text: string): HTMLButtonElement | undefined {
-  return Array.from(container.querySelectorAll('button')).find((b) => b.textContent === text)
+function button(container: HTMLElement, name: string): HTMLButtonElement | undefined {
+  return (queryByRole(container, 'button', { name }) as HTMLButtonElement | null) ?? undefined
 }
 
 function status(container: HTMLElement): HTMLElement {
-  return container.querySelector('[role="status"]') as HTMLElement
+  return getByRole(container, 'status')
 }
 
 const mounted: Array<() => Promise<void>> = []
@@ -34,7 +35,7 @@ async function render(onReload = vi.fn().mockResolvedValue(undefined)) {
 describe('CoverCacheCard', () => {
   it('显示占用、张数与上限；首次渲染不抢焦点', async () => {
     const { container } = await render()
-    expect(container.querySelector('h2')?.textContent).toBe('封面缓存')
+    expect(getByRole(container, 'heading', { level: 3 }).textContent).toBe('封面缓存')
     expect(container.textContent).toContain('120 MB · 640 张')
     expect(container.textContent).toContain('300 MB')
     expect(document.activeElement).toBe(document.body)
@@ -46,14 +47,17 @@ describe('CoverCacheCard', () => {
     await act(async () => {
       button(container, '清空封面缓存')?.click()
     })
-    expect(container.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('确认清空封面缓存')
+    const confirm = getByRole(container, 'group', { name: '确认清空封面缓存' })
+    // 焦点落在「取消」上：读屏要能从分组的描述里听到问的是什么
+    expect(confirm.getAttribute('aria-describedby')).not.toBeNull()
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!)?.textContent).toBe('确定清空封面缓存吗？')
     expect(document.activeElement).toBe(button(container, '取消'))
     expect(endpoints.clearCoverCache).not.toHaveBeenCalled()
 
     await act(async () => {
       button(container, '取消')?.click()
     })
-    expect(container.querySelector('[role="group"]')).toBeNull()
+    expect(queryByRole(container, 'group', { name: '确认清空封面缓存' })).toBeNull()
     expect(document.activeElement).toBe(button(container, '清空封面缓存'))
     expect(endpoints.clearCoverCache).not.toHaveBeenCalled()
   })
@@ -70,7 +74,7 @@ describe('CoverCacheCard', () => {
     expect(endpoints.clearCoverCache).toHaveBeenCalledTimes(1)
     expect(onReload).toHaveBeenCalledTimes(1)
     expect(status(container).textContent).toBe('已清空')
-    expect(container.querySelector('[role="group"]')).toBeNull()
+    expect(queryByRole(container, 'group', { name: '确认清空封面缓存' })).toBeNull()
     expect(document.activeElement).toBe(button(container, '清空封面缓存'))
   })
 

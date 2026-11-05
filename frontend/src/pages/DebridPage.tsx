@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { label } from '../theme'
-import '../components/library/library.css'
-import '../components/media/media.css'
+import '../components/catalog/catalog.css'
+import '../styles/panels.css'
 
 /**
  * `/debrid` Debrid 服务 —— 对应 seanime 的同名页面。
@@ -19,9 +18,9 @@ export function DebridPage() {
   const [saved, setSaved] = useState(false)
 
   return (
-    <main className="lib-shell">
-      <header className="page-head">
-        <h1 className="page-title">Debrid 服务</h1>
+    <main className="catalog-page page-narrow preview-page">
+      <header className="catalog-head">
+        <h1 className="catalog-title">Debrid 服务</h1>
       </header>
 
       <p className="alert-warn" role="status">
@@ -29,38 +28,37 @@ export function DebridPage() {
         填了密钥也不会生效（缺口 G7）。
       </p>
 
-      <section className="panel settings-card">
-        <h2 className="panel-heading">API 密钥</h2>
-        <p className="page-notice-copy">
+      <section className="info-panel" aria-labelledby="debrid-key-heading">
+        <h2 id="debrid-key-heading" className="info-panel-title">
+          API 密钥
+        </h2>
+        <p className="info-panel-text">
           Debrid 是第三方付费服务：种子在它那边下好，再给你一条 HTTP 直链。它能省掉本机的下载与做种，代价是<strong>播放链路多一个可以单方面掐断的中间人</strong>。
         </p>
 
-        <label htmlFor="debrid-key" style={label}>
-          密钥
-        </label>
-        <input
-          id="debrid-key"
-          className="input"
-          type="password"
-          autoComplete="off"
-          placeholder="粘贴你的 API 密钥"
-          value={key}
-          onChange={(e) => {
-            setKey(e.target.value)
-            setSaved(false)
-          }}
-        />
+        <div className="field">
+          <label htmlFor="debrid-key" className="field-label">
+            密钥
+          </label>
+          <input
+            id="debrid-key"
+            className="input"
+            type="password"
+            autoComplete="off"
+            placeholder="粘贴你的 API 密钥"
+            value={key}
+            onChange={(e) => {
+              setKey(e.target.value)
+              setSaved(false)
+            }}
+          />
+        </div>
 
-        <p>
-          <button
-            type="button"
-            className="btn btn--sm"
-            disabled={key.trim() === ''}
-            onClick={() => setSaved(true)}
-          >
+        <div className="form-actions">
+          <button type="button" className="btn" disabled={key.trim() === ''} onClick={() => setSaved(true)}>
             保存
           </button>
-        </p>
+        </div>
 
         <p className="result result--warn" role="status" aria-live="polite">
           {saved ? '没有保存 —— 这一页还没有后端。' : ''}

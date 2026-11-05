@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TorrentConfigData, TorrentSettings } from '../../lib/endpoints'
+import { getByRole, queryByRole } from '../../test/queries'
 import { mount } from '../../test/harness'
 
 const endpoints = vi.hoisted(() => ({
@@ -46,10 +47,9 @@ function button(container: HTMLElement, text: string): HTMLButtonElement {
   return found
 }
 
+/** 开关的名字就是它旁边看得见的那行字（「自动端口映射（UPnP / NAT-PMP）」），按开头认 */
 function toggle(container: HTMLElement, name: string): HTMLButtonElement {
-  const found = container.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)
-  if (found === null) throw new Error(`找不到开关「${name}」`)
-  return found
+  return getByRole(container, 'switch', { name: new RegExp(`^${name}`) }) as HTMLButtonElement
 }
 
 function field<T extends HTMLInputElement | HTMLTextAreaElement>(
@@ -79,6 +79,15 @@ async function submit(container: HTMLElement): Promise<void> {
     button(container, '保存').click()
   })
 }
+
+/** aria-describedby 指向的说明文字：开关旁那段说明读屏会跟着开关一起念 */
+function description(element: HTMLElement): string {
+  const ids = element.getAttribute('aria-describedby')?.split(/\s+/) ?? []
+  return ids.map((id) => element.ownerDocument.getElementById(id)?.textContent ?? '').join(' ')
+}
+
+/** 「重启后生效」的提示 */
+const restartNotice = (container: HTMLElement) => queryByRole(container, 'alert', { name: /重启 nagare 后生效/ })
 
 const status = (container: HTMLElement): string =>
   container.querySelector('.result[role="status"]')?.textContent ?? ''
@@ -115,7 +124,7 @@ describe('TorrentCard · 受控行为', () => {
 
   it('说明写清楚「持续做种」只管停止播放之后的上传', async () => {
     const { container } = await mountCard()
-    const note = container.querySelectorAll('.torrent-toggle-note')[0]?.textContent ?? ''
+    const note = description(getByRole(container, 'switch', { name: '持续做种' }))
     expect(note).toContain('BT 协议必需')
     expect(note).toContain('停止播放之后是否继续上传')
   })
@@ -129,10 +138,10 @@ describe('TorrentCard · 受控行为', () => {
 
   it('内置 tracker 默认开启并列出内容；关掉后列表隐藏、保存时一并发出', async () => {
     const { container } = await mountCard()
-    expect(toggle(container, '内置 tracker').getAttribute('aria-checked')).toBe('true')
+    expect(toggle(container, '使用内置公共 tracker').getAttribute('aria-checked')).toBe('true')
     expect(container.querySelector('.torrent-default-trackers')?.textContent).toContain('udp://tracker.opentrackr.org:1337/announce')
     await act(async () => {
-      toggle(container, '内置 tracker').click()
+      toggle(container, '使用内置公共 tracker').click()
     })
     expect(container.querySelector('.torrent-default-trackers')).toBeNull()
     await submit(container)
@@ -237,19 +246,18 @@ describe('TorrentCard · 重启提示', () => {
     const { container } = await mountCard()
     await type(field(container, 'torrent-listen-port'), '51413')
     await submit(container)
-    const notice = container.querySelector('.torrent-restart[role="alert"]')
-    expect(notice?.textContent).toContain('重启 nagare 后生效')
+    expect(restartNotice(container)).not.toBeNull()
   })
 
   it('设置载荷里 restartRequired=true（改过端口还没重启就刷新了页面）时，一打开就提示', async () => {
     const { container } = await mountCard({ ...SETTINGS, restartRequired: true })
-    expect(container.querySelector('.torrent-restart[role="alert"]')?.textContent).toContain('重启 nagare 后生效')
+    expect(restartNotice(container)).not.toBeNull()
   })
 
   it('restartRequired=false 时不出重启提示', async () => {
     const { container } = await mountCard()
     await submit(container)
-    expect(container.querySelector('.torrent-restart')).toBeNull()
+    expect(restartNotice(container)).toBeNull()
   })
 })
 

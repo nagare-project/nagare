@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { copyText } from '../../lib/clipboard'
 import type { SearchItem } from '../../lib/endpoints'
 import { formatPublished } from '../../lib/format'
 import { mono } from '../../theme'
+import '../../styles/panels.css'
 import './search.css'
 
 /** 「已复制」提示停留多久后恢复按钮文案 */
@@ -83,6 +84,11 @@ export function playStage(magnet: string, play: PlayControl): PlayStage {
 export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProps) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const timerRef = useRef<number | null>(null)
+  const ids = useId()
+  const titleId = `${ids}-title`
+  const copyLabelId = `${ids}-copy`
+  const playLabelId = `${ids}-play`
+  const hintId = `${ids}-hint`
 
   // 卸载时清掉复位定时器，别对着已卸载的行 setState
   useEffect(() => {
@@ -97,20 +103,21 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
     timerRef.current = window.setTimeout(() => setCopyState('idle'), COPY_FEEDBACK_MS)
   }
 
-  const copyClass =
-    copyState === 'failed'
-      ? 'btn btn--sm res-copy res-copy--failed'
-      : 'btn btn--sm res-copy'
+  const copyClass = copyState === 'failed' ? 'btn btn--sm res-copy res-copy--failed' : 'btn btn--sm res-copy'
 
   const stage = playStage(item.magnet, play)
   const hint = PLAY_HINT[stage]
 
+  // 两个按钮的名字 = 看得见的字 + 这一行的标题（aria-labelledby 拼起来）：读屏逐个按钮念时听得出是哪一条，
+  // 语音控制说「播放」也找得到（名字以看得见的字开头）。按钮上的字本身不变
   return (
     <tr className="res-row" data-source={item.source}>
       <td className="res-title">
-        <span className="res-title-text">{item.title}</span>
+        <span id={titleId} className="res-title-text">
+          {item.title}
+        </span>
         {item.provider !== undefined && item.provider !== '' && (
-          <span className="badge res-provider" title="上游站点">
+          <span className="status-badge status-badge--neutral res-provider" title="上游站点">
             {item.provider}
           </span>
         )}
@@ -130,16 +137,11 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
         </td>
       )}
       <td className="res-source">
-        <span className="badge badge--accent">{sourceName}</span>
+        <span className="status-badge status-badge--info">{sourceName}</span>
       </td>
       <td className="res-actions">
-        <button
-          type="button"
-          className={copyClass}
-          onClick={() => void handleCopy()}
-          aria-label={`复制磁力链接：${item.title}`}
-        >
-          {COPY_LABEL[copyState]}
+        <button type="button" className={copyClass} onClick={() => void handleCopy()} aria-labelledby={`${copyLabelId} ${titleId}`}>
+          <span id={copyLabelId}>{COPY_LABEL[copyState]}</span>
         </button>
         <span className="visually-hidden" role="status" aria-live="polite">
           {copyState === 'idle' ? '' : COPY_LABEL[copyState]}
@@ -148,17 +150,19 @@ export function ResultRow({ item, sourceName, showSeeders, play }: ResultRowProp
         <span className="res-play-wrap" title={hint ?? undefined}>
           <button
             type="button"
-            className={
-              stage === 'active'
-                ? 'btn btn--sm res-play res-play--active'
-                : 'btn btn--sm res-play'
-            }
+            className={stage === 'active' ? 'btn btn--sm res-play res-play--active' : 'btn btn--sm res-play'}
             onClick={(event) => play.onPlay(item, event.currentTarget)}
             disabled={stage !== 'idle'}
-            aria-label={hint === null ? `播放：${item.title}` : `播放（${hint}）`}
+            aria-labelledby={`${playLabelId} ${titleId}`}
+            aria-describedby={hint === null ? undefined : hintId}
           >
-            {PLAY_LABEL[stage]}
+            <span id={playLabelId}>{PLAY_LABEL[stage]}</span>
           </button>
+          {hint !== null && (
+            <span id={hintId} hidden>
+              {hint}
+            </span>
+          )}
         </span>
       </td>
     </tr>

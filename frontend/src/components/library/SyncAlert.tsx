@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { PlayerStatus } from '../../lib/endpoints'
+import './sync-banner.css'
 
 interface SyncAlertProps {
   status: PlayerStatus | null
@@ -40,7 +41,7 @@ export function SyncAlert({ status, onRetry }: SyncAlertProps) {
   }
 
   return (
-    <p className="alert-warn" role="status">
+    <p className="alert-warn sync-banner" role="status">
       {what}看完了，但没能记到你的 animego 账号
       {sync.reason !== undefined && sync.reason !== '' ? `：${sync.reason}` : '。'}
       {sync.recovery !== undefined && sync.recovery !== '' && (

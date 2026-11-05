@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
+import { CatalogNotice } from '../components/catalog/CatalogStates'
+import { Icon } from '../components/ui/Icon'
 import { UnauthorizedNotice } from '../components/UnauthorizedNotice'
 import { useLibrary } from '../hooks/useLibrary'
 import { mono } from '../theme'
 import { clusterDisplayTitle } from '../lib/associations'
 import type { LibraryCluster, LibraryItem } from '../lib/endpoints'
-import '../components/library/library.css'
-import '../components/media/media.css'
+import '../components/catalog/catalog.css'
+import '../styles/panels.css'
+import './watch.css'
 
 /**
  * `/watch/$fileId` 浏览器内播放。
@@ -37,8 +40,9 @@ export function WatchPage() {
   if (library.state.phase === 'unauthorized') return <UnauthorizedNotice />
   if (library.state.phase === 'loading') {
     return (
-      <main className="lib-shell">
-        <p className="result result--dim" style={mono} role="status">
+      <main className="catalog-page watch-page">
+        <h1 className="visually-hidden">浏览器内播放</h1>
+        <p className="result result--dim" role="status">
           正在读取媒体库 …
         </p>
       </main>
@@ -46,11 +50,11 @@ export function WatchPage() {
   }
   if (library.state.phase === 'error') {
     return (
-      <main className="lib-shell">
-        <div className="page-notice">
-          <h2 className="page-notice-title">读取媒体库失败</h2>
-          <p className="page-notice-copy">{library.state.message}</p>
-        </div>
+      <main className="catalog-page watch-page">
+        <h1 className="visually-hidden">浏览器内播放</h1>
+        <CatalogNotice tone="error" title="读取媒体库失败">
+          {library.state.message}
+        </CatalogNotice>
       </main>
     )
   }
@@ -58,18 +62,11 @@ export function WatchPage() {
   const found = findItem(library.state.data.clusters, fileId)
   if (found === null) {
     return (
-      <main className="lib-shell">
-        <div className="page-notice">
-          <h2 className="page-notice-title">找不到这个文件</h2>
-          <p className="page-notice-copy">
-            它可能已经被移走或改名（文件 id 挂在 名称+大小+修改时间 上）。重新扫描一次即可。
-          </p>
-          <p className="page-notice-actions">
-            <Link to="/library" className="btn btn--sm">
-              回到媒体库
-            </Link>
-          </p>
-        </div>
+      <main className="catalog-page watch-page">
+        <h1 className="visually-hidden">浏览器内播放</h1>
+        <CatalogNotice title="找不到这个文件" actions={<Link to="/library" className="btn">回到媒体库</Link>}>
+          它可能已经被移走或改名（文件 id 挂在 名称+大小+修改时间 上）。重新扫描一次即可。
+        </CatalogNotice>
       </main>
     )
   }
@@ -77,58 +74,48 @@ export function WatchPage() {
   const { item, clusterKey, title } = found
 
   return (
-    <main className="lib-shell watch-shell">
-      <header className="page-head">
-        <Link to="/anime/$clusterKey" params={{ clusterKey }} className="link">
-          ← {title}
-        </Link>
+    <main className="catalog-page watch-page">
+      <Link to="/anime/$clusterKey" params={{ clusterKey }} className="page-back">
+        <Icon name="left" size={18} />
+        {title}
+      </Link>
+      <header className="catalog-head">
+        <div>
+          <h1 className="catalog-title">浏览器内播放</h1>
+          <p className="catalog-subline watch-file" style={mono}>
+            {item.fileName}
+          </p>
+        </div>
       </header>
 
       {item.stream === undefined ? (
-        <Unplayable
-          reason="这个构建没有挂载媒体端点，浏览器内播放不可用。"
-          clusterKey={clusterKey}
-        />
+        <Unplayable reason="这个构建没有挂载媒体端点，浏览器内播放不可用。" clusterKey={clusterKey} />
       ) : failed ? (
-        <Unplayable
-          reason="浏览器放不了这个文件的编码。nagare 不转码，只是把原始字节喂给播放器 —— MKV 容器、HEVC 与 AV1 在多数浏览器上都会到这一步。"
-          clusterKey={clusterKey}
-        />
+        <Unplayable reason="浏览器放不了这个文件的编码。nagare 不转码，只是把原始字节喂给播放器 —— MKV 容器、HEVC 与 AV1 在多数浏览器上都会到这一步。" clusterKey={clusterKey} />
       ) : (
-        <video
-          ref={videoRef}
-          className="watch-video"
-          src={item.stream}
-          controls
-          autoPlay
-          onError={() => setFailed(true)}
-        >
+        <video ref={videoRef} className="watch-video" src={item.stream} controls autoPlay onError={() => setFailed(true)} aria-label={`${title} · ${item.fileName}`}>
           {/* 字幕轨不走这里：外挂 ASS 与弹幕轨都是 mpv 那条路的能力 */}
         </video>
       )}
 
-      <p className="watch-file" style={mono}>
-        {item.fileName}
-      </p>
-
-      <p className="result result--dim">
-        浏览器内播放是<strong>补充路径</strong>，没有弹幕、没有 ASS 字幕、进度也不回写账号。完整体验请用 mpv 从媒体库播放。
-      </p>
+      <p className="watch-note">浏览器内播放是<strong>补充路径</strong>，没有弹幕、没有 ASS 字幕、进度也不回写账号。完整体验请用 mpv 从媒体库播放。</p>
     </main>
   )
 }
 
 function Unplayable({ reason, clusterKey }: { reason: string; clusterKey: string }) {
   return (
-    <div className="page-notice">
-      <h2 className="page-notice-title">这里播不了</h2>
-      <p className="page-notice-copy">{reason}</p>
-      <p className="page-notice-actions">
-        <Link to="/anime/$clusterKey" params={{ clusterKey }} className="btn btn--sm btn--primary">
+    <section className="catalog-notice" aria-labelledby="watch-unplayable-heading">
+      <h2 id="watch-unplayable-heading" className="catalog-notice-title">
+        这里播不了
+      </h2>
+      <p className="catalog-notice-body">{reason}</p>
+      <div className="catalog-notice-actions">
+        <Link to="/anime/$clusterKey" params={{ clusterKey }} className="btn btn--primary">
           回去用 mpv 播
         </Link>
-      </p>
-    </div>
+      </div>
+    </section>
   )
 }
 

@@ -1,0 +1,12 @@
+/* 整页提示（没有访问凭证、nagare 已退出）：标题比一般的整块说明大一档，它就是这一页的 h1 */
+.full-page-notice-eyebrow {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  font-weight: 500;
+}
+
+.full-page-notice-title {
+  font-size: clamp(20px, 3vw, var(--type-h2-size));
+  font-weight: var(--type-h2-weight);
+  letter-spacing: var(--type-h2-tracking);
+}

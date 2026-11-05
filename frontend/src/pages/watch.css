@@ -1,0 +1,33 @@
+/* ============================================================
+   浏览器内播放（/watch/$fileId）：补充路径，不是 mpv 的替代。
+   页面容器与页头沿用 .catalog-page / .catalog-head。
+   ============================================================ */
+
+/* 限宽：不设的话超宽屏上视频会被拉到两千多像素，而源片多半只有 1080p，放大只会更糊 */
+.watch-page {
+  max-width: calc(68rem + 2 * var(--catalog-gutter));
+  gap: var(--sp-lg);
+}
+
+.watch-file {
+  overflow-wrap: anywhere;
+}
+
+.watch-video {
+  width: 100%;
+  max-height: 72vh;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.watch-note {
+  color: var(--text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: 1.6;
+}
+
+.watch-note strong {
+  color: var(--text);
+  font-weight: 600;
+}

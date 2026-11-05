@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchDownloads, removeDownload } from '../../lib/endpoints'
 import type { DownloadsData, DownloadTask } from '../../lib/endpoints'
+import { handOffFocus } from '../../lib/focus'
 import { errorText, formatBytes, formatRate } from '../../lib/format'
 import { mono } from '../../theme'
+import { RouteLink } from '../catalog/RouteLink'
+import '../../styles/panels.css'
 import './downloads.css'
 
 /** 有在下的任务时每 2 秒刷新一次；都停了就放慢到 15 秒（别处加的新任务也能看到） */
@@ -27,6 +30,15 @@ export function DownloadsPanel() {
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const section = useRef<HTMLElement>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  // 移除的那一行连同按钮一起消失：焦点交给「下载」标题，不掉到 <body> 上
+  const handOff = useRef(false)
+  useEffect(() => {
+    if (busyId !== null || !handOff.current) return
+    handOff.current = false
+    handOffFocus(heading.current, section.current)
+  }, [busyId])
 
   const load = useCallback(async (): Promise<DownloadsData | null> => {
     try {
@@ -59,6 +71,7 @@ export function DownloadsPanel() {
     setBusyId(task.id)
     try {
       await removeDownload(task.id)
+      handOff.current = true
       await load()
     } catch (err) {
       setError(errorText(err, '删除下载失败'))
@@ -69,20 +82,33 @@ export function DownloadsPanel() {
 
   const downloads = data?.downloads ?? []
   return (
-    <section className="panel downloads-panel" aria-labelledby="downloads-heading">
-      <header className="downloads-head">
-        <h2 id="downloads-heading" className="panel-heading">下载</h2>
-        {data && <span className="downloads-dir" style={mono} title="在设置页的「磁力」里可以改">下载目录：{data.dir}</span>}
-      </header>
-      {error !== null && <p className="result result--err" role="alert">{error}</p>}
-      {data !== null && downloads.length === 0 && (
-        <p className="downloads-empty">
-          还没有下载。在作品页的「磁力播放」里点某个版本旁边的「下载」，整个种子会完整下到上面的目录，下完自动出现在媒体库里。
+    <section ref={section} className="torrents-section" aria-labelledby="downloads-heading">
+      <div className="downloads-head">
+        <h2 ref={heading} id="downloads-heading" className="torrents-section-title" tabIndex={-1}>
+          下载
+        </h2>
+        {data && (
+          <p className="downloads-dir">
+            <span style={mono}>下载目录：{data.dir}</span>
+            <span className="downloads-dir-note">（在设置的「磁力播放」里可以改）</span>
+          </p>
+        )}
+      </div>
+      {error !== null && (
+        <p className="result result--err" role="alert">
+          {error}
         </p>
+      )}
+      {data !== null && downloads.length === 0 && (
+        <div className="info-panel">
+          <p className="info-panel-text">还没有下载。在作品页的「磁力播放」里点某个版本旁边的「下载」，整个种子会完整下到上面的目录，下完自动出现在媒体库里。</p>
+        </div>
       )}
       {downloads.length > 0 && (
         <ul className="download-list">
-          {downloads.map(task => <DownloadRow key={task.id} task={task} busy={busyId === task.id} onRemove={() => void remove(task)} />)}
+          {downloads.map((task) => (
+            <DownloadRow key={task.id} task={task} busy={busyId === task.id} onRemove={() => void remove(task)} />
+          ))}
         </ul>
       )}
     </section>
@@ -97,29 +123,39 @@ function DownloadRow({ task, busy, onRemove }: { task: DownloadTask; busy: boole
     ? [task.size ? `${formatBytes(task.bytesDone)} / ${formatBytes(task.size)}` : null, task.state === 'downloading' ? formatRate(task.downRate) : null, `分享者 ${task.peers}`]
     : [task.size ? formatBytes(task.size) : null]
   const removeLabel = active ? '取消并删除已下载部分' : task.state === 'done' ? '从列表移除' : '删除'
+  const name = task.name ?? task.title
   return (
-    <li className={`download-item download-item--${task.state}`}>
+    <li className={`info-panel download-item download-item--${task.state}`}>
       <div className="download-main">
-        <strong className="download-name" title={task.title}>{task.name ?? task.title}</strong>
+        <strong className="download-name" title={task.title}>
+          {name}
+        </strong>
         <span className={`download-state download-state--${task.state}`}>{status}</span>
       </div>
       {active && (
-        <div className="torrent-bar" role="progressbar" aria-label={`${task.name ?? task.title} 下载进度`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="torrent-bar" role="progressbar" aria-label={`${name} 下载进度`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
           <span className="torrent-bar-fill" style={{ width: `${pct}%` }} />
         </div>
       )}
-      <p className="download-details" style={mono}>{details.filter(Boolean).join(' · ')}</p>
-      {task.state === 'metadata' && task.peers === 0 && (
-        <p className="download-hint">还没连上分享这个种子的人。老种子可能要等一阵；一直是 0 就说明可能已经没人做种了。</p>
-      )}
+      <p className="download-details" style={mono}>
+        {details.filter(Boolean).join(' · ')}
+      </p>
+      {task.state === 'metadata' && task.peers === 0 && <p className="download-hint">还没连上分享这个种子的人。老种子可能要等一阵；一直是 0 就说明可能已经没人做种了。</p>}
       {task.state === 'done' && task.paths && task.paths.length > 0 && (
-        <p className="download-details" style={mono}>{task.paths.join('\n')}</p>
+        <p className="download-details" style={mono}>
+          {task.paths.join('\n')}
+        </p>
       )}
       {task.error && <p className="result result--err">{task.error}</p>}
       <div className="download-actions">
-        {task.state === 'done' && <a className="btn btn--sm" href="/library">去媒体库</a>}
-        <button type="button" className={active ? 'btn btn--sm btn--danger' : 'btn btn--sm'} disabled={busy} onClick={onRemove}>
+        {task.state === 'done' && (
+          <RouteLink to="/library" className="btn btn--sm">
+            去媒体库
+          </RouteLink>
+        )}
+        <button type="button" className="btn btn--sm btn--danger" disabled={busy} onClick={onRemove}>
           {busy ? '处理中…' : removeLabel}
+          <span className="visually-hidden">：{name}</span>
         </button>
       </div>
     </li>

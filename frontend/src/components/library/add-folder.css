@@ -1,0 +1,25 @@
+/* 添加媒体库文件夹的表单（设置「媒体文件夹」、新手引导、空媒体库共用）：路径输入 + 浏览… + 添加 */
+.add-folder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+}
+
+.add-folder-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-sm);
+}
+
+/* 输入框（DESIGN.md「输入」）：16px 字、44px 高，与按钮同高 */
+.add-folder-row .input {
+  flex: 1 1 16rem;
+  height: var(--touch-min);
+  padding: 0 16px;
+  border-color: var(--separator-opaque);
+  font-size: var(--type-body-size);
+}
+
+.add-folder-row .btn {
+  height: var(--touch-min);
+}

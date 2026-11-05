@@ -4,6 +4,7 @@ import { useTorrentPlay } from '../../hooks/useTorrentPlay'
 import type { TorrentPlayState, UseTorrentPlayResult } from '../../hooks/useTorrentPlay'
 import type { TorrentPlayRequest } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
+import { Icon } from '../ui/Icon'
 import { EpisodePicker } from './EpisodePicker'
 import { TorrentStatusBar } from './TorrentStatusBar'
 import './torrent.css'
@@ -78,6 +79,7 @@ export function TorrentPlayProvider({ children }: { children: ReactNode }) {
       }}
     />}
     {stopError && <div className="torrent-global-error" role="alert">
+      <Icon name="alert" size={18} />
       <span>{stopError}</span>
       <button type="button" className="btn btn--sm" onClick={() => setStopError(null)}>关闭</button>
     </div>}

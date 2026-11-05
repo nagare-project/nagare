@@ -3,6 +3,7 @@ import { updatePlayerConfig } from '../../lib/endpoints'
 import type { Anime4KPreset, PlayerSettings } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
 import { mono } from '../../theme'
+import '../../styles/panels.css'
 import './cards.css'
 
 const PRESETS: ReadonlyArray<{ value: Anime4KPreset; label: string; note: string }> = [
@@ -43,13 +44,10 @@ export function PlaybackCard({ player }: { player: PlayerSettings }) {
   }
 
   return (
-    <section className="panel settings-card" aria-labelledby="playback-heading">
-      <h2 id="playback-heading" className="panel-heading">画质增强</h2>
-      <p className="torrent-note">
-        Anime4K 实时超分：在 mpv 里用显卡把动画画面放大、去模糊，线条更清楚。对 720p、1080p 的片源最明显。
-        本地文件、磁力、在线播放都适用；用的是随 nagare 附带的官方着色器（Mode A），不联网。
-      </p>
-      <div className="playback-presets" role="group" aria-label="画质增强">
+    <section className="info-panel" aria-labelledby="playback-heading">
+      <h3 id="playback-heading" className="info-panel-title">Anime4K</h3>
+      <p className="info-panel-text">对 720p、1080p 的片源最明显，线条更清楚。本地文件、磁力、在线播放都适用；用的是随 nagare 附带的官方着色器（Mode A），不联网。</p>
+      <div className="playback-presets" role="group" aria-label="画质增强档位">
         {PRESETS.map(item => (
           <button key={item.value} type="button" aria-pressed={preset === item.value} disabled={busy}
             className={preset === item.value ? 'playback-preset playback-preset--active' : 'playback-preset'}
@@ -59,7 +57,7 @@ export function PlaybackCard({ player }: { player: PlayerSettings }) {
           </button>
         ))}
       </div>
-      <p className="torrent-note">播放时卡顿、掉帧就换回「标准」或关掉。需要 mpv 用显卡输出画面（默认就是）。</p>
+      <p className="info-panel-note">播放时卡顿、掉帧就换回「标准」或关掉。需要 mpv 用显卡输出画面（默认就是）。</p>
       <p className={state.phase === 'error' ? 'result result--err' : state.phase === 'done' ? `result result--${state.tone}` : 'result result--dim'}
         style={mono} role="status" aria-live="polite">
         {state.phase === 'busy' ? '保存中 …' : state.phase === 'error' ? state.message : state.phase === 'done' ? state.text : ''}

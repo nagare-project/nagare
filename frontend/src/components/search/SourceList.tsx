@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { SourceInfo, SourceOutcome } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
-import { mono } from '../../theme'
 import { SourceRow } from './SourceRow'
 import type { SelfCheckState } from './SourceRow'
 import './sources.css'
@@ -48,9 +47,7 @@ export function SourceList({ sources, onToggle, onSelfCheck }: SourceListProps) 
 
   if (sources.length === 0) {
     return (
-      <p className="result result--dim" style={mono}>
-        还没有加载任何规则。填好规则来源后点「同步规则」或「重新加载」。
-      </p>
+      <p className="info-panel-note">还没有加载任何规则。填好规则来源后点「同步规则」或「重新加载」。</p>
     )
   }
 
@@ -69,7 +66,7 @@ export function SourceList({ sources, onToggle, onSelfCheck }: SourceListProps) 
         ))}
       </ul>
       {toggleError !== null && (
-        <p className="result result--err" style={mono} role="alert">
+        <p className="result result--err" role="alert">
           {toggleError}
         </p>
       )}

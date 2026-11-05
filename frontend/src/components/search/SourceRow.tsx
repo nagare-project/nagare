@@ -2,6 +2,7 @@ import type { SourceInfo, SourceOutcome } from '../../lib/endpoints'
 import { isHttpUrl } from '../../lib/url'
 import { mono } from '../../theme'
 import { SourceStateChip } from './SourceStateChip'
+import '../../styles/panels.css'
 import './sources.css'
 
 /** 单个源的自检状态 */
@@ -38,7 +39,7 @@ export function SourceRow({ source, check, toggling, onToggle, onSelfCheck }: So
 
       <div className="source-meta">
         {capabilities.seeders && (
-          <span className="badge badge--accent" title="该源提供做种数">
+          <span className="status-badge status-badge--info" title="该源提供做种数">
             做种数
           </span>
         )}
@@ -59,15 +60,16 @@ export function SourceRow({ source, check, toggling, onToggle, onSelfCheck }: So
         >
           <span className="switch-knob" aria-hidden="true" />
         </button>
+        {/* 名字以看得见的字开头（语音控制按它找），后面补上是哪个源 */}
         <button
           type="button"
-          className="btn btn--sm btn--danger"
+          className="btn btn--sm"
           onClick={onSelfCheck}
           disabled={!hasSelfTest || checking}
           title={hasSelfTest ? '用规则自带的关键词探活' : '该规则未提供自检关键词'}
-          aria-label={`自检 ${name}`}
         >
           {checking ? '自检中 …' : '自检'}
+          <span className="visually-hidden"> {name}</span>
         </button>
       </div>
 

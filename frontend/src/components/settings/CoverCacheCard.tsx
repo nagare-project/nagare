@@ -3,6 +3,7 @@ import { clearCoverCache } from '../../lib/endpoints'
 import type { CoverCacheClearResult, CoverCacheInfo } from '../../lib/endpoints'
 import { errorText, formatBytes } from '../../lib/format'
 import { mono } from '../../theme'
+import '../../styles/panels.css'
 import './cards.css'
 
 export interface CoverCacheCardProps {
@@ -92,10 +93,10 @@ export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
   }
 
   return (
-    <section ref={card} className="panel settings-card" aria-labelledby="cover-cache-heading">
-      <h2 id="cover-cache-heading" className="panel-heading">
+    <section ref={card} className="info-panel" aria-labelledby="cover-cache-heading">
+      <h3 id="cover-cache-heading" className="info-panel-title">
         封面缓存
-      </h2>
+      </h3>
       <dl className="kv-list">
         <dt>占用</dt>
         <dd style={mono}>
@@ -104,25 +105,23 @@ export function CoverCacheCard({ cache, onReload }: CoverCacheCardProps) {
         <dt>上限</dt>
         <dd style={mono}>{formatBytes(cache.maxBytes)}</dd>
       </dl>
-      <p className="page-notice-copy">
-        发现页与媒体库的海报图存在本机。超过上限时自动删掉最久没看的，媒体库与离线目录用到的最后才删。清空之后海报会在下次显示时重新下载，断网时没有缓存的海报不显示。
-      </p>
+      <p className="info-panel-text">发现页与媒体库的海报图存在本机。超过上限时自动删掉最久没看的，媒体库与离线目录用到的最后才删。清空之后海报会在下次显示时重新下载，断网时没有缓存的海报不显示。</p>
 
       {confirming ? (
-        <div className="quit-confirm" role="group" aria-label="确认清空封面缓存">
-          <p className="quit-confirm-copy">确定清空封面缓存吗？</p>
+        <div className="quit-confirm" role="group" aria-label="确认清空封面缓存" aria-describedby="cover-cache-confirm-copy">
+          <p id="cover-cache-confirm-copy" className="quit-confirm-copy">确定清空封面缓存吗？</p>
           <div className="form-actions">
-            <button type="button" className="btn btn--sm btn--danger" onClick={() => void handleConfirm()} disabled={state.phase === 'busy'}>
+            <button type="button" className="btn btn--destructive" onClick={() => void handleConfirm()} disabled={state.phase === 'busy'}>
               {state.phase === 'busy' ? '正在清空 …' : '确认清空'}
             </button>
-            <button ref={cancelButton} type="button" className="btn btn--sm" onClick={handleCancel} disabled={state.phase === 'busy'}>
+            <button ref={cancelButton} type="button" className="btn" onClick={handleCancel} disabled={state.phase === 'busy'}>
               取消
             </button>
           </div>
         </div>
       ) : (
         <div className="form-actions">
-          <button ref={clearButton} type="button" className="btn btn--sm btn--danger" onClick={() => setState({ phase: 'confirming' })}>
+          <button ref={clearButton} type="button" className="btn btn--danger" onClick={() => setState({ phase: 'confirming' })}>
             清空封面缓存
           </button>
         </div>

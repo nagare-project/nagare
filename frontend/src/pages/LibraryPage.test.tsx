@@ -8,7 +8,7 @@ import type { LibraryData, PlayerStatus, SettingsData, UpdateView } from '../lib
 import { TOKEN_STORAGE_KEY } from '../lib/token'
 import { router } from '../routes'
 import { mount } from '../test/harness'
-import { accessibleName, getAllByRole, getByRole, getByText, queryByRole, queryByText } from '../test/queries'
+import { accessibleName, getAllByRole, getAllByText, getByRole, getByText, queryByRole, queryByText } from '../test/queries'
 import { installLocalStorage } from '../test/storage'
 import { SKIP_FOLDERS_KEY } from '../components/library/onboardingSkip'
 import { AUTO_RESCAN_AFTER_MS, resetAutoRescanForTest } from '../hooks/useAutoRescan'
@@ -445,30 +445,45 @@ describe('LibraryPage（整页冒烟）', () => {
     })
   }
 
-  function buttonByText(container: HTMLElement, text: string): HTMLButtonElement {
-    const button = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(text))
-    if (button === undefined) throw new Error(`找不到按钮：${text}`)
-    return button
+  /** 引导屏：读屏里是一个叫「欢迎使用 nagare」的区块 */
+  function onboarding(container: HTMLElement): HTMLElement | null {
+    return queryByRole(container, 'region', { name: '欢迎使用 nagare' })
+  }
+
+  /** 引导屏里的一项：按小标题找到它所在的那一条 */
+  function step(container: HTMLElement, name: string): HTMLElement {
+    const item = getByRole(container, 'heading', { level: 3, name }).closest('li')
+    if (item === null) throw new Error(`准备项「${name}」不在列表项里`)
+    return item
+  }
+
+  /** 状态点只有颜色：读屏念的是标题后面那句隐藏的「已就绪」 */
+  function isReady(item: HTMLElement): boolean {
+    return queryByText(item, '，已就绪') !== null
+  }
+
+  function button(container: HTMLElement, name: string | RegExp): HTMLButtonElement {
+    return getByRole(container, 'button', { name }) as HTMLButtonElement
   }
 
   it('桌面窗口的引导屏：mpv 一项直接是已就绪 · 内置，不给安装命令', async () => {
     stubFirstRun(MPV_EMBEDDED)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    const step = container.querySelector('.onboard-step')!
-    expect(step.querySelector('.onboard-dot--done')).not.toBeNull()
-    expect(step.textContent).toContain('内置')
-    expect(step.textContent).not.toContain('brew install mpv')
-    expect(step.querySelector('button')).toBeNull()
+    const mpv = step(container, '播放器 mpv')
+    expect(isReady(mpv)).toBe(true)
+    expect(mpv.textContent).toContain('内置')
+    expect(mpv.textContent).not.toContain('brew install mpv')
+    expect(getAllByRole(mpv, 'button')).toEqual([])
     await unmount()
   })
 
   it('浏览器模式用 Nagare.app 内置的 mpv：引导屏说明是随 nagare 附带的', async () => {
     stubFirstRun(MPV_BUNDLED)
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    const step = container.querySelector('.onboard-step')!
-    expect(step.querySelector('.onboard-dot--done')).not.toBeNull()
-    expect(step.textContent).toContain('已就绪 · 随 nagare 附带 · 0.41.0')
-    expect(step.textContent).not.toContain('brew install mpv')
+    const mpv = step(container, '播放器 mpv')
+    expect(isReady(mpv)).toBe(true)
+    expect(getByText(mpv, '已就绪 · 随 nagare 附带 · 0.41.0')).toBeDefined()
+    expect(mpv.textContent).not.toContain('brew install mpv')
     await unmount()
   })
 
@@ -476,13 +491,15 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFirstRun()
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    expect(container.querySelector('.onboard')).not.toBeNull()
+    const guide = onboarding(container)
+    expect(guide).not.toBeNull()
     // 四项：mpv / 本地文件夹 / 磁力搜索 / 账号
-    expect(container.querySelectorAll('.onboard-step')).toHaveLength(4)
+    expect(getAllByRole(guide!, 'heading', { level: 3 }).map(accessibleName)).toEqual(['播放器 mpv', '本地文件夹', '磁力搜索', '账号'])
     // 添加文件夹的表单仍然内联在这里，不必点进另一个页面
-    expect(container.querySelector('input[name="path"]')).not.toBeNull()
-    // mpv 已装 → 绿点；其余三项都是待办
-    expect(container.querySelectorAll('.onboard-dot--done')).toHaveLength(1)
+    expect(getByRole(step(container, '本地文件夹'), 'textbox', { name: '文件夹绝对路径' })).toBeDefined()
+    // mpv 已装 → 已就绪；其余三项都是待办
+    expect(isReady(step(container, '播放器 mpv'))).toBe(true)
+    expect(getAllByText(guide!, '，已就绪')).toHaveLength(1)
     await unmount()
   })
 
@@ -662,8 +679,10 @@ describe('LibraryPage（整页冒烟）', () => {
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     expect(container.textContent).not.toContain('重新扫描')
     expect(container.textContent).not.toContain('上次扫描')
-    // 顶部那条长警示与引导卡讲的是同一件事
-    expect(container.querySelector('.lib-shell > .alert-warn')).toBeNull()
+    // 顶部那条长警示与引导卡讲的是同一件事：引导卡之外不再有讲 mpv 的警示
+    const guide = onboarding(container)!
+    const outside = getAllByRole(container, 'alert').filter((el) => !guide.contains(el)).map((el) => el.textContent ?? '')
+    expect(outside.filter((text) => text.includes('mpv'))).toEqual([])
     await unmount()
   })
 
@@ -671,16 +690,17 @@ describe('LibraryPage（整页冒烟）', () => {
     const mock = stubFirstRun(MPV_MISSING, SETTINGS.mpv)
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    const step = container.querySelector('.onboard-step')!
-    expect(step.textContent).toContain('brew install mpv')
+    const mpv = step(container, '播放器 mpv')
+    expect(mpv.textContent).toContain('brew install mpv')
+    expect(isReady(mpv)).toBe(false)
     // 不再跳去设置页：新用户跳走之后很难自己找回首页
-    expect(step.querySelector('a[href="/settings#player"]')).toBeNull()
+    expect(getAllByRole(mpv, 'link').map((a) => a.getAttribute('href'))).not.toContain('/settings#player')
 
     // 用户在终端装完、切回浏览器：窗口重新获得焦点时自动检测，绿点亮起
     await act(async () => { window.dispatchEvent(new Event('focus')) })
     await settle()
     expect(calledPaths(mock)).toContain('/api/mpv/detect')
-    expect(container.querySelector('.onboard-step .onboard-dot--done')).not.toBeNull()
+    expect(isReady(step(container, '播放器 mpv'))).toBe(true)
     await unmount()
   })
 
@@ -688,15 +708,16 @@ describe('LibraryPage（整页冒烟）', () => {
     const mock = stubFirstRun()
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    await act(async () => { buttonByText(container, '浏览…').click() })
+    await act(async () => { button(container, '浏览…').click() })
     await settle()
     // 常用位置不能直接添加：先点进具体的文件夹
-    expect(buttonByText(container, '添加这个文件夹').disabled).toBe(true)
-    await act(async () => { buttonByText(container, '主目录').click() })
+    expect(button(container, '添加这个文件夹').disabled).toBe(true)
+    // 常用位置的按钮名字里带着完整路径（「主目录 /Users/you」）
+    await act(async () => { button(container, /^主目录/).click() })
     await settle()
-    await act(async () => { buttonByText(container, 'Anime').click() })
+    await act(async () => { button(container, 'Anime').click() })
     await settle()
-    await act(async () => { buttonByText(container, '添加这个文件夹').click() })
+    await act(async () => { button(container, '添加这个文件夹').click() })
     await settle()
 
     const add = mock.mock.calls.find(([input]) => String(input).includes('/api/library/folders'))
@@ -709,19 +730,19 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFirstRun()
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    await act(async () => { buttonByText(container, '先不添加本地文件夹').click() })
-    expect(container.querySelector('.onboard')).toBeNull()
-    expect(container.textContent).toContain('本地媒体库还是空的')
+    await act(async () => { button(container, '先不添加本地文件夹').click() })
+    expect(onboarding(container)).toBeNull()
+    const empty = getByRole(container, 'region', { name: '本地媒体库还是空的' })
     // 想加的时候表单就在这里
-    expect(container.querySelector('input[name="path"]')).not.toBeNull()
+    expect(getByRole(empty, 'textbox', { name: '文件夹绝对路径' })).toBeDefined()
 
-    await act(async () => { buttonByText(container, '显示新手引导').click() })
-    expect(container.querySelector('.onboard')).not.toBeNull()
+    await act(async () => { button(container, '显示新手引导').click() })
+    expect(onboarding(container)).not.toBeNull()
     await unmount()
 
     stubFirstRun(MPV_MISSING)
     const second = await mount(<RouterProvider router={router} />)
-    expect(second.container.textContent).not.toContain('先不添加本地文件夹')
+    expect(queryByRole(second.container, 'button', { name: '先不添加本地文件夹' })).toBeNull()
     await second.unmount()
   })
 
@@ -730,10 +751,10 @@ describe('LibraryPage（整页冒烟）', () => {
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     await settle()
-    const magnet = [...container.querySelectorAll('.onboard-step')].find((el) => el.textContent?.includes('磁力搜索'))!
+    const magnet = step(container, '磁力搜索')
     expect(magnet.textContent).toContain('磁力引擎没有启动')
-    expect(magnet.querySelector('.onboard-dot--done')).toBeNull()
-    expect(magnet.querySelector('a[href="/settings#torrent"]')).not.toBeNull()
+    expect(isReady(magnet)).toBe(false)
+    expect(getByRole(magnet, 'link', { name: '查看磁力播放设置' }).getAttribute('href')).toBe('/settings#torrent')
     await unmount()
   })
 
@@ -742,15 +763,15 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFirstRun()
     const first = await mount(<RouterProvider router={router} />)
     await settle()
-    expect(first.container.querySelector('.library-empty')).not.toBeNull()
-    expect(first.container.querySelector('.onboard')).toBeNull()
+    expect(queryByRole(first.container, 'region', { name: '本地媒体库还是空的' })).not.toBeNull()
+    expect(onboarding(first.container)).toBeNull()
     await first.unmount()
 
     stubFirstRun(MPV_MISSING)
     const second = await mount(<RouterProvider router={router} />)
     await settle()
-    expect(second.container.querySelector('.onboard')).not.toBeNull()
-    expect(second.container.querySelector('.library-empty')).toBeNull()
+    expect(onboarding(second.container)).not.toBeNull()
+    expect(queryByRole(second.container, 'region', { name: '本地媒体库还是空的' })).toBeNull()
     await second.unmount()
   })
 
@@ -763,7 +784,7 @@ describe('LibraryPage（整页冒烟）', () => {
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     await settle()
-    expect(container.querySelector('.onboard-step')?.textContent).toContain('版本过低')
+    expect(getByRole(step(container, '播放器 mpv'), 'alert').textContent).toContain('版本过低')
     await unmount()
   })
 
@@ -773,12 +794,13 @@ describe('LibraryPage（整页冒烟）', () => {
     stubFirstRun()
 
     const { container, unmount } = await mount(<RouterProvider router={router} />)
-    expect(container.textContent).toContain('两条路互相独立')
-    const hrefs = [...container.querySelectorAll('.onboard a')].map((a) => a.getAttribute('href'))
+    const guide = onboarding(container)!
+    expect(guide.textContent).toContain('两条路互相独立')
+    const hrefs = getAllByRole(guide, 'link').map((a) => a.getAttribute('href'))
     // 未配规则仓库时先去设置填地址；配好之后那颗按钮指向 /search（见组件）
     expect(hrefs).toContain('/settings#sources')
     // 必需项只有 mpv：其余三张卡都标「可选」
-    const tags = [...container.querySelectorAll('.onboard-step .badge')].map((b) => b.textContent)
+    const tags = getAllByText(guide, /^(必需|可选)$/).map((tag) => tag.textContent)
     expect(tags).toEqual(['必需', '可选', '可选', '可选'])
     await unmount()
   })

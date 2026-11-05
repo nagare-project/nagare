@@ -1,0 +1,328 @@
+/* ============================================================
+   信息面板与表单（DESIGN.md「卡片 · 信息面板」「输入」）：设置、磁力任务、扩展、搜索等页面共用。
+   颜色、尺寸、动效一律取 tokens.css 的 token 名，不用 global.css 里的旧别名。
+   ============================================================ */
+
+/* 信息面板：--bg-card、--radius-lg、24px 内边距、1px 不透明分隔线；层级靠底色，不加阴影 */
+.info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+  min-width: 0;
+  padding: var(--sp-lg);
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+
+@media (max-width: 600px) {
+  .info-panel {
+    padding: var(--sp-md);
+  }
+}
+
+/* 标题 + 右侧动作（停止、重新检测这类）：标题不参与收缩，放不下时动作整组换行 */
+.info-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm) var(--sp-md);
+}
+
+.info-panel-title {
+  flex: none;
+  max-width: 100%;
+  color: var(--text);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  letter-spacing: var(--type-h3-tracking);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.info-panel-head .info-panel-title {
+  flex: 1 0 auto;
+}
+
+/* 面板里的小节标题（同一张面板里分几段时） */
+.info-panel-subtitle {
+  color: var(--text-secondary);
+  font-size: var(--type-label-size);
+  font-weight: 600;
+}
+
+/* 要读的说明：次要文字色（不用 30% 那档，见 DESIGN.md 颜色规则 5） */
+.info-panel-text {
+  color: var(--text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: 1.65;
+}
+
+.info-panel-text strong,
+.info-panel-text b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.info-panel-note {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: 1.6;
+}
+
+/* 夹在一段话里的链接带下划线：只靠颜色区分，读不出颜色差的人找不到它（WCAG 1.4.1） */
+.info-panel-text .link,
+.info-panel-note .link,
+.field-note .link {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* 面板内分组之间的发丝线 */
+.info-panel-rule {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ---------- 键值表（版本、路径、占用） ---------- */
+
+.kv-list {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, max-content) minmax(0, 1fr);
+  gap: 10px var(--sp-lg);
+  margin: 0;
+  font-size: var(--type-label-size);
+  line-height: 1.5;
+}
+
+/* :where 把默认颜色的优先级压到最低：dd 上的状态字（.status-text--ok 之类）能直接改色 */
+:where(.kv-list) dt {
+  color: var(--text-secondary);
+}
+
+:where(.kv-list) dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* 手机宽度：键在上、值在下，长路径不再挤成一字一行 */
+@media (max-width: 480px) {
+  .kv-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .kv-list dd + dt {
+    margin-top: 10px;
+  }
+}
+
+/* ---------- 表单 ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-label {
+  color: var(--text);
+  font-size: var(--type-label-size);
+  font-weight: 500;
+}
+
+.field-note {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: 1.6;
+}
+
+/* 文字输入（DESIGN.md「输入」）：--bg-elevated 底、12px 16px、16px 字 —— iOS 上小于 16px 会触发页面缩放 */
+.info-panel .input,
+.field .input {
+  height: auto;
+  min-height: var(--touch-min);
+  padding: 11px 16px;
+  border-color: var(--separator-opaque);
+  font-size: var(--type-body-size);
+  line-height: 1.25;
+}
+
+.info-panel textarea.input {
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm) var(--sp-md);
+}
+
+/* ---------- 开关行：说明在左、开关在右（与 iOS 设置的分组列表一致） ---------- */
+
+.toggle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px var(--sp-lg);
+  cursor: pointer;
+}
+
+.toggle-row > .switch {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  margin-top: 1px;
+}
+
+.toggle-row-label {
+  color: var(--text);
+  font-size: var(--type-body-sm-size);
+  font-weight: 500;
+}
+
+.toggle-row-note {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: 1.6;
+}
+
+.toggle-row-note b,
+.toggle-row-note strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---------- 状态：徽标与带点的状态字 ----------
+   徽标（DESIGN.md「标签与徽标 · 状态徽标」）：语义色文字 + 同色 12% 底，字和底一起决定。
+   「新版本」「做种数」这类只读信息用 --teal；可点击色（--accent）不拿来做徽标 —— 叠在卡片底上的蓝色淡底只有约 4:1。 */
+
+.status-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--type-micro-size);
+  font-weight: var(--type-micro-weight);
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.status-badge--info {
+  background: var(--teal-dim);
+  color: var(--teal);
+}
+
+.status-badge--neutral {
+  background: var(--bg-fill);
+  color: var(--text-secondary);
+}
+
+/* 键值表里的状态：前面一个同色圆点，颜色之外还有字，不只靠颜色表达 */
+.status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.status-text::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.status-text--ok {
+  color: var(--success);
+}
+
+.status-text--warn {
+  color: var(--warning);
+}
+
+.status-text--error {
+  color: var(--error);
+}
+
+.status-text--idle {
+  color: var(--text-secondary);
+}
+
+/* ---------- 说明框：登录前该知道的限制、要先做的一步 ----------
+   底是中性填充、字是主文字色，只有图标带语义色：长段说明整段染成橙色反而难读。
+   框里不放蓝色链接 —— 叠在填充底上的 --accent 不到 4.5:1。 */
+
+.callout {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-fill);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  line-height: 1.65;
+}
+
+.callout > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warning);
+}
+
+.callout strong {
+  font-weight: 600;
+}
+
+/* ---------- 页内返回链接（扩展页回设置） ---------- */
+
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  align-self: flex-start;
+  min-height: 32px;
+  padding-right: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--type-label-size);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--dur-short) var(--ease-standard);
+}
+
+.page-back:hover {
+  color: var(--accent-hover);
+}
+
+/* 以表单与说明为主的页面：限宽，一行字不至于拉到 1400px 宽 */
+.page-narrow {
+  max-width: calc(880px + 2 * var(--catalog-gutter));
+}
+
+/* 页面容器的竖向间距对返回链接太大：让它贴着下面的页头 */
+.catalog-page > .page-back {
+  margin-bottom: calc(-1 * var(--sp-lg));
+}
+
+@media (pointer: coarse) {
+  .page-back {
+    min-height: var(--touch-min);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-back {
+    transition: none;
+  }
+}

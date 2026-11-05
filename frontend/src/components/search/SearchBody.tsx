@@ -6,6 +6,7 @@ import { mono } from '../../theme'
 import type { PlayControl } from './ResultRow'
 import { ResultTable } from './ResultTable'
 import { SourceStatusBar } from './SourceStatusBar'
+import '../catalog/catalog.css'
 import './search.css'
 
 export interface SearchBodyProps {
@@ -32,7 +33,7 @@ export function SearchBody(props: SearchBodyProps) {
 
   if (sources.phase === 'loading') {
     return (
-      <p className="result result--dim" style={mono} role="status">
+      <p className="result result--dim" role="status">
         正在读取规则 …
       </p>
     )
@@ -56,12 +57,9 @@ export function SearchBody(props: SearchBodyProps) {
   }
 
   const result = pickResult(search)
+  // 不再挂 live region：页面顶部的状态行已经在念「正在搜索」，两处一起念就是重复
   if (result === null) {
-    return (
-      <p className="result result--dim" style={mono} role="status">
-        正在搜索「{query}」…
-      </p>
-    )
+    return <p className="result result--dim">正在搜索「{query}」…</p>
   }
 
   const isStale = search.phase === 'searching'
@@ -91,15 +89,19 @@ function pickResult(search: SearchState): SearchResult | null {
 
 function RetryNotice({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
   return (
-    <div className="page-notice">
-      <h2 className="page-notice-title">{title}</h2>
-      <p className="page-notice-copy result--err">{message}</p>
-      <p className="page-notice-actions">
-        <button type="button" className="btn btn--sm" onClick={onRetry}>
+    <section className="catalog-notice" aria-labelledby="search-retry-heading">
+      <h2 id="search-retry-heading" className="catalog-notice-title">
+        {title}
+      </h2>
+      <p className="catalog-notice-body search-error-text" role="alert">
+        {message}
+      </p>
+      <div className="catalog-notice-actions">
+        <button type="button" className="btn" onClick={onRetry}>
           重试
         </button>
-      </p>
-    </div>
+      </div>
+    </section>
   )
 }
 
@@ -107,18 +109,14 @@ function RetryNotice({ title, message, onRetry }: { title: string; message: stri
 function NoSourcesNotice({ data }: { data: SourcesData }) {
   const { errors } = data.rules
   return (
-    <section className="search-empty" aria-labelledby="no-sources-heading">
-      <h2 id="no-sources-heading" className="page-notice-title">
+    <section className="catalog-notice search-empty" aria-labelledby="no-sources-heading">
+      <h2 id="no-sources-heading" className="catalog-notice-title">
         还没有规则来源
       </h2>
-      <p className="page-notice-copy">
-        nagare 不内置任何磁力源。添加规则来源（规则仓库的 HTTPS 地址或本机目录）后即可搜索，搜索在你自己的电脑上执行。
-      </p>
+      <p className="catalog-notice-body">nagare 不内置任何磁力源。添加规则来源（规则仓库的 HTTPS 地址或本机目录）后即可搜索，搜索在你自己的电脑上执行。</p>
       {errors.length > 0 && (
         <div className="rules-errors" role="alert">
-          <p className="result result--err" style={mono}>
-            {errors.length} 条规则加载失败
-          </p>
+          <p className="rules-errors-title">{errors.length} 条规则加载失败</p>
           <ul>
             {errors.map((error) => (
               <li key={error} style={mono}>
@@ -128,11 +126,11 @@ function NoSourcesNotice({ data }: { data: SourcesData }) {
           </ul>
         </div>
       )}
-      <p className="page-notice-actions">
-        <Link to="/settings" hash="sources" className="btn btn--sm search-empty-link">
+      <div className="catalog-notice-actions">
+        <Link to="/settings" hash="sources" className="btn">
           去设置添加规则来源
         </Link>
-      </p>
+      </div>
     </section>
   )
 }
@@ -142,13 +140,11 @@ function IdleNotice({ data }: { data: SourcesData }) {
   const total = data.sources.length
   const enabled = data.sources.filter((source) => source.enabled).length
   return (
-    <section className="search-empty" aria-labelledby="idle-heading">
-      <h2 id="idle-heading" className="page-notice-title">
+    <section className="catalog-notice search-empty" aria-labelledby="idle-heading">
+      <h2 id="idle-heading" className="catalog-notice-title">
         输入关键词开始搜索
       </h2>
-      <p className="page-notice-copy">
-        已加载 {total} 个源，{enabled} 个启用。结果可以直接「播放」（边下边播，交给 mpv），也可以复制磁力链接到别的下载器。
-      </p>
+      <p className="catalog-notice-body">已加载 {total} 个源，{enabled} 个启用。结果可以直接「播放」（边下边播，交给 mpv），也可以复制磁力链接到别的下载器。</p>
     </section>
   )
 }
@@ -163,18 +159,18 @@ function EmptyResultsNotice({ query, outcomes }: { query: string; outcomes: Sour
   let copy = '所有启用的源都返回了空结果，换个关键词试试。'
   if (deadCount > 0 || failedCount > 0) {
     title = '没有结果，且有源出了问题'
-    copy = `${describeTrouble(deadCount, failedCount)}——把鼠标放到上方红色 / 橙色徽标上查看原因，规则损坏时请到设置页自检或重新同步。`
+    copy = `${describeTrouble(deadCount, failedCount)}——上方的来源状态里写着原因（悬停或用键盘聚焦查看），规则损坏时请到设置页自检或重新同步。`
   } else if (activeCount === 0) {
     title = '所有源都已禁用'
-    copy = '点击上方徽标启用至少一个源后会自动重新搜索。'
+    copy = '点击上方的来源启用至少一个后会自动重新搜索。'
   }
 
   return (
-    <section className="search-empty search-empty--results" aria-labelledby="empty-results-heading">
-      <h2 id="empty-results-heading" className="page-notice-title">
+    <section className="catalog-notice search-empty search-empty--results" aria-labelledby="empty-results-heading">
+      <h2 id="empty-results-heading" className="catalog-notice-title">
         {title}
       </h2>
-      <p className="page-notice-copy">{copy}</p>
+      <p className="catalog-notice-body">{copy}</p>
     </section>
   )
 }

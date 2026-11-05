@@ -143,7 +143,10 @@ const searchRoute = createRoute({
   component: SearchPage,
 })
 
-/** `/settings` 设置页：animego 账号 · mpv · 更新 · 磁力源 · 文件夹管理 · 关于 · 退出 */
+/**
+ * `/settings` 设置页：账号 + 三组（媒体库与 NAS / 播放 / 关于），分区在 #hash 里。
+ * 分区表见 pages/settings/sections.ts。
+ */
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',

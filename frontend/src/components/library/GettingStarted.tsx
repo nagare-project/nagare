@@ -8,6 +8,8 @@ import type { SettingsState } from '../../hooks/useSettings'
 import { redetectMpv } from '../../lib/endpoints'
 import type { AddFolderData, MpvInstallGuide } from '../../lib/endpoints'
 import { errorText } from '../../lib/format'
+import '../settings/cards.css'
+import './onboarding.css'
 
 /**
  * 首次运行的引导屏。
@@ -39,6 +41,13 @@ interface Props {
 
 /** 准备项的就绪状态：done 已完成 · todo 待办（非阻塞） · required 必需但缺失 */
 type Readiness = 'done' | 'todo' | 'required'
+
+/** 状态点只有颜色，读屏读不到：同一个状态用字再说一遍 */
+const READINESS_TEXT: Record<Readiness, string> = {
+  done: '，已就绪',
+  todo: '，待办',
+  required: '，还没就绪',
+}
 
 export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolders }: Props) {
   const sources = useSources()
@@ -77,8 +86,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
         欢迎使用 nagare
       </h2>
       <p className="onboard-lede">
-        本地文件和磁力链接，都交给你自己电脑上的 mpv 播放。
-        <strong>两条路互相独立</strong>：不添加本地文件夹，也可以直接用磁力搜索。
+        本地文件和磁力链接，都交给你自己电脑上的 mpv 播放。<strong>两条路互相独立</strong>：不添加本地文件夹，也可以直接用磁力搜索。
       </p>
 
       <ul className="onboard-list">
@@ -104,7 +112,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
           desc="选一个存放动漫的文件夹（外接硬盘也可以），nagare 会扫描并按作品整理。之后可以再加。"
         >
           <div className="onboard-form">
-            <AddFolderForm onAdd={onAdd} autoFocus platform={platform} />
+            <AddFolderForm onAdd={onAdd} autoFocus platform={platform} primarySubmit={mpv?.found !== false} />
           </div>
         </Step>
 
@@ -115,9 +123,9 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
           desc={magnetDesc}
         >
           {magnetReady ? (
-            <Link to="/" className="btn btn--sm">去发现页选番</Link>
+            <Link to="/" className="btn">去发现页选番</Link>
           ) : (
-            <Link to="/settings" hash={hasMagnetSource ? 'torrent' : 'sources'} className="btn btn--sm">
+            <Link to="/settings" hash={hasMagnetSource ? 'torrent' : 'sources'} className="btn">
               {hasMagnetSource ? '查看磁力播放设置' : '去设置来源'}
             </Link>
           )}
@@ -125,7 +133,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
 
         <Step
           state={loggedIn ? 'done' : 'todo'}
-          name="animego 账号"
+          name="账号"
           tag="可选"
           desc={
             loggedIn
@@ -134,7 +142,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
           }
         >
           {!loggedIn && (
-            <Link to="/settings" hash="account" className="btn btn--sm">
+            <Link to="/settings" hash="account" className="btn">
               去登录
             </Link>
           )}
@@ -218,7 +226,7 @@ function MpvSetup({ hint, install, onReload }: { hint?: string; install?: MpvIns
       )}
       {install !== undefined && <InstallGuide install={install} />}
       <div className="form-actions">
-        <button type="button" className="btn btn--sm btn--primary" onClick={() => void detect(true)} disabled={busy}>
+        <button type="button" className="btn btn--primary" onClick={() => void detect(true)} disabled={busy}>
           {busy ? '检测中 …' : '我装好了，重新检测'}
         </button>
       </div>
@@ -252,12 +260,13 @@ function Step({ state, name, tag, desc, children }: StepProps) {
     <li className="onboard-step">
       <span className={`onboard-dot onboard-dot--${state}`} aria-hidden="true" />
       <div className="onboard-body">
-        <p className="onboard-step-head">
-          <span className="onboard-step-name">{name}</span>
+        <div className="onboard-step-head">
+          <h3 className="onboard-step-name">{name}</h3>
           {/* 「必需」只在【尚未满足】时才染警示色：已就绪的绿点配琥珀徽标
               是自相矛盾的信号，用户会以为还有事要做 */}
           <span className={state === 'required' ? 'badge badge--warn' : 'badge'}>{tag}</span>
-        </p>
+          <span className="visually-hidden">{READINESS_TEXT[state]}</span>
+        </div>
         <p className="onboard-step-desc">{desc}</p>
         {children}
       </div>

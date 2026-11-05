@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 import type { TorrentFile } from '../../lib/endpoints'
 import { formatBytes, formatEpisode } from '../../lib/format'
 import { mono } from '../../theme'
+import '../../styles/panels.css'
 import './torrent.css'
 
 /** 弹窗内可聚焦元素的选择器（Tab 循环用） */
@@ -86,7 +87,7 @@ export function EpisodePicker({
     <div className="ep-overlay">
       <div
         ref={dialogRef}
-        className="panel ep-dialog"
+        className="ep-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="episode-picker-heading"
@@ -111,12 +112,9 @@ export function EpisodePicker({
           <ul className="ep-list">
             {files.map((file) => (
               <li key={file.index}>
-                <button
-                  type="button"
-                  className="ep-item"
-                  onClick={() => onSelect(file.index)}
-                  aria-label={`播放 ${file.name}`}
-                >
+                {/* 名字取自看得见的集号、文件名、体积，前面补一个只给读屏的「播放」 */}
+                <button type="button" className="ep-item" onClick={() => onSelect(file.index)}>
+                  <span className="visually-hidden">播放 </span>
                   <span className="ep-ep" style={mono}>
                     {episodeText(file)}
                   </span>
@@ -131,14 +129,10 @@ export function EpisodePicker({
         )}
 
         <div className="form-actions ep-actions">
-          <button
-            type="button"
-            className="btn btn--sm btn--danger"
-            onClick={onCancel}
-          >
+          <button type="button" className="btn" onClick={onCancel}>
             取消
           </button>
-          <span className="result result--dim ep-hint">取消会放弃这条磁力并释放已下载的分片</span>
+          <span className="ep-hint">取消会放弃这条磁力并释放已下载的分片</span>
         </div>
       </div>
     </div>

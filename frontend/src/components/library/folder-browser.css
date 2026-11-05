@@ -1,19 +1,21 @@
-/* 添加媒体库文件夹时的目录浏览面板（FolderBrowser） */
+/* 添加媒体库文件夹时的目录浏览面板（FolderBrowser）：常用位置 → 逐层点进去 → 添加这个文件夹 */
 
 .folder-browser {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--sunken);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--separator-opaque);
+  border-radius: var(--radius-md);
+  background: var(--bg);
 }
 
-.folder-browser-head {
+.folder-browser-head,
+.folder-browser-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--sp-sm);
   min-width: 0;
 }
 
@@ -26,8 +28,8 @@
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.82rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
 }
 
 /* 读下一层时旧列表留在原地（焦点不丢），只是变暗 */
@@ -46,32 +48,32 @@
 .folder-browser-item {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 10px;
   width: 100%;
-  padding: 0.45rem 0.5rem;
+  min-height: 40px;
+  padding: 6px 8px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--fg);
+  color: var(--text);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--type-label-size);
   text-align: left;
   cursor: pointer;
 }
 
-.folder-browser-item:hover,
-.folder-browser-item:focus-visible {
-  background: var(--subtle);
+.folder-browser-item:hover {
+  background: var(--row-hover);
 }
 
+/* 列表自己会滚：焦点环往里收，免得被滚动区裁掉 */
 .folder-browser-item:focus-visible {
-  outline: 2px solid var(--brand);
   outline-offset: -2px;
 }
 
 .folder-browser-item > svg {
   flex: none;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
 }
 
 /* 进入箭头始终靠右，不论这一行有没有路径副标题 */
@@ -95,17 +97,16 @@
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.78rem;
-  color: var(--fg-muted);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
 }
 
 .folder-browser-message {
-  padding: 0.45rem 0.5rem;
+  padding: 6px 8px;
 }
 
-.folder-browser-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+@media (pointer: coarse) {
+  .folder-browser-item {
+    min-height: var(--touch-min);
+  }
 }
