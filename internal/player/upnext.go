@@ -7,6 +7,8 @@
 // 停在最后一帧之后，窗口要么换到下一集，要么由 nagare 关掉 —— 停在那里时再把 keep-open 关掉，
 // mpv（0.41 实测）并不会因此结束文件、关窗，窗口就卡在最后一帧上。所以下一集没能打开时，
 // 还有下一集就挂一张不会自己消失的错误卡片（重试 / 关闭窗口），没有了就照「最后一集播完」关窗。
+// 「停在那里」要按 mpv 的实际情况算，不能只按已经处理过的事件：mpv 可能在 keep-open 关掉之前
+// 就停住了，那条到尾的事件还排在通道里（见 episodeLoop.keepOpenDropped）。
 package player
 
 import (
@@ -51,6 +53,7 @@ func (w *windowLoop) parkedAtEOF() bool {
 // 设不上只记日志：退化成播完即关窗，⏭ 照常可用。
 //
 // 已经停在最后一帧时下一集没了：关掉 keep-open 不会让 mpv 关窗，由我们关（与最后一集播完一样）。
+// 关的时候还没处理到这一集到尾，不等于 mpv 没停住：记下 keepOpenDropped，到尾的事件一来照样关窗。
 func (m *Manager) syncKeepOpen(w *windowLoop) {
 	want := w.pb.uiReady.Load() && w.loop.sess.navSnapshot().Next != nil
 	if want == w.nav.keepOpen {
@@ -66,6 +69,7 @@ func (m *Manager) syncKeepOpen(w *windowLoop) {
 		return
 	}
 	w.nav.keepOpen = want
+	w.loop.keepOpenDropped = !want
 }
 
 // probeUI 在播放中补认界面就绪（ready 丢了的时候）；没有下一集就不必认，keep-open 不会开。
@@ -90,7 +94,10 @@ func (m *Manager) probeUI(w *windowLoop) {
 	m.syncKeepOpen(w)
 }
 
-// reachedEOF 处理播到尾（eof-reached 的上升沿）。keep-open 关着时 mpv 自己结束文件、关窗，照旧。
+// reachedEOF 处理播到尾（eof-reached 的上升沿）。keep-open 一直关着时 mpv 自己结束文件、关窗，照旧。
+// 这一集里 keep-open 被我们关掉过（keepOpenDropped）就分不清了：mpv 可能是关之前就停住了、
+// 到尾的事件晚到了一步，停住的文件不会自己结束 —— 由我们关窗。mpv 要是本来就在自己退出，
+// 也只是多发一次 quit（Close 幂等，关闭引发的退出不算播放失败）。
 //
 // 开着 keep-open 时 mpv 停在最后一帧，由这里决定接下来：
 //   - 网络流在远没播完时就到了尾（下载停滞、连接断了）：这是来源故障，关窗并记一次播放失败；
@@ -98,6 +105,10 @@ func (m *Manager) probeUI(w *windowLoop) {
 //     有下一集就出倒计时卡片，下一集不见了就照常关窗。
 func (m *Manager) reachedEOF(w *windowLoop) {
 	if !w.nav.keepOpen {
+		if w.loop.keepOpenDropped {
+			log.Printf("player: 到尾了，keep-open 是这一集半路关掉的（mpv 可能已经停在最后一帧），关窗")
+			m.closeWindow(w)
+		}
 		return
 	}
 	pb, loop := w.pb, w.loop
