@@ -5,6 +5,7 @@
   "GET /api/player/status": "player-status.json",
   "POST /api/play": "play.json",
   "GET /api/discover": "discover.json",
+  "GET /api/discover/gems": "discover-gems.json",
   "GET /api/seasonal": "seasonal.json",
   "GET /api/schedule": "schedule.json",
   "GET /api/lists": "lists.json",

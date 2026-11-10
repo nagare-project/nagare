@@ -8,6 +8,7 @@ import { mount } from '../test/harness'
 import { getByRole } from '../test/queries'
 import { installLocalStorage } from '../test/storage'
 import { TOKEN_STORAGE_KEY } from '../lib/token'
+import { discoverData } from '../test/discoverData'
 
 /** 页面请求过的季度目录（/api/seasonal 的查询参数） */
 let requested: string[] = []
@@ -20,9 +21,9 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), 'http://localhost')
     if (url.pathname === '/api/seasonal') requested.push(url.search)
-    const data: Record<string, unknown> = {
+    const data: unknown = {
       '/api/seasonal': { items: [] },
-      '/api/discover': { sections: [] },
+      '/api/discover': discoverData(),
       '/api/library': { folders: [{ id: 'f', path: '/番剧', addedAt: 1 }], clusters: [], continueWatching: [], scannedAt: 1 },
     }[url.pathname] ?? {}
     return new Response(JSON.stringify({ success: true, data }), { headers: { 'Content-Type': 'application/json' } })

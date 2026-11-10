@@ -60,20 +60,37 @@ func TestDiscoverPartialFailureCacheAndYearBoundary(t *testing.T) {
 	for range 2 {
 		view, err := s.View(context.Background())
 		require.NoError(t, err)
-		require.NotEmpty(t, view.Sections[0].Error)
-		require.Empty(t, view.Sections[0].Items)
-		require.Len(t, view.Sections[2].Items, 1)
+		require.Equal(t, "WINTER", view.Season)
+		require.Equal(t, 2027, view.Year)
+		require.NotEmpty(t, view.Trending.Error)
+		require.NotNil(t, view.Trending.Items, "出错的板块给空数组，不是 null")
+		require.Empty(t, view.Trending.Items)
+		require.Len(t, view.Seasonal.Items, 1)
+		require.Equal(t, 1, view.SeasonTotal)
 	}
-	require.Equal(t, 2, f.calls["trending"])
+	require.Equal(t, 2, f.calls["trending"], "失败不缓存")
 	require.Equal(t, 1, f.calls["WINTER2027"])
-	require.Equal(t, 1, f.calls["FALL2026"])
-	require.Equal(t, 1, f.calls["SPRING2027"])
+	require.Zero(t, f.calls["FALL2026"], "不再读上季")
+	require.Zero(t, f.calls["SPRING2027"], "不再读下季")
 	now = now.Add(11 * time.Minute)
 	_, err := s.View(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 2, f.calls["WINTER2027"])
 	require.Equal(t, 1, f.calls["schedule"])
 }
+
+// 发现页的本季与季度页（/api/seasonal）是同一个缓存键：先开发现页、再翻到当季，不再请求一次。
+func TestDiscoverSharesSeasonCacheWithSeasonalPage(t *testing.T) {
+	f := &catalogStub{}
+	s := catalogService(f)
+	s.cache.now = func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC) }
+	_, err := s.View(context.Background())
+	require.NoError(t, err)
+	_, err = s.Seasonal(context.Background(), "FALL", 2026)
+	require.NoError(t, err)
+	require.Equal(t, 1, f.calls["FALL2026"])
+}
+
 func TestSchedulePreservesUnixDeduplicatesAndSharesCache(t *testing.T) {
 	f := &catalogStub{}
 	s := catalogService(f)
@@ -107,15 +124,11 @@ func TestAiredEpisodesSurviveSeasonalAndDetailProjection(t *testing.T) {
 	f := &catalogStub{}
 	s := catalogService(f)
 	s.cache.now = func() time.Time { return time.Unix(1788656401, 0) }
-	view, err := s.View(context.Background())
+	_, err := s.View(context.Background()) // 顺带读好放送快照
 	require.NoError(t, err)
-	for _, section := range view.Sections {
-		for _, item := range section.Items {
-			if item.AnilistID == 1 {
-				require.Equal(t, &Airing{Episode: 3, At: 1788656400}, item.RecentAiring, section.Key)
-			}
-		}
-	}
+	seasonal, err := s.Seasonal(context.Background(), "SUMMER", 2026)
+	require.NoError(t, err)
+	require.Equal(t, &Airing{Episode: 3, At: 1788656400}, seasonal.Items[0].RecentAiring)
 	detail, err := s.Detail(context.Background(), 1)
 	require.NoError(t, err)
 	require.Equal(t, &Airing{Episode: 3, At: 1788656400}, detail.RecentAiring)

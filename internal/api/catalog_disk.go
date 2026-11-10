@@ -30,7 +30,8 @@ import (
 const (
 	// catalogDiskVersion 是盘上文件的格式版本。改了文件结构或上游结构的含义就加一，
 	// 旧版本的文件读到时直接丢弃、回到网络。
-	catalogDiskVersion = 1
+	// 2：发现页改用封面主色、追番人数与名次（版本 1 的文件里没有这几个字段），各板块条数也变了。
+	catalogDiskVersion = 2
 	// catalogDiskMaxBytes 是整个目录磁盘层的总上限，超过就按最近使用淘汰。
 	catalogDiskMaxBytes = 50 << 20
 	// catalogDiskMaxEntry 是单个文件的上限：季度一页 200 部约 1MB，8MB 已经很宽松，
@@ -43,10 +44,7 @@ const (
 
 // catalogDiskPrefixes 是允许落盘的缓存键前缀（显式白名单，见 discover.go / seasonal.go 的键）。
 // 不在这里的键一律只留内存：search:（搜索词本身就是用户输入）、收藏（另一个缓存实例，键是账号代次）。
-var catalogDiskPrefixes = []string{
-	"trending:", "thisSeason:", "pastSeason:", "nextSeason:", "gems:", "yearly:",
-	"seasonal:", "detail:",
-}
+var catalogDiskPrefixes = []string{"trending:", "gems:", "yearly:", "seasonal:", "detail:"}
 
 // catalogDiskKey 判断一个缓存键能不能落盘。
 func catalogDiskKey(key string) bool {

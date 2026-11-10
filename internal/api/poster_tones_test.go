@@ -47,16 +47,16 @@ func TestCatalogSummaryCarriesPosterTones(t *testing.T) {
 	now := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
 	s.cache.now = func() time.Time { return now }
 
-	view, err := s.View(context.Background())
+	view, err := s.Seasonal(context.Background(), "WINTER", 2027)
 	require.NoError(t, err)
-	require.NotEmpty(t, view.Sections[2].Items)
-	assert.Nil(t, view.Sections[2].Items[0].PosterTones, "还没接取色来源")
+	require.NotEmpty(t, view.Items)
+	assert.Nil(t, view.Items[0].PosterTones, "还没接取色来源")
 
 	src := &fakeTones{by: map[string]artcache.PosterTones{coverA: tonesFixture(264)}}
 	s.tones.set(src)
-	view, err = s.View(context.Background())
+	view, err = s.Seasonal(context.Background(), "WINTER", 2027)
 	require.NoError(t, err)
-	got := view.Sections[2].Items[0].PosterTones
+	got := view.Items[0].PosterTones
 	require.NotNil(t, got)
 	assert.Equal(t, tonesFixture(264), *got)
 	assert.Contains(t, src.asked, coverA, "按封面的原始地址查，不是 /art 键")

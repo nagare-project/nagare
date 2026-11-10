@@ -25,6 +25,18 @@ func catalogGoldenCases() []goldenCase {
 			env.catalog.failGems = true
 			return env.call(t, http.StatusOK, http.MethodGet, "/api/discover", "")
 		}},
+		{"catalog-discover-unreachable", func(t *testing.T) []byte {
+			// 上游整个连不上、盘上也没有：每一块都带着原因，界面据此整页说「连不上目录服务」
+			env := newGoldenEnv(t, goldenOptions{})
+			env.catalog.failAll = true
+			return env.call(t, http.StatusOK, http.MethodGet, "/api/discover", "")
+		}},
+		{"catalog-discover-gems", get("/api/discover/gems")},
+		{"catalog-discover-gems-failed", func(t *testing.T) []byte {
+			env := newGoldenEnv(t, goldenOptions{})
+			env.catalog.failGems = true
+			return env.call(t, http.StatusBadGateway, http.MethodGet, "/api/discover/gems", "")
+		}},
 		{"catalog-seasonal", func(t *testing.T) []byte {
 			env := newGoldenEnv(t, goldenOptions{})
 			env.warmSchedule(t)

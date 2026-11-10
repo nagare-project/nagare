@@ -6,7 +6,6 @@ import (
 	"github.com/nagare-project/nagare/internal/animego"
 	"golang.org/x/sync/errgroup"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -28,7 +27,9 @@ type DiscoverService struct {
 	// 目录搜索的全局节流（见 catalog_search.go）；sleep 可在测试里换掉
 	searchMu   sync.Mutex
 	lastSearch time.Time
-	sleep      func(context.Context, time.Duration) error
+	// 「换一批」（MoreGems）连点只排队，不并发打上游
+	gemsMu sync.Mutex
+	sleep  func(context.Context, time.Duration) error
 }
 
 // sleepCtx 等 d 或等到 ctx 结束（浏览器关掉了页面就不必再等着出站）。
@@ -95,30 +96,24 @@ func (s *DiscoverService) Detail(ctx context.Context, id int) (SummaryMedia, err
 	return m, nil
 }
 
+// View 是发现页：本季全部、热门、完结佳作、年度榜、近七日放送，五块各自读、各自缓存、各自降级。
 func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 	now := s.cache.now()
 	quarter := (int(now.Month()) - 1) / 3
-	seasons := []string{"WINTER", "SPRING", "SUMMER", "FALL"}
-	year := now.Year()
-	pastYear, nextYear := year, year
-	if quarter == 0 {
-		pastYear--
+	season, year := seasonNames[quarter], now.Year()
+	// 本季与季度页（GET /api/seasonal）共用 seasonal:<季>:<年> 一个键：翻到当季时不重复请求。
+	keys := []string{
+		fmt.Sprintf("seasonal:%s:%d", season, year),
+		fmt.Sprintf("trending:%d:%d", year, quarter),
+		fmt.Sprintf("gems:%d:%d", year, quarter),
+		fmt.Sprintf("yearly:%d:%d", year, quarter),
 	}
-	if quarter == 3 {
-		nextYear++
+	loaders := []func(context.Context) ([]animego.CatalogMedia, error){
+		func(ctx context.Context) ([]animego.CatalogMedia, error) { return s.source.Seasonal(ctx, season, year) },
+		s.source.Trending,
+		s.source.Gems,
+		func(ctx context.Context) ([]animego.CatalogMedia, error) { return s.source.YearlyTop(ctx, year) },
 	}
-	keys := []string{"trending", "thisSeason", "pastSeason", "nextSeason", "gems", "yearly"}
-	loaders := []func(context.Context) ([]animego.CatalogMedia, error){s.source.Trending,
-		func(ctx context.Context) ([]animego.CatalogMedia, error) {
-			return s.source.Seasonal(ctx, seasons[quarter], year)
-		},
-		func(ctx context.Context) ([]animego.CatalogMedia, error) {
-			return s.source.Seasonal(ctx, seasons[(quarter+3)%4], pastYear)
-		},
-		func(ctx context.Context) ([]animego.CatalogMedia, error) {
-			return s.source.Seasonal(ctx, seasons[(quarter+1)%4], nextYear)
-		}, s.source.Gems,
-		func(ctx context.Context) ([]animego.CatalogMedia, error) { return s.source.YearlyTop(ctx, year) }}
 	rows := make([][]animego.CatalogMedia, len(keys))
 	failures := make([]error, len(keys))
 	metas := make([]cacheMeta, len(keys)+1) // 最后一格是放送
@@ -128,8 +123,7 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 	group.SetLimit(4)
 	for i := range keys {
 		group.Go(func() error {
-			key := fmt.Sprintf("%s:%d:%d", keys[i], year, quarter)
-			rows[i], metas[i], failures[i] = cachedReadMeta(ctx, s.cache, key, 10*time.Minute, loaders[i])
+			rows[i], metas[i], failures[i] = cachedReadMeta(ctx, s.cache, keys[i], 10*time.Minute, loaders[i])
 			return nil
 		})
 	}
@@ -140,94 +134,25 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 	if err := ctx.Err(); err != nil {
 		return DiscoverView{}, err
 	}
-	// 在已取到的季度资料中补全热门项，不为每张卡片扇出详情请求。
-	index := map[int]animego.CatalogMedia{}
-	for _, batch := range rows[1:] {
-		for _, r := range batch {
-			if _, exists := index[r.AnilistID]; !exists {
-				index[r.AnilistID] = r
-			}
-		}
-	}
-	rows[0] = append([]animego.CatalogMedia{}, rows[0]...)
-	for i, r := range rows[0] {
-		if full, ok := index[r.AnilistID]; ok {
-			rows[0][i] = full
-		}
-	}
-	next := nextAirings(schedule, now.Unix())
-	aired := recentAirings(schedule, now.Unix())
 	fetchedAt := now
 	for _, m := range metas {
 		if !m.fetchedAt.IsZero() && m.fetchedAt.Before(fetchedAt) {
 			fetchedAt = m.fetchedAt
 		}
 	}
-	section := func(key, title string, items []animego.CatalogMedia, err error) SectionView {
-		v := SectionView{Key: key, Title: title, Items: s.summaries(items)}
-		for i := range v.Items {
-			v.Items[i].NextAiring = next[v.Items[i].AnilistID]
-			v.Items[i].RecentAiring = aired[v.Items[i].AnilistID]
-		}
-		if err != nil {
-			v.Error = "暂时取不到该板块，请稍后重试：" + err.Error()
-		}
-		return v
+	view := DiscoverView{
+		Season:      season,
+		Year:        year,
+		Seasonal:    homeSection(s.homeMedias(rows[0]), failures[0]),
+		SeasonTotal: len(rows[0]),
+		Trending:    homeSection(s.rankedMedias(rows[1]), failures[1]),
+		Gems:        homeSection(s.homeMedias(rows[2]), failures[2]),
+		Yearly:      homeSection(s.homeMedias(rows[3]), failures[3]),
+		Schedule:    homeSection(s.homeAirings(schedule), scheduleErr),
+		FetchedAt:   fetchedAt.Unix(),
+		Freshness:   freshnessOf(metas...),
 	}
-	recent := []SummaryMedia{}
-	airings := []animego.ScheduleItem{}
-	for _, items := range schedule.Groups {
-		airings = append(airings, items...)
-	}
-	sort.Slice(airings, func(i, j int) bool { return airings[i].AiringAt > airings[j].AiringAt })
-	seen := map[int]bool{}
-	for _, a := range airings {
-		if a.AiringAt > now.Unix() || a.Episode < 1 || seen[a.AnilistID] {
-			continue
-		}
-		m := s.summary(a.CatalogMedia)
-		if m.Title == "" || m.AnilistID < 1 {
-			continue
-		}
-		m.RecentAiring = &Airing{a.Episode, a.AiringAt}
-		recent = append(recent, m)
-		seen[a.AnilistID] = true
-		if len(recent) == 20 {
-			break
-		}
-	}
-	recentSection := SectionView{Key: "recent", Title: "最近已播出", Items: recent}
-	if scheduleErr != nil {
-		recentSection.Error = "暂时取不到放送信息，请稍后重试：" + scheduleErr.Error()
-	}
-	upcoming, movies := []animego.CatalogMedia{}, []animego.CatalogMedia{}
-	for i, batch := range rows[1:] {
-		for _, r := range batch {
-			if (i == 0 || i == 2) && r.Status == "NOT_YET_RELEASED" {
-				upcoming = append(upcoming, r)
-			}
-			if r.Format == "MOVIE" {
-				movies = append(movies, r)
-			}
-		}
-	}
-	derivedError := func(indexes ...int) error {
-		messages := []string{}
-		for _, i := range indexes {
-			if failures[i] != nil {
-				messages = append(messages, keys[i]+" 暂不可用")
-			}
-		}
-		if len(messages) > 0 {
-			return fmt.Errorf("部分数据未加载：%s", strings.Join(messages, "、"))
-		}
-		return nil
-	}
-	return DiscoverView{Sections: []SectionView{
-		section("trending", "大家都在看", rows[0], failures[0]), recentSection,
-		section("thisSeason", "本季新番", rows[1], failures[1]), section("pastSeason", "上季作品", rows[2], failures[2]),
-		section("upcoming", "本季及下季待播", upcoming, derivedError(1, 3)), section("movies", "近期精选剧场版", movies, derivedError(1, 2, 3, 4, 5)),
-	}, FetchedAt: fetchedAt.Unix(), Freshness: freshnessOf(metas...)}, nil
+	return view, nil
 }
 
 // ScheduleView 不把未建立作品绑定的条目说成缺集；只报告本机是否有可信作品关联。

@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "data": {
+    "season": "FALL",
+    "year": 2026,
+    "seasonal": {
+      "items": [],
+      "error": "暂时取不到该板块，请稍后重试：dial tcp: network is unreachable"
+    },
+    "seasonTotal": 0,
+    "trending": {
+      "items": [],
+      "error": "暂时取不到该板块，请稍后重试：dial tcp: network is unreachable"
+    },
+    "gems": {
+      "items": [],
+      "error": "暂时取不到该板块，请稍后重试：animego catalog: animego 暂时不可达，稍后会自动恢复；本地播放不受影响（upstream 502）"
+    },
+    "yearly": {
+      "items": [],
+      "error": "暂时取不到该板块，请稍后重试：dial tcp: network is unreachable"
+    },
+    "schedule": {
+      "items": [],
+      "error": "暂时取不到该板块，请稍后重试：dial tcp: network is unreachable"
+    },
+    "fetchedAt": 1792065600
+  }
+}

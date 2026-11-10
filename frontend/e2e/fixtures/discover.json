@@ -1,658 +1,870 @@
 {
-  "sections": [
-    {
-      "key": "trending",
-      "title": "大家在看",
-      "items": [
-        {
-          "anilistId": 1001,
-          "title": "星屑的旅人",
-          "titleNative": "星屑の旅人",
-          "titleRomaji": "Hoshikuzu no Tabibito",
-          "titleEnglish": "Stardust Traveler",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 70,
-          "genres": [
-            "Adventure",
-            "Fantasy"
-          ],
-          "description": "星屑的旅人的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "posterTones": {
-            "hue": 250,
-            "tone": "#88b6e6",
-            "quiet": "#779cc2",
-            "mid": "#496c90",
-            "low": "#0d2034",
-            "onTone": "#030c17"
-          }
-        },
-        {
-          "anilistId": 1002,
-          "title": "海边的研究所",
-          "titleNative": "海辺の研究所",
-          "titleRomaji": "Umibe no Kenkyuujo",
-          "titleEnglish": "Seaside Lab",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 13,
-          "score": 73,
-          "genres": [
-            "Slice of Life",
-            "Comedy"
-          ],
-          "description": "海边的研究所的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "posterTones": {
-            "hue": 350,
-            "tone": "#db9bb9",
-            "quiet": "#ba879e",
-            "mid": "#88586f",
-            "low": "#2f1622",
-            "onTone": "#14060d"
-          }
-        },
-        {
-          "anilistId": 1003,
-          "title": "夜行列车",
-          "titleNative": "夜行列車",
-          "titleRomaji": "Yakou Ressha",
-          "titleEnglish": "Night Train",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 24,
-          "score": 76,
-          "genres": [
-            "Mystery",
-            "Drama"
-          ],
-          "description": "夜行列车的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": {
-            "hue": 140,
-            "tone": "#95bf8b",
-            "quiet": "#82a37a",
-            "mid": "#53734c",
-            "low": "#13240f",
-            "onTone": "#050e04"
-          }
-        },
-        {
-          "anilistId": 1004,
-          "title": "第七区的猫",
-          "titleNative": "第七区の猫",
-          "titleRomaji": "Dai-nana-ku no Neko",
-          "titleEnglish": "The Cat of District Seven",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 79,
-          "genres": [
-            "Comedy"
-          ],
-          "description": "第七区的猫的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": {
-            "hue": 75,
-            "tone": "#d1aa73",
-            "quiet": "#b29267",
-            "mid": "#816339",
-            "low": "#2c1c04",
-            "onTone": "#120900"
-          }
-        },
-        {
-          "anilistId": 1005,
-          "title": "苍穹之剑",
-          "titleNative": "蒼穹の剣",
-          "titleRomaji": "Soukyuu no Tsurugi",
-          "titleEnglish": "Sword of the Sky",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 25,
-          "score": 82,
-          "genres": [
-            "Action",
-            "Fantasy"
-          ],
-          "description": "苍穹之剑的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "posterTones": null
-        },
-        {
-          "anilistId": 1006,
-          "title": "放学后的乐队",
-          "titleNative": "放課後バンド",
-          "titleRomaji": "Houkago Band",
-          "titleEnglish": "After School Band",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 85,
-          "genres": [
-            "Music",
-            "Slice of Life"
-          ],
-          "description": "放学后的乐队的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": null
-        },
-        {
-          "anilistId": 1007,
-          "title": "雪国物语",
-          "titleNative": "雪国物語",
-          "titleRomaji": "Yukiguni Monogatari",
-          "titleEnglish": "Snow Country Tale",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a53a6b'/%3E%3Cstop offset='1' stop-color='%232b0818'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a53a6b'/%3E%3Cstop offset='1' stop-color='%232b0818'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": null,
-          "score": 88,
-          "genres": [
-            "Romance",
-            "Drama"
-          ],
-          "description": "雪国物语的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "NOT_YET_RELEASED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": null
-        },
-        {
-          "anilistId": 1008,
-          "title": "机械之心",
-          "titleNative": "機械の心",
-          "titleRomaji": "Kikai no Kokoro",
-          "titleEnglish": "Mechanical Heart",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b7a8a'/%3E%3Cstop offset='1' stop-color='%2314181d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b7a8a'/%3E%3Cstop offset='1' stop-color='%2314181d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 91,
-          "genres": [
-            "Sci-Fi",
-            "Action"
-          ],
-          "description": "机械之心的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": null
-        }
-      ]
-    },
-    {
-      "key": "thisSeason",
-      "title": "本季新番",
-      "items": [
-        {
-          "anilistId": 1001,
-          "title": "星屑的旅人",
-          "titleNative": "星屑の旅人",
-          "titleRomaji": "Hoshikuzu no Tabibito",
-          "titleEnglish": "Stardust Traveler",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 70,
-          "genres": [
-            "Adventure",
-            "Fantasy"
-          ],
-          "description": "星屑的旅人的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "posterTones": {
-            "hue": 250,
-            "tone": "#88b6e6",
-            "quiet": "#779cc2",
-            "mid": "#496c90",
-            "low": "#0d2034",
-            "onTone": "#030c17"
-          }
-        },
-        {
-          "anilistId": 1002,
-          "title": "海边的研究所",
-          "titleNative": "海辺の研究所",
-          "titleRomaji": "Umibe no Kenkyuujo",
-          "titleEnglish": "Seaside Lab",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 13,
-          "score": 73,
-          "genres": [
-            "Slice of Life",
-            "Comedy"
-          ],
-          "description": "海边的研究所的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "posterTones": {
-            "hue": 350,
-            "tone": "#db9bb9",
-            "quiet": "#ba879e",
-            "mid": "#88586f",
-            "low": "#2f1622",
-            "onTone": "#14060d"
-          }
-        },
-        {
-          "anilistId": 1005,
-          "title": "苍穹之剑",
-          "titleNative": "蒼穹の剣",
-          "titleRomaji": "Soukyuu no Tsurugi",
-          "titleEnglish": "Sword of the Sky",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 25,
-          "score": 82,
-          "genres": [
-            "Action",
-            "Fantasy"
-          ],
-          "description": "苍穹之剑的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "posterTones": null
-        },
-        {
-          "anilistId": 1007,
-          "title": "雪国物语",
-          "titleNative": "雪国物語",
-          "titleRomaji": "Yukiguni Monogatari",
-          "titleEnglish": "Snow Country Tale",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a53a6b'/%3E%3Cstop offset='1' stop-color='%232b0818'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a53a6b'/%3E%3Cstop offset='1' stop-color='%232b0818'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": null,
-          "score": 88,
-          "genres": [
-            "Romance",
-            "Drama"
-          ],
-          "description": "雪国物语的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "NOT_YET_RELEASED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": null
-        }
-      ]
-    },
-    {
-      "key": "recent",
-      "title": "最近更新",
-      "items": [
-        {
-          "anilistId": 1001,
-          "title": "星屑的旅人",
-          "titleNative": "星屑の旅人",
-          "titleRomaji": "Hoshikuzu no Tabibito",
-          "titleEnglish": "Stardust Traveler",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 70,
-          "genres": [
-            "Adventure",
-            "Fantasy"
-          ],
-          "description": "星屑的旅人的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "recentAiring": {
-            "episode": 5,
-            "at": "@now-7200"
-          },
-          "posterTones": {
-            "hue": 250,
-            "tone": "#88b6e6",
-            "quiet": "#779cc2",
-            "mid": "#496c90",
-            "low": "#0d2034",
-            "onTone": "#030c17"
-          }
-        },
-        {
-          "anilistId": 1002,
-          "title": "海边的研究所",
-          "titleNative": "海辺の研究所",
-          "titleRomaji": "Umibe no Kenkyuujo",
-          "titleEnglish": "Seaside Lab",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 13,
-          "score": 73,
-          "genres": [
-            "Slice of Life",
-            "Comedy"
-          ],
-          "description": "海边的研究所的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "recentAiring": {
-            "episode": 5,
-            "at": "@now-7200"
-          },
-          "posterTones": {
-            "hue": 350,
-            "tone": "#db9bb9",
-            "quiet": "#ba879e",
-            "mid": "#88586f",
-            "low": "#2f1622",
-            "onTone": "#14060d"
-          }
-        },
-        {
-          "anilistId": 1005,
-          "title": "苍穹之剑",
-          "titleNative": "蒼穹の剣",
-          "titleRomaji": "Soukyuu no Tsurugi",
-          "titleEnglish": "Sword of the Sky",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 25,
-          "score": 82,
-          "genres": [
-            "Action",
-            "Fantasy"
-          ],
-          "description": "苍穹之剑的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "RELEASING",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "nextAiring": {
-            "episode": 6,
-            "at": "@now+172800"
-          },
-          "recentAiring": {
-            "episode": 5,
-            "at": "@now-7200"
-          },
-          "posterTones": null
-        }
-      ]
-    },
-    {
-      "key": "pastSeason",
-      "title": "上季热门",
-      "items": [
-        {
-          "anilistId": 1003,
-          "title": "夜行列车",
-          "titleNative": "夜行列車",
-          "titleRomaji": "Yakou Ressha",
-          "titleEnglish": "Night Train",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 24,
-          "score": 76,
-          "genres": [
-            "Mystery",
-            "Drama"
-          ],
-          "description": "夜行列车的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": {
-            "hue": 140,
-            "tone": "#95bf8b",
-            "quiet": "#82a37a",
-            "mid": "#53734c",
-            "low": "#13240f",
-            "onTone": "#050e04"
-          }
-        },
-        {
-          "anilistId": 1004,
-          "title": "第七区的猫",
-          "titleNative": "第七区の猫",
-          "titleRomaji": "Dai-nana-ku no Neko",
-          "titleEnglish": "The Cat of District Seven",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 79,
-          "genres": [
-            "Comedy"
-          ],
-          "description": "第七区的猫的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": {
-            "hue": 75,
-            "tone": "#d1aa73",
-            "quiet": "#b29267",
-            "mid": "#816339",
-            "low": "#2c1c04",
-            "onTone": "#120900"
-          }
-        },
-        {
-          "anilistId": 1006,
-          "title": "放学后的乐队",
-          "titleNative": "放課後バンド",
-          "titleRomaji": "Houkago Band",
-          "titleEnglish": "After School Band",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 85,
-          "genres": [
-            "Music",
-            "Slice of Life"
-          ],
-          "description": "放学后的乐队的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": null
-        },
-        {
-          "anilistId": 1008,
-          "title": "机械之心",
-          "titleNative": "機械の心",
-          "titleRomaji": "Kikai no Kokoro",
-          "titleEnglish": "Mechanical Heart",
-          "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b7a8a'/%3E%3Cstop offset='1' stop-color='%2314181d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b7a8a'/%3E%3Cstop offset='1' stop-color='%2314181d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
-          "year": 2026,
-          "season": "FALL",
-          "episodes": 12,
-          "score": 91,
-          "genres": [
-            "Sci-Fi",
-            "Action"
-          ],
-          "description": "机械之心的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
-          "status": "FINISHED",
-          "format": "TV",
-          "duration": 24,
-          "source": "ORIGINAL",
-          "startDate": "2026-10-04",
-          "studios": [
-            "测试工作室"
-          ],
-          "posterTones": null
-        }
-      ]
-    }
-  ],
-  "fetchedAt": "@nowms"
+  "season": "FALL",
+  "year": 2026,
+  "seasonal": {
+    "items": [
+      {
+        "anilistId": 1001,
+        "title": "星屑的旅人",
+        "titleNative": "星屑の旅人",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 251.5,
+        "score": 88,
+        "bangumiScore": 8.4,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Adventure",
+          "Fantasy"
+        ],
+        "description": "星屑的旅人的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1002,
+        "title": "海边的研究所",
+        "titleNative": "海辺の研究所",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 35.6,
+        "score": 86,
+        "bangumiScore": 7.9,
+        "episodes": 13,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Slice of Life",
+          "Sci-Fi"
+        ],
+        "description": "海边的研究所的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1005,
+        "title": "苍穹之剑",
+        "titleNative": "蒼穹の剣",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 99.3,
+        "score": 84,
+        "bangumiScore": 7.6,
+        "episodes": 24,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Action",
+          "Fantasy"
+        ],
+        "description": "苍穹之剑的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1009,
+        "title": "樱色的约定",
+        "titleNative": "桜色の約束",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c0507a'/%3E%3Cstop offset='1' stop-color='%232b0a18'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 359.3,
+        "score": 83,
+        "bangumiScore": 7.8,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Romance",
+          "Drama"
+        ],
+        "description": "樱色的约定的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1010,
+        "title": "深海图书馆",
+        "titleNative": "深海図書館",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232f8f8a'/%3E%3Cstop offset='1' stop-color='%2308221f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232f8f8a'/%3E%3Cstop offset='1' stop-color='%2308221f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 190.1,
+        "score": 82,
+        "bangumiScore": 7.4,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Mystery"
+        ],
+        "description": "深海图书馆的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1011,
+        "title": "火之国物语",
+        "titleNative": "火の国物語",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c06a2a'/%3E%3Cstop offset='1' stop-color='%232b1406'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 53.3,
+        "score": 81,
+        "bangumiScore": 7.2,
+        "episodes": 24,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Adventure"
+        ],
+        "description": "火之国物语的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1012,
+        "title": "翠绿的森林",
+        "titleNative": "翠緑の森",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234f9a3a'/%3E%3Cstop offset='1' stop-color='%230f2208'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 139.4,
+        "score": 80,
+        "bangumiScore": 7.0,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Fantasy",
+          "Slice of Life"
+        ],
+        "description": "翠绿的森林的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1013,
+        "title": "紫电的骑士",
+        "titleNative": "紫電の騎士",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237a4fc0'/%3E%3Cstop offset='1' stop-color='%23170b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237a4fc0'/%3E%3Cstop offset='1' stop-color='%23170b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 297.9,
+        "score": 79,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Action",
+          "Mecha"
+        ],
+        "description": "紫电的骑士的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1014,
+        "title": "银河快递",
+        "titleNative": "銀河速達",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fd0'/%3E%3Cstop offset='1' stop-color='%23081a2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 245.1,
+        "score": 78,
+        "bangumiScore": 6.9,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "ONA",
+        "genres": [
+          "Comedy",
+          "Sci-Fi"
+        ],
+        "description": "银河快递的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1015,
+        "title": "剧场版 星之歌",
+        "titleNative": "劇場版 星の歌",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23d0a03a'/%3E%3Cstop offset='1' stop-color='%232b1f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23d0a03a'/%3E%3Cstop offset='1' stop-color='%232b1f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 82.7,
+        "score": 77,
+        "bangumiScore": 7.5,
+        "episodes": 1,
+        "season": "FALL",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "MOVIE",
+        "genres": [
+          "Music",
+          "Drama"
+        ],
+        "description": "剧场版 星之歌的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1016,
+        "title": "灰色的街",
+        "titleNative": "灰色の街",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237a7a7a'/%3E%3Cstop offset='1' stop-color='%231a1a1a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": null,
+        "score": 76,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Drama"
+        ],
+        "description": "灰色的街的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1007,
+        "title": "雪国物语",
+        "titleNative": "雪国物語",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a53a6b'/%3E%3Cstop offset='1' stop-color='%232b0818'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 355.3,
+        "episodes": null,
+        "season": "FALL",
+        "year": 2026,
+        "status": "NOT_YET_RELEASED",
+        "format": "TV",
+        "genres": [
+          "Drama"
+        ],
+        "description": "雪国物语的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1017,
+        "title": "晨光咖啡店",
+        "titleNative": "朝の喫茶店",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c08a50'/%3E%3Cstop offset='1' stop-color='%232b1a0a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 66.7,
+        "score": 74,
+        "bangumiScore": 7.1,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Slice of Life"
+        ],
+        "description": "晨光咖啡店的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1018,
+        "title": "冰原的狼",
+        "titleNative": "氷原の狼",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2350a0c0'/%3E%3Cstop offset='1' stop-color='%230a1f2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 226.8,
+        "score": 73,
+        "bangumiScore": 6.8,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Adventure"
+        ],
+        "description": "冰原的狼的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      }
+    ]
+  },
+  "seasonTotal": 104,
+  "trending": {
+    "items": [
+      {
+        "anilistId": 1001,
+        "title": "星屑的旅人",
+        "titleNative": "星屑の旅人",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 251.5,
+        "score": 88,
+        "bangumiScore": 8.4,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Adventure",
+          "Fantasy"
+        ],
+        "description": "星屑的旅人的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 1,
+        "watchers": 142
+      },
+      {
+        "anilistId": 1003,
+        "title": "夜行列车",
+        "titleNative": "夜行列車",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 163.0,
+        "score": 85,
+        "bangumiScore": 8.1,
+        "episodes": 12,
+        "season": "SUMMER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Mystery",
+          "Drama"
+        ],
+        "description": "夜行列车的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 2,
+        "watchers": 118
+      },
+      {
+        "anilistId": 1002,
+        "title": "海边的研究所",
+        "titleNative": "海辺の研究所",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 35.6,
+        "score": 86,
+        "bangumiScore": 7.9,
+        "episodes": 13,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Slice of Life",
+          "Sci-Fi"
+        ],
+        "description": "海边的研究所的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 3,
+        "watchers": 95
+      },
+      {
+        "anilistId": 1006,
+        "title": "放学后的乐队",
+        "titleNative": "放課後のバンド",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 217.8,
+        "score": 87,
+        "bangumiScore": 8.9,
+        "episodes": 12,
+        "season": "WINTER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Music",
+          "Comedy"
+        ],
+        "description": "放学后的乐队的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 4,
+        "watchers": 65
+      },
+      {
+        "anilistId": 1005,
+        "title": "苍穹之剑",
+        "titleNative": "蒼穹の剣",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 99.3,
+        "score": 84,
+        "bangumiScore": 7.6,
+        "episodes": 24,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Action",
+          "Fantasy"
+        ],
+        "description": "苍穹之剑的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 5,
+        "watchers": 55
+      },
+      {
+        "anilistId": 1004,
+        "title": "第七区的猫",
+        "titleNative": "第七区の猫",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 316.5,
+        "score": 82,
+        "bangumiScore": 8.6,
+        "episodes": 24,
+        "season": "SPRING",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Comedy"
+        ],
+        "description": "第七区的猫的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 6,
+        "watchers": 29
+      },
+      {
+        "anilistId": 1009,
+        "title": "樱色的约定",
+        "titleNative": "桜色の約束",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c0507a'/%3E%3Cstop offset='1' stop-color='%232b0a18'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 359.3,
+        "score": 83,
+        "bangumiScore": 7.8,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Romance",
+          "Drama"
+        ],
+        "description": "樱色的约定的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 7,
+        "watchers": 28
+      },
+      {
+        "anilistId": 1013,
+        "title": "紫电的骑士",
+        "titleNative": "紫電の騎士",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237a4fc0'/%3E%3Cstop offset='1' stop-color='%23170b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 297.9,
+        "score": 79,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Action",
+          "Mecha"
+        ],
+        "description": "紫电的骑士的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 8,
+        "watchers": 27
+      },
+      {
+        "anilistId": 1008,
+        "title": "机械之心",
+        "titleNative": "機械の心",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b7a8a'/%3E%3Cstop offset='1' stop-color='%2314181d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": null,
+        "score": 80,
+        "bangumiScore": 7.7,
+        "episodes": 26,
+        "season": "SUMMER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Sci-Fi",
+          "Mecha"
+        ],
+        "description": "机械之心的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 9,
+        "watchers": 22
+      },
+      {
+        "anilistId": 1010,
+        "title": "深海图书馆",
+        "titleNative": "深海図書館",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232f8f8a'/%3E%3Cstop offset='1' stop-color='%2308221f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 190.1,
+        "score": 82,
+        "bangumiScore": 7.4,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Mystery"
+        ],
+        "description": "深海图书馆的简介：这是冒烟测试用的假数据，不对应任何真实作品。",
+        "rank": 10,
+        "watchers": 20
+      }
+    ]
+  },
+  "gems": {
+    "items": [
+      {
+        "anilistId": 1006,
+        "title": "放学后的乐队",
+        "titleNative": "放課後のバンド",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 217.8,
+        "score": 87,
+        "bangumiScore": 8.9,
+        "episodes": 12,
+        "season": "WINTER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Music",
+          "Comedy"
+        ],
+        "description": "放学后的乐队的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1004,
+        "title": "第七区的猫",
+        "titleNative": "第七区の猫",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 316.5,
+        "score": 82,
+        "bangumiScore": 8.6,
+        "episodes": 24,
+        "season": "SPRING",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Comedy"
+        ],
+        "description": "第七区的猫的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1019,
+        "title": "旧都怪谈",
+        "titleNative": "旧都怪談",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%239a3a3a'/%3E%3Cstop offset='1' stop-color='%23220808'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 23.2,
+        "score": 83,
+        "bangumiScore": 8.3,
+        "episodes": 13,
+        "season": "SPRING",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Horror",
+          "Mystery"
+        ],
+        "description": "旧都怪谈的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1003,
+        "title": "夜行列车",
+        "titleNative": "夜行列車",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 163.0,
+        "score": 85,
+        "bangumiScore": 8.1,
+        "episodes": 12,
+        "season": "SUMMER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Mystery",
+          "Drama"
+        ],
+        "description": "夜行列车的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1020,
+        "title": "纸飞机",
+        "titleNative": "紙飛行機",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235aa0a0'/%3E%3Cstop offset='1' stop-color='%230a2222'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 195.6,
+        "score": 79,
+        "bangumiScore": 8.0,
+        "episodes": 1,
+        "season": "WINTER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "MOVIE",
+        "genres": [
+          "Drama"
+        ],
+        "description": "纸飞机的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1008,
+        "title": "机械之心",
+        "titleNative": "機械の心",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b7a8a'/%3E%3Cstop offset='1' stop-color='%2314181d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": null,
+        "score": 80,
+        "bangumiScore": 7.7,
+        "episodes": 26,
+        "season": "SUMMER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Sci-Fi",
+          "Mecha"
+        ],
+        "description": "机械之心的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      }
+    ]
+  },
+  "yearly": {
+    "items": [
+      {
+        "anilistId": 1001,
+        "title": "星屑的旅人",
+        "titleNative": "星屑の旅人",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 251.5,
+        "score": 88,
+        "bangumiScore": 8.4,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Adventure",
+          "Fantasy"
+        ],
+        "description": "星屑的旅人的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1006,
+        "title": "放学后的乐队",
+        "titleNative": "放課後のバンド",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 217.8,
+        "score": 87,
+        "bangumiScore": 8.9,
+        "episodes": 12,
+        "season": "WINTER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Music",
+          "Comedy"
+        ],
+        "description": "放学后的乐队的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1002,
+        "title": "海边的研究所",
+        "titleNative": "海辺の研究所",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 35.6,
+        "score": 86,
+        "bangumiScore": 7.9,
+        "episodes": 13,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Slice of Life",
+          "Sci-Fi"
+        ],
+        "description": "海边的研究所的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1003,
+        "title": "夜行列车",
+        "titleNative": "夜行列車",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 163.0,
+        "score": 85,
+        "bangumiScore": 8.1,
+        "episodes": 12,
+        "season": "SUMMER",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Mystery",
+          "Drama"
+        ],
+        "description": "夜行列车的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1005,
+        "title": "苍穹之剑",
+        "titleNative": "蒼穹の剣",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 99.3,
+        "score": 84,
+        "bangumiScore": 7.6,
+        "episodes": 24,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Action",
+          "Fantasy"
+        ],
+        "description": "苍穹之剑的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1009,
+        "title": "樱色的约定",
+        "titleNative": "桜色の約束",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c0507a'/%3E%3Cstop offset='1' stop-color='%232b0a18'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 359.3,
+        "score": 83,
+        "bangumiScore": 7.8,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Romance",
+          "Drama"
+        ],
+        "description": "樱色的约定的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1019,
+        "title": "旧都怪谈",
+        "titleNative": "旧都怪談",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%239a3a3a'/%3E%3Cstop offset='1' stop-color='%23220808'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 23.2,
+        "score": 83,
+        "bangumiScore": 8.3,
+        "episodes": 13,
+        "season": "SPRING",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Horror",
+          "Mystery"
+        ],
+        "description": "旧都怪谈的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1004,
+        "title": "第七区的猫",
+        "titleNative": "第七区の猫",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 316.5,
+        "score": 82,
+        "bangumiScore": 8.6,
+        "episodes": 24,
+        "season": "SPRING",
+        "year": 2026,
+        "status": "FINISHED",
+        "format": "TV",
+        "genres": [
+          "Comedy"
+        ],
+        "description": "第七区的猫的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1010,
+        "title": "深海图书馆",
+        "titleNative": "深海図書館",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232f8f8a'/%3E%3Cstop offset='1' stop-color='%2308221f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "banner": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232f8f8a'/%3E%3Cstop offset='1' stop-color='%2308221f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1600' height='500' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 190.1,
+        "score": 82,
+        "bangumiScore": 7.4,
+        "episodes": 12,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Mystery"
+        ],
+        "description": "深海图书馆的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      },
+      {
+        "anilistId": 1011,
+        "title": "火之国物语",
+        "titleNative": "火の国物語",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c06a2a'/%3E%3Cstop offset='1' stop-color='%232b1406'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 53.3,
+        "score": 81,
+        "bangumiScore": 7.2,
+        "episodes": 24,
+        "season": "FALL",
+        "year": 2026,
+        "status": "RELEASING",
+        "format": "TV",
+        "genres": [
+          "Adventure"
+        ],
+        "description": "火之国物语的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+      }
+    ]
+  },
+  "schedule": {
+    "items": [
+      {
+        "scheduleId": 5001,
+        "anilistId": 1010,
+        "episode": 6,
+        "airingAt": "@now-18000",
+        "title": "深海图书馆",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232f8f8a'/%3E%3Cstop offset='1' stop-color='%2308221f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 190.1
+      },
+      {
+        "scheduleId": 5002,
+        "anilistId": 1001,
+        "episode": 6,
+        "airingAt": "@now-3600",
+        "title": "星屑的旅人",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a6ea5'/%3E%3Cstop offset='1' stop-color='%230b1d33'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 251.5
+      },
+      {
+        "scheduleId": 5003,
+        "anilistId": 1002,
+        "episode": 7,
+        "airingAt": "@now+1500",
+        "title": "海边的研究所",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5503a'/%3E%3Cstop offset='1' stop-color='%232b0f08'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 35.6
+      },
+      {
+        "scheduleId": 5004,
+        "anilistId": 1005,
+        "episode": 7,
+        "airingAt": "@now+7200",
+        "title": "苍穹之剑",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a5953a'/%3E%3Cstop offset='1' stop-color='%232b2508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 99.3
+      },
+      {
+        "scheduleId": 5005,
+        "anilistId": 1013,
+        "episode": 5,
+        "airingAt": "@now+10800",
+        "title": "紫电的骑士",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237a4fc0'/%3E%3Cstop offset='1' stop-color='%23170b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 297.9
+      },
+      {
+        "scheduleId": 5006,
+        "anilistId": 1009,
+        "episode": 6,
+        "airingAt": "@now+86400",
+        "title": "樱色的约定",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c0507a'/%3E%3Cstop offset='1' stop-color='%232b0a18'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 359.3
+      },
+      {
+        "scheduleId": 5007,
+        "anilistId": 1014,
+        "episode": 6,
+        "airingAt": "@now+90000",
+        "title": "银河快递",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fd0'/%3E%3Cstop offset='1' stop-color='%23081a2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 245.1
+      },
+      {
+        "scheduleId": 5008,
+        "anilistId": 1011,
+        "episode": 8,
+        "airingAt": "@now+172800",
+        "title": "火之国物语",
+        "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23c06a2a'/%3E%3Cstop offset='1' stop-color='%232b1406'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+        "hue": 53.3
+      }
+    ]
+  },
+  "fetchedAt": "@now"
 }

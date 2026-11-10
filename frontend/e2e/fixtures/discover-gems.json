@@ -1,0 +1,116 @@
+{
+  "items": [
+    {
+      "anilistId": 1003,
+      "title": "夜行列车",
+      "titleNative": "夜行列車",
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233aa57a'/%3E%3Cstop offset='1' stop-color='%2308291c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "hue": 163.0,
+      "score": 85,
+      "bangumiScore": 8.1,
+      "episodes": 12,
+      "season": "SUMMER",
+      "year": 2026,
+      "status": "FINISHED",
+      "format": "TV",
+      "genres": [
+        "Mystery",
+        "Drama"
+      ],
+      "description": "夜行列车的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+    },
+    {
+      "anilistId": 1008,
+      "title": "机械之心",
+      "titleNative": "機械の心",
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b7a8a'/%3E%3Cstop offset='1' stop-color='%2314181d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "hue": null,
+      "score": 80,
+      "bangumiScore": 7.7,
+      "episodes": 26,
+      "season": "SUMMER",
+      "year": 2026,
+      "status": "FINISHED",
+      "format": "TV",
+      "genres": [
+        "Sci-Fi",
+        "Mecha"
+      ],
+      "description": "机械之心的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+    },
+    {
+      "anilistId": 1020,
+      "title": "纸飞机",
+      "titleNative": "紙飛行機",
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235aa0a0'/%3E%3Cstop offset='1' stop-color='%230a2222'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "hue": 195.6,
+      "score": 79,
+      "bangumiScore": 8.0,
+      "episodes": 1,
+      "season": "WINTER",
+      "year": 2026,
+      "status": "FINISHED",
+      "format": "MOVIE",
+      "genres": [
+        "Drama"
+      ],
+      "description": "纸飞机的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+    },
+    {
+      "anilistId": 1019,
+      "title": "旧都怪谈",
+      "titleNative": "旧都怪談",
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%239a3a3a'/%3E%3Cstop offset='1' stop-color='%23220808'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "hue": 23.2,
+      "score": 83,
+      "bangumiScore": 8.3,
+      "episodes": 13,
+      "season": "SPRING",
+      "year": 2026,
+      "status": "FINISHED",
+      "format": "TV",
+      "genres": [
+        "Horror",
+        "Mystery"
+      ],
+      "description": "旧都怪谈的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+    },
+    {
+      "anilistId": 1004,
+      "title": "第七区的猫",
+      "titleNative": "第七区の猫",
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238a3aa5'/%3E%3Cstop offset='1' stop-color='%231d0b2b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "hue": 316.5,
+      "score": 82,
+      "bangumiScore": 8.6,
+      "episodes": 24,
+      "season": "SPRING",
+      "year": 2026,
+      "status": "FINISHED",
+      "format": "TV",
+      "genres": [
+        "Comedy"
+      ],
+      "description": "第七区的猫的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+    },
+    {
+      "anilistId": 1006,
+      "title": "放学后的乐队",
+      "titleNative": "放課後のバンド",
+      "cover": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233a8fa5'/%3E%3Cstop offset='1' stop-color='%23082229'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='400' fill='url%28%23g%29'/%3E%3C/svg%3E",
+      "hue": 217.8,
+      "score": 87,
+      "bangumiScore": 8.9,
+      "episodes": 12,
+      "season": "WINTER",
+      "year": 2026,
+      "status": "FINISHED",
+      "format": "TV",
+      "genres": [
+        "Music",
+        "Comedy"
+      ],
+      "description": "放学后的乐队的简介：这是冒烟测试用的假数据，不对应任何真实作品。"
+    }
+  ]
+}

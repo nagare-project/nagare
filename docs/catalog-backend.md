@@ -4,7 +4,8 @@
 
 | nagare 接口 | 数据与行为 |
 | --- | --- |
-| `GET /api/discover` | `sections[{key,title,items,error?}], fetchedAt, freshness?`；六个板块，十分钟缓存，板块独立降级，落盘（见「离线磁盘层」） |
+| `GET /api/discover` | `season, year, seasonal, seasonTotal, trending, gems, yearly, schedule, fetchedAt, freshness?`；每个板块 `{items, error?}`，十分钟缓存（放送三十分钟），板块独立降级，落盘（见「离线磁盘层」与下一节「发现页」） |
+| `GET /api/discover/gems` | `{items}`：完结佳作「换一批」，每次都向上游要新的一批随机样本，不缓存、不落盘；连点只排队不并发 |
 | `GET /api/anime/{id}` | 作品详情，包括中文简介、预告片、关联、推荐、角色和集标题；十分钟缓存，落盘，顶层可带 `freshness?` |
 | `GET /api/schedule` | `airings[{anilistId,episode,airingAt,title,cover,format,inLibrary}], fetchedAt, freshness?`；三十分钟缓存，落盘 |
 | `GET /api/lists` | `loggedIn, entries[{anilistId,status,currentEpisode,score,media,lastWatchedAt?}]`；账号隔离缓存一分钟 |
@@ -18,7 +19,29 @@
 
 放送保留原始 Unix 秒，由浏览器以本机时区重新分桶。上游只提供近七日；未知日期不代表停播。inLibrary 只表示本机曾建立作品绑定，不能当作逐集缺失或已看证明。
 
-六个板块依次为：大家都在看、最近已播出、本季、上季、本季及下季待播、近期精选剧场版。待播筛当前/下一季度；剧场版合并季度、完结精选和年度精选的 MOVIE。类型筛选只针对已返回数据，不新增上游搜索请求。没有实现「错过的续作」和真缺集检测。
+## 发现页 `GET /api/discover`（2026-11-10）
+
+发现页的版面（横幅、今日更新、本季高分、按色调逛、大家都在追、完结佳作、年度榜）由前端从这一份原料拼出来：
+卡片上的文字和分组有一半随时钟变（哪集已播、「现在」在哪），服务端算了前端也得重算，所以接口只给原料。
+
+| 字段 | 内容 | 上游 |
+| --- | --- | --- |
+| `season`、`year` | 本季（按本机月份）与年份；年度榜也用这一年 | — |
+| `seasonal`、`seasonTotal` | 本季全部，按 AniList 评分从高到低；`seasonTotal` 是上游给的这一季总部数 | 季度一页 200 条，键 `seasonal:<季>:<年>`，与季度页共用 |
+| `trending` | 追番人数最多的十部，每项多 `rank`（从 1 起）与 `watchers` | 热门 10 条 |
+| `gems` | 已完结的高分作品，随机六部 | 完结佳作 6 条 |
+| `yearly` | 本年度按 AniList 评分的前十 | 年度榜 10 条 |
+| `schedule` | 近七日的每一次放送 `{scheduleId, anilistId, episode, airingAt, title, cover?, hue}`，按时间先后；不按上游的日期分组，「今天」由界面按本机的日子算 | 放送表 |
+
+每部作品是 `HomeMedia`：`anilistId, title, titleNative?, cover?, banner?, hue, score?（AniList 0–100）, bangumiScore?（0–10，未取整）, episodes, season?（WINTER…）, year?, status?, format?, genres, description?（纯文本）`。
+
+- **`hue`** 是目录给的封面主色（`posterAccent`，`#rrggbb`）换算出的 OKLCH 色相角（一位小数），`null` = 没有可信色相：
+  格式不对、彩度低于 0.04 的灰色、以及上游在取不到封面色时统一填的占位色 `#8b5cf6`（当成紫色的话，一堆不相干的作品会被归进同一个色调）。
+  代码在 `internal/api/accent_hue.go`。它与作品页的 `posterTones`（本机采样封面）是两回事：发现页第一屏就要上色，等不到封面缓存下来。
+  明度与彩度由界面按固定档位决定，所以无论封面是什么颜色，每一档的对比度都有下界。
+- 发现页不再读上季、下季，也不再派生「待播」「剧场版」「最近已播出」三块。
+
+旧版（版本 1）盘上的目录文件里没有封面主色、名次与追番人数，格式版本因此升到 2：升级后第一次离线启动时发现页没有上一份可显示。
 
 ## 配套 animego 预告片字段
 
@@ -76,7 +99,7 @@
 
 发现页要当第一屏，断网或目录服务连不上时也得先显示上一份。代码在 `internal/api/catalog_disk.go`（文件层）与 `catalog_cache.go`（读路径）。
 
-- **只落公开目录**：显式白名单 `catalogDiskKey` —— 发现页六个上游板块（`trending/thisSeason/pastSeason/nextSeason/gems/yearly:<年>:<季>`）、`seasonal:<季>:<年>`、`schedule`、`detail:<id>`。**收藏不落盘**（另一个缓存实例，根本没有磁盘层；防止断网时换了账号显示上一个账号的收藏）；**搜索不落盘**（关键词是用户输入）。
+- **只落公开目录**：显式白名单 `catalogDiskKey` —— 发现页的热门、完结佳作、年度榜（`trending/gems/yearly:<年>:<季>`）、`seasonal:<季>:<年>`（季度页与发现页的本季共用）、`schedule`、`detail:<id>`。「换一批」拿到的完结佳作不缓存也不落盘。**收藏不落盘**（另一个缓存实例，根本没有磁盘层；防止断网时换了账号显示上一个账号的收藏）；**搜索不落盘**（关键词是用户输入）。
 - **位置与格式**：`<配置目录>/cache/catalog/<键的 SHA-256>.json`，目录 0700、文件 0600，临时文件 + 改名原子写入。文件内容 `{version, key, fetchedAt, data}`，`data` 是投影**之前**的上游结构的 JSON，读回时在 `cachedRead` 里解码成原来的类型。格式版本不符、JSON 损坏、键不符、解不成当前结构的文件：删掉并记一行日志，照常走网络，不报给界面。
 - **隐私**：`detail:<id>` 文件等于记下了在本机打开过 / 关联过哪些作品（与 `cache/art` 里的封面同类），只在用户自己的配置目录里，不出本机；清空 `cache/catalog/` 即可抹掉，删掉后只是离线时没有上一份。
 - **上限**：总量 50MB，按最近使用淘汰（最近使用时间同时写进文件 mtime，重启后顺序不丢）；单条超过 8MB 的不写。启动时清掉上次没写完的临时文件。

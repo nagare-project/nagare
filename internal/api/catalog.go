@@ -12,6 +12,7 @@ func (h *Handler) SetCatalogArtPrefix(prefix string) { h.remoteArt.SetPrefix(pre
 func (h *Handler) RemoteArtwork() RemoteArtSource    { return h.remoteArt }
 func (h *Handler) registerCatalog(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/discover", h.catalogDiscover)
+	mux.HandleFunc("GET /api/discover/gems", h.catalogMoreGems)
 	mux.HandleFunc("GET /api/seasonal", h.catalogSeasonal)
 	mux.HandleFunc("GET /api/catalog/search", h.catalogSearch)
 	mux.HandleFunc("GET /api/anime/{id}", h.catalogDetail)
@@ -42,6 +43,19 @@ func (h *Handler) catalogDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := h.catalog.View(r.Context())
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	httpserver.WriteJSON(w, 200, v)
+}
+
+// catalogMoreGems 是发现页完结佳作的「换一批」：每次都向上游要一批新的随机样本。
+func (h *Handler) catalogMoreGems(w http.ResponseWriter, r *http.Request) {
+	if !h.requireCatalog(w) {
+		return
+	}
+	v, err := h.catalog.MoreGems(r.Context())
 	if err != nil {
 		writeErr(w, err)
 		return

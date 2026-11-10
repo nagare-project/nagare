@@ -1,5 +1,5 @@
 import { fetchCatalogSearchData, fetchDiscoverData, fetchMediaData, fetchSeasonalData } from './endpoints'
-import type { CatalogFreshness, CollectionEntry, CollectionStatus, SeasonName, SummaryMediaData } from './endpoints'
+import type { CatalogFreshness, CollectionEntry, CollectionStatus, HomeMediaData, HomeSectionData, SeasonName, SummaryMediaData } from './endpoints'
 export type { SeasonName } from './endpoints'
 import type { MediaSummary } from '../components/media/types'
 export { fetchCollection, saveCollection, deleteCollection } from './endpoints'
@@ -19,9 +19,19 @@ export function toSummary(media: SummaryMediaData): MediaSummary {
 export type DiscoverSections = { key: string; title: string; items: MediaSummary[]; error?: string }[]
 /** 发现页：板块 + 这份数据的来历（离线 / 过期时才有，界面据此显示「离线 · 更新于 …」） */
 export interface DiscoverView { sections: DiscoverSections; freshness?: CatalogFreshness }
+const SEASON_LABEL: Record<SeasonName, string> = { WINTER: '冬', SPRING: '春', SUMMER: '夏', FALL: '秋' }
+function homeSummary(media: HomeMediaData): MediaSummary {
+  return { id: media.anilistId, title: media.title, titleNative: media.titleNative, cover: media.cover, banner: media.banner,
+    year: media.year, season: media.season && SEASON_LABEL[media.season], episodes: media.episodes, watched: 0, score: media.score,
+    genres: media.genres, description: media.description, status: media.status, format: media.format, posterTones: null }
+}
 export async function fetchDiscover(signal?: AbortSignal): Promise<DiscoverView> {
   const data = await fetchDiscoverData(signal)
-  return { sections: data.sections.map(section => ({ ...section, items: section.items.map(toSummary) })), freshness: data.freshness }
+  const section = (key: string, title: string, s: HomeSectionData<HomeMediaData>) => ({ key, title, items: s.items.map(homeSummary), error: s.error })
+  return { sections: [
+    section('trending', '大家都在追', data.trending), section('thisSeason', '本季新番', data.seasonal),
+    section('gems', '完结佳作', data.gems), section('yearly', `${data.year} 年度榜`, data.yearly),
+  ], freshness: data.freshness }
 }
 export async function fetchMedia(id: number, signal?: AbortSignal): Promise<MediaSummary> { return toSummary(await fetchMediaData(id, signal)) }
 export async function fetchCatalogSearch(q: string, signal?: AbortSignal): Promise<MediaSummary[]> { return (await fetchCatalogSearchData(q, signal)).items.map(toSummary) }

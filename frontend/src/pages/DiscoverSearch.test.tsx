@@ -8,6 +8,7 @@ import { TOKEN_STORAGE_KEY } from '../lib/token'
 import { createAppRouter } from '../routes'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
+import { discoverData, homeMedia } from '../test/discoverData'
 
 // jsdom 没有布局；轮播的拖拽在浏览器里验收
 vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
@@ -21,7 +22,7 @@ function stubFetch(): ReturnType<typeof vi.fn> {
       url.pathname === '/api/catalog/search'
         ? { query: url.searchParams.get('q'), items: [FRIEREN] }
         : url.pathname === '/api/discover'
-          ? { sections: [{ key: 'trending', title: '大家都在看', items: [FRIEREN] }], fetchedAt: 1 }
+          ? discoverData({ trending: { items: [{ ...homeMedia(FRIEREN), rank: 1, watchers: 10 }] } })
           : undefined
     if (data === undefined) {
       return new Response(JSON.stringify({ success: false, data: null, error: `未打桩 ${url.pathname}` }), { status: 404 })
@@ -83,7 +84,7 @@ describe('发现页的作品搜索（路由一层）', () => {
 
     expect(searchCalls(mock)).toContain('芙莉莲')
     expect(container.textContent).toContain('搜索「芙莉莲」')
-    expect(container.textContent).not.toContain('大家都在看')
+    expect(container.textContent).not.toContain('大家都在追')
     // /discover 是 / 的别名：参数原样带过去，主导航里的「发现」是当前页
     const nav = [...container.querySelectorAll('nav[aria-label="主导航"] a')].find((a) => a.textContent === '发现')
     expect(nav?.getAttribute('aria-current')).toBe('page')
@@ -128,7 +129,7 @@ describe('发现页的作品搜索（路由一层）', () => {
     await settle()
     expect(validated(router).q).toBeUndefined()
     expect(router.state.location.href).not.toContain('q=')
-    expect(container.textContent).toContain('大家都在看')
+    expect(container.textContent).toContain('大家都在追')
     await unmount()
   })
 
@@ -137,7 +138,7 @@ describe('发现页的作品搜索（路由一层）', () => {
     const { router, container, unmount } = await mountAt('/discover?q=%20%20&genre=Sci-Fi')
 
     expect(searchCalls(mock)).toEqual([])
-    expect(container.textContent).toContain('大家都在看')
+    expect(container.textContent).toContain('大家都在追')
     expect(validated(router).genre).toBe('Sci-Fi')
     await unmount()
   })
