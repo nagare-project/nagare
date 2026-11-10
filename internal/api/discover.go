@@ -27,9 +27,9 @@ type DiscoverService struct {
 	// 目录搜索的全局节流（见 catalog_search.go）；sleep 可在测试里换掉
 	searchMu   sync.Mutex
 	lastSearch time.Time
-	// 「换一批」（MoreGems）连点只排队，不并发打上游
-	gemsMu sync.Mutex
-	sleep  func(context.Context, time.Duration) error
+	// 「换一批」（MoreGems）同一时刻只有一个在出站：容量为 1 的令牌，排队的可以被取消
+	gemsSlot chan struct{}
+	sleep    func(context.Context, time.Duration) error
 }
 
 // sleepCtx 等 d 或等到 ctx 结束（浏览器关掉了页面就不必再等着出站）。
@@ -48,7 +48,7 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 }
 
 func NewDiscoverService(source CatalogReader, art *RemoteArt) *DiscoverService {
-	return &DiscoverService{source: source, art: art, cache: newReadCache(), sleep: sleepCtx}
+	return &DiscoverService{source: source, art: art, cache: newReadCache(), sleep: sleepCtx, gemsSlot: make(chan struct{}, 1)}
 }
 
 // useDisk 给目录缓存接上磁盘层（见 catalog_disk.go）；只在构造之后、开始服务之前调用。
@@ -103,7 +103,7 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 	season, year := seasonNames[quarter], now.Year()
 	// 本季与季度页（GET /api/seasonal）共用 seasonal:<季>:<年> 一个键：翻到当季时不重复请求。
 	keys := []string{
-		fmt.Sprintf("seasonal:%s:%d", season, year),
+		seasonalKey(season, year),
 		fmt.Sprintf("trending:%d:%d", year, quarter),
 		fmt.Sprintf("gems:%d:%d", year, quarter),
 		fmt.Sprintf("yearly:%d:%d", year, quarter),
@@ -140,11 +140,12 @@ func (s *DiscoverService) View(ctx context.Context) (DiscoverView, error) {
 			fetchedAt = m.fetchedAt
 		}
 	}
+	seasonal := homeSection(s.homeMedias(rows[0]), failures[0])
 	view := DiscoverView{
 		Season:      season,
 		Year:        year,
-		Seasonal:    homeSection(s.homeMedias(rows[0]), failures[0]),
-		SeasonTotal: len(rows[0]),
+		Seasonal:    seasonal,
+		SeasonTotal: len(seasonal.Items),
 		Trending:    homeSection(s.rankedMedias(rows[1]), failures[1]),
 		Gems:        homeSection(s.homeMedias(rows[2]), failures[2]),
 		Yearly:      homeSection(s.homeMedias(rows[3]), failures[3]),

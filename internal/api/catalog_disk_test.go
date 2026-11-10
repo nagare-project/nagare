@@ -232,6 +232,8 @@ func TestCatalogDiskDiscardsUnusableFiles(t *testing.T) {
 	good := json.RawMessage(`{"anilistId":7,"titleChinese":"盘上"}`)
 	cases := map[string][]byte{
 		"版本不符": envelope(catalogDiskFile{Version: catalogDiskVersion + 1, Key: "detail:7", FetchedAt: diskT0, Data: good}),
+		// 版本 1 的文件没有封面主色、名次与追番人数：读到要丢掉，不能当成没有颜色的一份显示
+		"版本 1": envelope(catalogDiskFile{Version: 1, Key: "detail:7", FetchedAt: diskT0, Data: good}),
 		"旧版本":  envelope(catalogDiskFile{Version: 0, Key: "detail:7", FetchedAt: diskT0, Data: good}),
 		"损坏":   []byte(`{"version":1,"key":"detail:7","data":{`),
 		"键不符":  envelope(catalogDiskFile{Version: catalogDiskVersion, Key: "detail:8", FetchedAt: diskT0, Data: good}),

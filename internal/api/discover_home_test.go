@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/nagare-project/nagare/internal/animego"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,6 +50,10 @@ func (f *homeStub) Gems(context.Context) ([]animego.CatalogMedia, error) {
 	return []animego.CatalogMedia{{AnilistID: 30 + f.gems, TitleChinese: "佳作", BangumiScore: 7.85, Format: "TV"}}, nil
 }
 
+func (f *homeStub) YearlyTop(_ context.Context, year int) ([]animego.CatalogMedia, error) {
+	return []animego.CatalogMedia{{AnilistID: 40, TitleChinese: "年度第一", SeasonYear: year, Season: "SPRING", AverageScore: 90}}, nil
+}
+
 func (f *homeStub) Schedule(context.Context) (animego.ScheduleData, error) {
 	at := int64(1794276000)
 	row := func(id, ep int, airingAt int64) animego.ScheduleItem {
@@ -80,7 +86,7 @@ func TestDiscoverViewProjectsHomeSections(t *testing.T) {
 	require.Regexp(t, `^/art/test/remote/`, first.Cover)
 	require.Regexp(t, `^/art/test/remote/`, first.Banner)
 	require.Nil(t, view.Seasonal.Items[1].Hue)
-	require.Equal(t, 3, view.SeasonTotal)
+	require.Equal(t, 2, view.SeasonTotal, "与能显示的条数一致（重复的不算）")
 
 	// 热门：名次缺了按位置补，人数不会是负数，占位色没有色相
 	require.Len(t, view.Trending.Items, 2)
@@ -91,6 +97,14 @@ func TestDiscoverViewProjectsHomeSections(t *testing.T) {
 	require.Zero(t, view.Trending.Items[1].Watchers)
 	require.Nil(t, view.Trending.Items[1].Hue)
 	require.Equal(t, "二番目", view.Trending.Items[1].Title)
+
+	// 完结佳作、年度榜各在自己的位置上（不互换）
+	require.Len(t, view.Gems.Items, 1)
+	require.Equal(t, "佳作", view.Gems.Items[0].Title)
+	require.InDelta(t, 7.85, view.Gems.Items[0].BangumiScore, 1e-9)
+	require.Len(t, view.Yearly.Items, 1)
+	require.Equal(t, "年度第一", view.Yearly.Items[0].Title)
+	require.Equal(t, 2026, view.Yearly.Items[0].Year)
 
 	// 放送：不分上游的日期组，按时间先后；同一集同一时刻只留一条，集号或时间无效的丢掉
 	got := []int{}
@@ -122,4 +136,73 @@ func TestMoreGemsBypassesCache(t *testing.T) {
 	_, err = s.MoreGems(ctx)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, 3, f.gems, "已取消的请求不再打上游")
+}
+
+// 名次缺了接在见过的最大名次后面，不与上游给的重复
+func TestRankedMediasFillsMissingRanksAfterTheLargest(t *testing.T) {
+	s := catalogService(&homeStub{})
+	got := s.rankedMedias([]animego.CatalogMedia{
+		{AnilistID: 1, TitleChinese: "一", Rank: 2},
+		{AnilistID: 2, TitleChinese: "二"},
+		{AnilistID: 3, TitleChinese: "三"},
+	})
+	ranks := []int{}
+	for _, m := range got {
+		ranks = append(ranks, m.Rank)
+	}
+	require.Equal(t, []int{2, 3, 4}, ranks)
+}
+
+// slowGems 记下同一时刻有几个「换一批」在出站。
+type slowGems struct {
+	homeStub
+	inFlight, peak, calls atomic.Int32
+	release               chan struct{}
+}
+
+func (f *slowGems) Gems(ctx context.Context) ([]animego.CatalogMedia, error) {
+	f.calls.Add(1)
+	n := f.inFlight.Add(1)
+	defer f.inFlight.Add(-1)
+	for {
+		p := f.peak.Load()
+		if n <= p || f.peak.CompareAndSwap(p, n) {
+			break
+		}
+	}
+	select {
+	case <-f.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return []animego.CatalogMedia{{AnilistID: 50, TitleChinese: "佳作"}}, nil
+}
+
+// 连点「换一批」：同一时刻只有一个在出站；排队中被取消的直接返回，不再出站。
+func TestMoreGemsSerialisesAndQueuedCallsCanBeCancelled(t *testing.T) {
+	f := &slowGems{release: make(chan struct{})}
+	s := catalogService(f)
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := s.MoreGems(context.Background())
+			assert.NoError(t, err) // 不在测试 goroutine 里，不能用 require（FailNow）
+		}()
+	}
+	require.Eventually(t, func() bool { return f.inFlight.Load() == 1 }, time.Second, time.Millisecond)
+
+	// 第一个还占着：排队的这个被取消，原样返回，不打上游
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { _, err := s.MoreGems(ctx); done <- err }()
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+
+	close(f.release)
+	wg.Wait()
+	require.Equal(t, int32(1), f.peak.Load(), "同一时刻只有一个在出站")
+	require.Equal(t, int32(4), f.calls.Load(), "取消的那个没有出站")
 }

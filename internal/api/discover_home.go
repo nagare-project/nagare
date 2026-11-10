@@ -28,6 +28,8 @@ func (s *DiscoverService) homeMedia(r animego.CatalogMedia) HomeMedia {
 		AnilistID:    r.AnilistID,
 		Title:        catalogTitle(r),
 		TitleNative:  r.TitleNative,
+		TitleRomaji:  r.TitleRomaji,
+		TitleEnglish: r.TitleEnglish,
 		Cover:        s.art.Register(r.CoverImageURL),
 		Banner:       s.art.Register(r.BannerImageURL),
 		Hue:          accentHue(r.PosterAccent),
@@ -43,36 +45,41 @@ func (s *DiscoverService) homeMedia(r animego.CatalogMedia) HomeMedia {
 	}
 }
 
-// homeMedias 按上游顺序投影；没有 ID 或标题的行丢掉，同一部作品只留第一次出现的那条。
-func (s *DiscoverService) homeMedias(rows []animego.CatalogMedia) []HomeMedia {
-	out := []HomeMedia{}
+// homeRows 是按上游顺序留下来的行：没有 ID 或标题的丢掉，同一部作品只留第一次出现的那条。
+// 先筛再投影：丢掉的行不占图片登记表的位置。
+func homeRows(rows []animego.CatalogMedia) []animego.CatalogMedia {
+	out := []animego.CatalogMedia{}
 	seen := map[int]bool{}
 	for _, r := range rows {
-		m := s.homeMedia(r)
-		if m.AnilistID < 1 || m.Title == "" || seen[m.AnilistID] {
+		if r.AnilistID < 1 || catalogTitle(r) == "" || seen[r.AnilistID] {
 			continue
 		}
-		seen[m.AnilistID] = true
-		out = append(out, m)
+		seen[r.AnilistID] = true
+		out = append(out, r)
 	}
 	return out
 }
 
-// rankedMedias 是热门榜：上游已按名次排好；缺名次（不该发生）时按位置补，名次总是从 1 起。
+func (s *DiscoverService) homeMedias(rows []animego.CatalogMedia) []HomeMedia {
+	out := []HomeMedia{}
+	for _, r := range homeRows(rows) {
+		out = append(out, s.homeMedia(r))
+	}
+	return out
+}
+
+// rankedMedias 是热门榜：上游已按名次排好。缺名次（不该发生）时接在目前见过的最大名次后面，
+// 名次总是从 1 起、不与上游给的重复。
 func (s *DiscoverService) rankedMedias(rows []animego.CatalogMedia) []RankedMedia {
 	out := []RankedMedia{}
-	seen := map[int]bool{}
-	for _, r := range rows {
-		m := s.homeMedia(r)
-		if m.AnilistID < 1 || m.Title == "" || seen[m.AnilistID] {
-			continue
-		}
-		seen[m.AnilistID] = true
+	maxRank := 0
+	for _, r := range homeRows(rows) {
 		rank := r.Rank
 		if rank < 1 {
-			rank = len(out) + 1
+			rank = maxRank + 1
 		}
-		out = append(out, RankedMedia{HomeMedia: m, Rank: rank, Watchers: max(0, r.WatcherCount)})
+		maxRank = max(maxRank, rank)
+		out = append(out, RankedMedia{HomeMedia: s.homeMedia(r), Rank: rank, Watchers: max(0, r.WatcherCount)})
 	}
 	return out
 }
@@ -109,11 +116,16 @@ func (s *DiscoverService) homeAirings(schedule animego.ScheduleData) []HomeAirin
 	return out
 }
 
-// MoreGems 是「换一批」：上游每次调用随机挑一批，所以不走缓存。连点只排队、不并发打上游；
-// 失败照实返回，界面保留当前这一批。
+// MoreGems 是「换一批」：上游每次调用随机挑一批，所以不走缓存。连点只排队、不并发打上游
+// （排队中的请求被取消就直接返回，不再出站）；失败照实返回，界面保留当前这一批。
+// 上游一部都没给（或给的全不能用）时 items 是空数组，界面同样保留当前这一批。
 func (s *DiscoverService) MoreGems(ctx context.Context) (GemsView, error) {
-	s.gemsMu.Lock()
-	defer s.gemsMu.Unlock()
+	select {
+	case s.gemsSlot <- struct{}{}:
+		defer func() { <-s.gemsSlot }()
+	case <-ctx.Done():
+		return GemsView{}, ctx.Err()
+	}
 	if err := ctx.Err(); err != nil {
 		return GemsView{}, err
 	}

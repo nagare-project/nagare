@@ -8,7 +8,7 @@ import { TOKEN_STORAGE_KEY } from '../lib/token'
 import { createAppRouter } from '../routes'
 import { mount } from '../test/harness'
 import { installLocalStorage } from '../test/storage'
-import { discoverData, homeMedia } from '../test/discoverData'
+import { discoverFixture, homeMediaFixture } from '../test/discoverFixtures'
 
 // jsdom 没有布局；轮播的拖拽在浏览器里验收
 vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
@@ -22,7 +22,7 @@ function stubFetch(): ReturnType<typeof vi.fn> {
       url.pathname === '/api/catalog/search'
         ? { query: url.searchParams.get('q'), items: [FRIEREN] }
         : url.pathname === '/api/discover'
-          ? discoverData({ trending: { items: [{ ...homeMedia(FRIEREN), rank: 1, watchers: 10 }] } })
+          ? discoverFixture({ trending: { items: [{ ...homeMediaFixture(FRIEREN), rank: 1, watchers: 10 }] } })
           : undefined
     if (data === undefined) {
       return new Response(JSON.stringify({ success: false, data: null, error: `未打桩 ${url.pathname}` }), { status: 404 })

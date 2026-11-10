@@ -70,7 +70,8 @@ type EpisodeTitleView struct {
 type DiscoverView struct {
 	Season string `json:"season"` // 本季：WINTER / SPRING / SUMMER / FALL（按本机月份）
 	Year   int    `json:"year"`   // 本季的年份，也是年度榜的年份
-	// Seasonal 是本季全部作品，按 AniList 评分从高到低（上游的顺序）；SeasonTotal 是上游说这一季一共几部。
+	// Seasonal 是本季全部作品，按 AniList 评分从高到低（上游的顺序）；SeasonTotal 是这一季一共几部
+	// （与 Seasonal.Items 同数；上游一页最多 200 部，一季通常一百部上下）。
 	Seasonal    HomeSection[HomeMedia]   `json:"seasonal"`
 	SeasonTotal int                      `json:"seasonTotal"`
 	Trending    HomeSection[RankedMedia] `json:"trending"` // 追番人数最多的十部
@@ -92,8 +93,11 @@ type HomeMedia struct {
 	AnilistID   int    `json:"anilistId"`
 	Title       string `json:"title"`
 	TitleNative string `json:"titleNative,omitempty"`
-	Cover       string `json:"cover,omitempty"`
-	Banner      string `json:"banner,omitempty"`
+	// TitleRomaji / TitleEnglish 不显示，只给磁力搜索（与 SummaryMedia 同一个理由：不少字幕组只用罗马音登记发布）
+	TitleRomaji  string `json:"titleRomaji,omitempty"`
+	TitleEnglish string `json:"titleEnglish,omitempty"`
+	Cover        string `json:"cover,omitempty"`
+	Banner       string `json:"banner,omitempty"`
 	// Hue 是目录给的封面主色换算出的 OKLCH 色相角（度，一位小数）；null = 没有可信色相，界面用中性色（见 accent_hue.go）
 	Hue          *float64 `json:"hue"`
 	Score        int      `json:"score,omitempty"`        // AniList 评分，0–100

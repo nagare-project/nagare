@@ -35,6 +35,11 @@ func TestAccentHueRejectsPlaceholderGreyAndGarbage(t *testing.T) {
 
 // 色相落在 [0, 360)：359.96 取一位小数是 360.0，要写成 0。
 func TestAccentHueStaysBelow360(t *testing.T) {
+	for _, hex := range []string{"#ff0088", "#ff0188"} { // 原始色相 359.976 / 359.994
+		h := accentHue(hex)
+		require.NotNil(t, h, hex)
+		require.Equal(t, 0.0, *h, hex)
+	}
 	for r := 0; r < 256; r += 5 {
 		for b := 0; b < 256; b += 5 {
 			hex := "#" + hex2(r) + "00" + hex2(b)

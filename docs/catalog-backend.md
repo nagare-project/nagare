@@ -27,7 +27,7 @@
 | 字段 | 内容 | 上游 |
 | --- | --- | --- |
 | `season`、`year` | 本季（按本机月份）与年份；年度榜也用这一年 | — |
-| `seasonal`、`seasonTotal` | 本季全部，按 AniList 评分从高到低；`seasonTotal` 是上游给的这一季总部数 | 季度一页 200 条，键 `seasonal:<季>:<年>`，与季度页共用 |
+| `seasonal`、`seasonTotal` | 本季全部，按 AniList 评分从高到低；`seasonTotal` 是这一季一共几部（与 `seasonal.items` 同数，上游一页最多 200 部） | 季度一页 200 条，键 `seasonal:<季>:<年>`，与季度页共用 |
 | `trending` | 追番人数最多的十部，每项多 `rank`（从 1 起）与 `watchers` | 热门 10 条 |
 | `gems` | 已完结的高分作品，随机六部 | 完结佳作 6 条 |
 | `yearly` | 本年度按 AniList 评分的前十 | 年度榜 10 条 |

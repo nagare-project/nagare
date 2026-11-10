@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // CatalogMedia 只接收目录及详情实际使用的字段；空标题、缺图和未知集数仍由投影层处理。
@@ -137,8 +138,9 @@ func (c *Client) Search(ctx context.Context, keyword string) ([]CatalogMedia, er
 }
 
 // Gems 是已完结的高分作品：上游每次调用随机挑一批，「换一批」就是再调一次。
+// 带一个每次不同的 _ 参数：中间若有按地址缓存的一层（CDN），同一个地址会被合并成同一批「随机」样本。
 func (c *Client) Gems(ctx context.Context) ([]CatalogMedia, error) {
-	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/completed-gems?limit=%d", gemsLimit))
+	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/completed-gems?limit=%d&_=%d", gemsLimit, time.Now().UnixNano()))
 }
 func (c *Client) YearlyTop(ctx context.Context, year int) ([]CatalogMedia, error) {
 	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/yearly-top?year=%d&limit=%d", year, yearlyTopLimit))

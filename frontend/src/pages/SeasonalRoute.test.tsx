@@ -8,7 +8,7 @@ import { mount } from '../test/harness'
 import { getByRole } from '../test/queries'
 import { installLocalStorage } from '../test/storage'
 import { TOKEN_STORAGE_KEY } from '../lib/token'
-import { discoverData } from '../test/discoverData'
+import { discoverFixture } from '../test/discoverFixtures'
 
 /** 页面请求过的季度目录（/api/seasonal 的查询参数） */
 let requested: string[] = []
@@ -23,7 +23,7 @@ beforeEach(() => {
     if (url.pathname === '/api/seasonal') requested.push(url.search)
     const data: unknown = {
       '/api/seasonal': { items: [] },
-      '/api/discover': discoverData(),
+      '/api/discover': discoverFixture(),
       '/api/library': { folders: [{ id: 'f', path: '/番剧', addedAt: 1 }], clusters: [], continueWatching: [], scannedAt: 1 },
     }[url.pathname] ?? {}
     return new Response(JSON.stringify({ success: true, data }), { headers: { 'Content-Type': 'application/json' } })

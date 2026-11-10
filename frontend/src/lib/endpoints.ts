@@ -1260,7 +1260,10 @@ export interface SummaryMediaData {
 }
 /** 发现页一张卡片用到的字段（GET /api/discover 与 /api/discover/gems） */
 export interface HomeMediaData {
-  anilistId: number; title: string; titleNative?: string; cover?: string; banner?: string
+  anilistId: number; title: string; titleNative?: string
+  /** 不显示，只给磁力搜索（不少字幕组只用罗马音登记发布） */
+  titleRomaji?: string; titleEnglish?: string
+  cover?: string; banner?: string
   /** 目录给的封面主色换算出的 OKLCH 色相角；null = 没有可信色相，界面用中性色 */
   hue: number | null
   /** AniList 评分 0–100 */
@@ -1278,7 +1281,7 @@ export interface HomeAiringData { scheduleId: number; anilistId: number; episode
 export interface HomeSectionData<T> { items: T[]; error?: string }
 export interface DiscoverData {
   season: SeasonName; year: number
-  /** 本季全部，按 AniList 评分从高到低；seasonTotal 是上游说这一季一共几部 */
+  /** 本季全部，按 AniList 评分从高到低；seasonTotal 是这一季一共几部（与 seasonal.items 同数） */
   seasonal: HomeSectionData<HomeMediaData>; seasonTotal: number
   trending: HomeSectionData<RankedMediaData>
   gems: HomeSectionData<HomeMediaData>
