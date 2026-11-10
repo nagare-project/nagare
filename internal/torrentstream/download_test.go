@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	g "github.com/anacrolix/generics"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
@@ -265,7 +266,7 @@ func TestDownloadResumeFinishesWhenAlreadyCompleteOnDisk(t *testing.T) {
 	info, err := mi.UnmarshalInfo()
 	require.NoError(t, err)
 	for i := range info.NumPieces() {
-		require.NoError(t, completion.Set(metainfo.PieceKey{InfoHash: mi.HashInfoBytes(), Index: i}, true))
+		require.NoError(t, completion.Set(metainfo.PieceKey{InfoHash: mi.HashInfoBytes(), Index: i}, g.Some(true)))
 	}
 	require.NoError(t, completion.Close())
 	require.NoError(t, f.st.PutDownload(store.Download{
