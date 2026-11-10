@@ -505,6 +505,8 @@ func TestOpenProtectsFileUntilClose(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, pngBytes, buf)
 	require.NoError(t, f.Close())
+	// 下载完会在后台取色，取色期间也护着这张封面（tone.go 的 holdCover）：等它做完再清，否则偶发「还有 1 张在用」
+	c.toneWG.Wait()
 	u, skipped := c.Clear()
 	assert.Zero(t, skipped)
 	assert.Zero(t, u.Count)
