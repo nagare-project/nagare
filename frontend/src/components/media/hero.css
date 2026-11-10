@@ -29,6 +29,8 @@
 }
 
 .hero-backdrop-image { position: absolute; inset: 0; animation: hero-fade var(--dur-long) var(--ease-enter); }
+/* 切换时新图盖在旧图上淡入（HeroBackdrop）；已经在缓存里的第一张直接显示 */
+.hero-backdrop-image[data-instant] { animation: none; }
 .hero-backdrop-image > img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
 /* 没有图时 MediaArtwork 画的首字：在横幅背景里没有意义 */
 .hero-backdrop-image > .poster-art-mark { display: none; }
