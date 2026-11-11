@@ -1,0 +1,236 @@
+/* 本季高分：6 → 4 → 3 列。封面 3:4，DESIGN.md 给网格卡片定的比例。 */
+
+.grid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 28px 20px;
+}
+
+/* 浮层打开时抬到邻居上面，浮层盖得住它们 */
+.item:hover,
+.item:focus-visible {
+  z-index: 5;
+}
+
+.cover {
+  aspect-ratio: 3 / 4;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* ── 浮层：在卡片旁边，从不盖在卡片上；右边两列往左开，不出页面。底是整页的浮层层，强调色是卡片自己的 ── */
+.pop {
+  position: absolute;
+  top: 10px;
+  left: calc(100% + 14px);
+  z-index: 5;
+  width: 268px;
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background-color: var(--home-pop);
+  box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px) scale(0.97);
+  transition:
+    opacity 0.18s ease,
+    transform 0.28s var(--home-expo),
+    visibility 0s linear 0.28s;
+}
+
+.item:nth-child(6n + 5) .pop,
+.item:nth-child(6n) .pop {
+  left: auto;
+  right: calc(100% + 14px);
+}
+
+.popStatus {
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 650;
+  color: var(--tone);
+  font-variant-numeric: tabular-nums;
+}
+
+.popScore {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: rgba(235, 235, 245, 0.8);
+}
+
+.popStar {
+  flex: none;
+  color: var(--tone);
+}
+
+.popScoreValue {
+  font-weight: 600;
+  color: #fff;
+}
+
+.popMeta {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: rgba(235, 235, 245, 0.7);
+}
+
+.popTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.popTag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background-color: var(--tone-fill);
+  color: var(--tone);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .item:hover .pop {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition:
+      opacity 0.18s ease 0.08s,
+      transform 0.28s var(--home-expo) 0.08s,
+      visibility 0s linear 0.08s;
+  }
+}
+
+.item:focus-visible .pop {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.28s var(--home-expo),
+    visibility 0s;
+}
+
+.allMobile {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .item:nth-child(6n + 5) .pop,
+  .item:nth-child(6n) .pop {
+    left: calc(100% + 14px);
+    right: auto;
+  }
+
+  .item:nth-child(4n + 3) .pop,
+  .item:nth-child(4n) .pop {
+    left: auto;
+    right: calc(100% + 14px);
+  }
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px 16px;
+  }
+
+  /* 三列时整三行 */
+  .item:nth-child(n + 10) {
+    display: none;
+  }
+
+  .item:nth-child(4n + 3) .pop,
+  .item:nth-child(4n) .pop {
+    left: calc(100% + 14px);
+    right: auto;
+  }
+
+  .item:nth-child(3n) .pop,
+  .item:nth-child(3n + 2) .pop {
+    left: auto;
+    right: calc(100% + 14px);
+  }
+}
+
+@media (max-width: 600px) {
+  .grid {
+    margin-top: 16px;
+    gap: 16px 12px;
+  }
+
+  /* 手机上两行；本季其余的在下面一按就到 */
+  .item:nth-child(n + 7) {
+    display: none;
+  }
+
+  .item {
+    gap: 8px;
+  }
+
+  .cover {
+    border-radius: 8px;
+  }
+
+  .body {
+    gap: 4px;
+  }
+
+  .title {
+    height: 34px;
+    font-size: 12.5px;
+    line-height: 17px;
+  }
+
+  .pop {
+    display: none;
+  }
+
+  .allMobile {
+    margin-top: 12px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(235, 235, 245, 0.9);
+    font-size: 13.5px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+  }
+}

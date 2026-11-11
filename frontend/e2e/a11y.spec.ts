@@ -36,10 +36,17 @@ test.describe('目录页的其他状态（1440px）', () => {
   })
 
   test('作品卡浮层打开时整页无 serious / critical 问题', async ({ page }) => {
-    await openApp(page, '/')
-    const card = page.getByRole('region', { name: '本季新番' }).getByRole('listitem').first()
+    await openApp(page, '/seasonal')
+    const card = page.getByRole('main').getByRole('listitem').first()
     await card.hover()
     await expect(card.getByRole('button', { name: /^播放 / })).toBeVisible()
+    expect(await blockingViolations(page)).toEqual([])
+  })
+
+  test('发现页：本季高分的详情浮层（键盘聚焦）与换过一组的色调整页无 serious / critical 问题', async ({ page }) => {
+    await openApp(page, '/')
+    await page.getByRole('group', { name: '按色调筛选' }).getByRole('button').nth(1).click()
+    await page.getByRole('region', { name: '本季高分' }).getByRole('link').first().focus()
     expect(await blockingViolations(page)).toEqual([])
   })
 

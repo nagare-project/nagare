@@ -3,90 +3,16 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
 import { getByRole } from '../../test/queries'
-import { DiscoverHero } from './DiscoverHero'
 import { CARD_HOVER_INTENT_MS, DiscoverCard } from './DiscoverCard'
-import { BANNER_INTERVAL_FALLBACK_MS } from './useBannerRotation'
 import type { MediaSummary } from './types'
 
 const items: MediaSummary[] = [1, 2, 3].map(id => ({ id, title: `作品 ${id}`, episodes: 12, watched: 0, genres: ['Fantasy'] }))
-const INTERVAL = BANNER_INTERVAL_FALLBACK_MS
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 async function advance(ms: number) { await act(async () => { vi.advanceTimersByTime(ms) }) }
 async function pointer(element: Element, type: string, relatedTarget: EventTarget | null = null) {
   await act(async () => { element.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget })) })
 }
-const dots = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>('button')].filter(b => /^第 \d 部：/.test(b.getAttribute('aria-label') ?? ''))
-const current = (container: HTMLElement) => dots(container).findIndex(dot => dot.getAttribute('aria-current') === 'true')
-const heading = (container: HTMLElement) => container.querySelector('h2')?.textContent
-
-describe('发现页横幅：8 秒切换与暂停规则', () => {
-  it('每 8 秒换一部；鼠标点圆点切换后照常自动切（点过留下的焦点不算键盘焦点）', async () => {
-    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
-    expect(heading(container)).toBe('作品 1')
-    await advance(INTERVAL)
-    expect(heading(container)).toBe('作品 2')
-    const target = dots(container)[2]!
-    await pointer(target, 'pointerdown')
-    await act(async () => { target.focus(); target.click() })
-    expect(current(container)).toBe(2)
-    // 手动切换后新的那张从头算：差一点不切，到点才切
-    await advance(INTERVAL - 10)
-    expect(current(container)).toBe(2)
-    await advance(10)
-    expect(current(container)).toBe(0)
-    await unmount()
-  })
-
-  it('键盘焦点停住横幅，移出后接着剩下的时间走', async () => {
-    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
-    await advance(INTERVAL - 3000)
-    const dot = dots(container)[0]!
-    await act(async () => dot.focus())
-    await advance(INTERVAL * 2)
-    expect(current(container)).toBe(0)
-    await act(async () => dot.blur())
-    await advance(2990)
-    expect(current(container)).toBe(0)
-    await advance(10)
-    expect(current(container)).toBe(1)
-    await unmount()
-  })
-
-  it('鼠标悬停时停住，移开后接着走', async () => {
-    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
-    const hero = container.querySelector('section')!
-    await pointer(hero, 'pointerover')
-    await advance(INTERVAL * 3)
-    expect(current(container)).toBe(0)
-    await pointer(hero, 'pointerout', document.body)
-    await advance(INTERVAL)
-    expect(current(container)).toBe(1)
-    await unmount()
-  })
-
-  it('暂停按钮一直停到再按；按钮名字说的是按下去会做什么', async () => {
-    const { container, unmount } = await mount(<DiscoverHero items={items} label="本季新番" />)
-    const pause = [...container.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === '暂停自动切换')!
-    expect(pause).toBeDefined()
-    await act(async () => pause.click())
-    expect(pause.getAttribute('aria-label')).toBe('继续自动切换')
-    await advance(INTERVAL * 3)
-    expect(current(container)).toBe(0)
-    await act(async () => pause.click())
-    expect(pause.getAttribute('aria-label')).toBe('暂停自动切换')
-    await advance(INTERVAL)
-    expect(current(container)).toBe(1)
-    await unmount()
-  })
-
-  it('只有一部时不画圆点和暂停按钮，也不起计时器', async () => {
-    const { container, unmount } = await mount(<DiscoverHero items={items.slice(0, 1)} label="本季新番" />)
-    expect(container.querySelectorAll('button')).toHaveLength(1) // 只有「预览」
-    expect(vi.getTimerCount()).toBe(0)
-    await unmount()
-  })
-})
 
 describe('作品卡的悬停浮层', () => {
   it('鼠标停一会儿才弹出；快速移出再移入不会卸载内容；鼠标点击后移出正常收起', async () => {

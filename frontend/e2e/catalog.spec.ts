@@ -96,47 +96,63 @@ test.describe('宽屏（1440px）', () => {
     await expect(page.getByRole('status', { name: '正在读取发现页' })).toHaveCount(0)
   })
 
-  test('横幅：暂停按钮常驻、名字随状态变；圆点点按区域不小于 24px；预览对话框关上后焦点回到按钮', async ({ page }) => {
+  test('横幅：暂停按钮名字随状态变；短条点按区域不小于 24px，点了立刻换、整页换颜色；「查看详情」进作品页', async ({ page }) => {
     const problems = watchProblems(page)
     await openApp(page, '/')
-    const hero = page.getByRole('region', { name: '精选作品' })
+    const hero = page.getByRole('region', { name: '本季焦点' })
     const pause = hero.getByRole('button', { name: '暂停自动切换' })
     await expect(pause).toBeVisible()
     await pause.click()
     await expect(hero.getByRole('button', { name: '继续自动切换' })).toBeVisible()
 
-    const dots = hero.getByRole('button', { name: /^第 \d+ 部：/ })
-    expect(await dots.count()).toBeGreaterThan(1)
-    for (const box of await dots.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
+    const bars = hero.getByRole('button', { name: /^本季焦点 \d+：/ })
+    await expect(bars).toHaveCount(5)
+    for (const box of await bars.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
       expect(box.width).toBeGreaterThanOrEqual(24)
       expect(box.height).toBeGreaterThanOrEqual(24)
     }
-    await dots.nth(1).click()
-    await expect(dots.nth(1)).toHaveAttribute('aria-current', 'true')
-
-    const preview = hero.getByRole('button', { name: /^预览 / })
-    await preview.click()
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog')).toBeHidden()
-    await expect(preview).toBeFocused()
+    const ground = () => page.locator('main').evaluate((el) => (el as HTMLElement).style.getPropertyValue('--home-ground'))
+    const before = await ground()
+    await bars.nth(1).click()
+    await expect(bars.nth(1)).toHaveAttribute('aria-pressed', 'true')
+    expect(await ground()).not.toBe(before)
+    const title = await hero.locator('article[aria-hidden="false"] h2').first().textContent()
+    await hero.getByRole('link', { name: /^查看详情：/ }).click()
+    await expect(page).toHaveURL((url) => url.pathname === '/entry' && url.searchParams.has('id'))
+    expect(title).toBeTruthy()
     expect(problems.errors).toEqual([])
   })
 
-  test('海报行：箭头翻页；鼠标停在卡片上浮出播放与字幕组按钮', async ({ page }) => {
+  test('今日更新与按色调逛的横排：键盘在滑块上走、一打开停在「现在」；换一组色调', async ({ page }) => {
     const problems = watchProblems(page)
     await openApp(page, '/')
-    const row = page.getByRole('region', { name: '大家都在追' })
-    const next = row.getByRole('button', { name: '大家都在追向后翻页' })
-    await expect(next).toBeEnabled()
-    await next.click()
-    await expect(row.getByRole('button', { name: '大家都在追向前翻页' })).toBeEnabled()
+    const today = page.locator('#home-today-rail')
+    await expect(today.locator('[data-now]')).toBeAttached()
+    const scrub = page.getByRole('slider', { name: '横向滚动今日更新' })
+    await scrub.focus()
+    await page.keyboard.press('End')
+    await expect.poll(() => today.evaluate((el) => Math.round(el.scrollWidth - el.clientWidth - el.scrollLeft))).toBeLessThanOrEqual(1)
+    await page.keyboard.press('Home')
+    await expect.poll(() => today.evaluate((el) => el.scrollLeft)).toBe(0)
 
-    const card = page.getByRole('region', { name: '本季新番' }).getByRole('listitem').first()
-    await card.hover()
-    await expect(card.getByRole('button', { name: /^播放 / })).toBeVisible()
-    await expect(card.getByRole('button', { name: /^按字幕组查找磁力/ })).toBeVisible()
+    const pills = page.getByRole('group', { name: '按色调筛选' }).getByRole('button')
+    expect(await pills.count()).toBeGreaterThan(1)
+    const second = pills.nth(1)
+    await second.click()
+    await expect(second).toHaveAttribute('aria-pressed', 'true')
+    const label = (await second.textContent())?.replace(/\d+ 部$/, '').trim() ?? ''
+    await expect(page.getByRole('slider', { name: `横向滚动${label}` })).toBeAttached()
     expect(problems.errors).toEqual([])
+  })
+
+  test('完结佳作「换一批」：换上另一批，请求中按钮不变 disabled（焦点不丢）', async ({ page }) => {
+    await openApp(page, '/')
+    const gems = page.getByRole('region', { name: '完结佳作' })
+    const first = await gems.locator('[data-active="true"] a').first().textContent()
+    const refresh = gems.getByRole('button', { name: '换一批' })
+    await refresh.click()
+    await expect(refresh).toBeFocused()
+    await expect.poll(() => gems.locator('[data-active="true"] a').first().textContent()).not.toBe(first)
   })
 
   test('发现页有一个 h1（视觉上不显示）', async ({ page }) => {
@@ -145,31 +161,9 @@ test.describe('宽屏（1440px）', () => {
     await expect(page.getByRole('heading', { level: 1, name: '发现' })).toBeAttached()
   })
 
-  test('海报行用键盘翻到头：箭头变成不可点时焦点交给另一头的箭头，不掉到 <body>', async ({ page }) => {
-    await openApp(page, '/')
-    const row = page.getByRole('region', { name: '大家都在追' })
-    const next = row.getByRole('button', { name: '大家都在追向后翻页' })
-    const prev = row.getByRole('button', { name: '大家都在追向前翻页' })
-    await next.focus()
-    // 一直按回车：翻到最后一页的那一下，焦点在箭头变 disabled 之前交给「向前翻页」
-    for (let i = 0; i < 40; i += 1) {
-      await page.keyboard.press('Enter')
-      if (await prev.evaluate((el) => el === document.activeElement)) break
-    }
-    await expect(next).toBeDisabled()
-    await expect(prev).toBeFocused()
-    // 往回翻到头也一样
-    for (let i = 0; i < 40; i += 1) {
-      await page.keyboard.press('Enter')
-      if (await next.evaluate((el) => el === document.activeElement)) break
-    }
-    await expect(prev).toBeDisabled()
-    await expect(next).toBeFocused()
-  })
-
   test('作品卡浮层按 Esc 收起（鼠标不用移开）；移开再停回来才重新弹出', async ({ page }) => {
-    await openApp(page, '/')
-    const card = page.getByRole('region', { name: '本季新番' }).getByRole('listitem').first()
+    await openApp(page, '/seasonal')
+    const card = page.getByRole('main').getByRole('listitem').first()
     await card.hover()
     const play = card.getByRole('button', { name: /^播放 / })
     await expect(play).toBeVisible()
@@ -182,39 +176,26 @@ test.describe('宽屏（1440px）', () => {
     await expect(play).toBeVisible()
   })
 
-  test('预览对话框开着时后台刷新换了数据：横幅不换、对话框不被卸掉；关上后接着自动切换', async ({ page }) => {
+  test('后台刷新把本季前五重新排了序：横幅停在原来那一部上，不跳成另一部', async ({ page }) => {
     let calls = 0
     await page.route('**/api/discover', async (route) => {
       calls += 1
       const response = await route.fetch()
       const envelope = (await response.json()) as { success: boolean; data: { seasonal: { items: unknown[] }; freshness?: unknown } }
-      // 第一份过期（触发后台再取一次）；第二份把本季作品倒过来排，换掉横幅当前那张
+      // 第一份过期（触发后台再取一次）；第二份把本季前五倒过来排
+      const items = envelope.data.seasonal.items
       const data = calls === 1
         ? { ...envelope.data, freshness: { fetchedAt: hoursAgo(1), stale: true, offline: false } }
-        : { ...envelope.data, seasonal: { ...envelope.data.seasonal, items: [...envelope.data.seasonal.items].reverse() } }
+        : { ...envelope.data, seasonal: { ...envelope.data.seasonal, items: [...items.slice(0, 5).reverse(), ...items.slice(5)] } }
       await route.fulfill({ response, json: { ...envelope, data } })
     })
     await openApp(page, '/')
-    const hero = page.getByRole('region', { name: '精选作品' })
-    // 横幅当前那张的标题（预览对话框挂在横幅里，它自己也有标题，取第一个）
-    const slideTitle = hero.getByRole('heading', { level: 2 }).first()
-    const title = await slideTitle.textContent()
-    await hero.getByRole('button', { name: /^预览 / }).click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toBeVisible()
+    const hero = page.getByRole('region', { name: '本季焦点' })
+    await hero.getByRole('button', { name: '暂停自动切换' }).click()
+    const title = await hero.locator('article[aria-hidden="false"] h2').first().textContent()
     await expect(page.getByText('正在刷新')).toBeHidden({ timeout: 15_000 })
     expect(calls).toBe(2)
-    await expect(dialog).toBeVisible()
-    await expect(slideTitle).toHaveText(title ?? '')
-    await page.keyboard.press('Escape')
-    await expect(dialog).toBeHidden()
-    // 焦点回到「预览」（键盘焦点在横幅里时停住）；移开焦点与鼠标之后换成新数据并接着切换
-    await expect(hero.getByRole('button', { name: /^预览 / })).toBeFocused()
-    await page.getByRole('heading', { level: 1, name: '发现' }).evaluate((el) => { el.setAttribute('tabindex', '-1'); (el as HTMLElement).focus() })
-    await page.mouse.move(0, 800)
-    await expect(hero.getByRole('button', { name: '暂停自动切换' })).toBeVisible()
-    const after = await slideTitle.textContent()
-    await expect(slideTitle).not.toHaveText(after ?? '', { timeout: 12_000 })
+    await expect(hero.locator('article[aria-hidden="false"] h2').first()).toHaveText(title ?? '')
   })
 
   test('我的追番：四个分段带数量，切换后显示对应的作品', async ({ page }) => {

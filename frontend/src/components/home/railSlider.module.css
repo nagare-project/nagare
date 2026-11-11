@@ -1,0 +1,128 @@
+/* 发现页横排（今日更新、按色调逛）下面的滑块。
+ *
+ * 横排下面一条细线，与页面内容对齐；滑块与屏上所占比例一样宽、横排滚多远它就走多远。
+ * 平时安静；指针在上面、按住、或键盘焦点在它前面的 range 输入上时，线变粗、滑块换成横排的颜色。
+ * 大小与位置由 useRailSlider 写到滑块上。
+ *
+ * 颜色默认是整页的；横排可以自己给：--slider-line 是安静时的滑块，--slider-tone 是激活时的
+ * （按色调逛给每一组的滑块涂那一组的颜色）。声明在滑块的祖先上，var() 在用到的地方解析。
+ *
+ * 放得下的横排保留滑块的位置（测量之后下面的东西不跳），只是什么都不画。 */
+.slider {
+  position: relative;
+  height: 24px;
+  margin: 14px var(--home-gutter) 0;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.slider[data-overflow='false'] {
+  visibility: hidden;
+}
+
+.track,
+.thumb {
+  position: absolute;
+  top: 11px;
+  height: 2px;
+  transition:
+    top 0.15s ease-out,
+    height 0.15s ease-out,
+    background-color 0.15s ease-out;
+}
+
+.track {
+  left: 0;
+  right: 0;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.thumb {
+  border-radius: 4px;
+  background-color: var(--slider-line, var(--home-tone-line));
+  cursor: grab;
+}
+
+.slider[data-active='true'] .track {
+  top: 9px;
+  height: 6px;
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.slider[data-active='true'] .thumb {
+  top: 8px;
+  height: 8px;
+  background-color: var(--slider-tone, var(--home-tone));
+}
+
+.slider[data-dragging='true'],
+.slider[data-dragging='true'] .thumb {
+  cursor: grabbing;
+}
+
+/* range 输入：不在屏上但能聚焦；它的焦点画在滑块上（全局那一种焦点环，DESIGN.md 颜色规则 2） */
+.scrub {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.scrub:focus-visible + .slider {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 强制颜色（Windows 高对比度）去掉背景与阴影：轨道留一条边，滑块用系统色；焦点环照常由 outline 画 */
+@media (forced-colors: active) {
+  .track {
+    border: 1px solid CanvasText;
+  }
+
+  .thumb {
+    forced-color-adjust: none;
+    background-color: Highlight;
+  }
+}
+
+@media (max-width: 600px) {
+  .slider {
+    margin-top: 12px;
+  }
+}
+
+/* 手指要比鼠标高的目标 */
+@media (pointer: coarse) {
+  .slider {
+    height: 44px;
+  }
+
+  .track,
+  .thumb {
+    top: 21px;
+  }
+
+  .slider[data-active='true'] .track {
+    top: 19px;
+  }
+
+  .slider[data-active='true'] .thumb {
+    top: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .thumb {
+    transition-duration: 0.01ms;
+  }
+}

@@ -75,8 +75,8 @@ test.describe('宽屏顶栏（1440px）', () => {
   })
 
   test('/discover 是 / 的别名：跳过去，查询参数原样保留', async ({ page }) => {
-    await openApp(page, '/discover?genre=Action')
-    await expect(page).toHaveURL((url) => url.pathname === '/' && url.searchParams.get('genre') === 'Action')
+    await openApp(page, '/discover?q=%E8%8A%99%E8%8E%89%E8%8E%B2')
+    await expect(page).toHaveURL((url) => url.pathname === '/' && url.searchParams.get('q') === '芙莉莲')
     await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '发现', exact: true })).toHaveAttribute('aria-current', 'page')
   })
 

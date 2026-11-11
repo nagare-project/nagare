@@ -12,13 +12,11 @@ import { EMPTY_LIBRARY_DISMISS_KEY } from '../components/catalog/EmptyLibraryStr
 import { ListsPage } from './ListsPage'
 import { SchedulePage } from './SchedulePage'
 import { MediaCard } from '../components/media/MediaCard'
-import { FAKE_DISCOVER, FAKE_LISTS } from '../lib/fixtures/library'
-import { fetchCatalogSearch, fetchDiscover } from '../lib/media'
-import { fetchLibrary } from '../lib/endpoints'
-import type { LibraryData } from '../lib/endpoints'
-
-// jsdom 没有布局；这一组只验证页面内容，拖拽与分页在浏览器验收。
-vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
+import { FAKE_LISTS } from '../lib/fixtures/library'
+import { fetchCatalogSearch } from '../lib/media'
+import { fetchDiscoverData, fetchLibrary } from '../lib/endpoints'
+import type { DiscoverData, LibraryData } from '../lib/endpoints'
+import { smokeDiscover } from '../test/discoverFixtures'
 
 // 发现页读 /discover 的地址栏参数（?q= 作品搜索）。这组测试不挂路由，用可控的替身代替
 let discoverSearch: { q?: string; genre?: string } = {}
@@ -30,14 +28,7 @@ vi.mock('@tanstack/react-router', async importOriginal => {
 vi.mock('../lib/media', async importOriginal => {
   const original = await importOriginal<typeof import('../lib/media')>()
   const { FAKE_DISCOVER } = await import('../lib/fixtures/library')
-  return { ...original, fetchCatalogSearch: vi.fn(async (q: string) => q === '没有这部' ? [] : [FAKE_DISCOVER.trending[0]!]), fetchDiscover: vi.fn(async () => ({ sections: [
-    { key: 'trending', title: '大家都在看', items: FAKE_DISCOVER.trending },
-    { key: 'recent', title: '最近已播出', items: FAKE_DISCOVER.recent },
-    { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
-    { key: 'pastSeason', title: '上季作品', items: FAKE_DISCOVER.pastSeason },
-    { key: 'upcoming', title: '本季及下季待播', items: FAKE_DISCOVER.upcoming },
-    { key: 'movies', title: '近期精选剧场版', items: FAKE_DISCOVER.movies },
-  ] })) }
+  return { ...original, fetchCatalogSearch: vi.fn(async (q: string) => q === '没有这部' ? [] : [FAKE_DISCOVER.trending[0]!]) }
 })
 
 vi.mock('../lib/endpoints', async importOriginal => {
@@ -45,7 +36,8 @@ vi.mock('../lib/endpoints', async importOriginal => {
   const { fakeSchedule } = await import('../lib/fixtures/schedule')
   // 默认媒体库里有东西（发现页不出「去添加」那一条）；要测空库时单次覆盖
   const library = { folders: [{ id: 'f1', path: '/番剧', addedAt: 1 }], clusters: [{ clusterKey: 'k', title: '作品', season: null, confidence: 1, episodeCount: 1, groups: [] }], continueWatching: [], scannedAt: 1 }
-  return { ...original, fetchLibrary: vi.fn(async () => library), fetchSchedule: vi.fn(async () => ({ fetchedAt: Date.now() / 1000, airings: fakeSchedule().events.map(e => ({
+  const { smokeDiscover } = await import('../test/discoverFixtures')
+  return { ...original, fetchLibrary: vi.fn(async () => library), fetchDiscoverData: vi.fn(async () => smokeDiscover()), fetchSchedule: vi.fn(async () => ({ fetchedAt: Date.now() / 1000, airings: fakeSchedule().events.map(e => ({
     anilistId: e.media.id, episode: e.episode, airingAt: Date.parse(e.airingAt) / 1000,
     title: e.media.title, cover: e.media.cover, format: e.media.format, inLibrary: false,
   })) })) }
@@ -59,12 +51,16 @@ vi.mock('../lib/endpoints', async importOriginal => {
  */
 const PAGE_MODULES = import.meta.glob('./*.tsx') as Record<string, () => Promise<unknown>>
 
-/** 发现页的海报行：用标题命名的 section（aria-labelledby 指向行标题） */
-function discoverRows(container: HTMLElement): HTMLElement[] {
+/** 发现页的各段：用标题命名的 section（aria-labelledby 指向段标题） */
+function discoverSections(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>('section[aria-labelledby]')]
 }
-function rowTitle(row: HTMLElement): string | null | undefined {
-  return row.ownerDocument.getElementById(row.getAttribute('aria-labelledby')!)?.textContent
+function sectionTitle(section: HTMLElement): string | null | undefined {
+  return section.ownerDocument.getElementById(section.getAttribute('aria-labelledby')!)?.textContent
+}
+/** 一份发现页数据，改几块 */
+function withDiscover(patch: (data: DiscoverData) => DiscoverData) {
+  vi.mocked(fetchDiscoverData).mockResolvedValueOnce(patch(smokeDiscover()))
 }
 
 describe('假数据页面', () => {
@@ -91,55 +87,47 @@ describe('假数据页面', () => {
     await unmount()
   })
 
-  it('发现：板块按后端给的顺序一行一行画，每行都有作品卡', async () => {
+  it('发现：横幅、今日更新、本季高分、按色调逛、大家都在追、完结佳作、年度榜，作品都链到作品页', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
-    const rows = discoverRows(container)
-    expect(rows.map(rowTitle)).toEqual([
-      '大家都在看', '最近已播出', '本季新番', '上季作品', '本季及下季待播', '近期精选剧场版',
-    ])
-    for (const row of rows) {
-      expect(row.querySelectorAll('li a[href^="/entry?id="]').length).toBeGreaterThan(0)
+    expect(getByRole(container, 'region', { name: '本季焦点' })).toBeDefined()
+    const sections = discoverSections(container)
+    expect(sections.map(sectionTitle)).toEqual(['今日更新', '本季高分', '按色调逛', '大家都在追', '完结佳作', '2026 年度榜'])
+    for (const section of sections) {
+      expect(section.querySelectorAll('a[href^="/entry?id="]').length, sectionTitle(section) ?? '').toBeGreaterThan(0)
     }
+    // 本季全部去季度页；今日更新去放送表
+    expect([...container.querySelectorAll('a')].filter(a => a.textContent === '本季全部 14 部').map(a => a.getAttribute('href'))).toEqual(['/seasonal', '/seasonal'])
+    expect([...container.querySelectorAll('a')].find(a => a.textContent === '完整放送表')?.getAttribute('href')).toBe('/schedule')
     await unmount()
   })
 
-  it('发现：上游整段为空、或读取失败的板块整块隐藏（空行里那句「暂无某分类」是写给类型筛选的）', async () => {
-    vi.mocked(fetchDiscover).mockResolvedValueOnce({ sections: [
-      { key: 'trending', title: '大家都在看', items: FAKE_DISCOVER.trending },
-      { key: 'recent', title: '最近已播出', items: [] },
-      { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
-      { key: 'pastSeason', title: '上季作品', items: [], error: '上游超时' },
-    ] })
+  it('发现：上游整段为空、或读取失败的板块整块隐藏，原因不写在页面上', async () => {
+    withDiscover(data => ({ ...data, trending: { items: [], error: '上游超时' }, gems: { items: [] }, schedule: { items: [], error: '放送表超时' } }))
     const { container, unmount } = await mount(<DiscoverPage />)
-    expect(discoverRows(container).map(rowTitle)).toEqual(['大家都在看', '本季新番'])
-    expect(container.textContent).not.toContain('暂无「全部」分类')
-    expect(container.textContent).not.toContain('上游超时')
-    await unmount()
-  })
-
-  it('发现：本季、上季两行有「查看全部」，链到季度页', async () => {
-    const { container, unmount } = await mount(<DiscoverPage />)
-    const more = [...container.querySelectorAll('a')].filter(a => a.textContent?.startsWith('查看全部'))
-    expect(more.map(a => a.textContent)).toEqual(['查看全部：本季新番', '查看全部：上季作品'])
-    expect(more[0]?.getAttribute('href')).toBe('/seasonal')
-    expect(more[1]?.getAttribute('href')).toMatch(/^\/seasonal\?season=[A-Z]+&year=\d{4}$/)
+    expect(discoverSections(container).map(sectionTitle)).toEqual(['本季高分', '按色调逛', '2026 年度榜'])
+    expect(container.textContent).not.toContain('超时')
     await unmount()
   })
 
   it('发现：离线时在横幅上说「离线 · 更新于 …」，内容照常显示', async () => {
-    vi.mocked(fetchDiscover).mockResolvedValueOnce({ sections: [
-      { key: 'thisSeason', title: '本季新番', items: FAKE_DISCOVER.thisSeason },
-    ], freshness: { fetchedAt: new Date(Date.now() - 2 * 3600_000).toISOString(), stale: false, offline: true } })
+    withDiscover(data => ({ ...data, freshness: { fetchedAt: new Date(Date.now() - 2 * 3600_000).toISOString(), stale: false, offline: true } }))
     const { container, unmount } = await mount(<DiscoverPage />)
     // 看得见的一句，与读屏在进入离线时听到的那一次
     expect(getAllByText(container, '离线 · 更新于 2 小时前')).toHaveLength(2)
     expect(getAllByRole(container, 'status').filter(el => el.textContent?.startsWith('离线')).map(el => el.textContent)).toEqual(['离线 · 更新于 2 小时前'])
-    expect(discoverRows(container).map(rowTitle)).toEqual(['本季新番'])
+    expect(discoverSections(container).length).toBeGreaterThan(0)
+    await unmount()
+  })
+
+  it('发现：每一块都读不到、盘上也没有时，整页说明「媒体库照常可用」', async () => {
+    withDiscover(data => ({ ...data, seasonal: { items: [], error: 'x' }, trending: { items: [], error: 'x' }, gems: { items: [], error: 'x' }, yearly: { items: [], error: 'x' }, schedule: { items: [], error: 'x' } }))
+    const { container, unmount } = await mount(<DiscoverPage />)
+    expect(getByRole(container, 'heading', { level: 2, name: '连不上目录服务，媒体库照常可用' })).toBeDefined()
     await unmount()
   })
 
   it('发现：一份缓存都没有又连不上时，整页说明「媒体库照常可用」，给去媒体库与重试', async () => {
-    vi.mocked(fetchDiscover).mockRejectedValueOnce(new Error('无法连接到目录服务'))
+    vi.mocked(fetchDiscoverData).mockRejectedValueOnce(new Error('无法连接到目录服务'))
     const { container, unmount } = await mount(<DiscoverPage />)
     // 标题仍是标题；播报包着标题与原因一起念
     expect(getByRole(container, 'heading', { level: 2, name: '连不上目录服务，媒体库照常可用' })).toBeDefined()
@@ -148,7 +136,7 @@ describe('假数据页面', () => {
     const retry = [...container.querySelectorAll('button')].find(b => b.textContent === '重试')!
     await act(async () => retry.click())
     await act(async () => { await Promise.resolve() })
-    expect(discoverRows(container).length).toBeGreaterThan(0)
+    expect(discoverSections(container).length).toBeGreaterThan(0)
     await unmount()
   })
 
@@ -172,8 +160,9 @@ describe('假数据页面', () => {
       expect(container.textContent).toContain('搜索「芙莉莲」')
       expect(vi.mocked(fetchCatalogSearch)).toHaveBeenCalledWith('芙莉莲', expect.anything())
       expect(container.querySelectorAll('.catalog-search-results li a[href^="/entry?id="]').length).toBeGreaterThan(0)
-      // 榜单不显示
-      expect(container.textContent).not.toContain('大家都在看')
+      // 发现页的各段让位
+      expect(container.textContent).not.toContain('大家都在追')
+      expect(container.querySelector('[aria-label="本季焦点"]')).toBeNull()
       await unmount()
     } finally {
       discoverSearch = {}
@@ -192,20 +181,23 @@ describe('假数据页面', () => {
     }
   })
 
-  it('发现：横幅取本季已开播的作品，点圆点立刻换；没悬停时不加载预告片', async () => {
+  it('发现：横幅是本季前五、第一张有颜色；点短条立刻换，整页跟着换颜色', async () => {
     const { container, unmount } = await mount(<DiscoverPage />)
-    const hero = container.querySelector('section[aria-roledescription="轮播"]')
-    expect(hero).not.toBeNull()
-    const first = hero?.querySelector('h2')?.textContent
-    expect(FAKE_DISCOVER.thisSeason.map(item => item.title)).toContain(first)
-
-    // 用户悬停前不请求外部预告片。
+    const hero = getByRole(container, 'region', { name: '本季焦点' })
+    const bars = [...hero.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')]
+    expect(bars).toHaveLength(5)
+    expect(bars.map(b => b.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false', 'false', 'false'])
+    const main = container.querySelector('main')!
+    const before = main.style.getPropertyValue('--home-ground')
+    expect(before).toMatch(/^oklch\(13% 0\.012 [\d.]+\)$/)
+    // 预告片不在发现页
     expect(container.querySelector('iframe')).toBeNull()
-
-    const dots = [...hero!.querySelectorAll<HTMLButtonElement>('button')].filter(b => /^第 \d+ 部：/.test(b.getAttribute('aria-label') ?? ''))
-    expect(dots.length).toBeGreaterThan(1)
-    await act(async () => dots.find(dot => !dot.getAttribute('aria-label')!.endsWith(first!))!.click())
-    expect(hero?.querySelector('h2')?.textContent).not.toBe(first)
+    await act(async () => bars[2]!.click())
+    expect(bars[2]!.getAttribute('aria-pressed')).toBe('true')
+    expect(main.style.getPropertyValue('--home-ground')).not.toBe(before)
+    // 不在焦点上的几张对读屏隐藏、不能聚焦
+    const slides = [...hero.querySelectorAll('article')]
+    expect(slides.filter(a => a.getAttribute('aria-hidden') === 'false')).toHaveLength(1)
     await unmount()
   })
 

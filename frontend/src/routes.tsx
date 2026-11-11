@@ -19,18 +19,14 @@ const rootRoute = createRootRoute({
   component: RootLayout,
 })
 
-/** `/discover?q=` 时显示作品搜索结果；genre 是热门板块的初始类型筛选（从作品页的类型标签跳过来） */
+/** `/discover?q=` 时显示作品搜索结果 */
 export interface DiscoverRouteParams {
   q?: string
-  genre?: string
 }
 
-/** 认不出来的键显式写成 undefined（原因见 validateSeasonalSearch）：?q=[1]、?genre=1 不能原样漏给页面 */
+/** 认不出来的键显式写成 undefined（原因见 validateSeasonalSearch）：?q=[1] 不能原样漏给页面 */
 function validateDiscoverSearch(search: Record<string, unknown>): DiscoverRouteParams {
-  return {
-    q: coerceQuery(search.q),
-    genre: typeof search.genre === 'string' && search.genre !== '' ? search.genre : undefined,
-  }
+  return { q: coerceQuery(search.q) }
 }
 
 /** `/` 第一屏是发现页（DESIGN.md「信息架构」）：顶栏的搜索也落在这里（?q=） */
@@ -42,7 +38,7 @@ const indexRoute = createRoute({
 })
 
 /**
- * `/discover` 是 `/` 的别名：旧书签、作品页类型标签（`/discover?genre=`）照样能用。
+ * `/discover` 是 `/` 的别名：旧书签照样能用（作品页的类型标签现在链到季度页的类型筛选）。
  * 参数校验与 `/` 共用一份，再原样带到 `/`（replace，后退不会回到这个跳板）。
  */
 const discoverRoute = createRoute({

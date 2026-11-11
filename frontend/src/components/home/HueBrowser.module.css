@@ -1,0 +1,316 @@
+/* 按色调逛。胶囊穿各自那一组的颜色；一次看一组，这一组的全部封面横成一排，下面一根滑块（HueRail.tsx）。 */
+
+.pills {
+  margin-top: 24px;
+  padding-inline: var(--home-gutter);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: rgba(235, 235, 245, 0.8);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    transform 0.2s var(--home-expo),
+    filter 0.2s ease;
+}
+
+.pill:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.18);
+}
+
+.pill[aria-pressed='true'] {
+  border-color: var(--pill-line);
+  background-color: var(--pill-fill);
+  color: var(--pill-tone);
+}
+
+.dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background-color: var(--pill-tone);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* 面板叠在同一个网格格子里：这一段与最高的那一块一样高，换一组时下面的东西不跳 */
+.stage {
+  margin-top: 20px;
+  display: grid;
+}
+
+.panel {
+  grid-area: 1 / 1;
+  /* 网格项的最小宽度默认是内容的宽度：不写这个，横排会把页面撑到它的全长，而不是自己滚动 */
+  min-width: 0;
+  visibility: hidden;
+  transition: visibility 0s linear 0.3s;
+}
+
+.panel[data-active='true'] {
+  visibility: visible;
+  transition: visibility 0s linear 0s;
+}
+
+/* 一组的每一部在任何宽度下都是自己的一张卡：横排滚动，里面什么都不藏（TodayRail.css.test.ts 也扫这个文件）。
+ * 从内容留白铺到视口边，看得出这一排还在延续 */
+.rail {
+  --hue-card: 192px;
+
+  /* 卡片的 offsetParent：它们的 offsetLeft 就是在这一排里的位置，滑块与停靠都读它 */
+  position: relative;
+  display: flex;
+  gap: 24px;
+  padding: 8px var(--home-gutter) 4px;
+  scroll-padding-inline: var(--home-gutter);
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 滑到两端不把手势交给浏览器的前进后退 */
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+.card {
+  flex: none;
+  width: var(--hue-card);
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 0.22s var(--home-ease),
+    transform 0.22s var(--home-ease);
+}
+
+.panel[data-active='true'] .card {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.55s var(--home-ease) var(--stagger),
+    transform 0.8s var(--home-expo) var(--stagger);
+}
+
+/* 一组的末尾：下一组是什么、怎么去。封面那么高的一块面板，不是卡片：它不是作品，不计数 */
+.end {
+  box-sizing: border-box;
+  flex: none;
+  width: 300px;
+  height: calc(var(--hue-card) * 4 / 3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0 28px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background-color: var(--home-surface);
+  transition: background-color var(--home-tint) var(--home-ease);
+}
+
+.endTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.endNext {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(235, 235, 245, 0.58);
+}
+
+.endLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease-out;
+}
+
+.endLink:hover {
+  opacity: 0.78;
+}
+
+/* 被手拖着或在惯性里：什么都不往卡上吸，指针下面滑过的卡也不抬起。特异度够高，盖得住 cards.module.css 的悬停规则 */
+.rail[data-moving='true'] {
+  scroll-snap-type: none;
+}
+
+.rail[data-moving='true'] .card .cover,
+.rail[data-moving='true'] .card .zoom {
+  transform: none;
+  box-shadow: none;
+}
+
+/* 鼠标：抓住这一排拖 */
+@media (hover: hover) and (pointer: fine) {
+  .rail {
+    cursor: grab;
+  }
+
+  .rail[data-dragging='true'],
+  .rail[data-dragging='true'] * {
+    cursor: grabbing;
+  }
+
+  .rail[data-dragging='true'] {
+    -webkit-user-select: none;
+    user-select: none;
+    scroll-snap-type: none;
+  }
+}
+
+.cover {
+  aspect-ratio: 3 / 4;
+}
+
+/* 用文字档不用线条档：这一段里，颜色就是内容 */
+.band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background-color: var(--tone);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+@media (max-width: 900px) {
+  .rail {
+    --hue-card: 160px;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .pills {
+    margin-top: 14px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pill {
+    flex: none;
+    height: 44px;
+    gap: 7px;
+    padding: 0 15px 0 12px;
+  }
+
+  .pill:hover {
+    transform: none;
+    filter: none;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+  }
+
+  .count {
+    font-size: 11.5px;
+  }
+
+  .stage {
+    margin-top: 12px;
+  }
+
+  /* 一张张地滑、一张张地停 */
+  .rail {
+    --hue-card: 124px;
+    gap: 12px;
+    padding-top: 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  .card {
+    gap: 8px;
+    scroll-snap-align: start;
+  }
+
+  .end {
+    width: 200px;
+    height: 165px;
+    padding: 0 16px;
+    border-radius: 8px;
+    scroll-snap-align: start;
+  }
+
+  .cover {
+    width: 124px;
+    height: 165px;
+    aspect-ratio: auto;
+    border-radius: 8px;
+  }
+
+  .body {
+    gap: 4px;
+  }
+
+  .title {
+    height: 34px;
+    font-size: 12.5px;
+    line-height: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .panel[data-active='true'] .card,
+  .pill {
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
+  }
+}

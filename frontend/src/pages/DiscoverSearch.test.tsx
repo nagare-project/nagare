@@ -11,7 +11,6 @@ import { installLocalStorage } from '../test/storage'
 import { discoverFixture, homeMediaFixture } from '../test/discoverFixtures'
 
 // jsdom 没有布局；轮播的拖拽在浏览器里验收
-vi.mock('embla-carousel-react', () => ({ default: () => [() => {}, undefined] }))
 
 const FRIEREN = { anilistId: 154587, title: '葬送的芙莉莲', genres: ['Adventure'], episodes: 28, format: 'TV', status: 'FINISHED' }
 
@@ -91,12 +90,12 @@ describe('发现页的作品搜索（路由一层）', () => {
     await unmount()
   })
 
-  it('/discover 跳到 /（replace），q 与 genre 原样保留', async () => {
+  it('/discover 跳到 /（replace），q 原样保留', async () => {
     stubFetch()
-    const { router, unmount } = await mountAt('/discover?q=芙莉莲&genre=Sci-Fi')
+    const { router, unmount } = await mountAt('/discover?q=芙莉莲')
 
     expect(router.state.location.pathname).toBe('/')
-    expect(validated(router)).toMatchObject({ q: '芙莉莲', genre: 'Sci-Fi' })
+    expect(validated(router)).toMatchObject({ q: '芙莉莲' })
     await unmount()
   })
 
@@ -133,13 +132,12 @@ describe('发现页的作品搜索（路由一层）', () => {
     await unmount()
   })
 
-  it('空白关键词等于没搜（不发请求、照常显示榜单）；从作品页类型标签带来的 genre 照样保留', async () => {
+  it('空白关键词等于没搜（不发请求、照常显示发现页）', async () => {
     const mock = stubFetch()
-    const { router, container, unmount } = await mountAt('/discover?q=%20%20&genre=Sci-Fi')
+    const { container, unmount } = await mountAt('/discover?q=%20%20')
 
     expect(searchCalls(mock)).toEqual([])
     expect(container.textContent).toContain('大家都在追')
-    expect(validated(router).genre).toBe('Sci-Fi')
     await unmount()
   })
 })

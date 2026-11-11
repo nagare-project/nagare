@@ -11,6 +11,8 @@ import { useCollection } from './CollectionContext'
 import type { MediaSummary } from './types'
 import './media-details.css'
 import './discover.css'
+import { RouteLink } from '../catalog/RouteLink'
+import { genreFilter } from './genres'
 
 const STATUS: Record<string, string> = { RELEASING: '放送中', NOT_YET_RELEASED: '尚未播出', FINISHED: '已完结', CANCELLED: '已取消', HIATUS: '暂停放送' }
 const RELATIONS: Record<string, string> = { PREQUEL: '前作', SEQUEL: '续作', SIDE_STORY: '番外', ALTERNATIVE: '其他版本', SUMMARY: '总集篇', PARENT: '本篇', OTHER: '相关作品', SPIN_OFF: '衍生作品' }
@@ -36,7 +38,7 @@ export function MediaDetails({ media, titleId, page = false, children }: { media
         <div className="media-preview-genres">
           {!!media.score && <span className="media-preview-score" style={{ color: audienceColor(media.score) }}><Icon name="heart" size={12} />{media.score / 10}</span>}
           {media.studios?.map(studio => <span className="media-detail-studio" key={studio}>{studio}</span>)}
-          {media.genres.map(genre => <a key={genre} href={`/?genre=${encodeURIComponent(genre)}`}>{genre}</a>)}
+          {media.genres.map(genre => <RouteLink key={genre} to="/seasonal" search={{ genre: genreFilter(genre) }}>{genre}</RouteLink>)}
         </div>
         {!!rankings.length && <div className="media-detail-rankings">{rankings.map((rank, index) => <span key={index}><Icon name="star" size={16} />#{rank.rank} {rank.year || '最高评分'} {rank.season ? ({ WINTER: '冬', SPRING: '春', SUMMER: '夏', FALL: '秋' } as Record<string, string>)[rank.season] : ''}</span>)}</div>}
         <button type="button" className="media-detail-description" aria-label="展开完整简介" onClick={() => description.current?.showModal()}>{media.description || '暂无简介。'}</button>

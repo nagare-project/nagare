@@ -1,0 +1,87 @@
+/* 发现页的底色与各板块共用的几个量（DESIGN.md「发现」）。
+ *
+ * --home-ground / --home-tone / … 由 HomeHueScope 以行内样式写在这个元素上，已经是拼好的 oklch() 字符串。
+ * 横幅换一张它们就变；下面每条用到它们的规则都过渡被涂上的那个属性 ——
+ * 自定义属性本身不会动画，落到的颜色才会。 */
+
+.scope {
+  /* 内容约 1280px 宽、居中；笔记本上两侧至少 80px，视口更窄时跟着缩。用百分比不用 vw：
+   * Windows 的经典滚动条不会把内容挤偏。 */
+  --home-gutter: max(clamp(24px, 5.56vw, 80px), calc((100% - 1280px) / 2));
+  --home-expo: var(--ease-emphasized);
+  --home-ease: var(--ease-standard);
+  /* 整页跟着横幅换颜色要多久（DESIGN.md --dur-tone） */
+  --home-tint: var(--dur-tone);
+  /* 媒体库为空时顶部那一条说明的高度：横幅要再往上铺这么多（见 DiscoverPage 的 .strip） */
+  --home-strip-h: 0px;
+
+  position: relative;
+  display: flow-root;
+  flex: 1;
+  padding-bottom: 96px;
+  background-color: var(--home-ground, var(--bg));
+  color: var(--text);
+  transition: background-color var(--home-tint) var(--home-ease);
+}
+
+@media (max-width: 600px) {
+  .scope {
+    --home-gutter: 20px;
+    padding-bottom: 44px;
+  }
+}
+
+/* 媒体库为空时顶部那一条说明（EmptyLibraryStrip）：固定高度，横幅再往上铺这么多、内容往下让这么多，
+ * 横幅照样从页面最顶上开始（DESIGN.md「发现」） */
+.scope:has(> :global(.library-strip)) {
+  --home-strip-h: 48px;
+}
+
+.scope > :global(.library-strip) {
+  height: var(--home-strip-h);
+  padding-block: 0;
+}
+
+@media (pointer: coarse) {
+  .scope:has(> :global(.library-strip)) {
+    --home-strip-h: 56px;
+  }
+}
+
+/* 离线细条放在横幅右上角：出现、消失都不推动下面的内容 */
+.status {
+  position: absolute;
+  top: calc(var(--home-strip-h) + 16px);
+  right: var(--home-gutter);
+  z-index: 7;
+}
+
+/* 完结佳作与年度榜并排一行（宽屏 760 : 460），1100px 以下上下叠；手机上完结佳作藏起来，这一行只剩年度榜 */
+.pair {
+  margin-top: 80px;
+  padding-inline: var(--home-gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 760fr) minmax(0, 460fr);
+  gap: 60px;
+}
+
+@media (max-width: 1100px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 64px;
+  }
+}
+
+@media (max-width: 600px) {
+  .pair {
+    margin-top: 44px;
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scope {
+    --home-tint: 0.01ms;
+    transition-duration: 0.01ms;
+  }
+}

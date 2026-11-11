@@ -24,7 +24,8 @@ async function settleAnimations(page: Page): Promise<void> {
     const running = () =>
       document.getAnimations().filter((a) => {
         const end = a.effect?.getComputedTiming().endTime
-        return a.playState === 'running' && typeof end === 'number' && Number.isFinite(end)
+        // 比上限还长的有限动画不是进场 / 淡入，是倒计时（发现页横幅那根 8 秒的指示条）：照原样扫
+        return a.playState === 'running' && typeof end === 'number' && Number.isFinite(end) && end <= limitMs
       })
     const deadline = performance.now() + limitMs
     for (let pending = running(); pending.length > 0; pending = running()) {
@@ -49,8 +50,18 @@ async function settleAnimations(page: Page): Promise<void> {
   }
 }
 
+/**
+ * 先停住会自己切换的横幅（发现页「本季焦点」，DESIGN.md「动效」的暂停按钮）：扫的途中它换一张，
+ * 新的一张的字正在淡入，会被误判成对比度不够。读者也能这样停住它，扫的是停住之后的样子。
+ */
+async function holdCarousels(page: Page): Promise<void> {
+  const pause = page.getByRole('button', { name: '暂停自动切换' })
+  if ((await pause.count()) > 0 && (await pause.first().isVisible())) await pause.first().click()
+}
+
 /** 页面（或 include 指定的一块）里 serious / critical 的问题，一条一行，写清是哪条规则、在哪几处 */
 export async function blockingViolations(page: Page, include?: string): Promise<string[]> {
+  await holdCarousels(page)
   await settleAnimations(page)
   const builder = new AxeBuilder({ page }).withTags(WCAG_TAGS)
   const { violations } = await (include === undefined ? builder : builder.include(include)).analyze()

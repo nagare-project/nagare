@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { inFlight } from '../../lib/busy'
 import { COLLECTION_LABELS, entryStatus } from '../../lib/media'
 import type { CollectionEdit, CollectionStatus } from '../../lib/media'
@@ -8,12 +9,21 @@ import { useCollection } from './CollectionContext'
 import type { MediaSummary } from './types'
 import './media-list-editor.css'
 
+/** 自定义触发按钮要接上的几样：ref（关上对话框后焦点回到它、桌面上浮层贴着它）、点击打开 */
+export interface ListEditorTrigger {
+  ref: RefObject<HTMLButtonElement | null>
+  onClick: () => void
+  'aria-haspopup': 'dialog'
+}
+
 /** 收藏只保存账号服务支持的状态、评分与进度。 */
-export function MediaListEditor({ media, onOpenChange = () => {}, labelled = false }: {
+export function MediaListEditor({ media, onOpenChange = () => {}, labelled = false, trigger: renderTrigger }: {
   media: MediaSummary
   onOpenChange?: (open: boolean) => void
   /** 作品页 hero 上的「加入追番」：带字的玻璃·重按钮（默认是卡片上的圆形图标按钮） */
   labelled?: boolean
+  /** 自己画触发按钮（发现页横幅的「追番」）；不给就按 labelled 选默认的两种 */
+  trigger?: (props: ListEditorTrigger) => ReactNode
 }) {
   const collection = useCollection()
   const entry = collection.entries.find(e => e.anilistId === media.id)
@@ -42,7 +52,7 @@ export function MediaListEditor({ media, onOpenChange = () => {}, labelled = fal
     finally { busy.current = false; setPending(false) }
   }
   return <>
-    {labelled
+    {renderTrigger ? renderTrigger({ ref: trigger, onClick: open, 'aria-haspopup': 'dialog' }) : labelled
       ? <button ref={trigger} type="button" className="hero-btn hero-btn--heavy" aria-haspopup="dialog" onClick={open}><Icon name={entry ? 'edit' : 'plus'} size={16} />{entry ? `追番 · ${COLLECTION_LABELS[entryStatus(entry)]}` : '加入追番'}</button>
       : <button ref={trigger} type="button" className="icon-button media-list-trigger" aria-label={`${entry ? '编辑收藏' : '加入列表'} ${media.title}`} onClick={open}><Icon name={entry ? 'edit' : 'plus'} size={18} /></button>}
     <dialog ref={dialog} className="media-list-editor" style={position ? { ...position, right: 'auto', bottom: 'auto', margin: 0 } : undefined}

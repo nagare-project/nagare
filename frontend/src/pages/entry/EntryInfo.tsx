@@ -5,6 +5,7 @@ import { DiscoverCard } from '../../components/media/DiscoverCard'
 import { FORMAT_LABELS } from '../../components/media/media-format'
 import type { MediaSummary } from '../../components/media/types'
 import '../../components/catalog/catalog.css'
+import { genreFilter } from '../../components/media/genres'
 
 const SOURCES: Record<string, string> = { ORIGINAL: '原创', MANGA: '漫画', LIGHT_NOVEL: '轻小说', NOVEL: '小说', VIDEO_GAME: '游戏', VISUAL_NOVEL: '视觉小说', WEB_NOVEL: '网络小说', OTHER: '其他' }
 const RELATIONS: Record<string, string> = { PREQUEL: '前作', SEQUEL: '续作', SIDE_STORY: '番外', ALTERNATIVE: '其他版本', SUMMARY: '总集篇', PARENT: '本篇', OTHER: '相关作品', SPIN_OFF: '衍生作品' }
@@ -40,7 +41,7 @@ export function EntryInfo({ media }: { media: MediaSummary }) {
           )}
           {media.genres.length > 0 && (
             <ul className="entry-tags" aria-label="类型">
-              {media.genres.map((genre) => <li key={genre}><RouteLink to="/" search={{ genre }} className="entry-tag">{genre}</RouteLink></li>)}
+              {media.genres.map((genre) => <li key={genre}><RouteLink to="/seasonal" search={{ genre: genreFilter(genre) }} className="entry-tag">{genre}</RouteLink></li>)}
             </ul>
           )}
         </div>

@@ -220,7 +220,6 @@ mpv 加载。原样复制、未作改动；显示缩略图的界面代码是 nag
 | react / react-dom | MIT |
 | @tanstack/react-router | MIT |
 | motion | MIT |
-| embla-carousel / embla-carousel-react / embla-carousel-autoplay / embla-carousel-reactive-utils (8.6.0) | MIT |
 
 构建期依赖（Vite、TypeScript、Vitest 等）不进入分发包。
 

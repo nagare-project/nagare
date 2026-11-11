@@ -1,5 +1,5 @@
-import { fetchCatalogSearchData, fetchDiscoverData, fetchMediaData, fetchSeasonalData } from './endpoints'
-import type { CatalogFreshness, CollectionEntry, CollectionStatus, HomeAiringData, HomeMediaData, HomeSectionData, SeasonName, SummaryMediaData } from './endpoints'
+import { fetchCatalogSearchData, fetchMediaData, fetchSeasonalData } from './endpoints'
+import type { CatalogFreshness, CollectionEntry, CollectionStatus, SeasonName, SummaryMediaData } from './endpoints'
 export type { SeasonName } from './endpoints'
 import type { MediaSummary } from '../components/media/types'
 export { fetchCollection, saveCollection, deleteCollection } from './endpoints'
@@ -15,43 +15,6 @@ export function toSummary(media: SummaryMediaData): MediaSummary {
     relations: media.relations?.map(r => ({ type: r.type, media: toSummary(r.media) })),
     recommendations: media.recommendations?.map(toSummary), characters: media.characters,
     episodeTitles: media.episodeTitles, posterTones: media.posterTones, freshness: media.freshness }
-}
-export type DiscoverSections = { key: string; title: string; items: MediaSummary[]; error?: string }[]
-/** 发现页：板块 + 这份数据的来历（离线 / 过期时才有，界面据此显示「离线 · 更新于 …」） */
-export interface DiscoverView { sections: DiscoverSections; freshness?: CatalogFreshness }
-const SEASON_LABEL: Record<SeasonName, string> = { WINTER: '冬', SPRING: '春', SUMMER: '夏', FALL: '秋' }
-type AiringMaps = { next: Map<number, Airing>; recent: Map<number, Airing> }
-type Airing = { episode: number; at: number }
-/** 放送里每部作品下一集（还没播的最早一集）与最近已播的一集，与后端给 SummaryMedia 补的同一个来源 */
-function airingMaps(schedule: HomeAiringData[], nowSec: number): AiringMaps {
-  const next = new Map<number, Airing>()
-  const recent = new Map<number, Airing>()
-  for (const a of schedule) {
-    const airing = { episode: a.episode, at: a.airingAt }
-    if (a.airingAt > nowSec) {
-      const old = next.get(a.anilistId)
-      if (!old || a.airingAt < old.at) next.set(a.anilistId, airing)
-    } else {
-      const old = recent.get(a.anilistId)
-      if (!old || a.airingAt > old.at) recent.set(a.anilistId, airing)
-    }
-  }
-  return { next, recent }
-}
-function homeSummary(media: HomeMediaData, airings: AiringMaps): MediaSummary {
-  return { id: media.anilistId, title: media.title, titleNative: media.titleNative, titleRomaji: media.titleRomaji, titleEnglish: media.titleEnglish,
-    cover: media.cover, banner: media.banner, year: media.year, season: media.season && SEASON_LABEL[media.season], episodes: media.episodes, watched: 0,
-    score: media.score, genres: media.genres, description: media.description, status: media.status, format: media.format, posterTones: null,
-    nextAiring: airings.next.get(media.anilistId), recentAiring: airings.recent.get(media.anilistId) }
-}
-export async function fetchDiscover(signal?: AbortSignal): Promise<DiscoverView> {
-  const data = await fetchDiscoverData(signal)
-  const airings = airingMaps(data.schedule.items, Date.now() / 1000)
-  const section = (key: string, title: string, s: HomeSectionData<HomeMediaData>) => ({ key, title, items: s.items.map((m) => homeSummary(m, airings)), error: s.error })
-  return { sections: [
-    section('trending', '大家都在追', data.trending), section('thisSeason', '本季新番', data.seasonal),
-    section('gems', '完结佳作', data.gems), section('yearly', `${data.year} 年度榜`, data.yearly),
-  ], freshness: data.freshness }
 }
 export async function fetchMedia(id: number, signal?: AbortSignal): Promise<MediaSummary> { return toSummary(await fetchMediaData(id, signal)) }
 export async function fetchCatalogSearch(q: string, signal?: AbortSignal): Promise<MediaSummary[]> { return (await fetchCatalogSearchData(q, signal)).items.map(toSummary) }
