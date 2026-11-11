@@ -1,0 +1,162 @@
+/* 发现页各板块共用的外框：留白、上下节奏、标题行 —— 一小段当前作品色的短线、标题、可选的数字与说明、
+ * 右边可选的链接。是一小段而不是横贯整页的线：它说的是「新的一块从这里开始」，不是把上下隔开。 */
+
+.section {
+  margin-top: 80px;
+  padding-inline: var(--home-gutter);
+}
+
+/* 内容横向滚到视口边缘的板块：标题留在留白里，横排一直铺到边上 */
+.bleed {
+  margin-top: 80px;
+}
+
+.bleed > .head {
+  padding-inline: var(--home-gutter);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+}
+
+.rule {
+  flex: none;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--home-tone);
+  transition: background-color var(--home-tint) var(--home-ease);
+}
+
+.title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 640;
+  letter-spacing: 0.01em;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: rgba(235, 235, 245, 0.58);
+}
+
+.note {
+  min-width: 0;
+  margin-left: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  color: rgba(235, 235, 245, 0.58);
+  font-variant-numeric: tabular-nums;
+}
+
+.spacer {
+  flex-grow: 1;
+}
+
+/* 作品色的文字链接：作品色文字在每个色相的底色上都 ≥ 4.5:1（lib/home/tone.test.ts） */
+.link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--home-tone);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease-out,
+    color var(--home-tint) var(--home-ease);
+}
+
+.link:hover {
+  opacity: 0.78;
+}
+
+.link[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.linkIcon {
+  transition: transform 0.25s var(--home-expo);
+}
+
+.link:hover .linkIcon {
+  transform: translateX(3px);
+}
+
+.empty {
+  margin: 20px 0 0;
+  padding-block: 28px;
+  font-size: 14px;
+  color: rgba(235, 235, 245, 0.58);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 600px) {
+  .section,
+  .bleed {
+    margin-top: 44px;
+  }
+
+  .head {
+    gap: 10px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .count {
+    letter-spacing: 0;
+  }
+
+  .note {
+    font-size: 12px;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+
+  /* 44px 的触控目标，不撑高标题行：负外边距把多出来的还回去 */
+  .link {
+    height: 44px;
+    margin: -6px -4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linkIcon {
+    transition-duration: 0.01ms;
+  }
+}

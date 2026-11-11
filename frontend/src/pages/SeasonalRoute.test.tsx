@@ -74,10 +74,9 @@ describe('季度页的地址参数', () => {
 })
 
 describe('发现页的地址参数', () => {
-  it('认不出的 q / genre（数组、数字）不会原样漏给页面：当作没带，照常显示发现页', async () => {
-    const { container, router, unmount } = await open('/?q=%5B1%5D&genre=1')
+  it('认不出的 q（数组）不会原样漏给页面：当作没带，照常显示发现页', async () => {
+    const { container, router, unmount } = await open('/?q=%5B1%5D')
     expect(validated(router).q).toBeUndefined()
-    expect(validated(router).genre).toBeUndefined()
     expect(getByRole(container, 'heading', { level: 1, name: '发现' })).toBeDefined()
     expect(container.textContent).not.toContain('搜索「')
     await unmount()

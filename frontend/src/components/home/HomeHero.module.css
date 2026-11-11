@@ -1,0 +1,917 @@
+/* 发现页横幅「本季焦点」。
+ *
+ * 横幅从页面最顶上开始，透明的顶栏压在它上面：负外边距把它往上拉一个顶栏高（媒体库为空时再加上
+ * 顶部那一条说明的高度 --home-strip-h），所以它从 y=0 起 540px 高（手机 500px），内容从 100px 处开始
+ * （手机 136px）。上拉写在横幅上而不是 <main> 上：没有作品时横幅什么都不画，排在第一的东西不能钻进顶栏底下。
+ *
+ * 焦点环用全局那一个（DESIGN.md 颜色规则 2），这里不另写。
+ * 所有 @media 都放在文件末尾：与被覆盖的规则同一特异度，靠先后顺序胜出。 */
+
+.hero {
+  position: relative;
+  height: calc(540px + var(--home-strip-h));
+  margin-top: calc(-1 * (var(--app-nav-h) + var(--home-strip-h)));
+  overflow: hidden;
+  color: #fff;
+  /* 自己的底色：<main> 从它自己开始的地方涂页面颜色，横幅伸到了上面、顶栏底下 */
+  background-color: var(--home-ground, var(--bg));
+  transition: background-color var(--home-tint) var(--home-ease);
+}
+
+/* ── 氛围光：当前那张封面模糊成光。只在横幅里，离底边很远就淡出，颜色不渗到下面一段 ── */
+.glow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 50%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 50%, transparent 100%);
+}
+
+.glowInner {
+  position: absolute;
+  inset: -160px -140px;
+  filter: blur(90px) saturate(1.35);
+}
+
+.glowImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.4s var(--home-ease);
+}
+
+.glowImg[data-active='true'] {
+  opacity: 0.42;
+}
+
+.hero[data-entered='false'] .glow {
+  animation: fadeIn 1.8s var(--home-ease) backwards;
+}
+
+/* ── 横幅图：靠右，左边淡入、底部淡出。两张遮罩相交，两个方向的淡出相乘，不会一张切出另一张的硬边 ── */
+.banner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 76.4%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(1.02);
+  transition:
+    opacity 0.9s var(--home-ease),
+    transform 0.9s var(--home-ease);
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0%, transparent 16%, #000 56%),
+    linear-gradient(180deg, #000 52%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(90deg, transparent 0%, transparent 16%, #000 56%),
+    linear-gradient(180deg, #000 52%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.banner[data-active='true'] {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 1.1s var(--home-ease),
+    transform 1.6s var(--home-expo);
+}
+
+.bannerIn {
+  position: absolute;
+  inset: 0;
+}
+
+.hero[data-entered='false'] .banner[data-active='true'] .bannerIn {
+  animation: bannerIn 1.8s var(--home-expo) backwards;
+}
+
+/* 缓慢推近（Ken Burns）。不在焦点上的几张只是暂停、不去掉：去掉的话正在淡出的那张会在半路跳回原尺寸 */
+.bannerImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  animation: kenBurns 12s ease-in-out infinite alternate;
+}
+
+.banner:not([data-active='true']) .bannerImg {
+  animation-play-state: paused;
+}
+
+/* 顶替横幅的封面是竖图：露出上半截，脸在那里 */
+.bannerImg[data-cover='true'] {
+  object-position: center 22%;
+}
+
+/* 压暗透明顶栏的字底下那一条 */
+.topShade {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(150px + var(--home-strip-h));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
+}
+
+/* 左侧的压暗，让字在氛围光与横幅边缘上看得清。它是页面底色涂成实色、再用遮罩塑形，而不是那个颜色的渐变：
+ * 渐变是图片、不会过渡，背景色会 —— 所以它跟着整页一起换颜色，不会突变 */
+.scrim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 66.7%;
+  background-color: var(--home-ground);
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.5) 42%, transparent 100%);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.5) 42%, transparent 100%);
+  pointer-events: none;
+  transition: background-color var(--home-tint) var(--home-ease);
+}
+
+/* ── 内容 ── */
+.content {
+  position: absolute;
+  top: calc(100px + var(--home-strip-h));
+  left: var(--home-gutter);
+  right: var(--home-gutter);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 28px;
+}
+
+.hero[data-entered='false'] .eyebrow {
+  animation: lineUp 0.95s var(--home-expo) 300ms backwards;
+}
+
+.eyebrowLabel {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(235, 235, 245, 0.66);
+}
+
+.bars {
+  display: flex;
+  align-items: center;
+}
+
+/* 每根短条穿着它那部作品的颜色：平时是线条档，当前那根是文字档 —— 没点之前就预览了五套配色 */
+.bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 26px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: width 0.45s var(--home-expo);
+}
+
+.bar[aria-pressed='true'] {
+  width: 38px;
+}
+
+.barFill {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background-color: var(--bar-off);
+  transition: background-color 0.45s ease;
+}
+
+.bar[aria-pressed='true'] .barFill {
+  background-color: var(--bar-on);
+}
+
+/* 横幅在轮换时，当前那根是自己颜色的一条暗轨，8 秒里填满 —— 倒计时，安安静静的。停住时填充原地停下；
+ * 不轮换时（减弱动态效果）根本没有填充，当前那根照旧是实色 */
+.hero[data-rotates='true'] .bar[aria-pressed='true'] .barFill {
+  background-color: color-mix(in oklch, var(--bar-on) 38%, transparent);
+}
+
+.barProgress {
+  position: absolute;
+  inset: 0;
+  background-color: var(--bar-on);
+  transform-origin: left center;
+  animation: barProgress var(--hero-interval) linear both;
+}
+
+.hero[data-held='true'] .barProgress {
+  animation-play-state: paused;
+}
+
+/* 轮换的暂停 / 继续（WCAG 2.2.2）：短条末尾一个小玻璃圆，与短条一样高。圆画在 ::before 上，
+ * 按钮可以比看上去更大（手机上 44px 包着 32px 的圆），与短条同一个做法 */
+.pause {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(235, 235, 245, 0.82);
+  cursor: pointer;
+  transition: color 0.15s ease-out;
+}
+
+.pause::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.06);
+  transition:
+    background-color 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+/* 盖在圆上面：定位的内容画在它之后 */
+.pause svg {
+  position: relative;
+}
+
+.pause:hover {
+  color: #fff;
+}
+
+.pause:hover::before {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.barTip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  max-width: 260px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s var(--home-expo);
+}
+
+.bar:hover .barTip,
+.bar:focus-visible .barTip,
+.pause:hover .barTip,
+.pause:focus-visible .barTip {
+  opacity: 1;
+  transform: none;
+}
+
+/* 暂停按钮是这一排最后一个：它的提示往左开，不会跑出横幅右边 */
+.pause .barTip {
+  left: auto;
+  right: 0;
+}
+
+.stage {
+  position: relative;
+  height: 300px;
+}
+
+.covers {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  width: 196px;
+  height: 276px;
+}
+
+.hero[data-entered='false'] .covers {
+  animation: lineUp 0.95s var(--home-expo) 380ms backwards;
+}
+
+/* 封面弹出：不在焦点上的几张略缩小、略倾斜地等着，进来的那张弹正。投影无条件挂上；
+ * 带颜色的光是作品自己的颜色、扩散成负值，读起来是光而不是边框 */
+.cover {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  background-color: var(--tone-fill);
+  box-shadow:
+    0 18px 40px -14px rgba(0, 0, 0, 0.85),
+    0 0 48px -30px var(--tone);
+  opacity: 0;
+  transform: scale(0.9) skewY(2deg);
+  transition:
+    opacity 0.3s var(--home-ease),
+    transform 0.3s var(--home-ease);
+}
+
+.cover[data-active='true'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.7s var(--home-expo) 60ms,
+    transform 0.9s var(--home-expo) 60ms;
+}
+
+.slide {
+  position: absolute;
+  top: 0;
+  left: 226px;
+  width: min(560px, calc(100% - 226px));
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  visibility: hidden;
+  transition: visibility 0s linear 0.25s;
+}
+
+.slide[data-active='true'] {
+  visibility: visible;
+  transition: visibility 0s linear 0s;
+}
+
+.head {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 34px;
+  line-height: 42px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* 标题逐块去模糊显现。--td 是这一张切成当前时的延迟，--ld 是页面第一次画出来时的延迟 */
+.tok {
+  display: inline-block;
+  white-space: pre;
+  opacity: 0;
+  filter: blur(6px);
+  transition:
+    opacity 0.2s ease,
+    filter 0.2s ease;
+}
+
+.slide[data-active='true'] .tok {
+  opacity: 1;
+  filter: none;
+  transition:
+    opacity 0.5s ease var(--td),
+    filter 0.6s ease var(--td);
+}
+
+.hero[data-entered='false'] .slide[data-active='true'] .tok {
+  animation: tokenIn 0.7s ease var(--ld) backwards;
+}
+
+/* 文字行从左边依次滑进来 */
+.line {
+  opacity: 0;
+  transform: translateX(-16px);
+  transition:
+    opacity 0.22s var(--home-ease),
+    transform 0.22s var(--home-ease);
+}
+
+.slide[data-active='true'] .line {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.7s var(--home-expo) var(--line-delay),
+    transform 0.9s var(--home-expo) var(--line-delay);
+}
+
+.hero[data-entered='false'] .slide[data-active='true'] .line {
+  animation: lineUp 0.95s var(--home-expo) var(--line-entry) backwards;
+}
+
+.l1 {
+  --line-delay: 300ms;
+  --line-entry: 620ms;
+}
+
+.l2 {
+  --line-delay: 380ms;
+  --line-entry: 700ms;
+}
+
+.l3 {
+  --line-delay: 460ms;
+  --line-entry: 780ms;
+}
+
+.l4 {
+  --line-delay: 540ms;
+  --line-entry: 860ms;
+}
+
+.genres {
+  margin: 10px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 600;
+  color: rgba(235, 235, 245, 0.8);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+}
+
+.meta {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.score {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  background-color: var(--tone-fill);
+  color: var(--tone);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13.5px;
+  color: rgba(235, 235, 245, 0.84);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+}
+
+.statusLong,
+.statusShort {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.statusShort {
+  display: none;
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  color: var(--tone);
+  background-color: currentColor;
+}
+
+.dot[data-live='true'] {
+  animation: ping 2.4s var(--home-ease) infinite;
+}
+
+.synopsis {
+  margin: 14px 0 0;
+  max-width: 520px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 23px;
+  color: rgba(235, 235, 245, 0.74);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+}
+
+.actions {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 这一页唯一的实心按钮（DESIGN.md：一页一个实心）。作品的颜色做底、它的色相在 15% 明度做字：
+ * 每个色相都在 8.8:1 以上（lib/home/tone.test.ts） */
+.solid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background-color: var(--tone);
+  color: var(--on-solid);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+  transition:
+    filter 0.15s ease-out,
+    transform 0.15s ease-out;
+}
+
+.solid:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+
+.arrow {
+  transition: transform 0.25s var(--home-expo);
+}
+
+.solid:hover .arrow {
+  transform: translateX(3px);
+}
+
+.glass {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease-out,
+    border-color 0.15s ease-out,
+    transform 0.15s ease-out,
+    opacity 0.15s ease-out;
+}
+
+.glass:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.glass[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes bannerIn {
+  from {
+    scale: 1.06;
+    filter: opacity(0) brightness(0.4);
+  }
+}
+
+@keyframes kenBurns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.07);
+  }
+}
+
+@keyframes tokenIn {
+  from {
+    filter: blur(8px) opacity(0);
+  }
+}
+
+@keyframes lineUp {
+  from {
+    translate: 0 18px;
+    filter: opacity(0);
+  }
+}
+
+@keyframes barProgress {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes ping {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+/* ── 平板 ── */
+@media (min-width: 601px) and (max-width: 900px) {
+  /* 56px 顶栏下面 440px */
+  .hero {
+    height: calc(496px + var(--home-strip-h));
+  }
+
+  .banner {
+    width: 100%;
+  }
+
+  .scrim {
+    width: 92%;
+  }
+
+  .covers {
+    top: 44px;
+    width: 150px;
+    height: 211px;
+  }
+
+  .slide {
+    left: 174px;
+    width: calc(100% - 174px);
+  }
+
+  .title {
+    font-size: 28px;
+    line-height: 36px;
+  }
+}
+
+/* ── 手机：横幅图横在上面，封面与标题并排在它下面，再是简介与两个按钮占满一行，短条最后、居中、
+ * 44px 高，每根都是真正能按的目标 ── */
+@media (max-width: 600px) {
+  .hero {
+    height: calc(500px + var(--home-strip-h));
+  }
+
+  .glow {
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  }
+
+  .glowInner {
+    inset: -110px -90px;
+    filter: blur(60px) saturate(1.35);
+  }
+
+  .glowImg[data-active='true'] {
+    opacity: 0.45;
+  }
+
+  .banner {
+    left: 0;
+    width: 100%;
+    height: calc(260px + var(--home-strip-h));
+    transform: scale(1.03);
+    -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent 100%);
+    -webkit-mask-composite: source-over;
+    mask-image: linear-gradient(180deg, #000 40%, transparent 100%);
+    mask-composite: add;
+  }
+
+  .scrim {
+    display: none;
+  }
+
+  .topShade {
+    height: calc(110px + var(--home-strip-h));
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 100%);
+  }
+
+  .content {
+    top: calc(136px + var(--home-strip-h));
+    gap: 12px;
+  }
+
+  .eyebrow {
+    position: relative;
+    order: 2;
+    justify-content: center;
+    height: auto;
+  }
+
+  /* 放在这一排右端、不占位置：有没有这个按钮，短条都居中 */
+  .pause {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 44px;
+    height: 44px;
+    margin-left: 0;
+  }
+
+  .pause::before {
+    width: 32px;
+    height: 32px;
+    margin: -16px 0 0 -16px;
+  }
+
+  .eyebrowLabel {
+    display: none;
+  }
+
+  .bar {
+    width: 36px;
+    height: 44px;
+    padding: 0 7px;
+    border-radius: 8px;
+  }
+
+  .bar[aria-pressed='true'] {
+    width: 50px;
+  }
+
+  .barTip {
+    display: none;
+  }
+
+  .stage {
+    height: 290px;
+  }
+
+  .covers {
+    top: 0;
+    width: 106px;
+    height: 150px;
+  }
+
+  .cover {
+    border-radius: 8px;
+    box-shadow:
+      0 16px 36px -14px rgba(0, 0, 0, 0.85),
+      0 0 40px -26px var(--tone);
+  }
+
+  /* 两列：第一行封面那一列空着（封面叠在那里），简介与按钮跨两列 */
+  .slide {
+    left: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 106px minmax(0, 1fr);
+    grid-template-rows: 150px auto auto;
+    column-gap: 14px;
+    align-content: start;
+  }
+
+  .head {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .title {
+    font-size: 20px;
+    line-height: 26px;
+  }
+
+  .genres {
+    margin-top: 6px;
+    gap: 2px 10px;
+    font-size: 12.5px;
+    line-height: 18px;
+  }
+
+  .meta {
+    margin-top: 8px;
+    gap: 10px;
+  }
+
+  .score {
+    height: 24px;
+    padding: 0 9px 0 7px;
+    gap: 4px;
+    font-size: 12.5px;
+  }
+
+  .status {
+    gap: 6px;
+    font-size: 12.5px;
+  }
+
+  .statusLong {
+    display: none;
+  }
+
+  .statusShort {
+    display: inline;
+  }
+
+  .synopsis {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 14px;
+    max-width: none;
+    height: 66px;
+    font-size: 13.5px;
+    line-height: 22px;
+    color: rgba(235, 235, 245, 0.76);
+  }
+
+  .actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: 16px;
+  }
+
+  .solid,
+  .glass {
+    flex: 1;
+    height: 44px;
+    padding: 0 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero *,
+  .hero *::before,
+  .hero *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+  }
+}
