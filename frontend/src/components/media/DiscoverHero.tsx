@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { preloadArtwork } from '../../lib/imageCache'
 import { posterToneStyle } from '../../lib/posterTones'
 import { Icon } from '../ui/Icon'
 import { DiscoverTrailer } from './DiscoverTrailer'
 import { genreLabel } from './DiscoverGenres'
+import { HeroBackdrop } from './HeroBackdrop'
 import { MediaArtwork } from './MediaArtwork'
 import { MediaEntryLink } from './MediaEntryLink'
 import { MediaPreview } from './MediaPreview'
@@ -33,6 +35,7 @@ function heroMeta(media: MediaSummary): { score?: string; parts: string[] } {
  * 发现页横幅（DESIGN.md「发现」「动效」）：每 8 秒换一部，配齐暂停规则；
  * 暂停按钮常驻（触屏 44px），减弱动态效果时不自动切、也不显示暂停按钮。
  * 悬停一秒后（只在宽屏、鼠标）背景换成静音预告片。
+ * 下一部的背景与封面提前加载好，切过去时不等图（HeroBackdrop 再兜一层：图没到就先留着旧图）。
  */
 export function DiscoverHero({ items: latest, label }: { items: MediaSummary[]; label: string }) {
   const [element, setElement] = useState<HTMLElement | null>(null)
@@ -56,6 +59,13 @@ export function DiscoverHero({ items: latest, label }: { items: MediaSummary[]; 
   const media = items[index]
   const trailerActive = desktop && hovered && !dialogOpen && !reduced
   const trailerId = useMediaTrailer(media, trailerActive)
+  const upcoming = count > 1 ? items[(index + 1) % count] : undefined
+  const upcomingBackdrop = upcoming ? upcoming.banner ?? upcoming.cover : undefined
+  const upcomingCover = upcoming?.cover
+  useEffect(() => {
+    if (upcomingBackdrop) void preloadArtwork(upcomingBackdrop)
+    if (upcomingCover && upcomingCover !== upcomingBackdrop) void preloadArtwork(upcomingCover)
+  }, [upcomingBackdrop, upcomingCover])
   if (!media) return null
   const meta = heroMeta(media)
 
@@ -68,7 +78,7 @@ export function DiscoverHero({ items: latest, label }: { items: MediaSummary[]; 
       onFocusCapture={() => { if (!pointerFocus.current) setFocused(true) }}
       onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); pointerFocus.current = false } }}>
       <div className="hero-backdrop" aria-hidden="true">
-        <div className="hero-backdrop-image" key={media.id}><MediaArtwork src={media.banner ?? media.cover} title={media.title} eager /></div>
+        <HeroBackdrop src={media.banner ?? media.cover} title={media.title} reduced={reduced} />
         <DiscoverTrailer key={`trailer-${media.id}`} videoId={trailerId} title={media.title} active={trailerActive} />
         <div className="hero-scrim" />
       </div>
