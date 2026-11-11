@@ -6,34 +6,41 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // CatalogMedia 只接收目录及详情实际使用的字段；空标题、缺图和未知集数仍由投影层处理。
 type CatalogMedia struct {
-	AnilistID      int      `json:"anilistId"`
-	Title          string   `json:"title"`
-	TitleChinese   string   `json:"titleChinese"`
-	TitleRomaji    string   `json:"titleRomaji"`
-	TitleEnglish   string   `json:"titleEnglish"`
-	TitleNative    string   `json:"titleNative"`
-	CoverImageURL  string   `json:"coverImageUrl"`
-	BannerImageURL string   `json:"bannerImageUrl"`
-	Description    string   `json:"description"`
-	DescriptionCn  string   `json:"descriptionCn"`
-	Season         string   `json:"season"`
-	SeasonYear     int      `json:"seasonYear"`
-	Episodes       *int     `json:"episodes"`
-	AverageScore   float64  `json:"averageScore"`
-	BangumiScore   float64  `json:"bangumiScore"`
-	Genres         []string `json:"genres"`
-	Status         string   `json:"status"`
-	Format         string   `json:"format"`
-	Duration       int      `json:"duration"`
-	Source         string   `json:"source"`
-	StartDate      string   `json:"startDate"`
-	TrailerID      string   `json:"trailerId"`
-	TrailerSite    string   `json:"trailerSite"`
-	Trailer        *struct {
+	AnilistID      int    `json:"anilistId"`
+	Title          string `json:"title"`
+	TitleChinese   string `json:"titleChinese"`
+	TitleRomaji    string `json:"titleRomaji"`
+	TitleEnglish   string `json:"titleEnglish"`
+	TitleNative    string `json:"titleNative"`
+	CoverImageURL  string `json:"coverImageUrl"`
+	BannerImageURL string `json:"bannerImageUrl"`
+	// PosterAccent 是上游给的封面主色（#rrggbb）。上游取不到可用颜色时会填一个固定的占位色，
+	// 那不是这部作品的颜色 —— 换算色相时要排除（见 internal/api 的 accentHue）。
+	PosterAccent  string   `json:"posterAccent"`
+	Description   string   `json:"description"`
+	DescriptionCn string   `json:"descriptionCn"`
+	Season        string   `json:"season"`
+	SeasonYear    int      `json:"seasonYear"`
+	Episodes      *int     `json:"episodes"`
+	AverageScore  float64  `json:"averageScore"`
+	BangumiScore  float64  `json:"bangumiScore"`
+	Genres        []string `json:"genres"`
+	Status        string   `json:"status"`
+	Format        string   `json:"format"`
+	Duration      int      `json:"duration"`
+	// WatcherCount 与 Rank 只在热门榜（trending）里有：上游的追番人数与名次。
+	WatcherCount int    `json:"watcherCount"`
+	Rank         int    `json:"rank"`
+	Source       string `json:"source"`
+	StartDate    string `json:"startDate"`
+	TrailerID    string `json:"trailerId"`
+	TrailerSite  string `json:"trailerSite"`
+	Trailer      *struct {
 		ID   string `json:"id"`
 		Site string `json:"site"`
 	} `json:"trailer"`
@@ -98,8 +105,16 @@ func catalogGet[T any](ctx context.Context, c *Client, path string) (T, error) {
 	}
 	return *env.Data, nil
 }
+
+// 发现页各板块要的条数：热门 10、完结佳作 6、年度榜 10（季度一页取满 200，见 Seasonal）。
+const (
+	trendingLimit  = 10
+	gemsLimit      = 6
+	yearlyTopLimit = 10
+)
+
 func (c *Client) Trending(ctx context.Context) ([]CatalogMedia, error) {
-	return catalogGet[[]CatalogMedia](ctx, c, "/api/anime/trending?limit=20")
+	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/trending?limit=%d", trendingLimit))
 }
 func (c *Client) Seasonal(ctx context.Context, season string, year int) ([]CatalogMedia, error) {
 	switch season {
@@ -121,11 +136,14 @@ func (c *Client) Search(ctx context.Context, keyword string) ([]CatalogMedia, er
 	q := url.Values{"q": {keyword}, "page": {"1"}, "perPage": {"20"}}
 	return catalogGet[[]CatalogMedia](ctx, c, "/api/anime/search?"+q.Encode())
 }
+
+// Gems 是已完结的高分作品：上游每次调用随机挑一批，「换一批」就是再调一次。
+// 带一个每次不同的 _ 参数：中间若有按地址缓存的一层（CDN），同一个地址会被合并成同一批「随机」样本。
 func (c *Client) Gems(ctx context.Context) ([]CatalogMedia, error) {
-	return catalogGet[[]CatalogMedia](ctx, c, "/api/anime/completed-gems?limit=20")
+	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/completed-gems?limit=%d&_=%d", gemsLimit, time.Now().UnixNano()))
 }
 func (c *Client) YearlyTop(ctx context.Context, year int) ([]CatalogMedia, error) {
-	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/yearly-top?year=%d&limit=20", year))
+	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/yearly-top?year=%d&limit=%d", year, yearlyTopLimit))
 }
 func (c *Client) Schedule(ctx context.Context) (ScheduleData, error) {
 	return catalogGet[ScheduleData](ctx, c, "/api/anime/schedule")

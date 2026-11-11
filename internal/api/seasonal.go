@@ -24,6 +24,9 @@ type SeasonalView struct {
 
 var seasonNames = []string{"WINTER", "SPRING", "SUMMER", "FALL"}
 
+// seasonalKey 是某一季目录的缓存键。季度页与发现页的本季共用它：翻到当季时不再请求一次。
+func seasonalKey(season string, year int) string { return fmt.Sprintf("seasonal:%s:%d", season, year) }
+
 // Seasonal 读某一季的目录，与 Discover 的季度板块共用同一套缓存键，翻到当季时不重复请求。
 // 放送快照有就顺带补 nextAiring / recentAiring；没有不阻塞。
 func (s *DiscoverService) Seasonal(ctx context.Context, season string, year int) (SeasonalView, error) {
@@ -40,8 +43,7 @@ func (s *DiscoverService) Seasonal(ctx context.Context, season string, year int)
 	if year < 1990 || year > 2100 {
 		return SeasonalView{}, errs.New(errs.CategoryInput, "catalog.seasonal", "年份超出范围", "")
 	}
-	key := fmt.Sprintf("seasonal:%s:%d", season, year)
-	rows, meta, err := cachedReadMeta(ctx, s.cache, key, 10*time.Minute, func(ctx context.Context) ([]animego.CatalogMedia, error) {
+	rows, meta, err := cachedReadMeta(ctx, s.cache, seasonalKey(season, year), 10*time.Minute, func(ctx context.Context) ([]animego.CatalogMedia, error) {
 		return s.source.Seasonal(ctx, season, year)
 	})
 	if err != nil {

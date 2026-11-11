@@ -23,6 +23,7 @@ const FIXTURE_CONTRACTS: Record<string, Contract> = {
   'GET /api/player/status': c.playerStatus,
   'POST /api/play': c.playData,
   'GET /api/discover': c.discoverData,
+  'GET /api/discover/gems': c.gemsData,
   'GET /api/seasonal': c.seasonalData,
   'GET /api/schedule': c.scheduleData,
   'GET /api/lists': c.collectionData,

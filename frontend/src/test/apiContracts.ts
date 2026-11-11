@@ -9,7 +9,8 @@
 import type { AssociationData, LibraryAssociation, LibraryMatch, SyncedRecord } from '../lib/associations'
 import type {
   AddFolderData, BundledPluginView, CatalogFreshness, CatalogSearchData, CollectionData, CollectionDeleteData, CollectionEntry,
-  ContinueItem, CoverCacheClearResult, CoverCacheInfo, DanmakuStatus, DirListing, DiscoverData, DownloadTask, DownloadsData, ItemProgress, LibraryCluster,
+  ContinueItem, CoverCacheClearResult, CoverCacheInfo, DanmakuStatus, DirListing, DiscoverData, DownloadTask, DownloadsData, GemsData,
+  HomeAiringData, HomeMediaData, ItemProgress, LibraryCluster, RankedMediaData,
   LibraryData, LibraryDropGroup, LibraryDrops, LibraryFolder, LibraryGroup, LibraryIdentify, LibraryItem, MpvInfo,
   PlaybackFailure, PlayData, PlayerConfigResult, PlayerStatus, PlayingStatus, PluginSource, PosterTones, RulesInfo, ScanStats,
   ScheduleData, SeasonalData, SelfUpdateInfo, SettingsData, SourceInfo, SourcePluginConfigView, SourcePluginManifest,
@@ -139,12 +140,33 @@ export const summaryMedia: Schema<SummaryMediaData> = exact<SummaryMediaData>()(
     freshness, posterTones: nullable(posterTones),
   },
 ))
+const seasonName = lit('WINTER', 'SPRING', 'SUMMER', 'FALL')
+const homeMediaFields = {
+  required: { anilistId: int, title: str, hue: nullable(num), episodes: nullable(int), genres: arr(str) },
+  optional: {
+    titleNative: str, titleRomaji: str, titleEnglish: str, cover: str, banner: str, score: int, bangumiScore: num, season: seasonName, year: int,
+    status: str, format: str, description: str,
+  },
+}
+const homeMedia = exact<HomeMediaData>()(obj(homeMediaFields.required, homeMediaFields.optional))
+const rankedMedia = exact<RankedMediaData>()(obj({ ...homeMediaFields.required, rank: int, watchers: int }, homeMediaFields.optional))
+const homeAiring = exact<HomeAiringData>()(obj(
+  { scheduleId: int, anilistId: int, episode: int, airingAt: int, title: str, hue: nullable(num) },
+  { cover: str },
+))
+function homeSection<T>(item: Schema<T>) {
+  return obj({ items: arr(item) }, { error: str })
+}
 export const discoverData = exact<DiscoverData>()(obj(
-  { sections: arr(obj({ key: str, title: str, items: arr(summaryMedia) }, { error: str })), fetchedAt: int },
+  {
+    season: seasonName, year: int, seasonal: homeSection(homeMedia), seasonTotal: int, trending: homeSection(rankedMedia),
+    gems: homeSection(homeMedia), yearly: homeSection(homeMedia), schedule: homeSection(homeAiring), fetchedAt: int,
+  },
   { freshness },
 ))
+export const gemsData = exact<GemsData>()(obj({ items: arr(homeMedia) }))
 export const seasonalData = exact<SeasonalData>()(obj(
-  { season: lit('WINTER', 'SPRING', 'SUMMER', 'FALL'), year: int, items: arr(summaryMedia), fetchedAt: int },
+  { season: seasonName, year: int, items: arr(summaryMedia), fetchedAt: int },
   { freshness },
 ))
 export const scheduleData = exact<ScheduleData>()(obj(

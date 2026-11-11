@@ -1258,13 +1258,49 @@ export interface SummaryMediaData {
   /** 封面的海报色阶；null / 缺省 = 用中性色 */
   posterTones?: PosterTones | null
 }
-export interface DiscoverData { sections: { key: string; title: string; items: SummaryMediaData[]; error?: string }[]; fetchedAt: number; freshness?: CatalogFreshness }
+/** 发现页一张卡片用到的字段（GET /api/discover 与 /api/discover/gems） */
+export interface HomeMediaData {
+  anilistId: number; title: string; titleNative?: string
+  /** 不显示，只给磁力搜索（不少字幕组只用罗马音登记发布） */
+  titleRomaji?: string; titleEnglish?: string
+  cover?: string; banner?: string
+  /** 目录给的封面主色换算出的 OKLCH 色相角；null = 没有可信色相，界面用中性色 */
+  hue: number | null
+  /** AniList 评分 0–100 */
+  score?: number
+  /** Bangumi 评分 0–10（未取整） */
+  bangumiScore?: number
+  episodes: number | null
+  season?: SeasonName; year?: number; status?: string; format?: string; genres: string[]; description?: string
+}
+/** 热门榜的一项：名次与追番人数 */
+export interface RankedMediaData extends HomeMediaData { rank: number; watchers: number }
+/** 一次放送（Unix 秒）：今日更新的卡片，也是「下一集什么时候播」的来源 */
+export interface HomeAiringData { scheduleId: number; anilistId: number; episode: number; airingAt: number; title: string; cover?: string; hue: number | null }
+/** 发现页的一个板块；读取失败时 items 为空、error 写明原因 */
+export interface HomeSectionData<T> { items: T[]; error?: string }
+export interface DiscoverData {
+  season: SeasonName; year: number
+  /** 本季全部，按 AniList 评分从高到低；seasonTotal 是这一季一共几部（与 seasonal.items 同数） */
+  seasonal: HomeSectionData<HomeMediaData>; seasonTotal: number
+  trending: HomeSectionData<RankedMediaData>
+  gems: HomeSectionData<HomeMediaData>
+  /** 本年度（year）按 AniList 评分的前十 */
+  yearly: HomeSectionData<HomeMediaData>
+  /** 近七日的放送，按时间先后 */
+  schedule: HomeSectionData<HomeAiringData>
+  fetchedAt: number; freshness?: CatalogFreshness
+}
+/** GET /api/discover/gems 的 data 载荷：完结佳作的下一批（上游每次随机挑） */
+export interface GemsData { items: HomeMediaData[] }
 export type CollectionStatus = 'watching' | 'plan_to_watch' | 'completed' | 'dropped'
 export interface CollectionEntry { anilistId: number; status: CollectionStatus; currentEpisode: number; score: number | null; media: SummaryMediaData; lastWatchedAt?: number }
 export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] }
 export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
 export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; posterTones?: PosterTones | null; format?: string; inLibrary: boolean }[]; fetchedAt: number; freshness?: CatalogFreshness }
 export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
+/** 完结佳作「换一批」：每次都向上游要新的一批，不走缓存 */
+export const fetchMoreGems = (signal?: AbortSignal) => apiFetch<GemsData>('/api/discover/gems', { signal })
 export type SeasonName = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL'
 export interface SeasonalData { season: SeasonName; year: number; items: SummaryMediaData[]; fetchedAt: number; freshness?: CatalogFreshness }
 /** 某一季的全部作品（animego 一页 200 条），后端十分钟缓存 */

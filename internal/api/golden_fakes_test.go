@@ -37,6 +37,7 @@ func frierenRow() animego.CatalogMedia {
 		Episodes: ptr(28), AverageScore: 90.6, Genres: []string{"Adventure", "Drama", "Fantasy"},
 		Status: "RELEASING", Format: "TV", Duration: 24, Source: "MANGA", StartDate: "2026-10-03",
 		TrailerID: "qgQ9yXb7G7g", TrailerSite: "youtube", Studios: []string{"Madhouse"},
+		PosterAccent: "#47abd5", BangumiScore: 8.92,
 	}
 }
 
@@ -45,7 +46,7 @@ func bocchiRow() animego.CatalogMedia {
 		AnilistID: goldenBocchiID, TitleChinese: "孤独摇滚！", TitleRomaji: "Bocchi the Rock!",
 		CoverImageURL: anilistCover("bx130003"), Season: "SUMMER", SeasonYear: 2026,
 		Episodes: ptr(12), AverageScore: 88.2, Genres: []string{"Comedy", "Music"},
-		Status: "FINISHED", Format: "TV",
+		Status: "FINISHED", Format: "TV", PosterAccent: "#fe286b", BangumiScore: 8.85,
 	}
 }
 
@@ -103,7 +104,13 @@ func (g goldenCatalog) Trending(context.Context) ([]animego.CatalogMedia, error)
 	if g.failAll {
 		return nil, errGoldenOffline
 	}
-	return []animego.CatalogMedia{{AnilistID: goldenFrierenID, TitleChinese: "葬送的芙莉莲"}, bocchiRow()}, nil
+	// 热门榜带名次与追番人数；第二行只有最少的字段（上游的热门行本来就比季度行少很多字段）
+	frieren := frierenRow()
+	frieren.Rank, frieren.WatcherCount = 1, 142
+	return []animego.CatalogMedia{
+		frieren,
+		{AnilistID: goldenBocchiID, TitleChinese: "孤独摇滚！", Rank: 2, WatcherCount: 95},
+	}, nil
 }
 
 func (g goldenCatalog) Seasonal(_ context.Context, season string, year int) ([]animego.CatalogMedia, error) {
@@ -123,7 +130,7 @@ func (g goldenCatalog) Seasonal(_ context.Context, season string, year int) ([]a
 
 func (g goldenCatalog) Gems(context.Context) ([]animego.CatalogMedia, error) {
 	if g.failGems || g.failAll {
-		return nil, errors.New("upstream 502")
+		return nil, &animego.Error{Kind: animego.ErrUnavailable, Op: "catalog", Err: errors.New("upstream 502")}
 	}
 	return []animego.CatalogMedia{bocchiRow()}, nil
 }

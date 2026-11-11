@@ -45,6 +45,9 @@ const CONTRACTS: Record<string, Contract> = {
   'auth-logout': okEnvelope(emptyObject),
   // 目录与收藏
   'catalog-discover': okEnvelope(c.discoverData),
+  'catalog-discover-unreachable': okEnvelope(c.discoverData),
+  'catalog-discover-gems': okEnvelope(c.gemsData),
+  'catalog-discover-gems-failed': errorEnvelope,
   'catalog-seasonal': okEnvelope(c.seasonalData),
   'catalog-seasonal-bad-season': errorEnvelope,
   'catalog-schedule': okEnvelope(c.scheduleData),

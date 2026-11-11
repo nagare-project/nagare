@@ -22,6 +22,16 @@ func TestCatalogPublicRoutesAndDecode(t *testing.T) {
 			respond(w, 200, `{"data":{"groups":{"2026-09-06":[{"anilistId":1,"episode":3,"airingAt":1788656400}]}}}`)
 		case "/api/anime/1":
 			respond(w, 200, `{"data":{"anilistId":1,"trailer":{"id":"abcdefghijk","site":"youtube"}}}`)
+		case "/api/anime/trending":
+			require.Equal(t, "10", r.URL.Query().Get("limit"))
+			respond(w, 200, `{"data":[{"anilistId":2,"rank":1,"watcherCount":142,"posterAccent":"#31add6","bangumiScore":7.2}]}`)
+		case "/api/anime/completed-gems":
+			require.Equal(t, "6", r.URL.Query().Get("limit"))
+			respond(w, 200, `{"data":[]}`)
+		case "/api/anime/yearly-top":
+			require.Equal(t, "10", r.URL.Query().Get("limit"))
+			require.Equal(t, "2026", r.URL.Query().Get("year"))
+			respond(w, 200, `{"data":[]}`)
 		default:
 			respond(w, 200, `{"data":[]}`)
 		}
@@ -31,8 +41,12 @@ func TestCatalogPublicRoutesAndDecode(t *testing.T) {
 	items, err := client.Seasonal(ctx, "WINTER", 2027)
 	require.NoError(t, err)
 	require.Nil(t, items[0].Episodes)
-	_, err = client.Trending(ctx)
+	trending, err := client.Trending(ctx)
 	require.NoError(t, err)
+	require.Equal(t, 1, trending[0].Rank)
+	require.Equal(t, 142, trending[0].WatcherCount)
+	require.Equal(t, "#31add6", trending[0].PosterAccent)
+	require.InDelta(t, 7.2, trending[0].BangumiScore, 1e-9)
 	_, err = client.Gems(ctx)
 	require.NoError(t, err)
 	_, err = client.YearlyTop(ctx, 2026)

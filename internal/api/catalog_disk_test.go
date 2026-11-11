@@ -104,8 +104,8 @@ func diskService(t *testing.T, dir string, f CatalogReader, at time.Time) (*Disc
 
 func TestCatalogDiskKeyWhitelist(t *testing.T) {
 	for key, want := range map[string]bool{
-		"trending:2026:2": true, "thisSeason:2026:2": true, "pastSeason:2026:2": true, "nextSeason:2026:2": true,
-		"gems:2026:2": true, "yearly:2026:2": true, "seasonal:FALL:2024": true, "schedule": true, "detail:7": true,
+		"trending:2026:2": true, "gems:2026:2": true, "yearly:2026:2": true, "seasonal:FALL:2024": true, "schedule": true, "detail:7": true,
+		"thisSeason:2026:2": false, "pastSeason:2026:2": false, // 版本 2 起发现页的本季与季度页共用 seasonal: 键
 		"search:芙莉莲": false, "1:0": false, "": false, "schedule:x": false, "lists": false, "total:7": false,
 	} {
 		require.Equal(t, want, catalogDiskKey(key), key)
@@ -130,11 +130,12 @@ func TestCatalogOfflineRestartServesDiskCopy(t *testing.T) {
 	s, _ := diskService(t, dir, down, diskT0.Add(2*time.Hour))
 	view, err := s.View(ctx)
 	require.NoError(t, err)
-	for _, sec := range view.Sections {
-		require.Empty(t, sec.Error, sec.Key)
+	for name, msg := range map[string]string{"seasonal": view.Seasonal.Error, "trending": view.Trending.Error, "gems": view.Gems.Error, "yearly": view.Yearly.Error, "schedule": view.Schedule.Error} {
+		require.Empty(t, msg, name)
 	}
-	require.Len(t, view.Sections[0].Items, 1)
-	require.Equal(t, "上次的标题", view.Sections[0].Items[0].Title)
+	require.Len(t, view.Seasonal.Items, 1)
+	require.Equal(t, "上次的标题", view.Seasonal.Items[0].Title)
+	require.Len(t, view.Schedule.Items, 1)
 	require.Equal(t, &Freshness{FetchedAt: "2026-08-15T10:00:00Z", Stale: true}, view.Freshness)
 	require.Equal(t, diskT0.Unix(), view.FetchedAt)
 
@@ -143,7 +144,7 @@ func TestCatalogOfflineRestartServesDiskCopy(t *testing.T) {
 	again, err := s.View(ctx)
 	require.NoError(t, err)
 	require.True(t, again.Freshness.Offline, "刷新失败后标记离线")
-	require.Len(t, again.Sections[2].Items, 1)
+	require.Len(t, again.Gems.Items, 1)
 	calls := down.callCount()
 	_, err = s.View(ctx)
 	require.NoError(t, err)
@@ -231,6 +232,8 @@ func TestCatalogDiskDiscardsUnusableFiles(t *testing.T) {
 	good := json.RawMessage(`{"anilistId":7,"titleChinese":"盘上"}`)
 	cases := map[string][]byte{
 		"版本不符": envelope(catalogDiskFile{Version: catalogDiskVersion + 1, Key: "detail:7", FetchedAt: diskT0, Data: good}),
+		// 版本 1 的文件没有封面主色、名次与追番人数：读到要丢掉，不能当成没有颜色的一份显示
+		"版本 1": envelope(catalogDiskFile{Version: 1, Key: "detail:7", FetchedAt: diskT0, Data: good}),
 		"旧版本":  envelope(catalogDiskFile{Version: 0, Key: "detail:7", FetchedAt: diskT0, Data: good}),
 		"损坏":   []byte(`{"version":1,"key":"detail:7","data":{`),
 		"键不符":  envelope(catalogDiskFile{Version: catalogDiskVersion, Key: "detail:8", FetchedAt: diskT0, Data: good}),
@@ -348,7 +351,7 @@ func TestCatalogArtResolvesAfterRestartOffline(t *testing.T) {
 	online, _ := diskService(t, dir, &diskStub{title: "作品"}, diskT0)
 	before, err := online.View(context.Background())
 	require.NoError(t, err)
-	cover := before.Sections[0].Items[0].Cover
+	cover := before.Trending.Items[0].Cover
 	require.True(t, strings.HasPrefix(cover, "/art/test/remote/"), cover)
 	key := strings.TrimPrefix(cover, "/art/test/remote/")
 
@@ -363,7 +366,7 @@ func TestCatalogArtResolvesAfterRestartOffline(t *testing.T) {
 	after, err := s.View(context.Background())
 	require.NoError(t, err)
 	s.cache.waitBackground()
-	require.Equal(t, cover, after.Sections[0].Items[0].Cover, "键是地址的 SHA-256，跨进程不变")
+	require.Equal(t, cover, after.Trending.Items[0].Cover, "键是地址的 SHA-256，跨进程不变")
 
 	w := httptest.NewRecorder()
 	NewArtHandler(nil, art, s.art).ServeHTTP(w, httptest.NewRequest("GET", "/remote/"+key, nil))

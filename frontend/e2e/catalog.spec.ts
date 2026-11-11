@@ -54,7 +54,7 @@ for (const width of WIDTHS) {
       const note = freshness(page, '离线 · 更新于 3 小时前')
       await expect(note.shown).toBeVisible()
       await expect(note.announced).toHaveCount(1)
-      await expect(page.getByRole('heading', { level: 2, name: '大家在看' })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 2, name: '大家都在追' })).toBeVisible()
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
       expect(problems.errors).toEqual([])
     })
@@ -88,7 +88,7 @@ test.describe('宽屏（1440px）', () => {
     // 在线时「正在刷新」来来去去不念：播报区一直是空的
     await expect(page.getByRole('status').filter({ hasText: '正在刷新' })).toHaveCount(0)
     // 给第一行做个记号：换数据时整页没有卸载重建，记号还在
-    const row = page.getByRole('region', { name: '大家在看' })
+    const row = page.getByRole('region', { name: '大家都在追' })
     await row.evaluate((el) => { el.setAttribute('data-smoke-mark', '1') })
     await expect(page.getByText('正在刷新')).toBeHidden({ timeout: 15_000 })
     expect(calls).toBe(2)
@@ -126,11 +126,11 @@ test.describe('宽屏（1440px）', () => {
   test('海报行：箭头翻页；鼠标停在卡片上浮出播放与字幕组按钮', async ({ page }) => {
     const problems = watchProblems(page)
     await openApp(page, '/')
-    const row = page.getByRole('region', { name: '大家在看' })
-    const next = row.getByRole('button', { name: '大家在看向后翻页' })
+    const row = page.getByRole('region', { name: '大家都在追' })
+    const next = row.getByRole('button', { name: '大家都在追向后翻页' })
     await expect(next).toBeEnabled()
     await next.click()
-    await expect(row.getByRole('button', { name: '大家在看向前翻页' })).toBeEnabled()
+    await expect(row.getByRole('button', { name: '大家都在追向前翻页' })).toBeEnabled()
 
     const card = page.getByRole('region', { name: '本季新番' }).getByRole('listitem').first()
     await card.hover()
@@ -147,9 +147,9 @@ test.describe('宽屏（1440px）', () => {
 
   test('海报行用键盘翻到头：箭头变成不可点时焦点交给另一头的箭头，不掉到 <body>', async ({ page }) => {
     await openApp(page, '/')
-    const row = page.getByRole('region', { name: '大家在看' })
-    const next = row.getByRole('button', { name: '大家在看向后翻页' })
-    const prev = row.getByRole('button', { name: '大家在看向前翻页' })
+    const row = page.getByRole('region', { name: '大家都在追' })
+    const next = row.getByRole('button', { name: '大家都在追向后翻页' })
+    const prev = row.getByRole('button', { name: '大家都在追向前翻页' })
     await next.focus()
     // 一直按回车：翻到最后一页的那一下，焦点在箭头变 disabled 之前交给「向前翻页」
     for (let i = 0; i < 40; i += 1) {
@@ -187,11 +187,11 @@ test.describe('宽屏（1440px）', () => {
     await page.route('**/api/discover', async (route) => {
       calls += 1
       const response = await route.fetch()
-      const envelope = (await response.json()) as { success: boolean; data: { sections: Array<{ key: string; items: unknown[] }>; freshness?: unknown } }
+      const envelope = (await response.json()) as { success: boolean; data: { seasonal: { items: unknown[] }; freshness?: unknown } }
       // 第一份过期（触发后台再取一次）；第二份把本季作品倒过来排，换掉横幅当前那张
       const data = calls === 1
         ? { ...envelope.data, freshness: { fetchedAt: hoursAgo(1), stale: true, offline: false } }
-        : { ...envelope.data, sections: envelope.data.sections.map((section) => section.key === 'thisSeason' ? { ...section, items: [...section.items].reverse() } : section) }
+        : { ...envelope.data, seasonal: { ...envelope.data.seasonal, items: [...envelope.data.seasonal.items].reverse() } }
       await route.fulfill({ response, json: { ...envelope, data } })
     })
     await openApp(page, '/')
