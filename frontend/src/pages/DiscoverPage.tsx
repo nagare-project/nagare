@@ -18,12 +18,11 @@ import { CatalogSearchForm, CatalogSearchResults } from '../components/media/Cat
 import { useCatalogResource } from '../hooks/useCatalogResource'
 import { fetchDiscoverData } from '../lib/endpoints'
 import type { DiscoverData } from '../lib/endpoints'
-import { upcomingAiring } from '../lib/home/heroStatus'
 import { colouredFirst, defaultFamily, groupByHueFamily } from '../lib/home/hueFamilies'
 import { seasonYearLabel } from '../lib/home/labels'
 import { clockParts, dayHeader } from '../lib/home/time'
 import { airingsOnDay, dayAfter } from '../lib/home/todaySlots'
-import { airingsOf, gemCard, heroSlide, hueCard, seasonCard, todayCard, trendCard, yearCard } from '../lib/home/viewModels'
+import { airingsOf, gemCard, heroSlide, hueCard, seasonCard, todayCard, trendCard, yearCard, type TodayCard } from '../lib/home/viewModels'
 import hueScope from '../components/home/HomeHueScope.module.css'
 import '../components/catalog/catalog.css'
 import '../components/media/media.css'
@@ -98,44 +97,59 @@ function sectionErrors(data: DiscoverData | undefined): string[] {
 }
 
 function HomeView({ data, refreshing }: { data: DiscoverData; refreshing: boolean }) {
-  const nowMs = useHomeClock()
-  const schedule = data.schedule.items
-  const seasonal = data.seasonal.items
-
-  // 横幅仍是本季前五，但第一张换成有颜色的：第一张给整页上色，没有颜色的封面会让发现页一打开是灰的。
-  const slides = useMemo(() => colouredFirst(seasonal.slice(0, HERO_COUNT).map((row) => heroSlide(row, schedule))), [seasonal, schedule])
-
-  const seasonTop = seasonal.slice(0, SEASON_TOP_COUNT).map((row) => seasonCard(row, upcomingAiring(airingsOf(schedule, row.anilistId), nowMs)))
-  const hueGroups = groupByHueFamily(seasonal.map(hueCard))
-  const families: HueFamilyView[] = hueGroups.map((g) => ({ key: g.key, hue: g.hue, label: g.label, items: g.items }))
-  const hueCount = hueGroups.reduce((n, g) => n + g.items.length, 0)
-
-  // 「今天」按本机的日子算（上游按它自己服务器的日子分组）
-  const todayKey = clockParts(nowMs).dayKey
-  const todayCards = schedule.map(todayCard)
-  const today = airingsOnDay(todayCards, todayKey)
-  const next = dayAfter(todayCards, todayKey)
-  const tomorrow = next ? { label: dayHeader(next.dayKey), count: next.count } : null
+  // 拼好的各段只在数据变了时重拼：随时钟变的部分（横幅的放送状态、今日更新、浮层里的下一集）各自读时钟，
+  // 时钟每分钟走一格时不必把整页一百多张卡重画一遍
+  const view = useMemo(() => {
+    const schedule = data.schedule.items
+    const seasonal = data.seasonal.items
+    const hueGroups = groupByHueFamily(seasonal.map(hueCard))
+    return {
+      // 横幅仍是本季前五，但第一张换成有颜色的：第一张给整页上色，没有颜色的封面会让发现页一打开是灰的
+      slides: colouredFirst(seasonal.slice(0, HERO_COUNT).map((row) => heroSlide(row, schedule))),
+      seasonTop: seasonal.slice(0, SEASON_TOP_COUNT).map((row) => seasonCard(row, airingsOf(schedule, row.anilistId))),
+      families: hueGroups.map((g): HueFamilyView => ({ key: g.key, hue: g.hue, label: g.label, items: g.items })),
+      defaultFamily: defaultFamily(hueGroups),
+      hueCount: hueGroups.reduce((n, g) => n + g.items.length, 0),
+      todayCards: schedule.map(todayCard),
+      trending: data.trending.items.slice(0, TRENDING_COUNT).map(trendCard),
+      gems: data.gems.items.map(gemCard),
+      yearly: data.yearly.items.map((row, i) => yearCard(row, i + 1)),
+    }
+  }, [data])
+  const hues = useMemo(() => view.slides.map((s) => s.hue), [view])
 
   return (
-    <HomeHueScope hues={slides.map((s) => s.hue)}>
+    <HomeHueScope hues={hues}>
       {/* 版面上没有页面标题（横幅就是第一屏），读屏仍要一个 h1 */}
       <h1 className="visually-hidden">发现</h1>
       <EmptyLibraryStrip />
       <div className={hueScope.status}>
         <FreshnessNote freshness={data.freshness} refreshing={refreshing} />
       </div>
-      <HomeHero slides={slides} />
-      {data.schedule.error ? null : <TodayRail items={today} dayLabel={dayHeader(todayKey)} tomorrow={tomorrow} />}
-      <SeasonTopGrid items={seasonTop} seasonLabel={seasonYearLabel(data.season, data.year)} seasonSearch={{}} total={data.seasonTotal} />
-      {families.length > 0 ? <HueBrowser total={hueCount} families={families} defaultKey={defaultFamily(hueGroups) ?? families[0].key} /> : null}
-      <TrendingRanks items={data.trending.items.slice(0, TRENDING_COUNT).map(trendCard)} />
+      <HomeHero slides={view.slides} />
+      {data.schedule.error ? null : <TodaySection cards={view.todayCards} />}
+      <SeasonTopGrid items={view.seasonTop} seasonLabel={seasonYearLabel(data.season, data.year)} seasonSearch={SEASON_SEARCH} total={data.seasonTotal} />
+      {view.families.length > 0 ? <HueBrowser total={view.hueCount} families={view.families} defaultKey={view.defaultFamily ?? view.families[0].key} /> : null}
+      <TrendingRanks items={view.trending} />
       <div className={hueScope.pair}>
-        <GemsPanel initial={data.gems.items.map(gemCard)} />
-        <YearTopList items={data.yearly.items.map((row, i) => yearCard(row, i + 1))} year={data.year} />
+        <GemsPanel initial={view.gems} />
+        <YearTopList items={view.yearly} year={data.year} />
       </div>
     </HomeHueScope>
   )
+}
+
+/** 季度页不带参数就是本季 */
+const SEASON_SEARCH = {}
+
+/** 今日更新：「今天」按本机的日子算（上游按它自己服务器的日子分组），过了零点自己换到新的一天 */
+function TodaySection({ cards }: { cards: TodayCard[] }) {
+  const todayKey = clockParts(useHomeClock()).dayKey
+  const { today, tomorrow } = useMemo(() => {
+    const next = dayAfter(cards, todayKey)
+    return { today: airingsOnDay(cards, todayKey), tomorrow: next ? { label: dayHeader(next.dayKey), count: next.count } : null }
+  }, [cards, todayKey])
+  return <TodayRail items={today} dayLabel={dayHeader(todayKey)} tomorrow={tomorrow} />
 }
 
 /** 一份缓存都没有、又连不上目录服务（DESIGN.md「状态表 · 发现」） */

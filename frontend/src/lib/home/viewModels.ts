@@ -110,11 +110,11 @@ export interface SeasonCard extends CardBase {
   popMeta: string
   bangumi: string | null
   genres: string[]
-  /** 下一集（拼的那一刻还没播的）；浮层里的时间由组件按时钟再核对一次 */
-  nextAiring: Airing | null
+  /** 这部作品在放送表近七日里的各集（毫秒，先后排好）；浮层按时钟从里面挑下一集 */
+  airings: Airing[]
 }
 
-export function seasonCard(row: HomeMediaData, nextAiring: Airing | null): SeasonCard {
+export function seasonCard(row: HomeMediaData, airings: Airing[]): SeasonCard {
   const format = row.format ? formatLabel(row.format) : null
   const status = row.status ? statusLabel(row.status) : ''
   return {
@@ -125,7 +125,7 @@ export function seasonCard(row: HomeMediaData, nextAiring: Airing | null): Seaso
     popMeta: joinMeta([format, row.format === 'MOVIE' ? null : episodesText(row.episodes), seasonText(row)]),
     bangumi: bangumiScoreText(row.bangumiScore),
     genres: localGenres(row, POPOVER_GENRES),
-    nextAiring,
+    airings,
   }
 }
 

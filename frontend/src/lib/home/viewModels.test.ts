@@ -76,16 +76,16 @@ describe('heroSlide', () => {
 
 describe('seasonCard', () => {
   test('meta 是「类型 · 状态」', () => {
-    expect(seasonCard(row(), null).meta).toBe('TV · 连载中')
+    expect(seasonCard(row(), []).meta).toBe('TV · 连载中')
   })
 
   test('剧场版的浮层不写集数', () => {
-    expect(seasonCard(row({ format: 'MOVIE', episodes: 1 }), null).popMeta).toBe('剧场版 · 2026 秋季')
-    expect(seasonCard(row(), null).popMeta).toBe('TV · 28 集 · 2026 秋季')
+    expect(seasonCard(row({ format: 'MOVIE', episodes: 1 }), []).popMeta).toBe('剧场版 · 2026 秋季')
+    expect(seasonCard(row(), []).popMeta).toBe('TV · 28 集 · 2026 秋季')
   })
 
-  test('带着给它的下一集', () => {
-    expect(seasonCard(row(), { at: 5, ep: 3 }).nextAiring).toEqual({ at: 5, ep: 3 })
+  test('带着给它的各集', () => {
+    expect(seasonCard(row(), [{ at: 5, ep: 3 }]).airings).toEqual([{ at: 5, ep: 3 }])
   })
 })
 

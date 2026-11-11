@@ -1,4 +1,6 @@
+import { memo } from 'react'
 import type { CSSProperties } from 'react'
+import { upcomingAiring, type Airing } from '../../lib/home/heroStatus'
 import { weekdayTime } from '../../lib/home/time'
 import { cardToneVars } from '../../lib/home/tone'
 import type { SeasonCard } from '../../lib/home/viewModels'
@@ -25,7 +27,7 @@ interface SeasonTopGridProps {
   total: number
 }
 
-export function SeasonTopGrid({ items, seasonLabel, seasonSearch, total }: SeasonTopGridProps) {
+export const SeasonTopGrid = memo(function SeasonTopGrid({ items, seasonLabel, seasonSearch, total }: SeasonTopGridProps) {
   if (items.length === 0) return null
   const allLabel = `本季全部 ${total} 部`
 
@@ -57,7 +59,7 @@ export function SeasonTopGrid({ items, seasonLabel, seasonSearch, total }: Seaso
             <div className={styles.pop} aria-hidden="true">
               <span className={styles.popStatus}>
                 {it.statusLabel}
-                {it.nextAiring ? <AiringWhen at={it.nextAiring.at} ep={it.nextAiring.ep} /> : null}
+                {it.airings.length > 0 ? <AiringWhen airings={it.airings} /> : null}
               </span>
               {it.score || it.bangumi ? (
                 <span className={styles.popScore}>
@@ -92,11 +94,11 @@ export function SeasonTopGrid({ items, seasonLabel, seasonSearch, total }: Seaso
       ) : null}
     </section>
   )
-}
+})
 
-/** 浮层里的「 · 周日 19:00 更新第 14 集」：按时钟再核对一次，那一集播出后就不说了 */
-function AiringWhen({ at, ep }: { at: number; ep: number }) {
-  const nowMs = useHomeClock()
-  if (at <= nowMs) return null
-  return <>{` · ${weekdayTime(at)} 更新第 ${ep} 集`}</>
+/** 浮层里的「 · 周日 19:00 更新第 14 集」：按时钟挑还没播的第一集，那一集播出后换成下一集（近七日里没有了就不说） */
+function AiringWhen({ airings }: { airings: Airing[] }) {
+  const next = upcomingAiring(airings, useHomeClock())
+  if (!next) return null
+  return <>{` · ${weekdayTime(next.at)} 更新第 ${next.ep} 集`}</>
 }
