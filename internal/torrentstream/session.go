@@ -705,15 +705,17 @@ func (s *session) storageFailure() error {
 
 // errPrivateTorrent 是私有站（PT）种子。
 //
-// anacrolix v1.61.0 没有「只对某个种子关掉 DHT/PEX」的能力（全仓对 info.Private
-// 的引用只剩结构体定义），而 private 标记只存在于 info 字典里 —— 磁力必须先靠
-// DHT 找到 peer 才拿得到 info。也就是说等我们知道它是私有种子时，infohash 已经
-// 进过公共 DHT 了，这一步无法避免。能做的是立刻停手并说清楚，而不是继续播下去
-// 让用户的私有站账号一直暴露在被封的风险里。
+// anacrolix 从 v1.62.0 起会在拿到 info 之后对私有种子停掉 DHT 宣告与 PEX（BEP 27，
+// torrent.go 的 isPrivate），但 private 标记只存在于 info 字典里 —— 磁力必须先靠
+// DHT（和挂上的公共 tracker）找到 peer 才拿得到 info。也就是说等我们知道它是私有种子时，
+// infohash 已经公开查询过了，这一步无法避免。能做的是立刻停手并说清楚，而不是继续播下去
+// 让用户的私有站账号一直暴露在被封的风险里。.torrent 文件那条路在加入之前就判断、
+// 什么都没泄露，上游 v1.62.0 也能只走它自己的 tracker；不播是取舍：停播即停做种，
+// 守不住私有站的分享率规则（有的站还只认白名单客户端）。
 func errPrivateTorrent() error {
 	return errs.New(errs.CategoryInput, "torrentstream.private",
 		"这是私有站（PT）的种子，nagare 不支持边下边播",
-		"当前 BT 引擎无法只对单个种子关闭 DHT/PEX，继续下载可能导致私有站账号被封；请改用该站推荐的客户端")
+		"私有站种子只该经该站自己的 tracker 交换、并按它的分享率规则做种，nagare 两样都做不到，继续下载可能导致账号被封；请改用该站推荐的客户端")
 }
 
 // errRequestCanceled 是调用方（HTTP 请求）中途断开。
