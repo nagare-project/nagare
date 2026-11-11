@@ -210,10 +210,10 @@ func newTorrentClient(cacheDir string, cfg Config) (*torrent.Client, error) {
 	tc.MaxUnverifiedBytes = maxUnverifiedBytes
 	// DHT 与 PEX 保持默认开启：本体不内置 tracker，peer 发现全靠这两者。
 	//
-	// ⚠️ anacrolix v1.61.0【不会】对私有种子停用 DHT/PEX —— 全仓对 info.Private
-	// 的引用只有 metainfo 的结构体定义和 cmd/torrent 的建种工具，dhtAnnouncer
-	// 里一个字都没有。而 private 标记只存在于 info 字典里，磁力要靠 DHT 找 peer
-	// 才拿得到 info，所以「先判断再决定要不要进 DHT」在磁力这条路上根本不成立。
+	// ⚠️ 私有种子（BEP 27）：anacrolix 从 v1.62.0 起会在【拿到 info 之后】对私有种子
+	// 停掉 DHT 宣告、PEX 与本地发现（torrent.go 的 isPrivate）。但 private 标记只存在于
+	// info 字典里，磁力要先靠 DHT（和挂上的公共 tracker）找 peer 才拿得到 info —— 等它能
+	// 判断时 infohash 已经公开查询过了，上游这一步在磁力这条路上来不及。
 	// 处理办法见 session.go：拿到 info 后一旦发现是私有种子就立刻中止会话并明确
 	// 告知用户（见 errPrivateTorrent）。
 	tc.DisableWebseeds = true   // 磁力的 ws= 参数会被当 webseed 执行：等于让用户粘的链接指使 nagare 对任意 URL 发 HTTP 请求
@@ -330,7 +330,7 @@ func (e *Engine) rebuildClient(next, prev Config) (bool, error) {
 // 重建 client 时等旧监听端口释放的上限与探测间隔。
 //
 // anacrolix 的 Client.Close 把每个 socket 的 Close 丢进 goroutine 就返回
-// （v1.61.0 client.go:402 `go s.Close()`），所以 closeClient 返回那一刻端口多半还被
+// （v1.62.0 client.go:466 `go s.Close()`），所以 closeClient 返回那一刻端口多半还被
 // 占着；紧接着在同一端口上起新 client 会撞 EADDRINUSE，回滚走同一端口再撞一次，
 // 引擎就被标成死态。真机上第一次切换做种开关就复现了。等的只是我们自己刚关掉的
 // socket，正常几十毫秒内放开；三秒还占着就真是别的程序占了端口，照常报错。

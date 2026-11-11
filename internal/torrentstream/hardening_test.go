@@ -56,9 +56,9 @@ func buildPrivateTorrent(t *testing.T, dir string) (magnet string, mi *metainfo.
 
 // 私有站种子必须在拿到 info 的那一刻就停下，而不是继续播。
 //
-// 依据：anacrolix v1.61.0 没有「只对某个种子关掉 DHT/PEX」的能力，而 private
-// 标记只在 info 字典里 —— 磁力得先靠 DHT 找到 peer 才拿得到 info。等我们知道
-// 它是私有种子时 infohash 已经进过公共 DHT 了，那一步无法避免；能做的是立刻
+// 依据：private 标记只在 info 字典里 —— 磁力得先靠 DHT 找到 peer 才拿得到 info。
+// anacrolix v1.62.0 起拿到 info 后会对私有种子停掉 DHT/PEX（BEP 27），但等它（和我们）
+// 知道它是私有种子时 infohash 已经公开查询过了，那一步无法避免；能做的是立刻
 // 停手并说清楚，而不是让用户的私有站账号一直暴露下去。
 func TestPrivateTorrentIsRefused(t *testing.T) {
 	seedDir, cacheDir := t.TempDir(), t.TempDir()
