@@ -717,5 +717,5 @@ func userFacing(err error) string {
 func errPrivateDownload() error {
 	return errs.New(errs.CategoryInput, "torrentstream.private",
 		"这是私有站（PT）的种子，nagare 不下载",
-		"当前 BT 引擎无法只对单个种子关闭 DHT/PEX，继续下载可能导致私有站账号被封；请改用该站推荐的客户端")
+		"nagare 靠公共 DHT 与公共 tracker 找分享者，私有站不允许这样做，继续下载可能导致账号被封；请改用该站推荐的客户端")
 }

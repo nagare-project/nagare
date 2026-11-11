@@ -399,8 +399,8 @@ func TestSingleEpisodeEndToEnd(t *testing.T) {
 		want, err := library.Hash16M(filepath.Join(seedDir, fileName))
 		require.NoError(t, err)
 		// 自己的期限，不与准备共用 prepareCtx：门槛只等 8MB 之后，头部余下的 8MB 在这里才下，
-		// 单个做种方的连接偶尔会卡到 60 秒保活才恢复（上游 anacrolix 的写入唤醒竞态），
-		// 准备阶段已经用掉一截的共用期限撑不过这一次
+		// 单个做种方的连接偶尔会卡到 60 秒保活才恢复（anacrolix v1.61.0 的写入唤醒竞态，
+		// v1.62.0 已修，期限先不收紧），准备阶段已经用掉一截的共用期限撑不过这一次
 		hashCtx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 		defer cancel()
 		got, err := res.Source.Hash16M(hashCtx)

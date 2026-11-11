@@ -1,19 +1,26 @@
 // 每个 peer 的请求队列按它的实际速度封顶（照 libtorrent 的 request_queue_time）。
 //
-// anacrolix v1.61.0 给每个 peer 排一批请求，【整批】收完才排下一批（peerconn.go 的
+// anacrolix（v1.62.0 照旧）给每个 peer 排一批请求，【整批】收完才排下一批（peerconn.go 的
 // isLowOnRequests），批的大小只看对端声明的 reqq 与上一批的两倍（peerconn.go
 // nominalMaxRequests），最多约 960 块、15MB —— 与这个 peer 有多快无关。少数几个做种方的
 // 老番里，一个每秒 300KB 的 peer 手上挂着 15MB 要将近一分钟才收完；其中只要有一块正好是
-// 播放位置的下一块，mpv 就干等，直到它发完，或者别的 peer 在重排时把它抢走 —— 而重排只在
-// 抢的一方自己那批整批收完时才发生（requesting.go 的 applyRequestState）。
+// 播放位置的下一块，mpv 就干等，直到它发完，或者别的 peer 在重排时把它抢走。
+//
+// v1.62.0 起「抢」更难发生（上游 #1113，requesting.go 的 getDesiredRequestState）：重排时每个
+// peer 只收「两片的块数」与「4 × nominalMaxRequests」中较大的那么多候选，没人要的块排在要从
+// 别人手里抢的块前面，没人要的块把名额填满时根本不考虑抢。边下边播的窗口里没人要的块几乎
+// 总是够填满名额 —— 慢 peer 手上那块急的，多半只能等它自己送完。所以每个 peer 的队列长度
+// 几乎就是卡顿时长的上界，这里的封顶比 v1.61.0 时更要紧。
 //
 // 这里把每个 peer 的队列压到「它 requestQueueTime 之内送得完」的量：慢 peer 手上只挂几块，
-// 快 peer 每隔几秒就整批收完、重排一次，重排时把慢 peer 手上更急的块抢过去。
+// 卡住播放位置也只卡这么久；快 peer 每隔几秒就整批收完、重排一次，名额没填满时（文件尾、
+// 门槛快到齐时）还能把慢 peer 手上更急的块抢过去。
 //
 // 只往下压、不往上抬：上限不超过对端在扩展握手里声明的 reqq，也不超过 anacrolix 自己的
 // 上限。改 PeerMaxRequests 必须在 client 锁内 —— 写它的 ReceivedUsefulData 回调是 anacrolix
-// 处理收到的块时同步调的，那时锁正持有着（peerconn.go 的 mainReadLoop 只在解码时放锁）；
-// 也因此回调里不能调 Peer.Stats()（它要再拿一次读锁），速度只能自己按收到的字节算。
+// 处理收到的块时同步调的（peer.go 的 receiveChunkPrologue），那时锁正持有着：peerconn.go 的
+// mainReadLoop 只在阻塞地解码、成批写盘时放锁，处理消息时一直持有。
+// 也因此回调里不能调 Peer.Stats()（它要再拿一次读锁），速度只能自己按字节算。
 package torrentstream
 
 import (

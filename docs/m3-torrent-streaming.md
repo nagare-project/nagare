@@ -22,7 +22,7 @@ nagare 只负责把用户已有的 infohash 变成一个可以拖进度条的本
 | **8. 缓冲反馈** | 分阶段状态（查找分享者 → 获取种子信息 → 缓冲进度）+ 实时 peer 数与速度，随时可取消；缓冲足够后才启动 mpv | 磁力无法像本地文件那样立即起播。不确定的等待必须有可观测的进展，否则用户无法区分「在下载」与「卡死」 |
 | **9. 会话终结即收** | 播放层新增 `OnSessionEnd` 回调，装配层接到引擎的停止 | 用户直接关掉 mpv 窗口是最常见的结束方式，而那条路径上不会发生任何 API 请求。没有这个回调，「停止播放即停做种」就只在点了界面按钮时才成立 |
 | **10. 只走 BT swarm** | 关掉 webseed 与 WebTorrent | 磁力 URI 的 `ws=` 参数会被 BT 引擎当 webseed 直接执行 —— 那等于让用户粘进来的一行链接指使 nagare 对任意 URL 发 HTTP 请求（追踪信标、内网探测）。WebTorrent 同理不在设计范围内，开着还会牵出 ICE/STUN 的第三方出站 |
-| **11. 不支持私有站种子** | 拿到种子信息时发现 private 标记就立刻中止，并说明原因 | BT 引擎没有「只对某个种子关掉 DHT/PEX」的能力，而 private 标记只存在于种子信息里 —— 磁力必须先靠 DHT 找到分享者才拿得到那份信息。等能判断时 infohash 已经进过公共 DHT，这一步无法避免；能做的是立刻停手，而不是让用户的私有站账号一直暴露在被封的风险里 |
+| **11. 不支持私有站种子** | 拿到种子信息时发现 private 标记就立刻中止，并说明原因 | private 标记只存在于种子信息里 —— 磁力必须先靠 DHT（和公共 tracker）找到分享者才拿得到那份信息。anacrolix v1.62.0 起拿到信息后会对私有种子停掉 DHT/PEX（BEP 27），但等能判断时 infohash 已经公开查询过，这一步无法避免；能做的是立刻停手，而不是让用户的私有站账号一直暴露在被封的风险里。`.torrent` 文件在加入前就判断、什么都没泄露，但同样不播：nagare 找分享者靠的就是公共 DHT 与公共 tracker |
 
 ---
 
@@ -92,7 +92,7 @@ mpv  GET /stream/{capability}/t/{hash}/{index}   Range: bytes=12345-
    └─ 8–16MB 给 Readahead   ← 弹幕匹配哈希要前 16MB，也是 mpv 起播后紧接着读的那段
 ```
 
-为什么这样分（读过 anacrolix v1.61.0 的 `requesting.go` 与 `internal/request-strategy/order.go` 才知道）：
+为什么这样分（读过 anacrolix v1.61.0 的 `requesting.go` 与 `internal/request-strategy/order.go` 才知道；v1.62.0 复核，档位与顺序规则未变）：
 
 - **档位内的请求顺序**：同档先比稀有度，再比一个随机分片顺序（`onSetInfo` 里的 `rand.Perm`）；
   唯独 Readahead 档改比分片下标，也就是文件顺序。原先整个 16MB 头部都是 Now，起播门槛的 8MB
@@ -119,6 +119,10 @@ mpv  GET /stream/{capability}/t/{hash}/{index}   Range: bytes=12345-
   最长阻塞 43 秒；改动后跑了三次，51–71 秒、最长阻塞 3–12 秒。`TestPlaybackNotStalledBySlowPeersQueues` 守着
   （3 个各 400KB/s、读 24MB：改动前六次 48–75 秒、最长阻塞 18–41 秒；改动后二十多次 16–38 秒、
   最长阻塞 1–10 秒。断言放在 55 秒与 25 秒，CPU 被别的进程占满时改动后也会超，宁可偶尔放过）。
+  升到 anacrolix v1.62.0 后复核：上游 #1113 把重排时每个 peer 的候选限在「两片的块数」与「4 × 请求上限」
+  中较大者，没人要的块排在要抢的块前面、名额填满就不抢 —— 慢 peer 手上那块急的更难被抢走，队列长度
+  几乎就是卡顿的上界。同一用例（-race，各 5 次）：开封顶 16.9–17.0 秒、最长阻塞 2.2–4.5 秒；把封顶关掉
+  20–41 秒、最长阻塞 6–20 秒。封顶仍然必要。
   分辨「慢」与「闲」：两块之间空档超过 1 秒、而空档里没给它发过新请求，说明它一直欠着请求，
   这段算进速度；发过就从发请求那一刻量起。只看空档的话，每秒不到 16KB 的 peer 永远测不出来。
   同一轮还试过照 Animeko 把窗口外的分片设为不可请求（门槛放行后不再整集 Normal）：不封顶时
@@ -313,7 +317,7 @@ type MediaSource interface {
 
 ## 构建影响
 
-`anacrolix/torrent` v1.61.0 实测可在 `CGO_ENABLED=0` 下交叉编译到发布矩阵的全部五个目标
+`anacrolix/torrent` v1.61.0 实测可在 `CGO_ENABLED=0` 下交叉编译到发布矩阵的全部五个目标（v1.62.0 复核同样可以；它的 uTP 改由 `anacrolix/go-utp` 选实现，`CGO_ENABLED=0` 时照旧用纯 Go 的那份）
 （linux amd64/arm64、windows amd64、darwin arm64/amd64），发布矩阵不受影响。
 CI 需保留这几个目标的编译验证，以便上游升级引入 cgo 依赖时能及时发现。
 
