@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isArtworkLoaded, markArtworkLoaded, preloadArtwork, resetArtworkCacheForTests } from './imageCache'
+import { PRELOAD_TIMEOUT_MS, isArtworkLoaded, markArtworkLoaded, preloadArtwork, resetArtworkCacheForTests } from './imageCache'
 
 /** 可以手动报 load / error 的 Image 替身 */
 class FakeImage {
@@ -20,7 +20,10 @@ beforeEach(() => {
   FakeImage.decodeResult = 'ok'
   globalThis.Image = FakeImage as unknown as typeof Image
 })
-afterEach(() => { globalThis.Image = original })
+afterEach(() => {
+  globalThis.Image = original
+  vi.useRealTimers()
+})
 
 describe('preloadArtwork', () => {
   it('加载并解码完才算好，好了就记下；在途时同一个地址只请求一次', async () => {
@@ -44,6 +47,29 @@ describe('preloadArtwork', () => {
     const request = preloadArtwork('/b')
     FakeImage.created[0]!.onload?.()
     await expect(request).resolves.toBe(true)
+  })
+
+  it('请求或解码卡住：最多等 PRELOAD_TIMEOUT_MS 就按失败返回，在途记录清掉、下次重新请求', async () => {
+    vi.useFakeTimers()
+    const stalled = preloadArtwork('/stuck')
+    let settled: boolean | undefined
+    void stalled.then((ok) => { settled = ok })
+    await vi.advanceTimersByTimeAsync(PRELOAD_TIMEOUT_MS - 1)
+    expect(settled).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(settled).toBe(false)
+    expect(isArtworkLoaded('/stuck')).toBe(false)
+    expect(preloadArtwork('/stuck')).not.toBe(stalled)
+    expect(FakeImage.created).toHaveLength(2)
+  })
+
+  it('解码一直不回（onload 之后卡在 decode）同样按超时处理', async () => {
+    vi.useFakeTimers()
+    const request = preloadArtwork('/decode-stuck')
+    FakeImage.created[0]!.decode.mockImplementation(() => new Promise<void>(() => {}))
+    FakeImage.created[0]!.onload?.()
+    await vi.advanceTimersByTimeAsync(PRELOAD_TIMEOUT_MS)
+    await expect(request).resolves.toBe(false)
   })
 
   it('加载失败返回 false、不记下，下次再试会重新请求', async () => {

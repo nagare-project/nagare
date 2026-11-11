@@ -73,15 +73,51 @@ describe('横幅背景切换', () => {
     await unmount()
   })
 
-  it('减弱动态效果：没有淡入，新图到了旧图马上收掉 —— 同样不露底色', async () => {
+  it('减弱动态效果：没有淡入；新图解码完、画上屏之后才收掉旧图 —— 同样不露底色', async () => {
     vi.useFakeTimers()
-    const { container, rerender, unmount } = await mount(<HeroBackdrop src="/a" title="A" reduced />)
-    await rerender(<HeroBackdrop src="/b" title="B" reduced />)
-    expect(layerSrcs(container)).toEqual(['/a'])
+    // 新挂上的 <img> 的 decode() 由用例决定什么时候完成
+    let decoded: () => void = () => {}
+    const decode = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'decode')
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', { configurable: true, value: () => new Promise<void>((resolve) => { decoded = resolve }) })
+    try {
+      const { container, rerender, unmount } = await mount(<HeroBackdrop src="/a" title="A" reduced />)
+      await rerender(<HeroBackdrop src="/b" title="B" reduced />)
+      expect(layerSrcs(container)).toEqual(['/a'])
+      await arrive('/b')
+      await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+      expect(layerSrcs(container)).toEqual(['/a', '/b'])
+      await act(async () => {
+        decoded()
+        await vi.advanceTimersByTimeAsync(100)
+      })
+      expect(layerSrcs(container)).toEqual(['/b'])
+      await unmount()
+    } finally {
+      if (decode) Object.defineProperty(HTMLImageElement.prototype, 'decode', decode)
+      else Reflect.deleteProperty(HTMLImageElement.prototype, 'decode')
+    }
+  })
+
+  it('切走又切回来（A → B → A）：B 晚到了也不会盖上来', async () => {
+    const { container, rerender, unmount } = await mount(<HeroBackdrop src="/a" title="A" reduced={false} />)
+    await rerender(<HeroBackdrop src="/b" title="B" reduced={false} />)
+    await rerender(<HeroBackdrop src="/a" title="A" reduced={false} />)
     await arrive('/b')
-    await act(async () => { vi.advanceTimersByTime(0) })
-    expect(layerSrcs(container)).toEqual(['/b'])
+    expect(layerSrcs(container)).toEqual(['/a'])
     await unmount()
+  })
+
+  it('等新图期间横幅被卸掉（离开发现页）：图晚到了不报错、不更新', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { rerender, unmount } = await mount(<HeroBackdrop src="/a" title="A" reduced={false} />)
+      await rerender(<HeroBackdrop src="/b" title="B" reduced={false} />)
+      await unmount()
+      await arrive('/b')
+      expect(errors).not.toHaveBeenCalled()
+    } finally {
+      errors.mockRestore()
+    }
   })
 
   it('连着切了几次：只认最后一张，先前没到的图晚到了也不会盖上来', async () => {
@@ -103,10 +139,14 @@ describe('横幅背景切换', () => {
     await unmount()
   })
 
-  it('这一部没有图：清掉上一部的图', async () => {
+  it('这一部没有图：清掉上一部的图；再换到有图的作品时照常淡入', async () => {
     const { container, rerender, unmount } = await mount(<HeroBackdrop src="/a" title="A" reduced={false} />)
     await rerender(<HeroBackdrop src={undefined} title="B" reduced={false} />)
     expect(layers(container)).toHaveLength(0)
+    await rerender(<HeroBackdrop src="/c" title="C" reduced={false} />)
+    await arrive('/c')
+    expect(layerSrcs(container)).toEqual(['/c'])
+    expect(layers(container)[0]!.hasAttribute('data-instant')).toBe(false)
     await unmount()
   })
 })

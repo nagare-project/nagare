@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
 import { useArrowFocus } from '../../hooks/useArrowFocus'
 import { Icon } from '../ui/Icon'
-import { ArtworkLoadingContext, useNearViewport } from './artworkLoading'
+import { ArtworkLoadingContext, ROW_NEAR_MARGIN, preloadEnd, useNearViewport } from './artworkLoading'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 
 /**
@@ -11,22 +11,6 @@ import { useReducedMotionPreference } from './useReducedMotionPreference'
  * 再多就只画前后箭头 —— 一排几十个点既找不到位置、又会把标题行撑出横向滚动。
  */
 export const MAX_ROW_DOTS = 30
-
-/** 行离视口这么近（上下各 1.5 屏）就开始给行里的卡片加载封面 */
-export const ROW_NEAR_MARGIN = '150% 0px'
-/** 屏上这一页之外，再往后预先加载几页 */
-export const PAGES_AHEAD = 2
-/** Embla 还没量出一页几张时按一页 6 张算（与 discover.css 的列数一致） */
-const FALLBACK_PAGE_SIZE = 6
-
-/**
- * 加载窗口的右端（不含）：屏上能看到的最后一张，再往后 PAGES_AHEAD 页。
- * 一页的张数就是屏上能看到几张（含露出一角的那张）。
- */
-export function preloadEnd(inView: number[]): number {
-  if (inView.length === 0) return (1 + PAGES_AHEAD) * FALLBACK_PAGE_SIZE
-  return Math.max(...inView) + 1 + PAGES_AHEAD * inView.length
-}
 
 interface CarouselRowProps {
   title: string

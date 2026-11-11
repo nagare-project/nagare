@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '../../test/harness'
 import { installFakeIntersectionObserver } from '../../test/intersectionObserver'
 import type { FakeIntersectionObservers } from '../../test/intersectionObserver'
-import { ArtworkLoadingContext, resetNearViewportForTests } from './artworkLoading'
-import { CarouselRow, PAGES_AHEAD, ROW_NEAR_MARGIN, preloadEnd } from './CarouselRow'
+import { ArtworkLoadingContext, PAGES_AHEAD, ROW_NEAR_MARGIN, preloadEnd, resetNearViewportForTests } from './artworkLoading'
+import { CarouselRow } from './CarouselRow'
 
 // Embla 替身：能报「屏上看到哪几张」（slidesInView）、能不能往两头滚，并记下组件传进来的选项
 const { embla } = vi.hoisted(() => {
