@@ -77,9 +77,11 @@ interface HeroRotationOptions {
   onPreload: (index: number) => void
   /** 切到第 index 张：时间到了 */
   onAdvance: (index: number) => void
+  /** 横幅里开着对话框（收藏编辑）：停住。触摸不算悬停、点按留下的焦点不算键盘焦点，没有这一条的话对话框会跟着这一张被切走 */
+  dialogOpen?: boolean
 }
 
-export function useHeroRotation({ rootRef, count, current, onPreload, onAdvance }: HeroRotationOptions): HeroRotation {
+export function useHeroRotation({ rootRef, count, current, onPreload, onAdvance, dialogOpen = false }: HeroRotationOptions): HeroRotation {
   const saved = useRef<SavedCountdown | null>(null)
   const [pointer, setPointer] = useState(false)
   const [focus, setFocus] = useState(false)
@@ -90,7 +92,7 @@ export function useHeroRotation({ rootRef, count, current, onPreload, onAdvance 
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, prefersReducedMotion, prefersReducedMotion)
 
   const rotates = canRotate(count, reducedMotion)
-  const held = !rotates || isHeld({ pointer, focus, paused, hidden, offscreen })
+  const held = !rotates || dialogOpen || isHeld({ pointer, focus, paused, hidden, offscreen })
   const key = countdownKey(current, restarts)
 
   // 从后台回来：这一张的 8 秒从头算

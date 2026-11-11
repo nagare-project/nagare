@@ -83,6 +83,8 @@ export function HueBrowser({ total, families, defaultKey }: HueBrowserProps) {
   if (families.length === 0) return null
 
   const byKey = new Map(families.map((f) => [f.key, f]))
+  // 后台刷新后选中的那一组没有了：退回默认那一组（不留一个空舞台）
+  const current = byKey.has(selected) ? selected : defaultKey
 
   return (
     <section className={section.bleed} aria-labelledby="home-hue">
@@ -98,7 +100,7 @@ export function HueBrowser({ total, families, defaultKey }: HueBrowserProps) {
               className={styles.pill}
               style={vars}
               data-family={f.key}
-              aria-pressed={f.key === selected}
+              aria-pressed={f.key === current}
               onClick={() => show(f.key)}
               onPointerEnter={() => warmUp(f.key)}
               onFocus={() => warmUp(f.key)}
@@ -118,8 +120,8 @@ export function HueBrowser({ total, families, defaultKey }: HueBrowserProps) {
             <HueRail
               key={f.key}
               family={f}
-              active={f.key === selected}
-              loadCovers={opened.has(f.key)}
+              active={f.key === current}
+              loadCovers={opened.has(f.key) || f.key === current}
               next={next}
               onNext={() => {
                 if (nextKey) goTo(nextKey)

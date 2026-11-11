@@ -16,9 +16,11 @@ interface HeroFollowButtonProps {
   title: string
   episodes: number | null
   className: string
+  /** 收藏编辑开关时通知横幅：开着时横幅不切换 */
+  onOpenChange?: (open: boolean) => void
 }
 
-export function HeroFollowButton({ id, title, episodes, className }: HeroFollowButtonProps) {
+export function HeroFollowButton({ id, title, episodes, className, onOpenChange }: HeroFollowButtonProps) {
   const collection = useCollection()
   if (collection.loading) {
     return (
@@ -42,6 +44,7 @@ export function HeroFollowButton({ id, title, episodes, className }: HeroFollowB
   return (
     <MediaListEditor
       media={media}
+      onOpenChange={onOpenChange}
       trigger={(props) => (
         <button type="button" {...props} className={className} aria-label={`${entry ? `${label} · 编辑收藏` : '追番'}：${title}`}>
           {entry ? <CheckIcon /> : <PlusIcon />}

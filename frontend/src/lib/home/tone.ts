@@ -15,7 +15,7 @@
  * 0° 是红色，「没有色相」不能当成「色相 0」—— 而是同一明度的中性灰，色阶的对比度保证照样成立。
  */
 export function oklchCss(lightness: number, chroma: number, hue: number | null, alpha?: number): string {
-  const body = hue === null ? `${lightness}% 0 0` : `${lightness}% ${chroma} ${hue}`
+  const body = hue == null ? `${lightness}% 0 0` : `${lightness}% ${chroma} ${hue}`
   return alpha === undefined ? `oklch(${body})` : `oklch(${body} / ${alpha})`
 }
 

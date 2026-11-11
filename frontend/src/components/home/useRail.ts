@@ -444,9 +444,13 @@ export function useRailSlider(
     const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
     if (resize) resize.observe(rail)
     else schedule()
+    // 卡片多了、少了（后台刷新换了数据）：横排自己的框不变，内容宽度变了，也要重量
+    const children = typeof MutationObserver === 'undefined' ? null : new MutationObserver(schedule)
+    children?.observe(rail, { childList: true })
     return () => {
       rail.removeEventListener('scroll', schedule)
       resize?.disconnect()
+      children?.disconnect()
       if (frame !== 0) window.cancelAnimationFrame(frame)
     }
   }, [railRef, thumbRef, inputRef])

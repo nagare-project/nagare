@@ -117,6 +117,28 @@ describe('发现页横幅：8 秒切换与暂停规则', () => {
     await unmount()
   })
 
+  it('先挂上一个空横幅、数据后到：悬停停住照样生效', async () => {
+    const view = (list: typeof slides) => <HomeHueScope hues={list.map((s) => s.hue)}><HomeHero slides={list} /></HomeHueScope>
+    const { container, rerender, unmount } = await mount(view([]))
+    expect(container.querySelector('section')).toBeNull()
+    await rerender(view(slides))
+    const hero = getByRole(container, 'region', { name: '本季焦点' })
+    await act(async () => { hero.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' })) })
+    await advance(HERO_INTERVAL_MS * 2)
+    expect(current(container)).toBe(0)
+    await unmount()
+  })
+
+  it('只在手动切换时念：自己轮换不念', async () => {
+    const { container, unmount } = await mountHero()
+    const live = container.querySelector('[aria-live="polite"]')!
+    await advance(HERO_INTERVAL_MS)
+    expect(live.textContent).toBe('')
+    await act(async () => bars(container)[2]!.click())
+    expect(live.textContent).toBe('3 / 3：作品 3')
+    await unmount()
+  })
+
   it('只有一张时不轮换', async () => {
     const { container, unmount } = await mount(<HomeHueScope hues={[slides[0]!.hue]}><HomeHero slides={slides.slice(0, 1)} /></HomeHueScope>)
     expect(container.textContent).not.toContain('暂停自动切换')

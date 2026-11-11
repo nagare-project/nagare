@@ -29,7 +29,8 @@ interface HomeHueScopeProps {
 export function HomeHueScope({ hues, children }: HomeHueScopeProps) {
   const [active, setActive] = useState(0)
   const value = useMemo(() => ({ active, setActive }), [active])
-  const vars = pageToneVars(hues[active] ?? null) as unknown as CSSProperties
+  // 与横幅一样夹到最后一张：后台刷新后张数变少时，整页颜色与横幅显示的那一张对得上
+  const vars = pageToneVars(hues[Math.min(active, hues.length - 1)] ?? null) as unknown as CSSProperties
 
   return (
     <HeroFocusContext.Provider value={value}>

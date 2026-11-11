@@ -37,6 +37,11 @@ interface HomeHeroProps {
 type Vars = CSSProperties & Record<`--${string}`, string>
 
 export function HomeHero({ slides }: HomeHeroProps) {
+  // 没有作品时什么都不画。挂监听的 hook 都在 HeroBody 里：它挂载时元素一定在，数据晚到时监听也接得上
+  return slides.length === 0 ? null : <HeroBody slides={slides} />
+}
+
+function HeroBody({ slides }: HomeHeroProps) {
   const { active, setActive } = useHeroFocus()
   const nowMs = useHomeClock()
   // 第一次切换（手动或到点）时翻过来：进场动画只属于第一次画出来，播报区在那之前也没什么可说
@@ -83,7 +88,10 @@ export function HomeHero({ slides }: HomeHeroProps) {
   }
 
   // 要在下面的提前返回之前调用：hook 不能排在它后面
-  const rotation = useHeroRotation({ rootRef: heroRef, count, current, onPreload: warmUp, onAdvance: switchTo })
+  const [dialogOpen, setDialogOpen] = useState(false)
+  // 读屏只听手动切换（自己轮换时每 8 秒念一次会打断阅读）；播报区一直是 polite，只在手动切换时换字
+  const [announcement, setAnnouncement] = useState('')
+  const rotation = useHeroRotation({ rootRef: heroRef, count, current, onPreload: warmUp, onAdvance: switchTo, dialogOpen })
 
   // 预热过的横幅图在后台加载、解码完，才算「能显示」
   const warmBanners = [...warm].map((i) => slides[i]?.banner).filter((src): src is string => !!src)
@@ -107,13 +115,16 @@ export function HomeHero({ slides }: HomeHeroProps) {
   const [shownBanner, setShownBanner] = useState(current)
   if (currentReady && shownBanner !== current) setShownBanner(current)
 
-  if (count === 0) return null
-
   // 手动切换；新的一张的 8 秒也从头算（倒计时按这一张记，见 useHeroRotation）
-  const pick = switchTo
+  const pick = (index: number) => {
+    switchTo(index)
+    if (index !== current) setAnnouncement(`${index + 1} / ${count}：${slides[index]!.title}`)
+  }
 
   // 方向键在短条之间移动，与任何分段控件一样。只处理这几个键 —— 全吞掉会困住 Tab
   const onBarsKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // 带修饰键的是浏览器自己的快捷键（Alt+← 后退、Cmd+← 行首），不拦
+    if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
     const next =
       event.key === 'ArrowRight' || event.key === 'ArrowDown'
         ? (current + 1) % count
@@ -224,20 +235,20 @@ export function HomeHero({ slides }: HomeHeroProps) {
           </div>
 
           {slides.map((s, i) => (
-            <HeroSlideText key={s.id} slide={s} active={i === current} nowMs={nowMs} />
+            <HeroSlideText key={s.id} slide={s} active={i === current} nowMs={nowMs} onDialogChange={setDialogOpen} />
           ))}
         </div>
       </div>
 
       {/* 自己轮换时不念 —— 否则读屏每 8 秒报一张。手动切换时横幅是停住的（指针或焦点在上面），会念 */}
-      <p className={styles.srOnly} aria-live={rotation.held ? 'polite' : 'off'}>
-        {switched ? `${current + 1} / ${count}：${slides[current].title}` : ''}
+      <p className={styles.srOnly} aria-live="polite">
+        {announcement}
       </p>
     </section>
   )
 }
 
-function HeroSlideText({ slide: s, active, nowMs }: { slide: HeroSlide; active: boolean; nowMs: number }) {
+function HeroSlideText({ slide: s, active, nowMs, onDialogChange }: { slide: HeroSlide; active: boolean; nowMs: number; onDialogChange: (open: boolean) => void }) {
   const tone = toneLadder(s.hue)
   const vars: Vars = { '--tone': tone.text, '--tone-fill': tone.fill, '--on-solid': tone.onSolid }
   const parts = heroStatusParts({ status: s.status, statusLabel: s.statusLabel, episodes: s.episodes, airings: s.airings }, nowMs, (ms) => weekdayTime(ms))
@@ -292,7 +303,7 @@ function HeroSlideText({ slide: s, active, nowMs }: { slide: HeroSlide; active: 
           查看详情
           <ArrowIcon className={styles.arrow} />
         </MediaEntryLink>
-        <HeroFollowButton id={s.id} title={s.title} episodes={s.episodes} className={styles.glass} />
+        <HeroFollowButton id={s.id} title={s.title} episodes={s.episodes} className={styles.glass} onOpenChange={onDialogChange} />
       </div>
     </article>
   )

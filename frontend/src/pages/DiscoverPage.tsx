@@ -132,7 +132,8 @@ function HomeView({ data, refreshing }: { data: DiscoverData; refreshing: boolea
       {view.families.length > 0 ? <HueBrowser total={view.hueCount} families={view.families} defaultKey={view.defaultFamily ?? view.families[0].key} /> : null}
       <TrendingRanks items={view.trending} />
       <div className={hueScope.pair}>
-        <GemsPanel initial={view.gems} />
+        {/* 后台刷新换了第一批（或第一份是空的、后来才有）：重新挂上，按新的一批开始 */}
+        <GemsPanel key={view.gems.map((g) => g.id).join(',')} initial={view.gems} />
         <YearTopList items={view.yearly} year={data.year} />
       </div>
     </HomeHueScope>

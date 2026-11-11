@@ -86,5 +86,5 @@ export function nextFamily(groups: ReadonlyArray<{ key: HueFamilyKey }>, key: Hu
  * 横幅从第一张开始，第一张给整页上色；没有色相的第一张会让发现页一打开是灰的。
  */
 export function colouredFirst<T extends { hue: number | null }>(items: readonly T[]): T[] {
-  return [...items.filter((x) => x.hue !== null), ...items.filter((x) => x.hue === null)]
+  return [...items.filter((x) => x.hue != null), ...items.filter((x) => x.hue == null)]
 }
