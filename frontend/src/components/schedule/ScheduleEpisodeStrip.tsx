@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useArrowFocus } from '../../hooks/useArrowFocus'
 import { posterToneStyle } from '../../lib/posterTones'
 import { Icon } from '../ui/Icon'
+import { ArtworkLoadingContext, ROW_NEAR_MARGIN, preloadEnd, useNearViewport } from '../media/artworkLoading'
 import { MediaArtwork } from '../media/MediaArtwork'
 import { MediaPreview } from '../media/MediaPreview'
 import { useReducedMotionPreference } from '../media/useReducedMotionPreference'
@@ -10,6 +11,8 @@ import type { ScheduleEpisode } from './types'
 /**
  * 即将播出的剧集：宽幅卡片横向一条。不自动滚动（DESIGN.md「动效」：除发现页横幅外不做自动轮播），
  * 手指 / 触控板横滑，或点标题右边的前后箭头整屏翻。
+ * 图片：同发现页作品行，这条离视口不到 1.5 屏时，屏上这一页与后面两页先加载，往后滑时跟着扩
+ * （观察器看不见被这条横向列表裁掉的卡，浏览器自带的懒加载在 WebKit 里要到露出来才加载）。
  */
 export function ScheduleEpisodeStrip({ title, items, now }: { title: string; items: ScheduleEpisode[]; now: Date }) {
   const row = useRef<HTMLUListElement>(null)
@@ -21,6 +24,9 @@ export function ScheduleEpisodeStrip({ title, items, now }: { title: string; ite
   // 滚到头时那个箭头变 disabled：焦点交给另一头（不掉到 <body>）
   useArrowFocus(edges, prevArrow, nextArrow)
   const reduced = useReducedMotionPreference()
+  const [section, setSection] = useState<HTMLElement | null>(null)
+  const near = useNearViewport(section, true, ROW_NEAR_MARGIN)
+  const [loadUntil, setLoadUntil] = useState(0)
   useEffect(() => {
     const element = row.current
     if (!element) return
@@ -31,9 +37,17 @@ export function ScheduleEpisodeStrip({ title, items, now }: { title: string; ite
     resize?.observe(element)
     return () => { element.removeEventListener('scroll', sync); resize?.disconnect() }
   }, [items])
+  useEffect(() => {
+    const element = row.current
+    if (!near || !element) return
+    const extend = () => setLoadUntil((current) => Math.max(current, preloadEnd(cardsInView(element))))
+    extend()
+    element.addEventListener('scroll', extend, { passive: true })
+    return () => element.removeEventListener('scroll', extend)
+  }, [near, items])
   if (!items.length) return null
   const page = (dir: -1 | 1) => row.current?.scrollBy({ left: dir * row.current.clientWidth, behavior: reduced ? 'instant' : 'smooth' })
-  return <section className="schedule-strip" aria-labelledby={headingId}>
+  return <section ref={setSection} className="schedule-strip" aria-labelledby={headingId}>
     <header className="schedule-section-heading">
       <div><h2 id={headingId}>{title}</h2><p>按本机时区显示</p></div>
       {!(edges.start && edges.end) && <div className="schedule-strip-arrows">
@@ -41,9 +55,13 @@ export function ScheduleEpisodeStrip({ title, items, now }: { title: string; ite
         <button ref={nextArrow} type="button" className="row-arrow" aria-label={`${title}向后翻页`} aria-controls={rowId} disabled={edges.end} onClick={() => page(1)}><Icon name="right" size={18} /></button>
       </div>}
     </header>
-    <ul className="schedule-strip-row" ref={row} id={rowId}>{items.map(({ event, extraCount }) => <li className="schedule-episode" key={event.id} style={posterToneStyle(event.media.posterTones)}>
+    <ul className="schedule-strip-row" ref={row} id={rowId}>{items.map(({ event, extraCount }, index) => <li className="schedule-episode" key={event.id} style={posterToneStyle(event.media.posterTones)}>
       <MediaPreview media={event.media} label={null} className="schedule-episode-hit">
-        <span className="schedule-episode-art" aria-hidden="true"><MediaArtwork src={event.media.banner ?? event.media.cover} title={event.media.title} /></span>
+        <span className="schedule-episode-art" aria-hidden="true">
+          <ArtworkLoadingContext.Provider value={near && index < loadUntil ? 'eager' : 'lazy'}>
+            <MediaArtwork src={event.media.banner ?? event.media.cover} title={event.media.title} />
+          </ArtworkLoadingContext.Provider>
+        </span>
         <span className="schedule-episode-title">{event.media.title}</span>
         <span className="schedule-episode-meta"><span>第 {event.episode} 集{!!extraCount && ` 及另外 ${extraCount} 集`}</span>
           <time dateTime={event.airingAt}>{timeUntil(event.airingAt, now)}</time>
@@ -51,6 +69,17 @@ export function ScheduleEpisodeStrip({ title, items, now }: { title: string; ite
       </MediaPreview>
     </li>)}</ul>
   </section>
+}
+
+/** 横向列表里露在可见范围内的卡片下标（量不出宽度时返回空，由 preloadEnd 按默认页大小算） */
+function cardsInView(list: HTMLElement): number[] {
+  if (list.clientWidth === 0) return []
+  const left = list.scrollLeft
+  const right = left + list.clientWidth
+  return [...list.children].flatMap((child, index) => {
+    const card = child as HTMLElement
+    return card.offsetLeft < right && card.offsetLeft + card.offsetWidth > left ? [index] : []
+  })
 }
 
 function timeUntil(airingAt: string, now: Date) {
