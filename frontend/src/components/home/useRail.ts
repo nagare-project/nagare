@@ -28,7 +28,7 @@ import {
   type RailGeometry,
   type RailPress,
 } from '../../lib/home/railScroll'
-import { useNearViewport } from '../media/artworkLoading'
+import { ROW_NEAR_MARGIN, useNearViewport } from '../media/artworkLoading'
 
 // 发现页横排（今日更新、按色调逛的每一组）背后的接线：用鼠标拖（以及快速拖动之后的惯性）、停到卡片上、
 // 下面的滑块、横排第一次进入视野时卡片浮起，以及封面什么时候开始加载。
@@ -613,8 +613,6 @@ export function useRailEntrance(railRef: RefObject<HTMLElement | null>): boolean
 
 // ── 封面什么时候开始加载 ────────────────────────────────────────────────────
 
-/** 横排离视口这么近（上下各 1.5 屏）就开始给它的卡片加载封面 */
-export const RAIL_NEAR_MARGIN = '150% 0px'
 /** 屏上这一段之外，再往后预先加载几屏 */
 export const SCREENS_AHEAD = 2
 
@@ -642,7 +640,7 @@ export function cardsBefore(starts: readonly number[], edge: number): number {
 export function useRailLoadCount(railRef: RefObject<HTMLElement | null>, enabled = true): number {
   const [rail, setRail] = useState<HTMLElement | null>(null)
   useEffect(() => setRail(railRef.current), [railRef])
-  const near = useNearViewport(rail, enabled, RAIL_NEAR_MARGIN)
+  const near = useNearViewport(rail, enabled, ROW_NEAR_MARGIN)
   const [count, setCount] = useState(0)
   useEffect(() => {
     if (!near || !rail || !enabled) return
