@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anacrolix/generics"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
@@ -96,18 +97,20 @@ func (f *downloadFixture) waitState(id, state string) store.Download {
 
 // downloadSeederKeepAlive 是下载用例里做种方的保活间隔（anacrolix 默认 1 分钟）。
 //
-// anacrolix v1.61.0 的连接写协程会丢唤醒（上游 anacrolix/torrent#1070；修复 #1078/#1071 只在
-// master 上，没进任何 tag）：它先 fillWriteBuffer、放掉 client 锁，之后才去取唤醒通道，落在这段
-// 空档里的 tickleWriter 直接作废，写协程一直睡到保活计时器到点。做种方读完一块数据、放进待发队列
-// 时撞上这个空档，那一块就压在它手里 60 秒；下载方这一批请求只差这一块，按 anacrolix 的成批请求
-// 不会补发，整条连接停住，用例在 30 秒上超时（CI run 39813377215 失败时的状态与本地复现一致）。
+// 起因是 anacrolix v1.61.0 的连接写协程会丢唤醒（上游 anacrolix/torrent#1070）：它先 fillWriteBuffer、
+// 放掉 client 锁，之后才去取唤醒通道，落在这段空档里的 tickleWriter 直接作废，写协程一直睡到保活
+// 计时器到点。做种方读完一块数据、放进待发队列时撞上这个空档，那一块就压在它手里 60 秒；下载方
+// 这一批请求只差这一块，按 anacrolix 的成批请求不会补发，整条连接停住，用例在 30 秒上超时
+// （CI run 39813377215 失败时的状态与本地复现一致）。
 //
-// 做种方在这里只是扮演对端，它的上传路径不是被测对象。保活压到 1 秒，丢一次唤醒最多耽误 1 秒：
-// 下载期间下载方一直 interested，做种方这条连接一直算 useful，每次到点都会写保活、重新上弦。
-// 下载器自己的 client 不改 —— 它那一侧丢了唤醒照样卡 60 秒，用例照样失败，不会被这里盖住。
+// v1.62.0 已带上修复（#1078 先取唤醒通道再填缓冲、#1071 停下之前重新给保活上弦，见
+// peer-conn-msg-writer.go），这里的 1 秒保活不再是必需的。先留着当纵深防御：做种方在这里只是扮演
+// 对端，它的上传路径不是被测对象，保活短一点不影响要测的东西；等 v1.62.0 在 CI 上跑过一段时间、
+// 确认这类超时不再出现，再改回默认值。下载器自己的 client 不改 —— 它那一侧真卡住了照样会让用例失败。
 //
-// 只用在下载用例：边下边播的用例里下载方会阶段性地不 interested，v1.61.0 的保活计时器只在
-// 写出东西之后才重新上弦，那种空闲期里到点一次就再也不响，间隔调短反而更容易落进这种状态。
+// 只用在下载用例：边下边播的用例里下载方会阶段性地不 interested，v1.61.0 的保活计时器只在写出东西
+// 之后才重新上弦，那种空闲期里到点一次就再也不响，间隔调短反而更容易落进这种状态（v1.62.0 的
+// #1071 修的就是这一点，但边下边播的用例从来不需要这个保活，不去动它们）。
 const downloadSeederKeepAlive = time.Second
 
 // startDownloadSeeder 是下载用例用的做种方：startSeeder 加上更短的保活（见 downloadSeederKeepAlive）。
@@ -265,7 +268,7 @@ func TestDownloadResumeFinishesWhenAlreadyCompleteOnDisk(t *testing.T) {
 	info, err := mi.UnmarshalInfo()
 	require.NoError(t, err)
 	for i := range info.NumPieces() {
-		require.NoError(t, completion.Set(metainfo.PieceKey{InfoHash: mi.HashInfoBytes(), Index: i}, true))
+		require.NoError(t, completion.Set(metainfo.PieceKey{InfoHash: mi.HashInfoBytes(), Index: i}, generics.Some(true)))
 	}
 	require.NoError(t, completion.Close())
 	require.NoError(t, f.st.PutDownload(store.Download{

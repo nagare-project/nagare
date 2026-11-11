@@ -204,8 +204,9 @@ func TestGateProgressCountsPartialPieces(t *testing.T) {
 
 	// 门槛是头两片（8MB）。在两片都还没完整到齐的时候，进度就该已经动了。
 	var sawPartial bool
-	// 150 秒：单个做种方时 anacrolix 的写入唤醒偶有丢失（peer-conn-msg-writer.go 先填缓冲再取 Signaled），
-	// 那条连接要等 60 秒保活才恢复 —— 这是上游的竞态，不是这里要测的东西，期限不能比它短
+	// 150 秒：anacrolix v1.61.0 单个做种方时写入唤醒偶有丢失（peer-conn-msg-writer.go 先填缓冲再取 Signaled），
+	// 那条连接要等 60 秒保活才恢复 —— 这是上游的竞态，不是这里要测的东西，期限不能比它短。
+	// v1.62.0 已修（#1078 / #1071），期限先不收紧，等 CI 上确认不再出现再说
 	deadline := time.After(150 * time.Second)
 	tick := time.NewTicker(10 * time.Millisecond)
 	defer tick.Stop()

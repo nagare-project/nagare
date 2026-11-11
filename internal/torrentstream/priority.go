@@ -6,8 +6,8 @@
 //
 // 窗口的三处修正参照 seanime（GPL-3.0）的 torrentutil 实现；宽度按字节计。
 //
-// 改这里之前要知道 anacrolix v1.61.0 怎么用这些档位（requesting.go 的 lessByValue、
-// internal/request-strategy/order.go 的 GetRequestablePieces）：
+// 改这里之前要知道 anacrolix 怎么用这些档位（requesting.go 的 lessByValue、
+// internal/request-strategy/order.go 的 GetRequestablePieces；v1.61.0 读过，v1.62.0 复核未变）：
 //
 //   - 档位高的永远先请求。同档之内先比稀有度，再比一个【随机】的分片顺序
 //     （torrent.go onSetInfo 里的 rand.Perm）—— 唯独 Readahead 档改比分片下标，
