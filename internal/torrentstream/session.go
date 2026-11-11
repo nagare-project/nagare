@@ -709,12 +709,13 @@ func (s *session) storageFailure() error {
 // torrent.go 的 isPrivate），但 private 标记只存在于 info 字典里 —— 磁力必须先靠
 // DHT（和挂上的公共 tracker）找到 peer 才拿得到 info。也就是说等我们知道它是私有种子时，
 // infohash 已经公开查询过了，这一步无法避免。能做的是立刻停手并说清楚，而不是继续播下去
-// 让用户的私有站账号一直暴露在被封的风险里。.torrent 文件那条路在加入之前就判断，
-// 什么都没泄露，但同样不播：nagare 找分享者靠的就是公共 DHT 与公共 tracker。
+// 让用户的私有站账号一直暴露在被封的风险里。.torrent 文件那条路在加入之前就判断、
+// 什么都没泄露，上游 v1.62.0 也能只走它自己的 tracker；不播是取舍：停播即停做种，
+// 守不住私有站的分享率规则（有的站还只认白名单客户端）。
 func errPrivateTorrent() error {
 	return errs.New(errs.CategoryInput, "torrentstream.private",
 		"这是私有站（PT）的种子，nagare 不支持边下边播",
-		"nagare 靠公共 DHT 与公共 tracker 找分享者，私有站不允许这样做，继续下载可能导致账号被封；请改用该站推荐的客户端")
+		"私有站种子只该经该站自己的 tracker 交换、并按它的分享率规则做种，nagare 两样都做不到，继续下载可能导致账号被封；请改用该站推荐的客户端")
 }
 
 // errRequestCanceled 是调用方（HTTP 请求）中途断开。
