@@ -385,7 +385,12 @@ func (s *session) ensureTorrent(ctx context.Context) (*torrent.Torrent, error) {
 		if isPrivate(&info) {
 			return nil, errPrivateTorrent()
 		}
-		tor, err := s.client.AddTorrent(s.metaInfo)
+		spec, err := metaInfoSpec(s.metaInfo)
+		if err != nil {
+			return nil, errs.Wrap(errs.CategoryInput, "torrentstream.metainfo",
+				"种子文件无法载入", "换一条资源后重试", err)
+		}
+		tor, _, err := s.client.AddTorrentSpec(spec)
 		if err != nil {
 			return nil, errs.Wrap(errs.CategoryInput, "torrentstream.metainfo",
 				"种子文件无法载入", "换一条资源后重试", err)
@@ -395,7 +400,13 @@ func (s *session) ensureTorrent(ctx context.Context) (*torrent.Torrent, error) {
 		s.noteName(tor.Name())
 		return tor, nil
 	}
-	tor, err := s.client.AddMagnet(s.magnet)
+	// 不用 AddMagnet：它会照单执行 xs= / as= / x.pe（见 withoutDirectEndpoints）。
+	spec, err := magnetSpec(s.magnet)
+	if err != nil {
+		return nil, errs.Wrap(errs.CategoryInput, "torrentstream.magnet",
+			"磁力链接无法解析", "复制完整的 magnet: 链接后重试", err)
+	}
+	tor, _, err := s.client.AddTorrentSpec(spec)
 	if err != nil {
 		return nil, errs.Wrap(errs.CategoryInput, "torrentstream.magnet",
 			"磁力链接无法解析", "复制完整的 magnet: 链接后重试", err)
