@@ -245,7 +245,8 @@ function ResultButton({ media, current, matched, pending, onChoose }: {
   const hasCover = media.cover !== undefined && failedSrc !== media.cover
   return (
     <button type="button" className="assoc-result" disabled={current} {...inFlightButton(pending !== null, () => onChoose(media.id))}>
-      <span className="assoc-result-art">{hasCover ? <img src={media.cover} alt="" loading="lazy" onError={() => setFailedSrc(media.cover)} /> : <span aria-hidden="true">流</span>}</span>
+      {/* eager：结果列表在对话框里自己滚动，观察器的提前量放大不到这层，lazy 在 WebKit 里会一格格空着；最多 20 条小图 */}
+      <span className="assoc-result-art">{hasCover ? <img src={media.cover} alt="" loading="eager" decoding="async" onError={() => setFailedSrc(media.cover)} /> : <span aria-hidden="true">流</span>}</span>
       <span className="assoc-result-text">
         <span className="assoc-result-title">{media.title}</span>
         {media.titleNative && media.titleNative !== media.title && <span className="assoc-result-sub">{media.titleNative}</span>}

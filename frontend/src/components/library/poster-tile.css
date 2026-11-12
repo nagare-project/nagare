@@ -24,7 +24,10 @@
 .poster-tile-hit:hover { transform: translateY(-4px); border-color: var(--poster-tone-mid); box-shadow: var(--shadow-card-hover); }
 
 .poster-tile-art { position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; background: var(--bg-elevated); }
-.poster-tile-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.poster-tile-art img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--dur-medium) var(--ease-enter); }
+/* 还在加载时透明，露出占位底色（bg-elevated，不是黑框）；到了淡入；挂载时已经在缓存里的直接显示（useArtworkImage） */
+.poster-tile-art img[data-loaded='true'] { opacity: 1; }
+.poster-tile-art img[data-loaded='cached'] { opacity: 1; transition: none; }
 .poster-tile-blank { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-tertiary); font-size: 36px; }
 
 /* 中文标题两行截断；不参与 flex 收缩 */
@@ -37,13 +40,11 @@
 .poster-tile-badge--warning { color: var(--warning); }
 .poster-tile-badge--info { color: var(--teal); }
 
-/* 认作品中：灰色占位海报 + 「认作品中…」，认出后海报原地淡入 */
+/* 认作品中：灰色占位海报 + 「认作品中…」，认出后海报原地淡入（同上面的 data-loaded） */
 .poster-tile--pending .poster-tile-art { background: var(--bg-elevated); }
-.poster-tile-art img { animation: poster-fade-in var(--dur-medium) var(--ease-enter); }
-@keyframes poster-fade-in { from { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   .poster-tile-hit { transition: none; }
   .poster-tile-hit:hover { transform: none; }
-  .poster-tile-art img { animation: none; }
+  .poster-tile-art img { transition: none; }
 }

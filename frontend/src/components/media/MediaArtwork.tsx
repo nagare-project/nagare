@@ -1,6 +1,5 @@
-import { useContext, useLayoutEffect, useState } from 'react'
-import { isArtworkLoaded, markArtworkLoaded } from '../../lib/imageCache'
-import { ArtworkLoadingContext, useNearViewport } from './artworkLoading'
+import { useState } from 'react'
+import { useArtworkImage } from './useArtworkImage'
 
 /**
  * 图片地址变化后可重新加载；无图与错误状态保持原有画幅。
@@ -10,21 +9,8 @@ import { ArtworkLoadingContext, useNearViewport } from './artworkLoading'
  */
 export function MediaArtwork({ src, title, eager = false, reveal = false }: { src?: string; title: string; eager?: boolean; reveal?: boolean }) {
   const [failedSrc, setFailedSrc] = useState<string>()
-  const [loadedSrc, setLoadedSrc] = useState<string>()
-  const [instantSrc, setInstantSrc] = useState(() => (src !== undefined && isArtworkLoaded(src) ? src : undefined))
-  const [img, setImg] = useState<HTMLImageElement | null>(null)
-  const slide = useContext(ArtworkLoadingContext)
-  // 轮播行里的卡由行决定（被行视口裁掉的卡观察器永远看不见）
-  const near = useNearViewport(img, !eager && slide === undefined)
-  // 绘制前看一眼：内存缓存命中的图此刻已经 complete，直接显示
-  useLayoutEffect(() => {
-    if (!reveal || !src || !img || instantSrc === src) return
-    if (isArtworkLoaded(src) || (img.complete && img.naturalWidth > 0)) setInstantSrc(src)
-    // 依赖里刻意没有 instantSrc：只在换图或换元素时判断。图慢慢加载完时不能改成「直接显示」，那会打断正在进行的淡入
-  }, [img, src, reveal])
+  const art = useArtworkImage(src, eager)
   if (!src || src === failedSrc) return <span className="poster-art-mark" aria-hidden="true">{title.slice(0, 1)}</span>
-  const loading = eager || slide === 'eager' || near ? 'eager' : 'lazy'
-  const revealed = instantSrc === src ? 'cached' : String(loadedSrc === src)
-  return <img ref={setImg} src={src} alt="" loading={loading} data-loaded={reveal ? revealed : undefined}
-    onLoad={() => { markArtworkLoaded(src); if (reveal) setLoadedSrc(src) }} onError={() => setFailedSrc(src)} />
+  return <img ref={art.ref} src={src} alt="" loading={art.loading} data-loaded={reveal ? art.reveal : undefined}
+    onLoad={art.onLoad} onError={() => setFailedSrc(src)} />
 }

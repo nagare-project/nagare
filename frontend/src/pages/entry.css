@@ -16,7 +16,7 @@
 /* 在线选集采用完整横图卡片，跟随页面滚动，避免网格把图片压扁。 */
 .media-play-inline .media-episode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: max-content; align-content: start; max-height: none; overflow: visible; gap: 16px; }
 .media-play-inline .media-episode-button { display: flex; flex-direction: column; align-items: flex-start; align-self: start; gap: 8px; padding: 0 0 14px; min-height: 0; overflow: hidden; text-align: left; background: transparent; }
-.media-play-inline .media-episode-button .media-source-still { display: block; flex: none; width: 100%; aspect-ratio: 2 / 1; overflow: hidden; padding: 0; }
+.media-play-inline .media-episode-button .media-source-still { display: block; flex: none; width: 100%; aspect-ratio: 2 / 1; overflow: hidden; padding: 0; background: var(--bg-elevated); }
 .media-play-inline .media-episode-button > strong { padding: 4px 14px 0; font-size: 18px; }
 .media-play-inline .media-episode-button > span:not(.media-source-still) { padding-inline: 14px; font-size: 14px; }
 @media (max-width: 639px) { .media-play-inline .media-episode-grid { grid-template-columns: 1fr; } }

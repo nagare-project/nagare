@@ -17,9 +17,12 @@ export const PRELOAD_TIMEOUT_MS = 3000
 const loaded = new Set<string>()
 const inflight = new Map<string, Promise<boolean>>()
 
-/** 这个地址在本页面里加载成功过 */
+/** 这个地址在本页面里加载成功过。查到就挪到最近用过的一端：一直在看的封面不会因为别处加载了几千张而被挤掉 */
 export function isArtworkLoaded(src: string): boolean {
-  return loaded.has(src)
+  if (!loaded.has(src)) return false
+  loaded.delete(src)
+  loaded.add(src)
+  return true
 }
 
 export function markArtworkLoaded(src: string) {

@@ -95,4 +95,22 @@ describe('加载过的地址', () => {
     expect(isArtworkLoaded('/kept')).toBe(true)
     expect(isArtworkLoaded('/fill-4094')).toBe(true)
   })
+
+  it('查一次也算用到：只被查到（重新挂载时命中缓存）的封面不会被后来加载的挤掉', () => {
+    markArtworkLoaded('/oldest')
+    markArtworkLoaded('/read')
+    // 再记 4096 个：超出两个。只记不查的话被丢的是 /oldest 与 /read
+    for (let i = 0; i < 4096; i++) {
+      markArtworkLoaded(`/fill-${i}`)
+      if (i === 4000) expect(isArtworkLoaded('/read')).toBe(true)
+    }
+    expect(isArtworkLoaded('/oldest')).toBe(false)
+    expect(isArtworkLoaded('/fill-0')).toBe(false)
+    expect(isArtworkLoaded('/read')).toBe(true)
+  })
+
+  it('没加载过的地址查了也不会被记下', () => {
+    expect(isArtworkLoaded('/never')).toBe(false)
+    expect(isArtworkLoaded('/never')).toBe(false)
+  })
 })

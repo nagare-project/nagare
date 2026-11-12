@@ -1,6 +1,4 @@
-import { useContext, useLayoutEffect, useState } from 'react'
-import { isArtworkLoaded, markArtworkLoaded } from '../../lib/imageCache'
-import { ArtworkLoadingContext, useNearViewport } from '../media/artworkLoading'
+import { useArtworkImage } from '../media/useArtworkImage'
 
 /**
  * 发现页卡片上的封面：从透明淡入，盖在卡片自己的作品色底上；没有地址时画同样大小的空块，网格不变形。
@@ -11,34 +9,21 @@ import { ArtworkLoadingContext, useNearViewport } from '../media/artworkLoading'
  * 加载失败时保持透明，露出作品色底。
  */
 export function CoverImage({ src, className }: { src: string | null; className: string }) {
-  const [img, setImg] = useState<HTMLImageElement | null>(null)
-  const [loadedSrc, setLoadedSrc] = useState<string | null>(null)
-  const [instantSrc, setInstantSrc] = useState(() => (src !== null && isArtworkLoaded(src) ? src : null))
-  const slot = useContext(ArtworkLoadingContext)
-  const near = useNearViewport(img, slot === undefined)
-  // 绘制前看一眼：内存缓存命中的图此刻已经 complete，直接显示
-  useLayoutEffect(() => {
-    if (!src || !img || instantSrc === src) return
-    if (isArtworkLoaded(src) || (img.complete && img.naturalWidth > 0)) setInstantSrc(src)
-    // 依赖里刻意没有 instantSrc：只在换图或换元素时判断，慢慢到的图不能改成「直接显示」，那会打断正在进行的淡入
-  }, [img, src])
+  const art = useArtworkImage(src)
   if (!src) return <span aria-hidden="true" className={className} />
-  const instant = instantSrc === src
-  const visible = instant || loadedSrc === src
+  const instant = art.reveal === 'cached'
+  const visible = art.reveal !== 'false'
   return (
     <img
-      ref={setImg}
+      ref={art.ref}
       src={src}
       alt=""
       className={className}
-      loading={slot === 'eager' || near ? 'eager' : 'lazy'}
+      loading={art.loading}
       decoding="async"
-      data-loaded={instant ? 'cached' : String(loadedSrc === src)}
+      data-loaded={art.reveal}
       style={{ opacity: visible ? 1 : 0, transition: instant ? undefined : 'opacity 0.4s ease' }}
-      onLoad={() => {
-        markArtworkLoaded(src)
-        setLoadedSrc(src)
-      }}
+      onLoad={art.onLoad}
     />
   )
 }
