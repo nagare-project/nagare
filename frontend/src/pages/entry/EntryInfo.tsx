@@ -4,6 +4,7 @@ import { RouteLink } from '../../components/catalog/RouteLink'
 import { DiscoverCard } from '../../components/media/DiscoverCard'
 import { FORMAT_LABELS } from '../../components/media/media-format'
 import type { MediaSummary } from '../../components/media/types'
+import { useArtworkImage } from '../../components/media/useArtworkImage'
 import '../../components/catalog/catalog.css'
 import { genreFilter } from '../../components/media/genres'
 
@@ -65,7 +66,7 @@ export function EntryRelations({ media }: { media: MediaSummary }) {
           <ul className="entry-characters">
             {characters.map((character, index) => (
               <li key={`${character.name}-${index}`}>
-                {character.image ? <img src={character.image} alt="" loading="lazy" /> : <span className="entry-character-blank" aria-hidden="true">流</span>}
+                <CharacterAvatar src={character.image} />
                 <span><strong>{character.name}</strong><small>{character.role === 'MAIN' ? '主角' : '配角'}{character.actor ? ` · ${character.actor}` : ''}</small></span>
               </li>
             ))}
@@ -84,6 +85,16 @@ export function EntryRelations({ media }: { media: MediaSummary }) {
       )}
     </>
   )
+}
+
+/**
+ * 角色头像：离视口不远就开始加载（WebKit 的 lazy 要到快露出来才加载，滑到角色区时一排空圆圈）。
+ * 不淡入：底色画在 img 自己身上（圆形占位），透明了就看不见占位。
+ */
+function CharacterAvatar({ src }: { src?: string }) {
+  const art = useArtworkImage(src)
+  if (!src) return <span className="entry-character-blank" aria-hidden="true">流</span>
+  return <img ref={art.ref} src={src} alt="" loading={art.loading} onLoad={art.onLoad} />
 }
 
 function RelatedSection({ title, children }: { title: string; children: ReactNode }) {

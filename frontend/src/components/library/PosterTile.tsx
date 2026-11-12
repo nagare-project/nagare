@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useArtworkImage } from '../media/useArtworkImage'
 import './poster-tile.css'
 
 /** 压在封面上的徽标：遮罩底 + 只让文字带颜色（DESIGN.md 颜色规则 6） */
@@ -33,11 +34,14 @@ export function PosterTile({ cover, title, meta, badges = [] }: Props) {
   // 记下的是哪个地址加载失败：改了对应作品之后封面换了地址，旧的失败不该把新图也藏起来
   const [failedSrc, setFailedSrc] = useState<string>()
   const hasCover = cover !== undefined && cover !== '' && failedSrc !== cover
+  // 网格是纵向的：离视口不远就开始加载（不靠 WebKit 的 lazy，往下滑才一张张补上来）；
+  // 加载过的图再挂载（重扫媒体库、回到媒体库）直接显示，慢慢到的图在占位底色上淡入
+  const art = useArtworkImage(hasCover ? cover : undefined)
   return (
     <>
       <span className="poster-tile-art">
         {hasCover ? (
-          <img src={cover} alt="" loading="lazy" onError={() => setFailedSrc(cover)} />
+          <img ref={art.ref} src={cover} alt="" loading={art.loading} data-loaded={art.reveal} onLoad={art.onLoad} onError={() => setFailedSrc(cover)} />
         ) : (
           <span className="poster-tile-blank" aria-hidden="true">流</span>
         )}
