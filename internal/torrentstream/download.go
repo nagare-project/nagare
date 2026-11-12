@@ -174,7 +174,7 @@ func (d *Downloader) Add(ctx context.Context, req DownloadRequest) (DownloadView
 			return DownloadView{}, errs.New(errs.CategoryInput, "torrentstream.download",
 				"这不是一条磁力链接", "复制完整的 magnet: 链接后重试")
 		}
-		spec, err := torrent.TorrentSpecFromMagnetUri(magnet)
+		spec, err := magnetSpec(magnet)
 		if err != nil || spec.InfoHash == (metainfo.Hash{}) {
 			return DownloadView{}, errs.New(errs.CategoryInput, "torrentstream.download",
 				"磁力链接无法解析", "复制完整的 magnet: 链接后重试")
@@ -361,7 +361,8 @@ func (d *Downloader) start(rec store.Download, meta *metainfo.MetaInfo) error {
 }
 
 // downloadSpec 拼出加种子用的 spec：暂存目录里有种子信息就用它（不用再等元数据），否则用磁力。
-// 磁力里的 ws= / xs= / x.pe 一律丢掉：那等于让一条链接指使 nagare 去请求任意地址（同 Engine 的 DisableWebseeds）。
+// 链接或种子文件里指定的直连地址（ws= / xs= / as= / x.pe / url-list / nodes）一律丢掉，
+// 与播放路径共用 withoutDirectEndpoints。
 func downloadSpec(rec store.Download, staging string) (*torrent.TorrentSpec, *metainfo.Info, error) {
 	var spec *torrent.TorrentSpec
 	var info *metainfo.Info
@@ -374,14 +375,14 @@ func downloadSpec(rec store.Download, staging string) (*torrent.TorrentSpec, *me
 		if isPrivate(&parsed) {
 			return nil, nil, errPrivateDownload()
 		}
-		spec, err = torrent.TorrentSpecFromMetaInfoErr(mi)
+		spec, err = metaInfoSpec(mi)
 		if err != nil {
 			return nil, nil, errs.Wrap(errs.CategoryInput, "torrentstream.metainfo",
 				"种子文件内容无效", "删掉这条下载后换一条资源", err)
 		}
 		info = &parsed
 	} else if rec.Magnet != "" {
-		spec, err = torrent.TorrentSpecFromMagnetUri(rec.Magnet)
+		spec, err = magnetSpec(rec.Magnet)
 		if err != nil {
 			return nil, nil, errs.Wrap(errs.CategoryInput, "torrentstream.download",
 				"磁力链接无法解析", "删掉这条下载后换一条资源", err)
@@ -390,9 +391,6 @@ func downloadSpec(rec store.Download, staging string) (*torrent.TorrentSpec, *me
 		return nil, nil, errs.New(errs.CategoryInput, "torrentstream.download",
 			"找不到这条下载的种子信息", "删掉这条下载后重新加一次")
 	}
-	spec.Webseeds = nil
-	spec.Sources = nil
-	spec.PeerAddrs = nil
 	return spec, info, nil
 }
 
