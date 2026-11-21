@@ -78,9 +78,25 @@ feat: rotate stream capability URL on startup
 
 1. Fork 本仓库，从最新主分支切出特性分支
 2. 完成改动，确保本地测试全绿
-3. 提交 PR，说明动机与改动内容
+3. 提交 PR，按模板说明动机与改动内容，并**勾选 CLA 那一项**（见下方「许可与 CLA」）
 4. CI 会运行 `go test`、`vitest` 以及三平台交叉编译（darwin / linux / windows），全部通过后才会进入审阅
 
-## 许可
+## 许可与 CLA
 
-本项目以 [AGPL-3.0](LICENSE) 授权。提交贡献即表示你同意你的贡献以 AGPL-3.0 授权发布。
+本项目以 [AGPL-3.0](LICENSE) 授权，另附一项允许经 Apple App Store 分发的附加许可
+（[APP-STORE-EXCEPTION.md](APP-STORE-EXCEPTION.md)，依 AGPL-3.0 第 7 条）。
+
+**从现在起，外部贡献要先同意 [贡献者许可协议（CLA）](CLA.md) 才能合并。** 代码、文档、翻译、图片都算。
+
+- **为什么要签**：App Store 的条款与 AGPL 冲突，只有版权人才能给出例外。nagare 自己的代码要每一位版权人都同意，
+  这份例外才覆盖得到。没有 CLA，合进一段外部代码，App Store 版就不能再包含它。
+- **签了意味着什么**：版权仍归你，CLA 是许可不是转让。你只授权两件事：以 AGPL-3.0 发布你的贡献，以及连同 AGPL
+  一起附上「为了上 App Store 这类渠道」的附加许可。维护者承诺：凡是包含你贡献的版本都以 AGPL 开源，
+  不会拿你的授权去闭源或改成别的许可证。完整条款以 [CLA.md](CLA.md) 的英文原文为准。
+- **怎么签**：在 PR 模板里勾选 CLA 那一项；或者在 PR 下评论
+  `I have read the nagare CLA (version 1.0) and I agree to its terms.`。同意一次，对你以后的贡献都有效。
+  没勾、也没评论的 PR 不会合并。
+- **第三方代码**：PR 里如果带进了别人写的代码（拷贝、移植、改写都算），在 PR 描述里写明来源与许可证，
+  并更新 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。第三方代码不在 CLA 和 App Store 附加许可的范围内，
+  照旧适用它自己的许可证；与 App Store 分发不兼容的（例如只能按 GPL 发布的代码）可能无法进入 App Store 版。
+- 仓库维护者本人的提交不需要另签。

@@ -3,6 +3,9 @@
 nagare 本体以 [AGPL-3.0](LICENSE) 发布。本文件列出随 nagare 分发包一起提供、或被链接进
 nagare 二进制的第三方组件及其许可证。许可证以各上游源码树中的 LICENSE / COPYING 文件为准。
 
+nagare 本体另附的 App Store 附加许可（[APP-STORE-EXCEPTION.md](APP-STORE-EXCEPTION.md)）只覆盖 nagare 自己的代码，
+**不覆盖本文件列出的任何第三方组件**；它们照旧只适用各自的许可证。
+
 ## macOS 包内置的 libmpv 与命令行 mpv
 
 `nagare-<版本>_MacOS_universal.dmg` 与自更新用的 `nagare-<版本>_MacOS_universal.app.zip` 里的
