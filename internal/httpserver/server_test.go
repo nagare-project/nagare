@@ -258,6 +258,23 @@ func TestStaticServesIndexAndAssets(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+// 带哈希的产物与字体长期缓存，index.html（直接请求与 SPA 回落）每次校验。
+func TestStaticCacheHeaders(t *testing.T) {
+	web := fstest.MapFS{
+		"index.html":           {Data: []byte("<html>nagare-shell</html>")},
+		"assets/app-abc123.js": {Data: []byte("console.log('ok')")},
+		"fonts/sora.woff2":     {Data: []byte("font")},
+	}
+	s, _ := newTestServer(t, web)
+	const immutable = "public, max-age=31536000, immutable"
+
+	assert.Equal(t, immutable, do(s, http.MethodGet, "/assets/app-abc123.js", localHost, nil).Header().Get("Cache-Control"))
+	assert.Equal(t, immutable, do(s, http.MethodGet, "/fonts/sora.woff2", localHost, nil).Header().Get("Cache-Control"))
+	assert.Equal(t, "no-cache", do(s, http.MethodGet, "/", localHost, nil).Header().Get("Cache-Control"))
+	assert.Equal(t, "no-cache", do(s, http.MethodGet, "/index.html", localHost, nil).Header().Get("Cache-Control"))
+	assert.Equal(t, "no-cache", do(s, http.MethodGet, "/library", localHost, nil).Header().Get("Cache-Control"))
+}
+
 // ---------- 其他 ----------
 
 func TestSubWebFS(t *testing.T) {

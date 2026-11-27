@@ -52,11 +52,11 @@ const buttonNamed = (root: ParentNode, name: string) => [...root.querySelectorAl
 const linkNamed = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLAnchorElement>('a')].find((a) => a.textContent === text)!
 
 describe('顶栏', () => {
-  it('主导航是「发现 · 媒体库 · 放送表 · 季度 · 我的追番」，第一屏 / 是发现页，媒体库在 /library', async () => {
+  it('主导航是「发现 · 媒体库 · 放送表 · 季度 · 排行 · 我的追番」，第一屏 / 是发现页，媒体库在 /library', async () => {
     const { container, unmount } = await mountAt('/library')
     const links = [...mainNav(container).querySelectorAll('a')]
-    expect(links.map((a) => a.textContent)).toEqual(['发现', '媒体库', '放送表', '季度', '我的追番'])
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/', '/library', '/schedule', '/seasonal', '/lists'])
+    expect(links.map((a) => a.textContent)).toEqual(['发现', '媒体库', '放送表', '季度', '排行', '我的追番'])
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/', '/library', '/schedule', '/seasonal', '/top', '/lists'])
     expect(linkNamed(mainNav(container), '媒体库').getAttribute('aria-current')).toBe('page')
     expect(linkNamed(mainNav(container), '发现').getAttribute('aria-current')).toBeNull()
     // 「扩展」不在顶栏里（收进设置）；右侧有设置入口
@@ -120,7 +120,7 @@ describe('窄屏抽屉', () => {
     expect(menu.getAttribute('aria-controls')).toBe(drawer.id)
     // 抽屉里另有磁力任务与设置
     const drawerLinks = [...drawer.querySelectorAll('nav a')].map((a) => a.textContent)
-    expect(drawerLinks).toEqual(['发现', '媒体库', '放送表', '季度', '我的追番', '磁力任务', '设置'])
+    expect(drawerLinks).toEqual(['发现', '媒体库', '放送表', '季度', '排行', '我的追番', '磁力任务', '设置'])
 
     await act(async () => linkNamed(drawer, '放送表').click())
     await settle()

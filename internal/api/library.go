@@ -204,6 +204,8 @@ type LibraryService struct {
 	// fileCluster：fileId → 所在作品分组的 clusterKey（播放时按它查手动关联）
 	fileCluster map[string]string
 	scannedAt   int64 // 0 = 从未扫描
+	// initialScan 在后台首次扫描进行中时非 nil，扫完关闭（见 library_initial.go）
+	initialScan chan struct{}
 
 	// artPrefix 形如 /art/<能力段>；空串表示封面端点未挂载，视图里一律不给封面地址。
 	// 由启动流程注入（能力段归 httpserver 生成），不在这里自己造。

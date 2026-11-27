@@ -37,7 +37,7 @@ func frierenRow() animego.CatalogMedia {
 		Episodes: ptr(28), AverageScore: 90.6, Genres: []string{"Adventure", "Drama", "Fantasy"},
 		Status: "RELEASING", Format: "TV", Duration: 24, Source: "MANGA", StartDate: "2026-10-03",
 		TrailerID: "qgQ9yXb7G7g", TrailerSite: "youtube", Studios: []string{"Madhouse"},
-		PosterAccent: "#47abd5", BangumiScore: 8.92,
+		PosterAccent: "#47abd5", BangumiScore: 8.92, Popularity: 280000, Favourites: 42000, IsSequel: new(bool),
 	}
 }
 
@@ -140,6 +140,24 @@ func (g goldenCatalog) YearlyTop(context.Context, int) ([]animego.CatalogMedia, 
 		return nil, errGoldenOffline
 	}
 	return []animego.CatalogMedia{frierenRow()}, nil
+}
+
+func (g goldenCatalog) Top(_ context.Context, _ animego.TopQuery) ([]animego.CatalogMedia, error) {
+	if g.failAll {
+		return nil, errGoldenOffline
+	}
+	frieren := frierenRow()
+	frieren.Rank = 1
+	bocchi := bocchiRow()
+	bocchi.Rank = 2
+	return []animego.CatalogMedia{frieren, bocchi}, nil
+}
+
+func (g goldenCatalog) TopYears(context.Context) ([]animego.TopYearCount, error) {
+	if g.failAll {
+		return nil, errGoldenOffline
+	}
+	return []animego.TopYearCount{{Year: 2026, Count: 120}, {Year: 2025, Count: 310}}, nil
 }
 
 func (g goldenCatalog) Schedule(context.Context) (animego.ScheduleData, error) {

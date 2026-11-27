@@ -56,6 +56,8 @@ export interface HeroRotation {
   rotates: boolean
   /** 此刻有东西停住了它；不自己切时总是 true */
   held: boolean
+  /** 整个横幅滚出了视口：停止 GPU 动画，避免在滚动下方板块时仍在后台重绘 */
+  offscreen: boolean
   /** 读者按了暂停 */
   paused: boolean
   togglePause: () => void
@@ -166,6 +168,7 @@ export function useHeroRotation({ rootRef, count, current, onPreload, onAdvance,
   return {
     rotates,
     held,
+    offscreen,
     paused,
     togglePause: () => setPaused((p) => !p),
     restarts,

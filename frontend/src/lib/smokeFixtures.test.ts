@@ -25,6 +25,8 @@ const FIXTURE_CONTRACTS: Record<string, Contract> = {
   'GET /api/discover': c.discoverData,
   'GET /api/discover/gems': c.gemsData,
   'GET /api/seasonal': c.seasonalData,
+  'GET /api/top': c.topData,
+  'GET /api/top/years': c.topYearsData,
   'GET /api/schedule': c.scheduleData,
   'GET /api/lists': c.collectionData,
   'GET /api/catalog/search': c.catalogSearchData,

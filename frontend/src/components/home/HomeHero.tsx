@@ -149,6 +149,7 @@ function HeroBody({ slides }: HomeHeroProps) {
       data-entered={switched ? 'true' : 'false'}
       data-rotates={rotation.rotates ? 'true' : 'false'}
       data-held={rotation.held ? 'true' : 'false'}
+      data-offscreen={rotation.offscreen ? 'true' : undefined}
       style={{ '--hero-interval': `${HERO_INTERVAL_MS}ms` } as Vars}
       {...rotation.rootHandlers}
     >

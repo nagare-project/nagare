@@ -50,6 +50,13 @@ export function useHeaderScroll(header: RefObject<HTMLElement | null>, locked: b
     let down = 0
     let up = 0
     let frame = 0
+    // 顶栏高度只在量一次 / 改尺寸时读：滚动的每一帧不碰 offsetHeight（它会强制一次同步回流）
+    let navHeight = header.current?.offsetHeight ?? 0
+    const measureNav = () => {
+      navHeight = header.current?.offsetHeight ?? navHeight
+    }
+    const resize = typeof ResizeObserver === 'undefined' || !header.current ? null : new ResizeObserver(measureNav)
+    resize?.observe(header.current as Element)
 
     const update = () => {
       frame = 0
@@ -63,7 +70,7 @@ export function useHeaderScroll(header: RefObject<HTMLElement | null>, locked: b
         up -= delta
         down = 0
       }
-      const navHeight = header.current?.offsetHeight ?? 0
+      if (!resize) measureNav() // 没有 ResizeObserver（测试环境）：退回每次现读
       // 每次现查焦点：鼠标点到别处、或获得焦点的元素被卸载，都不会留下「还在顶栏里」的陈旧记号
       const focused = document.activeElement
       const keyboardInside = focused !== null && header.current?.contains(focused) === true && isKeyboardFocus(focused)
@@ -86,6 +93,7 @@ export function useHeaderScroll(header: RefObject<HTMLElement | null>, locked: b
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       window.removeEventListener('scroll', onScroll)
+      resize?.disconnect()
       if (frame !== 0) window.cancelAnimationFrame(frame)
     }
   }, [header])

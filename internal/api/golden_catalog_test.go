@@ -45,6 +45,11 @@ func catalogGoldenCases() []goldenCase {
 		{"catalog-seasonal-bad-season", func(t *testing.T) []byte {
 			return newGoldenEnv(t, goldenOptions{}).call(t, http.StatusBadRequest, http.MethodGet, "/api/seasonal?season=AUTUMN&year=2026", "")
 		}},
+		{"catalog-top", get("/api/top")},
+		{"catalog-top-filtered", get("/api/top?year=2026&format=TV&season=FALL&genre=Adventure")},
+		{"catalog-top-years", get("/api/top/years")},
+		{"catalog-top-offline", func(t *testing.T) []byte { return goldenOfflineEnv(t).callOffline(t, "/api/top") }},
+		{"catalog-top-years-offline", func(t *testing.T) []byte { return goldenOfflineEnv(t).callOffline(t, "/api/top/years") }},
 		{"catalog-schedule", func(t *testing.T) []byte {
 			env := newGoldenLibrary(t)
 			return env.call(t, http.StatusOK, http.MethodGet, "/api/schedule", "")
@@ -108,7 +113,7 @@ func goldenOfflineEnv(t *testing.T) *goldenEnv {
 	dir := t.TempDir()
 	withDisk := func(d *Deps) { d.CatalogCacheDir = dir }
 	online := newGoldenEnv(t, goldenOptions{deps: withDisk})
-	for _, target := range []string{"/api/discover", "/api/seasonal?season=FALL&year=2026", "/api/schedule", "/api/anime/154587"} {
+	for _, target := range []string{"/api/discover", "/api/seasonal?season=FALL&year=2026", "/api/schedule", "/api/anime/154587", "/api/top", "/api/top/years"} {
 		online.call(t, http.StatusOK, http.MethodGet, target, "")
 	}
 	online.h.catalog.cache.waitBackground()

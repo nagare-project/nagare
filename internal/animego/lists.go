@@ -20,6 +20,7 @@ type ListEntry struct {
 	TitleNative     string `json:"titleNative"`
 	CoverImageURL   string `json:"coverImageUrl"`
 	BannerImageURL  string `json:"bannerImageUrl"`
+	PosterAccent    string `json:"posterAccent"`
 	Episodes        *int   `json:"episodes"`
 	Season          string `json:"season"`
 	SeasonYear      int    `json:"seasonYear"`

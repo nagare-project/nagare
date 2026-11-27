@@ -82,13 +82,20 @@ function validateSeasonalSearch(search: Record<string, unknown>): Record<string,
   const season = typeof search.season === 'string' ? search.season.toUpperCase() : ''
   const year = Number(search.year)
   const text = (value: unknown) => (typeof value === 'string' && value !== '' ? value : undefined)
+  const view = text(search.view)
+  const wd = search.wd !== undefined && search.wd !== '' ? Number(search.wd) : NaN
   return {
     season: ['WINTER', 'SPRING', 'SUMMER', 'FALL'].includes(season) ? season : undefined,
     year: Number.isSafeInteger(year) && year >= 1990 && year <= 2100 ? year : undefined,
     genre: text(search.genre),
     format: text(search.format),
     status: text(search.status),
+    source: text(search.source),
     sort: (SEASONAL_SORTS as readonly string[]).includes(text(search.sort) ?? '') ? search.sort : undefined,
+    view: view === 'grid' || view === 'chart' || view === 'cover' || view === 'table' ? view : undefined,
+    hue: text(search.hue),
+    q: text(search.q),
+    wd: Number.isInteger(wd) && wd >= 0 && wd <= 6 ? wd : undefined,
   }
 }
 
@@ -98,6 +105,36 @@ const seasonalRoute = createRoute({
   path: '/seasonal',
   validateSearch: validateSeasonalSearch,
   component: lazyRouteComponent(() => import('./pages/SeasonalPage'), 'SeasonalPage'),
+})
+
+function validateTopSearch(search: Record<string, unknown>): {
+  year?: number
+  format?: string
+  season?: string
+  genre?: string
+  view?: string
+} {
+  const year = Number(search.year)
+  const validYear = Number.isSafeInteger(year) && year >= 1950 && year <= 2100 ? year : undefined
+  const season = typeof search.season === 'string' ? search.season.toUpperCase() : ''
+  const format = typeof search.format === 'string' ? search.format.toUpperCase() : ''
+  const genre = typeof search.genre === 'string' && search.genre.trim() !== '' ? search.genre.trim() : undefined
+  const view = typeof search.view === 'string' ? search.view : ''
+  return {
+    year: validYear,
+    format: ['TV', 'TV_SHORT', 'MOVIE', 'ONA', 'OVA', 'SPECIAL'].includes(format) ? format : undefined,
+    season: validYear && ['WINTER', 'SPRING', 'SUMMER', 'FALL'].includes(season) ? season : undefined,
+    genre,
+    view: view === 'grid' || view === 'chart' || view === 'cover' || view === 'table' ? view : undefined,
+  }
+}
+
+/** `/top` 排行榜：全站总榜与历年 Top 100。 */
+const topRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/top',
+  validateSearch: validateTopSearch,
+  component: lazyRouteComponent(() => import('./pages/TopPage'), 'TopPage'),
 })
 
 /** `/torrents` 磁力任务：走真实的 /api/torrent/status，没有假数据 */
@@ -168,6 +205,7 @@ const routeTree = rootRoute.addChildren([
   entryRoute,
   scheduleRoute,
   seasonalRoute,
+  topRoute,
   torrentsRoute,
   autoDlRoute,
   extensionsRoute,

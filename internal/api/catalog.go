@@ -14,6 +14,8 @@ func (h *Handler) registerCatalog(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/discover", h.catalogDiscover)
 	mux.HandleFunc("GET /api/discover/gems", h.catalogMoreGems)
 	mux.HandleFunc("GET /api/seasonal", h.catalogSeasonal)
+	mux.HandleFunc("GET /api/top", h.catalogTop)
+	mux.HandleFunc("GET /api/top/years", h.catalogTopYears)
 	mux.HandleFunc("GET /api/catalog/search", h.catalogSearch)
 	mux.HandleFunc("GET /api/anime/{id}", h.catalogDetail)
 	mux.HandleFunc("GET /api/anime/{id}/episodes", h.catalogEpisodes)

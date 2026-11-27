@@ -94,7 +94,15 @@ func New(dir string) (*Cache, error) {
 			// 【每一次拨号】上生效，重定向后的那一跳同样过闸。
 			// 这里只补 guardedDial 看不见的那一半：协议降级到明文。
 			CheckRedirect: checkRedirect,
-			Transport:     &http.Transport{DialContext: dialContext},
+			// 连接池放大：发现页一屏要拉几十张封面，默认每主机 2 条空闲连接会让它们排队重连；
+			// 图床支持 h2 时多路复用。拨号仍然走 guardedDial（拦内网），所以这里必须显式开 h2。
+			Transport: &http.Transport{
+				DialContext:         dialContext,
+				ForceAttemptHTTP2:   true,
+				MaxIdleConns:        64,
+				MaxIdleConnsPerHost: 16,
+				IdleConnTimeout:     90 * time.Second,
+			},
 		},
 		inflight:    map[string]chan struct{}{},
 		toneMemo:    map[string]toneResult{},

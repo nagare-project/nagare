@@ -29,8 +29,12 @@ func catalogTitle(r animego.CatalogMedia) string {
 	return firstText(r.TitleChinese, r.TitleRomaji, r.TitleNative, r.TitleEnglish, r.Title)
 }
 func (s *DiscoverService) summary(r animego.CatalogMedia) SummaryMedia {
+	studios := append([]string{}, r.Studios...)
+	if len(studios) == 0 && strings.TrimSpace(r.Studio) != "" {
+		studios = []string{strings.TrimSpace(r.Studio)}
+	}
 	m := SummaryMedia{AnilistID: r.AnilistID, Title: catalogTitle(r), TitleNative: r.TitleNative, TitleRomaji: r.TitleRomaji, TitleEnglish: r.TitleEnglish,
-		Cover: s.art.Register(r.CoverImageURL), Banner: s.art.Register(r.BannerImageURL), Year: r.SeasonYear, Season: map[string]string{"WINTER": "冬", "SPRING": "春", "SUMMER": "夏", "FALL": "秋"}[r.Season], Episodes: r.Episodes, Score: int(math.Round(r.AverageScore)), Genres: append([]string{}, r.Genres...), Description: plainDescription(firstText(r.DescriptionCn, r.Description)), Status: r.Status, Format: r.Format, Duration: r.Duration, Source: r.Source, StartDate: r.StartDate, Studios: append([]string{}, r.Studios...)}
+		Cover: s.art.Register(r.CoverImageURL), Banner: s.art.Register(r.BannerImageURL), Hue: accentHue(r.PosterAccent), Year: r.SeasonYear, Season: map[string]string{"WINTER": "冬", "SPRING": "春", "SUMMER": "夏", "FALL": "秋"}[r.Season], Episodes: r.Episodes, Score: int(math.Round(r.AverageScore)), BangumiScore: r.BangumiScore, Popularity: r.Popularity, Favourites: r.Favourites, Sequel: r.IsSequel, Rank: r.Rank, Genres: append([]string{}, r.Genres...), Description: plainDescription(firstText(r.DescriptionCn, r.Description)), Status: r.Status, Format: r.Format, Duration: r.Duration, Source: r.Source, StartDate: r.StartDate, Studios: studios}
 	if m.Cover != "" {
 		m.PosterTones = s.posterTones(r.CoverImageURL)
 	}

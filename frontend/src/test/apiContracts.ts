@@ -14,7 +14,7 @@ import type {
   LibraryData, LibraryDropGroup, LibraryDrops, LibraryFolder, LibraryGroup, LibraryIdentify, LibraryItem, MpvInfo,
   PlaybackFailure, PlayData, PlayerConfigResult, PlayerStatus, PlayingStatus, PluginSource, PosterTones, RulesInfo, ScanStats,
   ScheduleData, SeasonalData, SelfUpdateInfo, SettingsData, SourceInfo, SourcePluginConfigView, SourcePluginManifest,
-  SourcePluginStatus, SourcePluginView, SourcesData, SummaryMediaData, SyncFailure, TorrentConfigData, TorrentFile,
+  SourcePluginStatus, SourcePluginView, SourcesData, SummaryMediaData, SyncFailure, TopData, TopYearsData, TorrentConfigData, TorrentFile,
   TorrentPlayData, TorrentSettings, TorrentStatus, UpdateView,
   animegoLogin, rescanLibrary,
 } from '../lib/endpoints'
@@ -130,8 +130,9 @@ const airing = obj({ episode: int, at: int })
 export const summaryMedia: Schema<SummaryMediaData> = exact<SummaryMediaData>()(obj(
   { anilistId: int, title: str, episodes: nullable(int), genres: arr(str) },
   {
-    titleNative: str, titleRomaji: str, titleEnglish: str, cover: str, banner: str, trailerId: str, year: int, season: str,
-    score: int, description: str, status: str, format: str, duration: int, source: str, startDate: str, studios: arr(str),
+    titleNative: str, titleRomaji: str, titleEnglish: str, cover: str, banner: str, hue: nullable(num), trailerId: str, year: int, season: str,
+    score: int, bangumiScore: num, popularity: int, favourites: int, sequel: bool, rank: int,
+    description: str, status: str, format: str, duration: int, source: str, startDate: str, studios: arr(str),
     nextAiring: airing, recentAiring: airing,
     relations: arr(obj({ type: str, media: lazy((): Schema<SummaryMediaData> => summaryMedia) })),
     recommendations: arr(lazy((): Schema<SummaryMediaData> => summaryMedia)),
@@ -173,10 +174,18 @@ export const scheduleData = exact<ScheduleData>()(obj(
   {
     airings: arr(obj(
       { anilistId: int, episode: int, airingAt: int, title: str, inLibrary: bool },
-      { cover: str, format: str, posterTones: nullable(posterTones) },
+      { scheduleId: int, cover: str, hue: nullable(num), score: int, genres: arr(str), episodes: nullable(int), format: str, posterTones: nullable(posterTones) },
     )),
     fetchedAt: int,
   },
+  { freshness },
+))
+export const topData = exact<TopData>()(obj(
+  { items: arr(summaryMedia), fetchedAt: int },
+  { year: int, format: str, season: str, genre: str, freshness },
+))
+export const topYearsData = exact<TopYearsData>()(obj(
+  { years: arr(obj({ year: int, count: int })), fetchedAt: int },
   { freshness },
 ))
 export const catalogSearchData = exact<CatalogSearchData>()(obj({ query: str, items: arr(summaryMedia) }))

@@ -4,11 +4,14 @@
 .section {
   margin-top: 80px;
   padding-inline: var(--home-gutter);
+  /* 隔离各板块的版面与样式重算：滚动与悬停不牵连整页 */
+  contain: layout style;
 }
 
 /* 内容横向滚到视口边缘的板块：标题留在留白里，横排一直铺到边上 */
 .bleed {
   margin-top: 80px;
+  contain: layout style;
 }
 
 .bleed > .head {

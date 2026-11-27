@@ -208,16 +208,14 @@ describe('假数据页面', () => {
     await unmount()
   })
 
-  it('放送表：月历按整周排列，今天有标记', async () => {
+  it('放送表：按近七日分桶，默认选中今天', async () => {
     const { container, unmount } = await mount(<SchedulePage />)
-    const count = container.querySelectorAll('.calendar-day').length
-    expect(count % 7).toBe(0)
-    expect(count).toBeGreaterThanOrEqual(28)
-    // 「今天」有且只有一个 —— 多于一个说明周几的换算错了
-    expect(container.querySelectorAll('.calendar-day--today')).toHaveLength(1)
-    expect(container.querySelector('[aria-current="date"]')).not.toBeNull()
+    const tabs = container.querySelectorAll('[role="tab"]')
+    expect(tabs).toHaveLength(7)
+    expect(tabs[0]?.getAttribute('aria-selected')).toBe('true')
+    expect(tabs[0]?.textContent).toContain('今天')
     // 至少排了几场
-    expect(container.querySelectorAll('.calendar-event').length).toBeGreaterThan(3)
+    expect(container.querySelectorAll('a[href^="/entry?id="]').length).toBeGreaterThan(3)
     expect(container.textContent).not.toContain('演示追番列表')
     await unmount()
   })

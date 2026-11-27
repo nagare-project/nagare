@@ -221,7 +221,9 @@ func writeErr(w http.ResponseWriter, err error) {
 
 // ── 库 ──
 
-func (h *Handler) getLibrary(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) getLibrary(w http.ResponseWriter, r *http.Request) {
+	// 启动时的首次扫描在后台跑：它没扫完就先等一等，别把「还没扫」当成空库交给界面
+	h.deps.Lib.waitInitialScan(r.Context())
 	httpserver.WriteJSON(w, http.StatusOK, h.deps.Lib.View())
 }
 

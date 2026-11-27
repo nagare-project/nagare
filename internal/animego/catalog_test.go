@@ -59,6 +59,37 @@ func TestCatalogPublicRoutesAndDecode(t *testing.T) {
 	require.Equal(t, "abcdefghijk", detail.Trailer.ID)
 	require.Len(t, rec.all(), 6)
 }
+
+func TestTopAndTopYears(t *testing.T) {
+	var paths []string
+	client := newTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.RequestURI())
+		switch r.URL.Path {
+		case "/api/anime/top":
+			respond(w, 200, `{"data":[{"anilistId":5114,"titleChinese":"钢炼","rank":1,"popularity":1000,"studio":"BONES","isSequel":false}]}`)
+		case "/api/anime/top/years":
+			respond(w, 200, `{"data":[{"year":2026,"count":348}]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	rows, err := client.Top(context.Background(), animego.TopQuery{Year: 2026, Format: "TV", Season: "FALL", Genre: "Action"})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, 5114, rows[0].AnilistID)
+	require.Equal(t, "BONES", rows[0].Studio)
+	require.NotNil(t, rows[0].IsSequel)
+	require.False(t, *rows[0].IsSequel)
+
+	years, err := client.TopYears(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []animego.TopYearCount{{Year: 2026, Count: 348}}, years)
+	require.Equal(t, []string{"/api/anime/top?format=TV&genre=Action&season=FALL&year=2026", "/api/anime/top/years"}, paths)
+
+	_, err = client.Top(context.Background(), animego.TopQuery{Season: "FALL"})
+	require.Error(t, err)
+}
 func TestCatalogRejectsMissingMalformedAndNullData(t *testing.T) {
 	for _, body := range []string{`{}`, `{"data":null}`, `{"data":{}}`, `not-json`} {
 		t.Run(body, func(t *testing.T) {

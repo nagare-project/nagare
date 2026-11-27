@@ -400,9 +400,8 @@ func buildServices(configDir string, window bool) (*services, error) {
 	// 作品识别要在第一次扫描之前接上：扫描完成就 kick 一次，Run 起来之后接着处理
 	identify := api.NewIdentifier(lib, st, client)
 	lib.SetIdentify(identify.Kick, identify.Status)
-	if stats := lib.Rescan(); stats.Videos > 0 {
-		log.Printf("媒体库就绪：%d 个视频，%d 个剧集簇", stats.Videos, stats.Clusters)
-	}
+	// 首次扫描不在这里同步做：几百个视频要几秒，会把 HTTP 服务与桌面窗口一起拖慢。
+	// run() 在服务起来之后于后台扫；GET /api/library 在它扫完之前会等（library_initial.go）。
 
 	// 磁力下载：没有没下完的任务就不起 BT client；有的话接着下。下完的进媒体库。
 	// 测试构建的 NAGARE_TEST_NO_TORRENT 同样不建它：手动检查里点「下载」也不能在用户的电脑上开 BT 监听、要 UPnP
@@ -559,6 +558,13 @@ func run(cfg *config.Config, configDir string, svc *services, webFS fs.FS, f fla
 	// 上次没记到账号的「看完」（回写途中被强退、断网、关机）：媒体库与作品关联此时已经就绪，
 	// 稍等片刻在后台补发，不拖住启动与界面；退出时随 ctx 停下，没补完的下次再补
 	go retryPendingSyncsSoon(ctx, svc.player)
+
+	// 首次扫描放到后台：服务与窗口先起来，扫完媒体库页的轮询 / 重扫会拿到结果
+	svc.lib.RescanInBackground(func(stats api.Stats) {
+		if stats.Videos > 0 {
+			log.Printf("媒体库就绪：%d 个视频，%d 个剧集簇", stats.Videos, stats.Clusters)
+		}
+	})
 
 	go watchSignals(ctx, cancel)
 	serveErr := make(chan error, 1)

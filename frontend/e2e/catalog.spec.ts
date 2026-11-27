@@ -161,19 +161,18 @@ test.describe('宽屏（1440px）', () => {
     await expect(page.getByRole('heading', { level: 1, name: '发现' })).toBeAttached()
   })
 
-  test('作品卡浮层按 Esc 收起（鼠标不用移开）；移开再停回来才重新弹出', async ({ page }) => {
+  test('季度页支持封面 / 图表 / 列表三视图切换与色调筛选；排行榜支持年份与视图切换', async ({ page }) => {
+    const problems = watchProblems(page)
     await openApp(page, '/seasonal')
-    const card = page.getByRole('main').getByRole('listitem').first()
-    await card.hover()
-    const play = card.getByRole('button', { name: /^播放 / })
-    await expect(play).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(play).toBeHidden()
-    await page.waitForTimeout(600)
-    await expect(play).toBeHidden()
-    await page.mouse.move(0, 0)
-    await card.hover()
-    await expect(play).toBeVisible()
+    await page.getByRole('button', { name: '图表卡片' }).click()
+    await expect(page.getByRole('button', { name: '图表卡片' })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: '列表视图' }).click()
+    await expect(page.getByRole('button', { name: '列表视图' })).toHaveAttribute('aria-pressed', 'true')
+    await openApp(page, '/top')
+    await expect(page.getByRole('heading', { level: 1, name: '全站 Top 100' })).toBeVisible()
+    await page.getByRole('navigation', { name: '排行榜年份' }).getByRole('button', { name: '2026' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '2026 年度 Top 100' })).toBeVisible()
+    expect(problems.errors).toEqual([])
   })
 
   test('后台刷新把本季前五重新排了序：横幅停在原来那一部上，不跳成另一部', async ({ page }) => {
@@ -210,15 +209,17 @@ test.describe('宽屏（1440px）', () => {
     expect(problems.errors).toEqual([])
   })
 
-  test('放送表：月历里的条目以可见文字命名，点开是作品预览', async ({ page }) => {
+  test('放送表：7 日标签切换更新面板与整页色调，点条目进作品页', async ({ page }) => {
     const problems = watchProblems(page)
     await openApp(page, '/schedule')
-    const entry = page.getByRole('button', { name: /^星屑的旅人\s*第 \d+ 集/ }).first()
-    await expect(entry).toBeVisible()
-    await entry.click()
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(entry).toBeFocused()
+    const tabs = page.getByRole('tablist', { name: '本周日期' }).getByRole('tab')
+    await expect(tabs).toHaveCount(7)
+    await expect(tabs.first()).toHaveAttribute('aria-selected', 'true')
+    await tabs.nth(1).click()
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true')
+    await tabs.first().click()
+    await page.getByRole('main').getByRole('link', { name: /星屑的旅人/ }).first().click()
+    await expect(page).toHaveURL((url) => url.pathname === '/entry' && url.searchParams.get('id') === '1001')
     expect(problems.errors).toEqual([])
   })
 })
@@ -226,12 +227,12 @@ test.describe('宽屏（1440px）', () => {
 test.describe('手机（390px）', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('放送表换成逐日列表；季度页类型标签横向一条不撑出页面', async ({ page }) => {
+  test('放送表 7 日胶囊与季度页筛选条横向不撑出页面', async ({ page }) => {
     await openApp(page, '/schedule')
-    await expect(page.getByRole('region', { name: /年.*月.*日/ }).first()).toBeVisible()
+    await expect(page.getByRole('tablist', { name: '本周日期' })).toBeVisible()
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
     await openApp(page, '/seasonal')
-    await expect(page.getByRole('group', { name: '类型' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '展开筛选' })).toBeVisible()
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
   })
 })

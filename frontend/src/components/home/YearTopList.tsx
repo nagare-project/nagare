@@ -1,10 +1,13 @@
 import type { CSSProperties } from 'react'
 import { cardToneVars } from '../../lib/home/tone'
 import type { YearCard } from '../../lib/home/viewModels'
+import { RouteLink } from '../catalog/RouteLink'
 import { MediaEntryLink } from '../media/MediaEntryLink'
 import { CoverImage } from './CoverImage'
+import { ChevronIcon } from './icons'
 import { SectionHeader } from './SectionHeader'
 import cards from './cards.module.css'
+import section from './section.module.css'
 import styles from './YearTopList.module.css'
 
 // 年度榜：本年度 AniList 评分前十，紧凑的名次列表 —— 名次、小图、标题、季度、评分。
@@ -19,7 +22,18 @@ export function YearTopList({ items, year }: YearTopListProps) {
   if (items.length === 0) return null
   return (
     <section className={styles.section} aria-labelledby="home-year">
-      <SectionHeader id="home-year" title={`${year} 年度榜`} note="按 AniList 评分" phoneHides={['note']} />
+      <SectionHeader
+        id="home-year"
+        title={`${year} 年度榜`}
+        note="按 AniList 评分"
+        phoneHides={['note']}
+        action={
+          <RouteLink to="/top" search={{ year }} className={section.link}>
+            全部 100 部
+            <ChevronIcon className={section.linkIcon} />
+          </RouteLink>
+        }
+      />
       <ol className={styles.list}>
         {items.map((it) => (
           <li key={it.id} className={styles.item}>

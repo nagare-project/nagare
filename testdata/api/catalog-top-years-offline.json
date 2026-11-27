@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "data": {
+    "years": [
+      {
+        "year": 2026,
+        "count": 120
+      },
+      {
+        "year": 2025,
+        "count": 310
+      }
+    ],
+    "fetchedAt": 1792065600,
+    "freshness": {
+      "fetchedAt": "2026-10-15T12:00:00Z",
+      "stale": true,
+      "offline": true
+    }
+  }
+}

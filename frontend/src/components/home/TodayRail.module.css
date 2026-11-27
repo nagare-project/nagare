@@ -78,11 +78,22 @@
 }
 
 .ping {
+  position: relative;
   flex: none;
   width: 6px;
   height: 6px;
   border-radius: 999px;
   background-color: currentColor;
+}
+
+.ping::after,
+.nowDot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: currentColor;
+  pointer-events: none;
   animation: ping 2.4s var(--home-ease) infinite;
 }
 
@@ -134,13 +145,13 @@
 }
 
 .nowDot {
+  position: relative;
   flex: none;
   margin-top: 6px;
   width: 8px;
   height: 8px;
   border-radius: 999px;
   background-color: currentColor;
-  animation: ping 2.4s var(--home-ease) infinite;
 }
 
 .nowLine {
@@ -229,13 +240,16 @@
   }
 }
 
+/* 用合成层的 transform + opacity 代替 box-shadow 动画：WebKit 里 box-shadow 每帧触发主线程重绘 */
 @keyframes ping {
   0% {
-    box-shadow: 0 0 0 0 currentColor;
+    transform: scale(1);
+    opacity: 0.72;
   }
   70%,
   100% {
-    box-shadow: 0 0 0 7px transparent;
+    transform: scale(2.8);
+    opacity: 0;
   }
 }
 
@@ -282,8 +296,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ping,
-  .nowDot,
+  .ping::after,
+  .nowDot::after {
+    animation: none;
+    opacity: 0;
+  }
+
   .rail[data-enter='run'] > * {
     animation: none;
   }
