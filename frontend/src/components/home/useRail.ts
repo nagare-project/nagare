@@ -414,38 +414,60 @@ export function useRailSlider(
     const rail = railRef.current
     if (!rail) return
     let frame = 0
+    // 停靠点、卡片位置与留白只随版面变（改尺寸、增删卡片），不随滚动变：缓存起来，
+    // 滚动的每一帧只读 scrollLeft 与框的尺寸。以前每帧都读全部卡的 offsetLeft / getComputedStyle，
+    // 而上一帧刚写过滑块样式，等于每帧强制一次同步回流 —— WebKit 里一滑就掉帧。
+    let layout: { stops: number[]; cards: ItemBox[]; gutter: number } | null = null
+    let dirty = true
+    let shown = { width: '', left: '', index: '', max: '', text: '' }
     const measure = () => {
       frame = 0
+      // 先读后写：本帧所有 DOM 读取放在任何写入之前
       const g = railGeometry(rail)
+      if (dirty || !layout) {
+        layout = { stops: stopsOf(rail, g), cards: cardBoxes(rail), gutter: gutterOf(rail) }
+        dirty = false
+      }
+      const { stops, cards, gutter } = layout
       const thumb = thumbFor(g)
+      const seen = itemsInView(g, cards, gutter)
+      const width = `${thumb.widthPct}%`
+      const left = `${thumb.leftPct}%`
+      const max = String(Math.max(0, stops.length - 1))
+      // 数的是停靠点不是像素：读屏的「加一」是一张卡
+      const index = String(nearestStopIndex(g.viewLeft, stops))
+      const text = seen ? describe(seen.first, seen.last, cards.length) : ''
+      const next = railEdges(g).overflow
+
       const bar = thumbRef.current
       if (bar) {
-        bar.style.width = `${thumb.widthPct}%`
-        bar.style.left = `${thumb.leftPct}%`
+        if (width !== shown.width) bar.style.width = width
+        if (left !== shown.left) bar.style.left = left
       }
       const input = inputRef.current
       if (input) {
-        // 数的是停靠点不是像素：读屏的「加一」是一张卡
-        const stops = stopsOf(rail, g)
-        input.max = String(Math.max(0, stops.length - 1))
-        input.value = String(nearestStopIndex(g.viewLeft, stops))
-        const cards = cardBoxes(rail)
-        const seen = itemsInView(g, cards, gutterOf(rail))
-        input.setAttribute('aria-valuetext', seen ? describe(seen.first, seen.last, cards.length) : '')
+        if (max !== shown.max) input.max = max
+        if (index !== shown.index) input.value = index
+        if (text !== shown.text) input.setAttribute('aria-valuetext', text)
       }
-      const next = railEdges(g).overflow
+      shown = { width, left, index, max, text }
       setOverflow((prev) => (prev === next ? prev : next))
     }
     const schedule = () => {
       if (frame === 0) frame = window.requestAnimationFrame(measure)
     }
+    // 版面变了：下一帧重新量一遍停靠点
+    const scheduleLayout = () => {
+      dirty = true
+      schedule()
+    }
     rail.addEventListener('scroll', schedule, { passive: true })
     // observe() 时也会触发一次，就是第一次测量
-    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleLayout)
     if (resize) resize.observe(rail)
-    else schedule()
+    else scheduleLayout()
     // 卡片多了、少了（后台刷新换了数据）：横排自己的框不变，内容宽度变了，也要重量
-    const children = typeof MutationObserver === 'undefined' ? null : new MutationObserver(schedule)
+    const children = typeof MutationObserver === 'undefined' ? null : new MutationObserver(scheduleLayout)
     children?.observe(rail, { childList: true })
     return () => {
       rail.removeEventListener('scroll', schedule)

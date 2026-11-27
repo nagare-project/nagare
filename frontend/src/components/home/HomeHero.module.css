@@ -13,25 +13,33 @@
   margin-top: calc(-1 * (var(--app-nav-h) + var(--home-strip-h)));
   overflow: hidden;
   color: #fff;
+  contain: layout style paint;
   /* 自己的底色：<main> 从它自己开始的地方涂页面颜色，横幅伸到了上面、顶栏底下 */
   background-color: var(--home-ground, var(--bg));
   transition: background-color var(--home-tint) var(--home-ease);
 }
 
-/* ── 氛围光：当前那张封面模糊成光。只在横幅里，离底边很远就淡出，颜色不渗到下面一段 ── */
+/* ── 氛围光：当前那张封面模糊成光。只在横幅里，离底边很远就淡出，颜色不渗到下面一段。
+ * 按 1/4 尺寸做 22px 模糊再放大 4 倍：视觉与整屏 blur(90px) 等价，WebKit 的 GPU 像素开销降到 1/16 ── */
 .glow {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
+  contain: strict;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 50%, transparent 100%);
   mask-image: linear-gradient(180deg, #000 0%, #000 50%, transparent 100%);
 }
 
 .glowInner {
   position: absolute;
-  inset: -160px -140px;
-  filter: blur(90px) saturate(1.35);
+  top: -40px;
+  left: -35px;
+  width: calc(25% + 70px);
+  height: calc(25% + 80px);
+  transform-origin: 0 0;
+  transform: scale(4) translateZ(0);
+  filter: blur(22px) saturate(1.35);
 }
 
 .glowImg {
@@ -61,6 +69,7 @@
   height: 100%;
   overflow: hidden;
   pointer-events: none;
+  contain: layout style paint;
   opacity: 0;
   transform: scale(1.02);
   transition:
@@ -104,7 +113,9 @@
   animation: kenBurns 12s ease-in-out infinite alternate;
 }
 
-.banner:not([data-active='true']) .bannerImg {
+.banner:not([data-active='true']) .bannerImg,
+.hero[data-offscreen='true'] .bannerImg,
+.hero[data-offscreen='true'] .dot[data-live='true']::after {
   animation-play-state: paused;
 }
 
@@ -398,23 +409,23 @@
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
 }
 
-/* 标题逐块去模糊显现。--td 是这一张切成当前时的延迟，--ld 是页面第一次画出来时的延迟 */
+/* 标题逐块显现：只用合成层的 opacity + transform，避免 WebKit 为几十个字块同时建 filter 模糊层 */
 .tok {
   display: inline-block;
   white-space: pre;
   opacity: 0;
-  filter: blur(6px);
+  transform: translateY(6px);
   transition:
     opacity 0.2s ease,
-    filter 0.2s ease;
+    transform 0.2s ease;
 }
 
 .slide[data-active='true'] .tok {
   opacity: 1;
-  filter: none;
+  transform: none;
   transition:
     opacity 0.5s ease var(--td),
-    filter 0.6s ease var(--td);
+    transform 0.55s var(--home-expo) var(--td);
 }
 
 .hero[data-entered='false'] .slide[data-active='true'] .tok {
@@ -525,6 +536,7 @@
 }
 
 .dot {
+  position: relative;
   flex: none;
   width: 6px;
   height: 6px;
@@ -533,7 +545,13 @@
   background-color: currentColor;
 }
 
-.dot[data-live='true'] {
+.dot[data-live='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: currentColor;
+  pointer-events: none;
   animation: ping 2.4s var(--home-ease) infinite;
 }
 
@@ -647,8 +665,8 @@
 
 @keyframes bannerIn {
   from {
-    scale: 1.06;
-    filter: opacity(0) brightness(0.4);
+    transform: scale(1.06);
+    opacity: 0;
   }
 }
 
@@ -663,14 +681,15 @@
 
 @keyframes tokenIn {
   from {
-    filter: blur(8px) opacity(0);
+    opacity: 0;
+    transform: translateY(8px);
   }
 }
 
 @keyframes lineUp {
   from {
     translate: 0 18px;
-    filter: opacity(0);
+    opacity: 0;
   }
 }
 
@@ -680,13 +699,16 @@
   }
 }
 
+/* 合成层扩散圆环：避免 box-shadow 动画在 WebKit 里每帧触发主线程重绘 */
 @keyframes ping {
   0% {
-    box-shadow: 0 0 0 0 currentColor;
+    transform: scale(1);
+    opacity: 0.72;
   }
   70%,
   100% {
-    box-shadow: 0 0 0 7px transparent;
+    transform: scale(2.8);
+    opacity: 0;
   }
 }
 

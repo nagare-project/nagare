@@ -45,6 +45,7 @@ func (s *Server) staticHandler() http.Handler {
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		if name != "" {
 			if _, err := fs.Stat(s.opts.WebFS, name); err == nil {
+				setStaticCacheHeader(w, name)
 				fileServer.ServeHTTP(w, r)
 				return
 			}
@@ -56,6 +57,18 @@ func (s *Server) staticHandler() http.Handler {
 				return
 			}
 		}
+		// index.html 每次都要问一下（它指向带哈希的资源，升级后必须拿到新的）
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFileFS(w, r, s.opts.WebFS, "index.html")
 	})
+}
+
+// setStaticCacheHeader 给带内容哈希的 Vite 产物（assets/）与随包字体（fonts/）长期缓存：
+// 桌面窗口每次切页、重开都不必重新校验这几百 KB。其余文件（index.html 等）每次校验。
+func setStaticCacheHeader(w http.ResponseWriter, name string) {
+	if strings.HasPrefix(name, assetsPrefix) || strings.HasPrefix(name, "fonts/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
 }
