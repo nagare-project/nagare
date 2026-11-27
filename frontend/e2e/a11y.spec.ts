@@ -35,11 +35,11 @@ test.describe('目录页的其他状态（1440px）', () => {
     expect(await blockingViolations(page)).toEqual([])
   })
 
-  test('作品卡浮层打开时整页无 serious / critical 问题', async ({ page }) => {
+  test('季度页切换图表 / 列表视图与色调筛选时整页无 serious / critical 问题', async ({ page }) => {
     await openApp(page, '/seasonal')
-    const card = page.getByRole('main').getByRole('listitem').first()
-    await card.hover()
-    await expect(card.getByRole('button', { name: /^播放 / })).toBeVisible()
+    await page.getByRole('button', { name: '图表卡片' }).click()
+    expect(await blockingViolations(page)).toEqual([])
+    await page.getByRole('button', { name: '列表视图' }).click()
     expect(await blockingViolations(page)).toEqual([])
   })
 
@@ -50,10 +50,14 @@ test.describe('目录页的其他状态（1440px）', () => {
     expect(await blockingViolations(page)).toEqual([])
   })
 
-  test('放送表的日历设置展开时整页无 serious / critical 问题', async ({ page }) => {
+  test('放送表切日与排行榜三视图切换时整页无 serious / critical 问题', async ({ page }) => {
     await openApp(page, '/schedule')
-    await page.getByRole('button', { name: '日历设置' }).click()
-    await expect(page.getByRole('region', { name: '日历设置' })).toBeVisible()
+    await page.getByRole('tab').nth(1).click()
+    expect(await blockingViolations(page)).toEqual([])
+    await openApp(page, '/top')
+    await page.getByRole('button', { name: '封面网格' }).click()
+    expect(await blockingViolations(page)).toEqual([])
+    await page.getByRole('button', { name: '图表卡片' }).click()
     expect(await blockingViolations(page)).toEqual([])
   })
 })

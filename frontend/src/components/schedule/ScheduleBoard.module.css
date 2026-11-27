@@ -1,0 +1,611 @@
+/* 放送表页框架、顶栏标题、7 日标签、右侧栏（本周更新柱状图 / 我追的·本周 / 下一季入口）。
+ * 依托 HomeHueScope.module.css 提供的 --home-ground / --home-surface / --home-tone / --home-gutter。 */
+
+.page {
+  margin-top: calc(-1 * var(--app-nav-h));
+  padding-top: calc(var(--app-nav-h) + 40px);
+}
+
+.header {
+  padding-inline: var(--home-gutter);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eyebrow {
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--home-tone);
+  transition: color var(--home-tint) var(--home-ease);
+}
+
+.title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 42px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.sub {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 22px;
+  color: rgba(235, 235, 245, 0.66);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 7 日标签栏 ──────────────────────────────────────────────────────────── */
+
+.tabs {
+  position: relative;
+  margin-top: 28px;
+  padding-inline: var(--home-gutter);
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  height: 76px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.03);
+  color: rgba(235, 235, 245, 0.72);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.25s ease,
+    border-color var(--home-tint) var(--home-ease),
+    color 0.25s ease,
+    transform 0.2s var(--home-expo);
+}
+
+.tab[aria-selected='true'] {
+  border-color: var(--home-tone-line);
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.tab:focus-visible,
+.bar:focus-visible,
+.followRow:focus-visible,
+.allLink:focus-visible,
+.cta:focus-visible,
+.nextLink:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tabText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tabLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.tabDate {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(235, 235, 245, 0.62);
+}
+
+.tabCount {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 600;
+  color: rgba(235, 235, 245, 0.58);
+  transition: color 0.35s ease;
+}
+
+.tab[aria-selected='true'] .tabCount {
+  color: var(--home-tone);
+}
+
+.todayDot {
+  display: none;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--home-tone);
+}
+
+/* ── 主体两列 ────────────────────────────────────────────────────────────── */
+
+.content {
+  margin-top: 32px;
+  padding-inline: var(--home-gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, 360px);
+  gap: 40px;
+  align-items: start;
+}
+
+.panels {
+  min-width: 0;
+}
+
+.aside {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── 右栏卡片 ────────────────────────────────────────────────────────────── */
+
+.box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px;
+  border-radius: 16px;
+  background-color: var(--home-surface);
+  transition: background-color var(--home-tint) var(--home-ease);
+}
+
+.boxHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.boxTitle {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 650;
+  color: #fff;
+}
+
+/* 本周更新柱状图 */
+
+.chart {
+  padding: 20px 20px 18px;
+}
+
+.chartHint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: rgba(235, 235, 245, 0.58);
+  white-space: nowrap;
+}
+
+.bars {
+  margin-top: 16px;
+  height: 150px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bar {
+  flex: 1;
+  min-width: 0;
+  height: 150px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.barCount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: rgba(235, 235, 245, 0.58);
+  transition: color 0.35s ease;
+}
+
+.bar[aria-pressed='true'] .barCount {
+  color: var(--home-tone);
+}
+
+.barFill {
+  --bar-h: 8px;
+  display: block;
+  flex: none;
+  width: 100%;
+  height: var(--bar-h);
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.12);
+  transition: background-color 0.4s ease;
+}
+
+.bar[aria-pressed='true'] .barFill {
+  background-color: var(--home-tone);
+}
+
+.barDay {
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(235, 235, 245, 0.62);
+  white-space: nowrap;
+}
+
+/* 我追的 · 本周 */
+
+.mine {
+  padding: 20px 12px 12px;
+}
+
+.mineHeading {
+  padding: 0 8px;
+}
+
+.followList {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.followRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 10px;
+  color: var(--tone);
+  text-decoration: none;
+  transition: background-color 0.15s ease-out;
+}
+
+.followCover {
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: 5px;
+  background-color: var(--tone-fill);
+}
+
+.followImg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.followText {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.followTitle,
+.followWhen {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.followTitle {
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.followWhen {
+  font-size: 12px;
+  line-height: 18px;
+  color: rgba(235, 235, 245, 0.62);
+  font-variant-numeric: tabular-nums;
+}
+
+.followState {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+.mineEmpty {
+  margin: 8px 8px 4px;
+  font-size: 13.5px;
+  line-height: 22px;
+  color: rgba(235, 235, 245, 0.66);
+}
+
+.allLink {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  margin: 4px 4px 0;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: var(--home-tone);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.15s ease-out, color var(--home-tint) var(--home-ease);
+}
+
+/* 登录提示与下季入口 */
+
+.prompt {
+  gap: 14px;
+}
+
+.promptBody {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 22px;
+  color: rgba(235, 235, 245, 0.7);
+}
+
+.cta {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s ease-out, border-color 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.nextLink {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  color: #fff;
+  text-decoration: none;
+}
+
+.nextText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nextTitle {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 650;
+}
+
+.nextSub {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: rgba(235, 235, 245, 0.64);
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  flex: none;
+  color: rgba(235, 235, 245, 0.6);
+  transition: transform 0.25s var(--home-expo);
+}
+
+.skeleton {
+  margin-top: 28px;
+  padding-inline: var(--home-gutter);
+  display: grid;
+  gap: 14px;
+}
+
+.skeletonTabs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.skeletonBox {
+  height: 76px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.skeletonRow {
+  height: 80px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.noticeWrap {
+  margin-top: 28px;
+  padding-inline: var(--home-gutter);
+}
+
+@media (hover: hover) {
+  .tab:hover {
+    transform: translateY(-2px);
+  }
+  .tab:not([aria-selected='true']):hover {
+    background-color: rgba(255, 255, 255, 0.055);
+    color: #fff;
+  }
+  .bar:not([aria-pressed='true']):hover .barFill {
+    background-color: rgba(255, 255, 255, 0.22);
+  }
+  .bar:not([aria-pressed='true']):hover .barCount {
+    color: #fff;
+  }
+  .followRow:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  .allLink:hover {
+    opacity: 0.78;
+  }
+  .cta:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1px);
+  }
+  .nextLink:hover {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05));
+  }
+  .nextLink:hover .chevron {
+    transform: translateX(3px);
+  }
+}
+
+@media (max-width: 1100px) {
+  .tab {
+    padding: 0 12px;
+  }
+  .content {
+    margin-top: 24px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  .aside {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+  .chart {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .tabs {
+    margin-top: 20px;
+    padding-block: 4px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    scroll-padding-inline: var(--home-gutter);
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tab {
+    flex: none;
+    justify-content: center;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+  }
+  .tab:hover {
+    transform: none;
+  }
+  .tabText {
+    flex-direction: row;
+    align-items: center;
+  }
+  .tabLabel {
+    font-size: 14px;
+  }
+  .tabDate {
+    display: none;
+  }
+  .tabCount {
+    font-size: 14px;
+    line-height: 20px;
+  }
+  .todayDot {
+    display: block;
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding-top: calc(var(--app-nav-h) + 28px);
+  }
+  .title {
+    font-size: 28px;
+    line-height: 36px;
+  }
+  .content {
+    margin-top: 20px;
+    gap: 28px;
+  }
+  .aside {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .allLink,
+  .cta {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabs {
+    scroll-behavior: auto;
+  }
+  .eyebrow,
+  .tab,
+  .tabCount,
+  .box,
+  .barCount,
+  .barFill,
+  .followRow,
+  .allLink,
+  .cta,
+  .chevron {
+    transition-duration: 0.01ms;
+  }
+  .tab:hover {
+    transform: none;
+  }
+}

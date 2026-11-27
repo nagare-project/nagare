@@ -176,7 +176,21 @@ func (s *DiscoverService) ScheduleView(ctx context.Context, inLibrary func(int) 
 			if inLibrary != nil {
 				found = inLibrary(m.AnilistID)
 			}
-			out.Airings = append(out.Airings, AiringView{m.AnilistID, r.Episode, r.AiringAt, m.Title, m.Cover, m.Format, found, m.PosterTones})
+			out.Airings = append(out.Airings, AiringView{
+				ScheduleID:  r.ScheduleID,
+				AnilistID:   m.AnilistID,
+				Episode:     r.Episode,
+				AiringAt:    r.AiringAt,
+				Title:       m.Title,
+				Cover:       m.Cover,
+				Hue:         m.Hue,
+				Score:       m.Score,
+				Genres:      m.Genres,
+				Episodes:    m.Episodes,
+				Format:      m.Format,
+				InLibrary:   found,
+				PosterTones: m.PosterTones,
+			})
 		}
 	}
 	sort.Slice(out.Airings, func(i, j int) bool {

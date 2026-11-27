@@ -4,6 +4,7 @@ import { CatalogNotice } from '../components/catalog/CatalogStates'
 import { EmptyLibraryStrip } from '../components/catalog/EmptyLibraryStrip'
 import { FreshnessNote } from '../components/catalog/FreshnessNote'
 import { RouteLink } from '../components/catalog/RouteLink'
+import { ContinueSection } from '../components/home/ContinueSection'
 import { GemsPanel } from '../components/home/GemsPanel'
 import { HomeHero } from '../components/home/HomeHero'
 import { HomeHueScope } from '../components/home/HomeHueScope'
@@ -127,6 +128,7 @@ function HomeView({ data, refreshing }: { data: DiscoverData; refreshing: boolea
         <FreshnessNote freshness={data.freshness} refreshing={refreshing} />
       </div>
       <HomeHero slides={view.slides} />
+      <ContinueSection />
       {data.schedule.error ? null : <TodaySection cards={view.todayCards} />}
       <SeasonTopGrid items={view.seasonTop} seasonLabel={seasonYearLabel(data.season, data.year)} seasonSearch={SEASON_SEARCH} total={data.seasonTotal} />
       {view.families.length > 0 ? <HueBrowser total={view.hueCount} families={view.families} defaultKey={view.defaultFamily ?? view.families[0].key} /> : null}

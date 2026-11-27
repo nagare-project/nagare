@@ -8,8 +8,8 @@ import { useArtworkImage } from '../media/useArtworkImage'
  * 挂载时已经加载过的图直接显示、不淡入：换一组色调、回到发现页时不会「黑一下再显示」。
  * 加载失败时保持透明，露出作品色底。
  */
-export function CoverImage({ src, className }: { src: string | null; className: string }) {
-  const art = useArtworkImage(src)
+export function CoverImage({ src, className, eager = false }: { src: string | null; className?: string; eager?: boolean }) {
+  const art = useArtworkImage(src, eager)
   if (!src) return <span aria-hidden="true" className={className} />
   const instant = art.reveal === 'cached'
   const visible = art.reveal !== 'false'

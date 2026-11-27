@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "data": {
+    "years": [
+      {
+        "year": 2026,
+        "count": 120
+      },
+      {
+        "year": 2025,
+        "count": 310
+      }
+    ],
+    "fetchedAt": 1792065600
+  }
+}

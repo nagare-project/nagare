@@ -56,7 +56,7 @@ describe('季度页的地址参数', () => {
         expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe(`${now.year} 年${SEASON_LABEL[now.season]}季新番`)
         expect(container.textContent).not.toContain('undefined')
         expect(container.textContent).not.toContain('NaN')
-        expect((getByRole(container, 'combobox', { name: '排序' }) as HTMLSelectElement).value).toBe('score')
+        expect(container.querySelector('[data-sort-value]')?.getAttribute('data-sort-value')).toBe('score')
         expect(requested.at(-1)).toBe(`?season=${now.season}&year=${now.year}`)
       } finally {
         await unmount()
@@ -67,7 +67,7 @@ describe('季度页的地址参数', () => {
   it('认得出的参数照常生效（季度不分大小写）', async () => {
     const { container, unmount } = await open('/seasonal?season=spring&year=2024&sort=title')
     expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe('2024 年春季新番')
-    expect((getByRole(container, 'combobox', { name: '排序' }) as HTMLSelectElement).value).toBe('title')
+    expect(container.querySelector('[data-sort-value]')?.getAttribute('data-sort-value')).toBe('title')
     expect(requested.at(-1)).toBe('?season=SPRING&year=2024')
     await unmount()
   })

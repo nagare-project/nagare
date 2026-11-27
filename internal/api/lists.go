@@ -45,7 +45,7 @@ func NewListsService(source ListsBackend, catalog *DiscoverService) *ListsServic
 func (s *ListsService) Invalidate()     { s.mu.Lock(); s.revision++; s.mu.Unlock() }
 func (s *ListsService) version() uint64 { s.mu.Lock(); defer s.mu.Unlock(); return s.revision }
 func (s *ListsService) entry(e animego.ListEntry) ListEntryView {
-	m := s.catalog.summary(animego.CatalogMedia{AnilistID: e.AnilistID, TitleChinese: e.TitleChinese, TitleRomaji: e.TitleRomaji, TitleNative: e.TitleNative, CoverImageURL: e.CoverImageURL, BannerImageURL: e.BannerImageURL, Episodes: e.Episodes, Season: e.Season, SeasonYear: e.SeasonYear, Status: e.AnimeStatus})
+	m := s.catalog.summary(animego.CatalogMedia{AnilistID: e.AnilistID, TitleChinese: e.TitleChinese, TitleRomaji: e.TitleRomaji, TitleNative: e.TitleNative, CoverImageURL: e.CoverImageURL, BannerImageURL: e.BannerImageURL, PosterAccent: e.PosterAccent, Episodes: e.Episodes, Season: e.Season, SeasonYear: e.SeasonYear, Status: e.AnimeStatus})
 	at := int64(0)
 	if t, err := time.Parse(time.RFC3339, e.LastWatchedAt); err == nil {
 		at = t.Unix()

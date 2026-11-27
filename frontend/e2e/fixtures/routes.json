@@ -7,6 +7,8 @@
   "GET /api/discover": "discover.json",
   "GET /api/discover/gems": "discover-gems.json",
   "GET /api/seasonal": "seasonal.json",
+  "GET /api/top": "top.json",
+  "GET /api/top/years": "top-years.json",
   "GET /api/schedule": "schedule.json",
   "GET /api/lists": "lists.json",
   "GET /api/catalog/search": "catalog-search.json",

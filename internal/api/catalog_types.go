@@ -4,18 +4,25 @@ import "github.com/nagare-project/nagare/internal/artcache"
 
 // SummaryMedia 是 API 投影；组件通过适配器维持自己的 MediaSummary 契约。
 type SummaryMedia struct {
-	AnilistID       int                `json:"anilistId"`
-	Title           string             `json:"title"`
-	TitleNative     string             `json:"titleNative,omitempty"`
-	TitleRomaji     string             `json:"titleRomaji,omitempty"` // 只给磁力搜索：nyaa 与不少字幕组只用罗马音登记发布
-	TitleEnglish    string             `json:"titleEnglish,omitempty"`
-	Cover           string             `json:"cover,omitempty"`
-	Banner          string             `json:"banner,omitempty"`
+	AnilistID    int    `json:"anilistId"`
+	Title        string `json:"title"`
+	TitleNative  string `json:"titleNative,omitempty"`
+	TitleRomaji  string `json:"titleRomaji,omitempty"` // 只给磁力搜索：nyaa 与不少字幕组只用罗马音登记发布
+	TitleEnglish string `json:"titleEnglish,omitempty"`
+	Cover        string `json:"cover,omitempty"`
+	Banner       string `json:"banner,omitempty"`
+	// Hue 是目录给的封面主色换算出的 OKLCH 色相角（度，一位小数）；null = 无可信色相，界面用中性色。
+	Hue             *float64           `json:"hue"`
 	TrailerID       string             `json:"trailerId,omitempty"`
 	Year            int                `json:"year,omitempty"`
 	Season          string             `json:"season,omitempty"`
 	Episodes        *int               `json:"episodes"`
 	Score           int                `json:"score,omitempty"`
+	BangumiScore    float64            `json:"bangumiScore,omitempty"`
+	Popularity      int                `json:"popularity,omitempty"`
+	Favourites      int                `json:"favourites,omitempty"`
+	Sequel          *bool              `json:"sequel,omitempty"`
+	Rank            int                `json:"rank,omitempty"`
 	Genres          []string           `json:"genres"`
 	Description     string             `json:"description,omitempty"`
 	Status          string             `json:"status,omitempty"`
@@ -134,13 +141,18 @@ type GemsView struct {
 	Items []HomeMedia `json:"items"`
 }
 type AiringView struct {
-	AnilistID int    `json:"anilistId"`
-	Episode   int    `json:"episode"`
-	AiringAt  int64  `json:"airingAt"`
-	Title     string `json:"title"`
-	Cover     string `json:"cover,omitempty"`
-	Format    string `json:"format,omitempty"`
-	InLibrary bool   `json:"inLibrary"`
+	ScheduleID int      `json:"scheduleId,omitempty"`
+	AnilistID  int      `json:"anilistId"`
+	Episode    int      `json:"episode"`
+	AiringAt   int64    `json:"airingAt"`
+	Title      string   `json:"title"`
+	Cover      string   `json:"cover,omitempty"`
+	Hue        *float64 `json:"hue"`
+	Score      int      `json:"score,omitempty"`
+	Genres     []string `json:"genres,omitempty"`
+	Episodes   *int     `json:"episodes,omitempty"`
+	Format     string   `json:"format,omitempty"`
+	InLibrary  bool     `json:"inLibrary"`
 
 	PosterTones *artcache.PosterTones `json:"posterTones"`
 }

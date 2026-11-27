@@ -1,8 +1,8 @@
 import type { IconName } from '../ui/Icon'
 
-/** 顶栏与抽屉共用的主导航（DESIGN.md「桌面顶栏」：发现 · 媒体库 · 放送表 · 季度 · 我的追番） */
+/** 顶栏与抽屉共用的主导航：发现 · 媒体库 · 放送表 · 季度 · 排行 · 我的追番 */
 export interface NavItem {
-  to: '/' | '/library' | '/schedule' | '/seasonal' | '/lists'
+  to: '/' | '/library' | '/schedule' | '/seasonal' | '/top' | '/lists'
   label: string
   icon: IconName
 }
@@ -12,6 +12,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   { to: '/library', label: '媒体库', icon: 'folder' },
   { to: '/schedule', label: '放送表', icon: 'calendar' },
   { to: '/seasonal', label: '季度', icon: 'grid' },
+  { to: '/top', label: '排行', icon: 'trophy' },
   { to: '/lists', label: '我的追番', icon: 'lists' },
 ]
 

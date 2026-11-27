@@ -22,22 +22,30 @@ html:has(.nav-drawer[open]) { overflow: hidden; scrollbar-gutter: stable; }
   height: var(--app-nav-h);
   color: var(--text);
   transition: transform var(--dur-medium) var(--ease-standard);
+  /* 顶栏自己的版面变化不外溢：滚动时页面重排不用再回头量它 */
+  contain: layout style;
 }
-/* 玻璃画在 ::before 上才能淡入淡出；页面顶部透明（可能压在横幅图上） */
+/* 玻璃画在 ::before 上才能淡入淡出；页面顶部透明（可能压在横幅图上）。
+   模糊只在已经滚动（出现玻璃）时才挂：透明态下它是一整条常驻的 backdrop-filter，
+   WebKit 要对横幅图每一帧都重新取样模糊，横幅动画 + 滚动时最容易掉帧。 */
 .app-header::before {
   content: '';
   position: absolute;
   inset: 0;
   border-bottom: 1px solid var(--hairline);
   background: var(--glass-nav);
-  backdrop-filter: saturate(160%) blur(16px);
-  -webkit-backdrop-filter: saturate(160%) blur(16px);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur-short) var(--ease-standard);
 }
-.app-header[data-scrolled]::before { opacity: 1; }
+.app-header[data-scrolled]::before {
+  opacity: 1;
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+}
 .app-header[data-hidden] { transform: translateY(-100%); }
+/* 键盘焦点落进已收起的顶栏时立刻显露、不滑动，避免浏览器按隐藏位置把页面滚走 */
+.app-header[data-hidden]:has(:focus-visible) { transform: none; transition: none; }
 .app-header[data-instant] { transition: none; }
 .app-header:not([data-scrolled]) .app-wordmark,
 .app-header:not([data-scrolled]) .app-header-link { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 12px rgba(0, 0, 0, 0.6); }
@@ -45,13 +53,12 @@ html:has(.nav-drawer[open]) { overflow: hidden; scrollbar-gutter: stable; }
 .app-header-inner {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--sp-md);
+  gap: var(--sp-lg);
   height: 100%;
-  max-width: calc(var(--content-max) + 2 * var(--gutter));
-  margin: 0 auto;
-  padding: 0 var(--gutter);
+  /* 对齐发现页与目录页的内容边距，字标左缘与下方标题对齐 */
+  padding: 0 max(clamp(24px, 5.56vw, 80px), calc((100% - 1280px) / 2));
 }
 
 /* 顶栏自己的控件就在 scroll-padding-top 那条带子里：不抵消的话，聚焦任何一个都会让页面跳一截 */
@@ -74,7 +81,22 @@ html:has(.nav-drawer[open]) { overflow: hidden; scrollbar-gutter: stable; }
   border-radius: var(--radius-sm);
 }
 
-.app-header-nav { display: flex; align-items: center; gap: var(--sp-xs); }
+.app-header-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  transition: opacity var(--dur-short) var(--ease-standard), visibility 0s linear 0s;
+}
+/* 展开搜索框时主导航隐藏让路（visibility: hidden 同步移出可访问树，避免半透明对比度告警） */
+.app-header[data-search] .app-header-nav {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-short) var(--ease-standard), visibility 0s linear var(--dur-short);
+}
+/* 页面顶部无毛玻璃底时，字标与导航字带轻微软阴影，盖在横幅图片上依然清晰 */
+.app-header:not([data-scrolled]) :is(.app-wordmark, .app-header-link) {
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
 .app-header-link {
   display: inline-flex;
   align-items: center;

@@ -1246,8 +1246,8 @@ export interface CatalogFreshness { fetchedAt: string; stale: boolean; offline: 
 /** API 数据通过 lib/media.ts 适配，组件继续持有自己的契约。 */
 export interface SummaryMediaData {
   anilistId: number; title: string; titleNative?: string; titleRomaji?: string; titleEnglish?: string
-  cover?: string; banner?: string; trailerId?: string; year?: number; season?: string
-  episodes: number | null; score?: number; genres: string[]; description?: string
+  cover?: string; banner?: string; hue?: number | null; trailerId?: string; year?: number; season?: string
+  episodes: number | null; score?: number; bangumiScore?: number; popularity?: number; favourites?: number; sequel?: boolean; rank?: number; genres: string[]; description?: string
   status?: string; format?: string; duration?: number; source?: string; startDate?: string; studios?: string[]
   nextAiring?: { episode: number; at: number }; recentAiring?: { episode: number; at: number }
   relations?: { type: string; media: SummaryMediaData }[]; recommendations?: SummaryMediaData[]
@@ -1297,7 +1297,22 @@ export type CollectionStatus = 'watching' | 'plan_to_watch' | 'completed' | 'dro
 export interface CollectionEntry { anilistId: number; status: CollectionStatus; currentEpisode: number; score: number | null; media: SummaryMediaData; lastWatchedAt?: number }
 export interface CollectionData { loggedIn: boolean; entries: CollectionEntry[] }
 export interface CollectionEdit { status: CollectionStatus; progress: number; score: number | null }
-export interface ScheduleData { airings: { anilistId: number; episode: number; airingAt: number; title: string; cover?: string; posterTones?: PosterTones | null; format?: string; inLibrary: boolean }[]; fetchedAt: number; freshness?: CatalogFreshness }
+export interface ScheduleAiring {
+  scheduleId?: number
+  anilistId: number
+  episode: number
+  airingAt: number
+  title: string
+  cover?: string
+  hue?: number | null
+  score?: number
+  genres?: string[]
+  episodes?: number | null
+  posterTones?: PosterTones | null
+  format?: string
+  inLibrary: boolean
+}
+export interface ScheduleData { airings: ScheduleAiring[]; fetchedAt: number; freshness?: CatalogFreshness }
 export const fetchDiscoverData = (signal?: AbortSignal) => apiFetch<DiscoverData>('/api/discover', { signal })
 /** 完结佳作「换一批」：每次都向上游要新的一批，不走缓存 */
 export const fetchMoreGems = (signal?: AbortSignal) => apiFetch<GemsData>('/api/discover/gems', { signal })
@@ -1306,6 +1321,20 @@ export interface SeasonalData { season: SeasonName; year: number; items: Summary
 /** 某一季的全部作品（animego 一页 200 条），后端十分钟缓存 */
 export const fetchSeasonalData = (season: SeasonName, year: number, signal?: AbortSignal) =>
   apiFetch<SeasonalData>(`/api/seasonal?season=${season}&year=${year}`, { signal })
+export interface TopYearCount { year: number; count: number }
+export interface TopYearsData { years: TopYearCount[]; fetchedAt: number; freshness?: CatalogFreshness }
+export interface TopData { year?: number; format?: string; season?: string; genre?: string; items: SummaryMediaData[]; fetchedAt: number; freshness?: CatalogFreshness }
+export interface TopParams { year?: number; format?: string; season?: SeasonName; genre?: string }
+export function fetchTopData(params: TopParams = {}, signal?: AbortSignal): Promise<TopData> {
+  const qs = new URLSearchParams()
+  if (params.year) qs.set('year', String(params.year))
+  if (params.format) qs.set('format', params.format)
+  if (params.season && params.year) qs.set('season', params.season)
+  if (params.genre) qs.set('genre', params.genre)
+  const suffix = qs.toString()
+  return apiFetch<TopData>(suffix ? `/api/top?${suffix}` : '/api/top', { signal })
+}
+export const fetchTopYears = (signal?: AbortSignal) => apiFetch<TopYearsData>('/api/top/years', { signal })
 export const fetchMediaData = (id: number, signal?: AbortSignal) => apiFetch<SummaryMediaData>(`/api/anime/${id}`, { signal })
 /** GET /api/catalog/search 的 data 载荷：后端已把关键词收拢空白（query 是实际搜的词） */
 export interface CatalogSearchData { query: string; items: SummaryMediaData[] }

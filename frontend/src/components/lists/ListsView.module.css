@@ -1,0 +1,614 @@
+/* 我的追番（/lists）：对齐网站 WatchingList + ContinueFeatureCard。
+ * 依托 HomeHueScope.module.css 提供的 --home-ground / --home-surface / --home-tone / --home-gutter。 */
+
+.page {
+  margin-top: calc(-1 * var(--app-nav-h));
+  padding-top: calc(var(--app-nav-h) + 40px);
+}
+
+.header {
+  padding-inline: var(--home-gutter);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eyebrow {
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--home-tone);
+  transition: color var(--home-tint) var(--home-ease);
+}
+
+.title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 42px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.summary {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: rgba(235, 235, 245, 0.66);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabsWrap {
+  padding-inline: var(--home-gutter);
+  margin-top: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tabsWrap :global(.tabs) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.tabsWrap :global(.tab) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: rgba(235, 235, 245, 0.68);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease-out;
+}
+
+.tabsWrap :global(.tab:hover) {
+  color: #fff;
+}
+
+.tabsWrap :global(.tab--on) {
+  color: #fff;
+  font-weight: 650;
+  background-image: linear-gradient(var(--home-tone), var(--home-tone));
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: calc(100% - 20px) 2px;
+}
+
+.tabsWrap :global(.tab-count) {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(235, 235, 245, 0.56);
+}
+
+.tabsWrap :global(.tab--on .tab-count) {
+  color: var(--home-tone);
+}
+
+.body {
+  margin-top: 28px;
+  padding-inline: var(--home-gutter);
+}
+
+.alert {
+  margin-bottom: 16px;
+}
+
+/* ── 「在看」横向特性卡片（两列，对齐 ContinueFeatureCard） ──────────────── */
+
+.featureGrid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  contain: layout style;
+}
+
+.featureCard {
+  position: relative;
+  display: flex;
+  gap: 18px;
+  min-height: 204px;
+  padding: 18px;
+  overflow: hidden;
+  border-radius: 14px;
+  background-color: var(--home-surface);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: border-color 0.2s ease, transform 0.2s var(--home-expo);
+}
+
+.featureArt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.featureArtImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 28%;
+  opacity: 0.48;
+  transform: scale(1.04);
+}
+
+.featureShade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8, 8, 10, 0.94) 0%, rgba(8, 8, 10, 0.8) 48%, rgba(8, 8, 10, 0.2) 100%);
+  pointer-events: none;
+}
+
+.featurePoster {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 112px;
+  aspect-ratio: 7 / 10;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: var(--tone-fill);
+  text-decoration: none;
+}
+
+.featurePosterImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.featureBody {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.featureKicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(235, 235, 245, 0.72);
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--tone);
+}
+
+.featureTitle {
+  margin-top: 6px;
+  font-size: 19px;
+  line-height: 26px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+.featureEp {
+  margin-top: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: rgba(235, 235, 245, 0.76);
+}
+
+.featureEpStrong {
+  font-weight: 650;
+  color: var(--tone);
+}
+
+.progressWrap {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.track {
+  flex: 1;
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background-color: var(--tone);
+  border-radius: 2px;
+  transition: width 0.35s var(--home-expo);
+}
+
+.progressText {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: rgba(235, 235, 245, 0.72);
+}
+
+.featureFoot {
+  margin-top: auto;
+  padding-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.continueBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.stepBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--tone-line);
+  background: var(--tone-fill);
+  color: var(--tone);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.stepBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.editBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(235, 235, 245, 0.8);
+  cursor: pointer;
+  margin-left: auto;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rule {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background-color: var(--tone);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+/* ── 其它标签：色调海报网格 ─────────────────────────────────────────────── */
+
+.posterGrid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 24px 18px;
+  contain: layout style;
+}
+
+.posterCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.posterMedia {
+  position: relative;
+  display: block;
+  aspect-ratio: 7 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+  background-color: var(--tone-fill);
+  text-decoration: none;
+}
+
+.posterImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.6s var(--home-expo);
+}
+
+.posterBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--tone);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.posterBar {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.posterBarFill {
+  display: block;
+  height: 100%;
+  background: var(--tone);
+}
+
+.posterFoot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.posterMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.posterTitle {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.94);
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.posterSub {
+  font-size: 12px;
+  color: rgba(235, 235, 245, 0.62);
+  font-variant-numeric: tabular-nums;
+}
+
+.posterEdit {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: rgba(235, 235, 245, 0.6);
+  cursor: pointer;
+}
+
+/* ── 空状态 / 未登录 / 骨架 ─────────────────────────────────────────────── */
+
+.panel {
+  padding: 44px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-radius: 16px;
+  background-color: var(--home-surface);
+  text-align: center;
+  transition: background-color var(--home-tint) var(--home-ease);
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 19px;
+  line-height: 28px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.panelBody {
+  margin: 0;
+  max-width: 440px;
+  font-size: 14px;
+  line-height: 22px;
+  color: rgba(235, 235, 245, 0.66);
+}
+
+.panelActions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.skeletonCard {
+  height: 204px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.featureTitle:focus-visible,
+.featurePoster:focus-visible,
+.continueBtn:focus-visible,
+.stepBtn:focus-visible,
+.editBtn:focus-visible,
+.posterMedia:focus-visible,
+.posterTitle:focus-visible,
+.posterEdit:focus-visible,
+.cta:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .featureCard:hover {
+    border-color: var(--tone-line);
+    transform: translateY(-2px);
+  }
+  .featureCard:hover .rule {
+    opacity: 1;
+  }
+  .featureTitle:hover,
+  .posterTitle:hover {
+    color: var(--tone);
+  }
+  .continueBtn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  .stepBtn:hover:not(:disabled) {
+    filter: brightness(1.12);
+  }
+  .editBtn:hover,
+  .posterEdit:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+  }
+  .posterCard:hover .posterImg {
+    transform: scale(1.04);
+  }
+  .cta:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 900px) {
+  .featureGrid,
+  .skeletonGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding-top: calc(var(--app-nav-h) + 28px);
+  }
+  .title {
+    font-size: 28px;
+    line-height: 36px;
+  }
+  .featureCard {
+    gap: 14px;
+    padding: 14px;
+    min-height: 176px;
+  }
+  .featurePoster {
+    width: 84px;
+  }
+  .featureTitle {
+    font-size: 16px;
+    line-height: 22px;
+  }
+  .posterGrid {
+    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+    gap: 16px 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eyebrow,
+  .featureCard,
+  .fill,
+  .rule,
+  .posterImg,
+  .cta,
+  .panel {
+    transition-duration: 0.01ms;
+  }
+  .featureCard:hover,
+  .posterCard:hover .posterImg,
+  .cta:hover {
+    transform: none;
+  }
+}

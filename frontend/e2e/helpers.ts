@@ -17,6 +17,7 @@ export const ROUTES = [
   '/lists',
   '/schedule',
   '/seasonal',
+  '/top',
   '/torrents',
   '/search',
   '/settings',

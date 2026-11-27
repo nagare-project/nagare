@@ -33,9 +33,12 @@ type CatalogMedia struct {
 	Status        string   `json:"status"`
 	Format        string   `json:"format"`
 	Duration      int      `json:"duration"`
-	// WatcherCount 与 Rank 只在热门榜（trending）里有：上游的追番人数与名次。
+	// WatcherCount 与 Rank 只在热门榜（trending）与排行榜（top）里有：上游的追番人数与名次。
 	WatcherCount int    `json:"watcherCount"`
 	Rank         int    `json:"rank"`
+	Popularity   int    `json:"popularity"`
+	Favourites   int    `json:"favourites"`
+	IsSequel     *bool  `json:"isSequel"`
 	Source       string `json:"source"`
 	StartDate    string `json:"startDate"`
 	TrailerID    string `json:"trailerId"`
@@ -44,6 +47,8 @@ type CatalogMedia struct {
 		ID   string `json:"id"`
 		Site string `json:"site"`
 	} `json:"trailer"`
+	// Studio 是季度 / 排行接口返回的主制作公司（单数），Studios 是详情接口返回的列表。
+	Studio          string             `json:"studio"`
 	Studios         []string           `json:"studios"`
 	Relations       []CatalogRelation  `json:"relations"`
 	Recommendations []CatalogMedia     `json:"recommendations"`
@@ -144,6 +149,51 @@ func (c *Client) Gems(ctx context.Context) ([]CatalogMedia, error) {
 }
 func (c *Client) YearlyTop(ctx context.Context, year int) ([]CatalogMedia, error) {
 	return catalogGet[[]CatalogMedia](ctx, c, fmt.Sprintf("/api/anime/yearly-top?year=%d&limit=%d", year, yearlyTopLimit))
+}
+
+// TopQuery 是排行榜（GET /api/anime/top）的可选筛选条件；全空表示全站总榜 Top 100。
+type TopQuery struct {
+	Year   int
+	Format string
+	Season string
+	Genre  string
+}
+
+// TopYearCount 是某一年在排行榜里的作品数（GET /api/anime/top/years）。
+type TopYearCount struct {
+	Year  int `json:"year"`
+	Count int `json:"count"`
+}
+
+func (c *Client) Top(ctx context.Context, q TopQuery) ([]CatalogMedia, error) {
+	params := url.Values{}
+	if q.Year > 0 {
+		if q.Year < 1950 || q.Year > 2200 {
+			return nil, &Error{Kind: ErrBadRequest, Op: "top", Err: fmt.Errorf("无效年份")}
+		}
+		params.Set("year", strconv.Itoa(q.Year))
+	}
+	if q.Format != "" {
+		params.Set("format", q.Format)
+	}
+	if q.Season != "" {
+		if q.Year <= 0 {
+			return nil, &Error{Kind: ErrBadRequest, Op: "top", Err: fmt.Errorf("指定季度必须同时指定年份")}
+		}
+		params.Set("season", q.Season)
+	}
+	if q.Genre != "" {
+		params.Set("genre", q.Genre)
+	}
+	path := "/api/anime/top"
+	if encoded := params.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return catalogGet[[]CatalogMedia](ctx, c, path)
+}
+
+func (c *Client) TopYears(ctx context.Context) ([]TopYearCount, error) {
+	return catalogGet[[]TopYearCount](ctx, c, "/api/anime/top/years")
 }
 func (c *Client) Schedule(ctx context.Context) (ScheduleData, error) {
 	return catalogGet[ScheduleData](ctx, c, "/api/anime/schedule")
