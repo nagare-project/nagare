@@ -9,7 +9,7 @@ import (
 )
 
 // iconMac 是 32×32 的模板图（纯黑 + alpha）：菜单栏按明暗主题自动着色。
-// 由 gen-icons.sh 从 frontend/index.html 的 favicon 生成。
+// 由 gen-icons.sh 按 tomoru 断臂光缝图形生成。
 //
 //go:embed icon_mac.png
 var iconMac []byte

@@ -75,7 +75,7 @@ M.type_scale = {
 	label = { size = 14, weight = 500, tracking_em = 0 }, -- UI 标签、按钮
 	caption = { size = 13, weight = 400, tracking_em = 0 }, -- 次要说明（颜色用 text-secondary）
 	micro = { size = 11, weight = 500, tracking_em = 0 }, -- 徽标、角标
-	wordmark = { size = 20, weight = 700, tracking_em = -0.01 }, -- 字标「nagare」（iOS 也用打包的 Sora，固定字号）
+	wordmark = { size = 20, weight = 700, tracking_em = -0.01 }, -- 字标「tomoru」（iOS 也用打包的 Sora，固定字号）
 	romaji = { size = 12, weight = 500, tracking_em = 0.1 }, -- 罗马音标题（大写）；iOS 用系统字体
 }
 

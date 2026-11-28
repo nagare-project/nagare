@@ -87,7 +87,7 @@ function description(element: HTMLElement): string {
 }
 
 /** 「重启后生效」的提示 */
-const restartNotice = (container: HTMLElement) => queryByRole(container, 'alert', { name: /重启 nagare 后生效/ })
+const restartNotice = (container: HTMLElement) => queryByRole(container, 'alert', { name: /重启 tomoru 后生效/ })
 
 const status = (container: HTMLElement): string =>
   container.querySelector('.result[role="status"]')?.textContent ?? ''

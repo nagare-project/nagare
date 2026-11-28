@@ -491,7 +491,7 @@ describe('LibraryPage（整页冒烟）', () => {
 
   /** 引导屏：读屏里是一个叫「欢迎使用 nagare」的区块 */
   function onboarding(container: HTMLElement): HTMLElement | null {
-    return queryByRole(container, 'region', { name: '欢迎使用 nagare' })
+    return queryByRole(container, 'region', { name: '欢迎使用 tomoru' })
   }
 
   /** 引导屏里的一项：按小标题找到它所在的那一条 */
@@ -526,7 +526,7 @@ describe('LibraryPage（整页冒烟）', () => {
     const { container, unmount } = await mount(<RouterProvider router={router} />)
     const mpv = step(container, '播放器 mpv')
     expect(isReady(mpv)).toBe(true)
-    expect(getByText(mpv, '已就绪 · 随 nagare 附带 · 0.41.0')).toBeDefined()
+    expect(getByText(mpv, '已就绪 · 随 tomoru 附带 · 0.41.0')).toBeDefined()
     expect(mpv.textContent).not.toContain('brew install mpv')
     await unmount()
   })

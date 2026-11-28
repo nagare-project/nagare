@@ -11,7 +11,7 @@
           "name": "nagare",
           "version": ""
         },
-        "description": "nagare",
+        "description": "tomoru",
         "minimum-os": "win10",
         "execution-level": "as invoker",
         "ui-access": false,
@@ -39,11 +39,11 @@
         "info": {
           "0409": {
             "CompanyName": "nagare project",
-            "FileDescription": "nagare",
+            "FileDescription": "tomoru",
             "InternalName": "nagare",
             "LegalCopyright": "AGPL-3.0",
             "OriginalFilename": "nagare.exe",
-            "ProductName": "nagare"
+            "ProductName": "tomoru"
           }
         }
       }

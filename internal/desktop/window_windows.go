@@ -17,7 +17,7 @@ const (
 	classWebHost  = "NagareDesktopWebHost"
 	classVideo    = "NagareDesktopVideoHost"
 	classDispatch = "NagareDesktopDispatch"
-	windowTitle   = "Nagare"
+	windowTitle   = "tomoru"
 
 	// 窗口的最小尺寸（逻辑像素，按屏幕缩放换算）：再小 Lua 界面的窄窗口模式也排不下
 	minWidth, minHeight = 640, 400

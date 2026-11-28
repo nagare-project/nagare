@@ -53,7 +53,7 @@ async function authenticatedFetch(path: string, init?: RequestInit): Promise<Res
   try {
     return await fetch(path, { ...init, headers })
   } catch (cause) {
-    throw new ApiError('无法连接到 nagare 后端，请确认本地服务已启动', null, { cause })
+    throw new ApiError('无法连接到 tomoru 后端，请确认本地服务已启动', null, { cause })
   }
 }
 

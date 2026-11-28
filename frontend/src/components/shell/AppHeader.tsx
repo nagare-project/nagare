@@ -38,7 +38,7 @@ export function AppHeader() {
             aria-expanded={drawerOpen} aria-controls={drawerId} onClick={() => setDrawerOpen(true)}>
             <Icon name="menu" size={20} />
           </button>
-          <Link to="/" className="app-wordmark" aria-label="nagare（发现）">nagare</Link>
+          <Link to="/" className="app-wordmark" aria-label="tomoru（发现）">tomoru</Link>
           <nav className="app-header-nav" aria-label="主导航">
             {PRIMARY_NAV.map(({ to, label }) => (
               <Link key={to} to={to} className="app-header-link" activeOptions={navActiveOptions(to)}>{label}</Link>

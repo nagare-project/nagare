@@ -169,7 +169,7 @@ static void showWeb(void) {
   gWeb.hidden = NO;
   gWin.titlebarAppearsTransparent = NO;
   gWin.titleVisibility = NSWindowTitleVisible;
-  gWin.title = @"Nagare";
+  gWin.title = @"tomoru";
   gWin.level = NSNormalWindowLevel;  // 「窗口置顶」只管播放的时候
   setTitlebarAlpha(1, NO);
   [gWin makeFirstResponder:gWeb];
@@ -520,7 +520,7 @@ static void ensureWindow(void) {
                                      styleMask:style
                                        backing:NSBackingStoreBuffered
                                          defer:NO];
-  gWin.title = @"Nagare";
+  gWin.title = @"tomoru";
   gWin.releasedWhenClosed = NO;
   gWin.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
   gWin.tabbingMode = NSWindowTabbingModeDisallowed;

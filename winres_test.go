@@ -20,11 +20,11 @@ func TestWindowsResourcesHaveManifestAndIcon(t *testing.T) {
 		assert.Contains(t, s, "permonitorv2", name)
 		assert.Contains(t, s, `level="asInvoker"`, name)
 		assert.Contains(t, s, "A\x00P\x00P\x00", name+" 里要有名为 APP 的图标资源（窗口类按这个名字取图标）")
-		// 版本资源（任务管理器、防火墙对话框显示的名字）：FileDescription 后面（隔着对齐用的 0）就是 nagare
+		// 版本资源（任务管理器、防火墙对话框显示的名字）：FileDescription 后面（隔着对齐用的 0）就是 tomoru
 		key := strings.Index(s, utf16le("FileDescription"))
 		if assert.GreaterOrEqual(t, key, 0, name+" 里没有版本资源") {
 			after := s[key+len(utf16le("FileDescription")):]
-			assert.Contains(t, strings.TrimLeft(after, "\x00")[:len(utf16le("nagare"))], utf16le("nagare"))
+			assert.Contains(t, strings.TrimLeft(after, "\x00")[:len(utf16le("tomoru"))], utf16le("tomoru"))
 		}
 	}
 }

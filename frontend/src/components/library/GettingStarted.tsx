@@ -76,15 +76,20 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
     ? `已就绪：${[pluginBT > 0 ? `内置来源插件 ${pluginBT} 个 BT 来源` : '', ruleCount > 0 ? `规则仓库 ${ruleCount} 个源` : ''].filter(Boolean).join('，')}，可以直接在作品页选集或搜索`
     : pluginView?.bundled
       ? '安装包内置了 Nagare Source（BT 来源），启用后即可搜索磁力。'
-      : 'nagare 不内置任何搜索源。安装 Nagare Source 插件，或自己填一个规则仓库地址。'
+      : 'tomoru 不内置任何搜索源。安装 Nagare Source 插件，或自己填一个规则仓库地址。'
 
   return (
     <section className="onboard" aria-labelledby="onboard-heading">
-      <p className="onboard-mark" aria-hidden="true">
-        流
-      </p>
+      <div className="onboard-mark" aria-hidden="true">
+        <svg viewBox="0 0 1024 1024" width="64" height="64" focusable="false">
+          <rect x="100" y="100" width="824" height="824" rx="186" fill="#f5f5f5" />
+          <path d="M296 764 L468 236 L556 236 L384 764 Z" fill="#000000" />
+          <path d="M574 291 L728 764 L640 764 L530 426 Z" fill="#000000" />
+          <path d="M466 628 L582 696 L466 764 Z" fill="#f05a24" />
+        </svg>
+      </div>
       <h2 id="onboard-heading" className="onboard-title">
-        欢迎使用 nagare
+        欢迎使用 tomoru
       </h2>
       <p className="onboard-lede">
         本地文件和磁力链接，都交给你自己电脑上的 mpv 播放。<strong>两条路互相独立</strong>：不添加本地文件夹，也可以直接用磁力搜索。
@@ -97,10 +102,10 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
           tag="必需"
           desc={
             mpv?.embedded === true
-              ? '已就绪 · 内置在 nagare 的窗口里，不需要另装'
+              ? '已就绪 · 内置在 tomoru 的窗口里，不需要另装'
               : mpv?.found === true
-                ? `已就绪${mpv.source === 'bundled' ? ' · 随 nagare 附带' : ''}${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
-                : 'nagare 自己不解码，播放全部交给 mpv。没有它两条路都播不了。'
+                ? `已就绪${mpv.source === 'bundled' ? ' · 随 tomoru 附带' : ''}${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
+                : 'tomoru 自己不解码，播放全部交给 mpv。没有它两条路都播不了。'
           }
         >
           {mpv !== null && !mpv.found && <MpvSetup hint={mpv.hint} install={mpv.install} onReload={onReloadSettings} />}
@@ -110,7 +115,7 @@ export function GettingStarted({ settings, onAdd, onReloadSettings, onSkipFolder
           state="todo"
           name="本地文件夹"
           tag="可选"
-          desc="选一个存放动漫的文件夹（外接硬盘也可以），nagare 会扫描并按作品整理。之后可以再加。"
+          desc="选一个存放动漫的文件夹（外接硬盘也可以），tomoru 会扫描并按作品整理。之后可以再加。"
         >
           <div className="onboard-form">
             <AddFolderForm onAdd={onAdd} autoFocus platform={platform} primarySubmit={mpv?.found !== false} />
@@ -232,7 +237,7 @@ function MpvSetup({ hint, install, onReload }: { hint?: string; install?: MpvIns
         </button>
       </div>
       <p className={message === null ? 'result result--dim' : 'result result--err'} role="status" aria-live="polite">
-        {message ?? '装好后切回这个页面会自动检测，不用重启 nagare。'}
+        {message ?? '装好后切回这个页面会自动检测，不用重启 tomoru。'}
       </p>
     </div>
   )

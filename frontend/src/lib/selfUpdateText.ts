@@ -31,7 +31,7 @@ export function selfUpdateStatus(
     case 'idle':
       return null
     case 'applying':
-      return { tone: 'dim', text: '正在下载并校验更新包，请不要关闭 nagare …', elapsed }
+      return { tone: 'dim', text: '正在下载并校验更新包，请不要关闭 tomoru …', elapsed }
     case 'restarting':
       return {
         tone: 'dim',
@@ -48,7 +48,7 @@ export function selfUpdateStatus(
     case 'timeout':
       return {
         tone: 'warn',
-        text: `${formatVersion(state.version)} 已经装好了，但没等到服务重新启动。请手动重新打开 nagare。`,
+        text: `${formatVersion(state.version)} 已经装好了，但没等到服务重新启动。请手动重新打开 tomoru。`,
         elapsed: '',
       }
     case 'error':
@@ -72,6 +72,6 @@ export const CHANNEL_LABEL: Record<SelfUpdateChannel, string> = {
 export const UNSUPPORTED_REASON: Record<SelfUpdateChannel, string> = {
   'app-bundle': '这个安装暂时不能一键更新，请到下载页取新版本。',
   direct: '这个安装暂时不能一键更新，请到下载页取新版本。',
-  package: 'nagare 是用系统包管理器装的，更新交给包管理器：Linux 用 apt / dnf 升级，macOS 用 brew upgrade。',
-  unknown: '认不出 nagare 是怎么安装的，不能一键更新。请到下载页取新版本，或用当初的安装方式升级。',
+  package: 'tomoru 是用系统包管理器装的，更新交给包管理器：Linux 用 apt / dnf 升级，macOS 用 brew upgrade。',
+  unknown: '认不出 tomoru 是怎么安装的，不能一键更新。请到下载页取新版本，或用当初的安装方式升级。',
 }

@@ -206,7 +206,7 @@ func browseError(path string, err error) error {
 	case errors.Is(err, fs.ErrPermission):
 		// macOS 的「下载」「桌面」与外接硬盘受隐私权限保护，第一次访问会弹授权框；点了拒绝就到这里
 		return errs.Wrap(errs.CategoryFS, "fs.browse", "没有权限读取这个文件夹："+path,
-			"如果是 macOS 的隐私权限拦下的，在「系统设置 › 隐私与安全性」里允许 nagare 访问它", err)
+			"如果是 macOS 的隐私权限拦下的，在「系统设置 › 隐私与安全性」里允许 tomoru 访问它", err)
 	default:
 		return errs.Wrap(errs.CategoryFS, "fs.browse", "读取文件夹失败："+path, "", err)
 	}

@@ -53,7 +53,7 @@ describe('目录作品页', () => {
     const { container, unmount } = await mount(<EntryPage />)
     expect(getByRole(container, 'heading', { level: 1 }).textContent).toBe('作品 169580')
     expect(getByText(container, 'Sakuhin 169580').getAttribute('lang')).toBe('ja-Latn')
-    expect(document.title).toBe('作品 169580 · nagare')
+    expect(document.title).toBe('作品 169580 · tomoru')
     const primary = getByRole(container, 'button', { name: '继续看第 3 集' })
     expect(primary.className).toContain('hero-btn--solid')
     await act(async () => primary.click())
@@ -98,7 +98,7 @@ describe('目录作品页', () => {
     await rerender(<EntryPage />)
     expect(tabs(container)[0]?.getAttribute('aria-selected')).toBe('true')
     expect(queryByRole(container, 'textbox', { name: '在线搜索词', hidden: true })).toBeNull()
-    expect(document.title).toBe('作品 2 · nagare')
+    expect(document.title).toBe('作品 2 · tomoru')
     await unmount()
   })
 

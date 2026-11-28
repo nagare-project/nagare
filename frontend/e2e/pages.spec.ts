@@ -186,7 +186,7 @@ test.describe('宽屏（1440px）', () => {
     await stubJson(page, 'GET', '/api/fs/dirs', { path: '', parent: '', dirs: [{ name: '主目录', path: '/Users/you' }, { name: '影片', path: '/Users/you/Movies' }], truncated: false })
     const problems = watchProblems(page)
     await openApp(page, '/library')
-    const onboard = page.getByRole('region', { name: '欢迎使用 nagare' })
+    const onboard = page.getByRole('region', { name: '欢迎使用 tomoru' })
     await expect(onboard.getByRole('heading', { level: 3 })).toHaveText(['播放器 mpv', '本地文件夹', '磁力搜索', '账号'])
     expect(await blockingViolations(page), '新手引导').toEqual([])
 

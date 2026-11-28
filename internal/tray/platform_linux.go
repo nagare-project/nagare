@@ -45,7 +45,7 @@ func showNotice(n Notice) error {
 	}
 	obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
 	call := obj.Call("org.freedesktop.Notifications.Notify", 0,
-		"nagare",                  // app_name
+		"tomoru",                  // app_name
 		uint32(0),                 // replaces_id
 		"",                        // app_icon（不指定：图标资源没有装进系统主题目录）
 		n.Title,                   // summary

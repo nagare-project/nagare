@@ -95,7 +95,7 @@ export function AccountPanel({ account, onReload }: AccountPanelProps) {
           它不会出现在任何错误提示里 —— 用户只会发现自己在网站上莫名被登出。不写出来就等于藏着。 */}
       <p className="callout" role="note">
         <Icon name="alert" size={16} />
-        <span>同一个账号在 nagare 与网站上<strong>不能同时保持登录</strong>：服务端的刷新凭证按账号存一份，后登录的一方会在十几分钟内把先登录的挤下线。弹幕与进度回写不受影响，受影响的只是「另一边要重新登录一次」。</span>
+        <span>同一个账号在 tomoru 与网站上<strong>不能同时保持登录</strong>：服务端的刷新凭证按账号存一份，后登录的一方会在十几分钟内把先登录的挤下线。弹幕与进度回写不受影响，受影响的只是「另一边要重新登录一次」。</span>
       </p>
 
       {account.loggedIn ? (

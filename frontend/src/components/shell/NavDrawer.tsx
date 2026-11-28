@@ -97,7 +97,7 @@ export function NavDrawer({ id, open, onClose, menuButton }: NavDrawerProps) {
       }}
     >
       <div className="nav-drawer-head">
-        <Link to="/" className="app-wordmark" aria-label="nagare（发现）" onClick={() => dialog.current?.close()}>nagare</Link>
+        <Link to="/" className="app-wordmark" aria-label="tomoru（发现）" onClick={() => dialog.current?.close()}>tomoru</Link>
         <button type="button" className="app-header-icon" aria-label="关闭导航" onClick={() => dialog.current?.close()}>
           <Icon name="close" size={20} />
         </button>

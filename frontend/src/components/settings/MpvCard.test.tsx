@@ -58,12 +58,12 @@ afterEach(async () => {
 })
 
 describe('MpvCard · 桌面窗口内置', () => {
-  it('显示已就绪与「内置在 nagare 的窗口里」，没有安装指引，也没有「重新检测」', async () => {
+  it('显示已就绪与「内置在 tomoru 的窗口里」，没有安装指引，也没有「重新检测」', async () => {
     const m = await mount(<MpvCard mpv={EMBEDDED} onReload={vi.fn()} />)
     mounted.push(m.unmount)
     const { container } = m
     expect(container.querySelector('.kv-list dd')?.textContent).toBe('已就绪 ✓')
-    expect(container.textContent).toContain('内置在 nagare 的窗口里')
+    expect(container.textContent).toContain('内置在 tomoru 的窗口里')
     expect(container.querySelector('.alert-warn')).toBeNull()
     expect(container.querySelector('.mpv-command-text')).toBeNull()
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '重新检测')).toBe(false)
@@ -73,7 +73,7 @@ describe('MpvCard · 桌面窗口内置', () => {
   it('有内置的命令行 mpv 时说明缩略图可用，以及用的是哪个', async () => {
     const m = await mount(<MpvCard mpv={EMBEDDED_WITH_CLI} onReload={vi.fn()} />)
     mounted.push(m.unmount)
-    expect(m.container.textContent).toContain('可用 · mpv 0.41.0 · 内置（随 nagare 附带）')
+    expect(m.container.textContent).toContain('可用 · mpv 0.41.0 · 内置（随 tomoru 附带）')
   })
 })
 
@@ -215,10 +215,10 @@ describe('MpvCard · 已找到', () => {
 })
 
 describe('MpvCard · 播放窗口', () => {
-  it('在 nagare 自己的窗口里播：显示一行，不报警', async () => {
+  it('在 tomoru 自己的窗口里播：显示一行，不报警', async () => {
     const m = await mount(<MpvCard mpv={FOUND} desktop={{ window: true }} onReload={vi.fn()} />)
     mounted.push(m.unmount)
-    expect(m.container.textContent).toContain('nagare 自己的窗口')
+    expect(m.container.textContent).toContain('tomoru 自己的窗口')
     expect(m.container.querySelector('[role="note"]')).toBeNull()
   })
 

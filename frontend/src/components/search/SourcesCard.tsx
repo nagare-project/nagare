@@ -25,7 +25,7 @@ export function SourcesCard({ sources, headingLevel = 3 }: SourcesCardProps) {
       <Title id="sources-heading" className="info-panel-title">
         磁力源规则
       </Title>
-      <p className="info-panel-text">nagare 不内置任何磁力源。规则由你自己提供：一个规则仓库的 HTTPS 地址，或本机目录；搜索在你自己的电脑上执行。</p>
+      <p className="info-panel-text">tomoru 不内置任何磁力源。规则由你自己提供：一个规则仓库的 HTTPS 地址，或本机目录；搜索在你自己的电脑上执行。</p>
 
       {state.phase === 'loading' && (
         <p className="result result--dim" role="status">

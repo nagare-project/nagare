@@ -51,7 +51,7 @@ export function TopPage() {
 
   useEffect(() => {
     const prev = document.title
-    document.title = `${heading} · nagare`
+    document.title = `${heading} · tomoru`
     return () => { document.title = prev }
   }, [heading])
 

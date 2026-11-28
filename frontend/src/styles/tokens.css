@@ -101,7 +101,7 @@
   --type-micro-size: 11px; /* 徽标、角标 */
   --type-micro-weight: 500;
   --type-micro-tracking: 0;
-  --type-wordmark-size: 20px; /* 字标「nagare」（iOS 也用打包的 Sora，固定字号） */
+  --type-wordmark-size: 20px; /* 字标「tomoru」（iOS 也用打包的 Sora，固定字号） */
   --type-wordmark-weight: 700;
   --type-wordmark-tracking: -0.01em;
   --type-wordmark-family: var(--font-latin);

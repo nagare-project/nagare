@@ -26,7 +26,7 @@ func Run(ctx context.Context, opts Options) {
 		return
 	}
 	onReady := func() {
-		systray.SetTooltip("nagare v" + opts.Version + " · " + opts.Address)
+		systray.SetTooltip("tomoru v" + opts.Version + " · " + opts.Address)
 		applyIcon()
 		if leftClickOpens(opts) {
 			// Windows 的桌面窗口：左键点托盘图标打开窗口（同多数 Windows 应用），菜单在右键
@@ -72,20 +72,20 @@ type menuChans struct {
 //	──────────
 //	退出 nagare
 func buildMenu(opts Options) menuChans {
-	systray.AddMenuItem("nagare v"+opts.Version, "当前版本").Disable()
+	systray.AddMenuItem("tomoru v"+opts.Version, "当前版本").Disable()
 	systray.AddMenuItem(opts.Address, "界面地址（不含 token）").Disable()
 	systray.AddSeparator()
 	var m menuChans
 	title, tip := openItem(opts.Desktop)
 	m.open = systray.AddMenuItem(title, tip).ClickedCh
 	if opts.OnOpenBrowser != nil {
-		m.openBrowser = systray.AddMenuItem("在浏览器中打开", "在默认浏览器里打开 nagare 的界面").ClickedCh
+		m.openBrowser = systray.AddMenuItem("在浏览器中打开", "在默认浏览器里打开 tomoru 的界面").ClickedCh
 	}
 	m.copyAddr = systray.AddMenuItem("复制登录链接", "把带登录凭证的界面链接复制到剪贴板，贴到任何浏览器都能打开").ClickedCh
 	systray.AddSeparator()
-	m.about = systray.AddMenuItem("关于 nagare", "版本、数据目录、日志位置").ClickedCh
+	m.about = systray.AddMenuItem("关于 tomoru", "版本、数据目录、日志位置").ClickedCh
 	systray.AddSeparator()
-	m.quit = systray.AddMenuItem("退出 nagare", "停止播放、回写进度并退出").ClickedCh
+	m.quit = systray.AddMenuItem("退出 tomoru", "停止播放、回写进度并退出").ClickedCh
 	return m
 }
 
@@ -97,9 +97,9 @@ func leftClickOpens(opts Options) bool {
 // openItem 是菜单里「打开」那一项的文字与悬停提示：桌面模式开的是窗口，否则开浏览器。
 func openItem(desktop bool) (title, tooltip string) {
 	if desktop {
-		return "打开 nagare", "打开 nagare 的窗口"
+		return "打开 tomoru", "打开 tomoru 的窗口"
 	}
-	return "打开界面", "在浏览器中打开 nagare"
+	return "打开界面", "在浏览器中打开 tomoru"
 }
 
 // dispatch 分发菜单事件。三条退出路径：

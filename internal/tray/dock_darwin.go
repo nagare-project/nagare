@@ -17,7 +17,7 @@ import (
 )
 
 // appDisplayName 是应用菜单 / 「退出 …」里显示的名字，与 Info.plist 的 CFBundleName 一致。
-const appDisplayName = "Nagare"
+const appDisplayName = "tomoru"
 
 // dockOpts 是 Dock 层回调要用的输入；只在 platformReady 里写，之后由主线程回调读。
 var dockOpts Options

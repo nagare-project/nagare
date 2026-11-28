@@ -15,10 +15,10 @@ const COPY_FEEDBACK_MS = 2000
 /** mpv 来源的中文（后端 source 字段） */
 const SOURCE_LABEL: Record<MpvSource, string> = {
   explicit: '显式路径（配置指定）',
-  bundled: '内置（随 nagare 附带）',
+  bundled: '内置（随 tomoru 附带）',
   path: 'PATH 环境变量',
   known: '常见安装位置',
-  embedded: '内置在 nagare 的窗口里',
+  embedded: '内置在 tomoru 的窗口里',
 }
 
 type CopyState = 'idle' | 'copied' | 'failed'
@@ -124,7 +124,7 @@ export function MpvCard({ mpv, desktop, onReload }: MpvCardProps) {
           </button>
           {!mpv.found && (
             <span className="info-panel-note">
-              安装完成后点「重新检测」即可，无需重启 nagare
+              安装完成后点「重新检测」即可，无需重启 tomoru
             </span>
           )}
         </div>
@@ -152,7 +152,7 @@ function DesktopRow({ desktop }: { desktop?: DesktopInfo }) {
     return (
       <dl className="kv-list">
         <dt>播放窗口</dt>
-        <dd>nagare 自己的窗口</dd>
+        <dd>tomoru 自己的窗口</dd>
       </dl>
     )
   }

@@ -14,7 +14,7 @@ export const PORT_HINT = '监听端口必须是 0–65535 的整数（0 表示�
 
 /** 引擎起不来时的提示：降级运行可以，但不能只是按钮点了没反应 */
 export const ENGINE_DOWN_HINT =
-  '磁力引擎启动失败，边下边播不可用。请查看日志（「关于 nagare」里有日志路径），确认缓存目录可写、监听端口没被占用。'
+  '磁力引擎启动失败，边下边播不可用。请查看日志（「关于 tomoru」里有日志路径），确认缓存目录可写、监听端口没被占用。'
 
 type Action = 'save' | 'clear'
 
@@ -150,7 +150,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           </label>
           <input id="torrent-listen-port" className="input torrent-port" type="text" inputMode="numeric" value={listenPort} onChange={(event) => setListenPort(event.target.value)} spellCheck={false} autoComplete="off" disabled={engineDown} readOnly={busy} aria-describedby="torrent-port-note" />
           <p id="torrent-port-note" className="field-note">
-            0–65535；填 0 由系统随机分配。改动后需要重启 nagare 才生效。
+            0–65535；填 0 由系统随机分配。改动后需要重启 tomoru 才生效。
           </p>
         </div>
 
@@ -202,7 +202,7 @@ export function TorrentCard({ torrent, onReload }: TorrentCardProps) {
           <p className="callout" role="alert">
             <Icon name="alert" size={16} />
             <span>
-              端口 / 映射的改动已保存，<b>重启 nagare 后生效</b>。
+              端口 / 映射的改动已保存，<b>重启 tomoru 后生效</b>。
             </span>
           </p>
         )}

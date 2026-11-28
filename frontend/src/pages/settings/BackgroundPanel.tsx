@@ -7,7 +7,7 @@ const MODE_LABEL: Record<BackgroundMode, string> = {
   dock: 'Dock 图标与菜单栏图标',
   menubar: '菜单栏图标',
   tray: '系统托盘图标',
-  window: 'nagare 自己的窗口',
+  window: 'tomoru 自己的窗口',
   none: '没有图标（命令行或无托盘模式）',
 }
 

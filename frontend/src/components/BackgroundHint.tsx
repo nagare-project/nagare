@@ -68,43 +68,43 @@ export function hintText(mode: BackgroundMode, platform: Platform | null, inWind
   if (mode === 'window') {
     return inWindow ? windowHintText(platform) : windowTabHintText(platform)
   }
-  const lead = '关闭这个标签页不会停止 nagare，它在后台继续运行。'
+  const lead = '关闭这个标签页不会停止 tomoru，它在后台继续运行。'
   switch (mode) {
     case 'dock':
       return `${lead}点 Dock 图标可以重新打开界面，⌘Q 或菜单栏图标可以退出（会先回写观看进度）。`
     case 'menubar':
-      return `${lead}从菜单栏右上角的「流」图标可以重新打开界面或退出。`
+      return `${lead}从菜单栏右上角图标可以重新打开界面或退出。`
     case 'tray':
       if (platform === 'linux') {
-        return `${lead}从系统托盘图标可以重新打开界面或退出；桌面不显示托盘时，用设置页里的「退出 nagare」。`
+        return `${lead}从系统托盘图标可以重新打开界面或退出；桌面不显示托盘时，用设置页里的「退出 tomoru」。`
       }
       return `${lead}从系统托盘图标（可能折叠在任务栏的「^」里）可以重新打开界面或退出。`
     default:
-      return `${lead}退出请用设置页里的「退出 nagare」，或在启动它的终端按 Ctrl+C。`
+      return `${lead}退出请用设置页里的「退出 tomoru」，或在启动它的终端按 Ctrl+C。`
   }
 }
 
 /**
  * 桌面窗口里：关窗口只是把它藏起来，后台的下载照旧。不说「做种」—— 关窗口会停播，边下边播的种子随之停下
- * （决议 M3-2：停播即停），下完的下载也不做种。macOS 从 Dock / 菜单栏「流」回来，⌘Q 退出。
+ * （决议 M3-2：停播即停），下完的下载也不做种。macOS 从 Dock / 菜单栏图标回来，⌘Q 退出。
  */
 function windowHintText(platform: Platform | null): string {
   if (platform === 'windows') {
-    return '关闭窗口不会退出 nagare，正在进行的下载会继续。从系统托盘图标（可能折叠在任务栏的「^」里）可以重新打开窗口或退出。'
+    return '关闭窗口不会退出 tomoru，正在进行的下载会继续。从系统托盘图标（可能折叠在任务栏的「^」里）可以重新打开窗口或退出。'
   }
-  return '关闭窗口不会退出 nagare，正在进行的下载会继续。点 Dock 图标或菜单栏的「流」可以重新打开，按 ⌘Q 退出。'
+  return '关闭窗口不会退出 tomoru，正在进行的下载会继续。点 Dock 图标或菜单栏图标可以重新打开，按 ⌘Q 退出。'
 }
 
 /**
- * 有桌面窗口、这一页却开在外部浏览器里（托盘「在浏览器中打开」）：关的是标签页，回去找的是 nagare 的窗口。
+ * 有桌面窗口、这一页却开在外部浏览器里（托盘「在浏览器中打开」）：关的是标签页，回去找的是 tomoru 的窗口。
  * 不提 ⌘Q —— 在浏览器里按，退出的是浏览器。
  */
 function windowTabHintText(platform: Platform | null): string {
-  const lead = '关闭这个标签页不会停止 nagare，它在后台继续运行。'
+  const lead = '关闭这个标签页不会停止 tomoru，它在后台继续运行。'
   if (platform === 'windows') {
-    return `${lead}从系统托盘图标（可能折叠在任务栏的「^」里）可以回到 nagare 的窗口或退出。`
+    return `${lead}从系统托盘图标（可能折叠在任务栏的「^」里）可以回到 tomoru 的窗口或退出。`
   }
-  return `${lead}点 Dock 图标或菜单栏的「流」可以回到 nagare 的窗口，退出也在「流」的菜单里。`
+  return `${lead}点 Dock 图标或菜单栏图标可以回到 tomoru 的窗口，退出也在菜单栏菜单里。`
 }
 
 /** localStorage 在隐私模式 / 禁用站点数据时会抛，读写都包起来，失败当作没记 */

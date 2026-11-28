@@ -28,7 +28,7 @@
 
 - **方向**：影院暗黑。进影院看片的沉浸感 —— 深、克制、准。
 - **装饰**：最少。排版和底色层次做全部的事；没有装饰性阴影、渐变、霓虹。
-- **识别**：只靠两样 —— 字标「nagare」（`wordmark` 样式：Sora 20px / 700 / -0.01em）和「流」字图标（白字黑底，App 图标、托盘、Dock 统一用它）。主色就是 `#0a84ff`，nagare 不另设品牌色。
+- **识别**：只靠两样 —— 字标「tomoru」（`wordmark` 样式：Sora 20px / 700 / -0.01em）和断臂光缝 A-Play 图标（白底 `#f5f5f5`、黑字 `#000000`、信号橙播放键 `#f05a24`，App 图标、托盘、Dock 统一用它）。主色就是 `#0a84ff`，不另设品牌色。
 
 ## 排版
 
@@ -70,7 +70,7 @@
 | `label` | 14px | 500 | 0 | 主字体 | `.subheadline` | UI 标签、按钮 |
 | `caption` | 13px | 400 | 0 | 主字体 | `.footnote` | 次要说明（颜色用 text-secondary） |
 | `micro` | 11px | 500 | 0 | 主字体 | `.caption2` | 徽标、角标 |
-| `wordmark` | 20px | 700 | -0.01em | `--font-latin` | Sora（固定字号） | 字标「nagare」（iOS 也用打包的 Sora，固定字号） |
+| `wordmark` | 20px | 700 | -0.01em | `--font-latin` | Sora（固定字号） | 字标「tomoru」（iOS 也用打包的 Sora，固定字号） |
 | `romaji` | 12px | 500 | 0.1em | `--font-latin` | `.caption` | 罗马音标题（大写）；iOS 用系统字体 |
 
 <!-- gentokens:end type -->

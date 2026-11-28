@@ -26,10 +26,10 @@ func (u *Updater) install(inst install, unpacked string) error {
 	case ChannelDirect:
 		return installDirect(inst, unpacked, u.env.goos)
 	case ChannelPackage:
-		return errs.New(errs.CategoryInput, op, "nagare 由系统包管理器安装，不能自动更新",
+		return errs.New(errs.CategoryInput, op, "tomoru 由系统包管理器安装，不能自动更新",
 			"请用 apt / dnf / brew 等原渠道升级")
 	default:
-		return errs.New(errs.CategoryInput, op, "无法确定 nagare 的安装方式，已中止更新",
+		return errs.New(errs.CategoryInput, op, "无法确定 tomoru 的安装方式，已中止更新",
 			"请到项目发布页手动下载新版本覆盖安装")
 	}
 }

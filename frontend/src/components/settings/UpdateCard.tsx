@@ -247,7 +247,7 @@ function SelfUpdateSection({
         <code className="self-update-target" style={mono}>
           {target}
         </code>
-        ，然后自动重启并刷新页面。下载可能要几分钟，其间请不要关闭 nagare。
+        ，然后自动重启并刷新页面。下载可能要几分钟，其间请不要关闭 tomoru。
       </p>
 
       <StatusLine status={status} />

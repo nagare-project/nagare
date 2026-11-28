@@ -55,7 +55,7 @@ describe('SyncAlert', () => {
     )
     const text = getByRole(container, 'status').textContent ?? ''
     expect(text).toContain('共有 3 集等着补记')
-    expect(text).toContain('登录后或下次启动 nagare 时会自动补上')
+    expect(text).toContain('登录后或下次启动 tomoru 时会自动补上')
     // 恢复动作不再说「重看这一集才会再试」
     expect(text).not.toContain('重看')
     await unmount()

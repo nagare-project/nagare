@@ -45,7 +45,7 @@ func backgroundNotice(configDir string, mode tray.Mode) *tray.Notice {
 	if err := os.WriteFile(marker, []byte("nagare 首次启动提示已弹出\n"), 0o600); err != nil {
 		log.Printf("写首次启动标记失败（下次启动会再提示一次）：%v", err)
 	}
-	return &tray.Notice{Title: "nagare 在后台运行中", Body: noticeBody(mode, runtime.GOOS)}
+	return &tray.Notice{Title: "tomoru 在后台运行中", Body: noticeBody(mode, runtime.GOOS)}
 }
 
 // noticeBody 按形态告诉用户「去哪里找它、怎么退出」。goos 只在桌面窗口时用到（Dock 与托盘的措辞不同）。
@@ -56,11 +56,11 @@ func noticeBody(mode tray.Mode, goos string) string {
 		if goos == "windows" {
 			return "关闭窗口不会退出，正在进行的下载会继续。从系统托盘图标（可能折叠在 ^ 里）可重新打开窗口或退出。"
 		}
-		return "关闭窗口不会退出，正在进行的下载会继续。点 Dock 图标或菜单栏的「流」可重新打开，⌘Q 退出。"
+		return "关闭窗口不会退出，正在进行的下载会继续。点 Dock 图标或菜单栏图标可重新打开，⌘Q 退出。"
 	case tray.ModeDock:
 		return "关闭浏览器不会退出。点 Dock 图标可重新打开界面，⌘Q 或菜单栏图标可退出。"
 	case tray.ModeMenuBar:
-		return "关闭浏览器不会退出。从菜单栏右上角的「流」图标可重新打开界面或退出。"
+		return "关闭浏览器不会退出。从菜单栏右上角图标可重新打开界面或退出。"
 	case tray.ModeTray:
 		return "关闭浏览器不会退出。从系统托盘图标（可能折叠在 ^ 里）可重新打开界面或退出。"
 	default:

@@ -1,21 +1,29 @@
 #!/usr/bin/env bash
 # 生成托盘图标（可重复执行，仅需在 macOS 上跑一次并把产物提交进仓库）。
 #
-# 来源：frontend/index.html 里的内联 SVG favicon（「流」字，LIVE Cyan #5ac8fa）。
-# 流程：SVG → qlmanage 渲染成 PNG → python3 + PIL 派生两份产物：
-#   icon_mac.png  32×32，macOS 菜单栏模板图（纯黑 + alpha，系统按明暗主题自动着色）
-#   icon_win.ico  Windows 托盘图标（含 16/32/48 三档，保留原色）
+# 来源：
+#   - icon_mac.png   32×32，macOS 菜单栏模板图（纯黑 + alpha，由无底色的 tomoru 断臂光缝图形渲染）
+#   - icon_win.ico   Windows 托盘图标（含 16/32/48 三档，直接从 packaging/icon/nagare-256.png 缩放，保留白底以免在深色任务栏隐形）
+#   - icon_linux.png Linux 托盘图标（64×64 PNG，直接从 packaging/icon/nagare-256.png 缩放）
 #
 # 依赖：macOS 自带 qlmanage；python3 + Pillow（PIL）。
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "$here/../.." && pwd)"
+app_png="$root/packaging/icon/nagare-256.png"
+[[ -f "$app_png" ]] || { echo "缺少 $app_png，请先运行 scripts/icon/build-icons.sh" >&2; exit 1; }
+
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# 与 frontend/index.html 的 favicon 完全一致（仅做了 URL 解码）。
+# macOS 模板图专用：透明底纯黑轮廓（tomoru DIN 窄高断臂光缝）。
 cat > "$work/nagare.svg" <<'SVG'
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.86em' font-size='84' fill='#5ac8fa'>流</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <path d="M296 764 L468 236 L556 236 L384 764 Z" fill="#000000"/>
+  <path d="M574 291 L728 764 L640 764 L530 426 Z" fill="#000000"/>
+  <path d="M466 628 L582 696 L466 764 Z" fill="#000000"/>
+</svg>
 SVG
 
 # 渲染成 256px 的位图；qlmanage 的产物名固定为 <输入名>.png。
@@ -23,14 +31,14 @@ qlmanage -t -s 256 -o "$work" "$work/nagare.svg" >/dev/null 2>&1
 src="$work/nagare.svg.png"
 [[ -f "$src" ]] || { echo "qlmanage 未生成 $src" >&2; exit 1; }
 
-python3 - "$src" "$here" <<'PY'
+python3 - "$src" "$app_png" "$here" <<'PY'
 import sys
 from PIL import Image
 
-src, out = sys.argv[1], sys.argv[2]
+src, app_png, out = sys.argv[1], sys.argv[2], sys.argv[3]
 img = Image.open(src).convert("RGBA")
 
-# qlmanage 有时会铺白底：把接近纯白的像素判为透明，只保留字形。
+# qlmanage 缩略图会垫白底：仅用于 macOS 纯黑模板图，把接近纯白的像素判为透明。
 px = img.load()
 w, h = img.size
 for y in range(h):
@@ -39,7 +47,6 @@ for y in range(h):
         if r > 240 and g > 240 and b > 240:
             px[x, y] = (r, g, b, 0)
 
-# 裁到字形的包围盒再等比缩放，避免图标在托盘里显得偏小。
 bbox = img.getbbox()
 if bbox is None:
     sys.exit("渲染结果为空：没有任何不透明像素")
@@ -63,8 +70,9 @@ template = Image.new("RGBA", mac.size, (0, 0, 0, 255))
 template.putalpha(alpha)
 template.save(f"{out}/icon_mac.png", optimize=True)
 
-# Windows ICO：保留原色，内含 16/32/48 三档。
-win = fit(glyph, 48)
-win.save(f"{out}/icon_win.ico", sizes=[(16, 16), (32, 32), (48, 48)])
-print("已生成 icon_mac.png 与 icon_win.ico")
+# Windows / Linux 彩色托盘图：直接由带浅色圆角底的应用图标缩放，明暗任务栏下都清晰可见。
+app = Image.open(app_png).convert("RGBA")
+app.resize((48, 48), Image.LANCZOS).save(f"{out}/icon_win.ico", sizes=[(16, 16), (32, 32), (48, 48)])
+app.resize((64, 64), Image.LANCZOS).save(f"{out}/icon_linux.png", optimize=True)
+print("已生成 icon_mac.png、icon_win.ico 与 icon_linux.png")
 PY
