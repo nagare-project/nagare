@@ -48,7 +48,7 @@ test.describe('宽屏顶栏（1440px）', () => {
     const header = page.getByRole('banner')
     await page.mouse.wheel(0, 400)
     await expect(header).toHaveAttribute('data-hidden', '')
-    await page.getByRole('link', { name: 'nagare（发现）' }).focus()
+    await page.getByRole('link', { name: 'tomoru（发现）' }).focus()
     await page.keyboard.press('Shift+Tab')
     await page.keyboard.press('Tab')
     await expect(header).not.toHaveAttribute('data-hidden')

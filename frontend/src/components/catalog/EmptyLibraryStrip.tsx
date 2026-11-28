@@ -66,7 +66,7 @@ export function EmptyLibraryStrip() {
   return (
     <div className="library-strip">
       <p className="library-strip-text">
-        nagare 播放你自己的番剧文件<span aria-hidden="true"> · </span><RouteLink to="/library" className="library-strip-link">去添加</RouteLink>
+        tomoru 播放你自己的番剧文件<span aria-hidden="true"> · </span><RouteLink to="/library" className="library-strip-link">去添加</RouteLink>
       </p>
       <button type="button" className="icon-button library-strip-close" aria-label="关闭这条说明" onClick={dismiss}>
         <Icon name="close" size={16} />

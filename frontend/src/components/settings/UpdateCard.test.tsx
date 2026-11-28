@@ -229,7 +229,7 @@ describe('UpdateCard · 一键更新', () => {
     )
     mounted.push(m.unmount)
     expect(m.container.querySelector('.self-update-unsupported')?.textContent).toContain(
-      '认不出 nagare 是怎么安装的',
+      '认不出 tomoru 是怎么安装的',
     )
   })
 
@@ -304,7 +304,7 @@ describe('UpdateCard · 一键更新', () => {
 
     const settled = m.container.querySelector('.self-update-settled')
     expect(settled?.textContent).toBe(
-      'v0.2.0 已经装好了，但没等到服务重新启动。请手动重新打开 nagare。',
+      'v0.2.0 已经装好了，但没等到服务重新启动。请手动重新打开 tomoru。',
     )
     // 终态且要用户动手 → 警示框，不是普通结果行，也不是「失败」红字
     expect(settled?.className).toContain('alert-warn')

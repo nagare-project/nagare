@@ -252,7 +252,7 @@ function MpvChip({ state }: { state: SettingsState }) {
     mpv === null
       ? '状态未知'
       : mpv.embedded === true
-        ? '已就绪 · 内置在 nagare 的窗口里'
+        ? '已就绪 · 内置在 tomoru 的窗口里'
         : mpv.found
           ? `已就绪${mpv.version !== undefined ? ` · ${mpv.version}` : ''}`
           : '未找到'
@@ -301,7 +301,7 @@ function EmptyLibrary({ onAdd, onShowGuide, platform }: { onAdd: LibraryBodyProp
         本地媒体库还是空的
       </h2>
       <p className="page-notice-copy">
-        磁力看番不需要本地文件夹。想把硬盘里的番也交给 nagare 整理，随时可以在这里添加。
+        磁力看番不需要本地文件夹。想把硬盘里的番也交给 tomoru 整理，随时可以在这里添加。
       </p>
       <div className="library-empty-form">
         <AddFolderForm onAdd={onAdd} platform={platform} />

@@ -218,7 +218,7 @@ export function SeasonalPage() {
   const heading = `${year} 年${SEASON_LABEL[season]}季新番`
   useEffect(() => {
     const prev = document.title
-    document.title = `${heading} · nagare`
+    document.title = `${heading} · tomoru`
     return () => { document.title = prev }
   }, [heading])
 

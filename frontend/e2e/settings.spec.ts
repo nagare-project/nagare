@@ -18,7 +18,7 @@ const SECTIONS = [
   { name: '来源', hash: 'sources' },
   { name: '更新', hash: 'update' },
   { name: '后台与退出', hash: 'background' },
-  { name: '关于 nagare', hash: 'about' },
+  { name: '关于 tomoru', hash: 'about' },
 ] as const
 
 for (const width of WIDTHS) {
@@ -58,7 +58,7 @@ test.describe('手机（390px）', () => {
     await openApp(page, '/settings#about')
     const nav = page.getByRole('navigation', { name: '设置分类' })
     const current = nav.locator('a[aria-current="page"]')
-    await expect(current).toHaveText('关于 nagare')
+    await expect(current).toHaveText('关于 tomoru')
     // 导航自己是横向滚动的，当前项在它的可见范围里
     const [box, view] = await Promise.all([current.boundingBox(), nav.boundingBox()])
     expect(box && view).toBeTruthy()
@@ -137,7 +137,7 @@ test.describe('宽屏（1440px）', () => {
     expect(problems.errors).toEqual([])
   })
 
-  test('退出确认：确认区出来时焦点在「取消」，取消后回到「退出 nagare」，不发退出请求', async ({ page }) => {
+  test('退出确认：确认区出来时焦点在「取消」，取消后回到「退出 tomoru」，不发退出请求', async ({ page }) => {
     let shutdown = 0
     await stubJson(page, 'POST', '/api/shutdown', () => {
       shutdown += 1
@@ -147,14 +147,14 @@ test.describe('宽屏（1440px）', () => {
     const section = page.getByRole('region', { name: '后台与退出' })
     await expect(section.getByText('Dock 图标与菜单栏图标')).toBeVisible()
 
-    await section.getByRole('button', { name: '退出 nagare' }).click()
+    await section.getByRole('button', { name: '退出 tomoru' }).click()
     await expect(section.getByRole('group', { name: '确认退出' })).toBeVisible()
     await expect(section.getByRole('button', { name: '取消' })).toBeFocused()
     expect(await blockingViolations(page), '退出确认展开时').toEqual([])
 
     await page.keyboard.press('Enter')
     await expect(section.getByRole('group', { name: '确认退出' })).toHaveCount(0)
-    await expect(section.getByRole('button', { name: '退出 nagare' })).toBeFocused()
+    await expect(section.getByRole('button', { name: '退出 tomoru' })).toBeFocused()
     expect(shutdown).toBe(0)
   })
 
@@ -172,17 +172,17 @@ test.describe('宽屏（1440px）', () => {
     await stubJson(page, 'POST', '/api/cover-cache/clear', () => { requests += 1; return { bytes: 0, count: 0, maxBytes: 0, skipped: 0 } })
     await openApp(page, '/settings#background')
     const quit = page.getByRole('region', { name: '后台与退出' })
-    await quit.getByRole('button', { name: '退出 nagare' }).click()
+    await quit.getByRole('button', { name: '退出 tomoru' }).click()
     await expect(quit.getByRole('button', { name: '取消' })).toBeFocused()
     // Esc 落在确认区的哪个按钮上都一样
     await page.keyboard.press('Shift+Tab')
     await expect(quit.getByRole('button', { name: '确认退出' })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(quit.getByRole('group', { name: '确认退出' })).toHaveCount(0)
-    await expect(quit.getByRole('button', { name: '退出 nagare' })).toBeFocused()
+    await expect(quit.getByRole('button', { name: '退出 tomoru' })).toBeFocused()
 
-    await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '关于 nagare', exact: true }).click()
-    const about = page.getByRole('region', { name: '关于 nagare' })
+    await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '关于 tomoru', exact: true }).click()
+    const about = page.getByRole('region', { name: '关于 tomoru' })
     await about.getByRole('button', { name: '清空封面缓存' }).click()
     await expect(about.getByRole('button', { name: '取消' })).toBeFocused()
     await page.keyboard.press('Escape')
@@ -217,8 +217,8 @@ test.describe('宽屏（1440px）', () => {
     await expect(remove).toBeFocused()
     await expect(remove).not.toHaveAttribute('aria-disabled', 'true')
 
-    await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '关于 nagare', exact: true }).click()
-    const about = page.getByRole('region', { name: '关于 nagare' })
+    await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '关于 tomoru', exact: true }).click()
+    const about = page.getByRole('region', { name: '关于 tomoru' })
     await about.getByRole('button', { name: '清空封面缓存' }).click()
     await about.getByRole('button', { name: '确认清空' }).click()
     const clearing = about.getByRole('button', { name: '正在清空 …' })
@@ -264,8 +264,8 @@ test.describe('宽屏（1440px）', () => {
     const email = page.getByLabel('邮箱')
     await email.fill('test@example.com')
     await expect(page.getByRole('note').filter({ hasText: '不能同时保持登录' })).toBeVisible()
-    await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '关于 nagare' }).click()
-    await expect(page.getByRole('heading', { level: 2, name: '关于 nagare' })).toBeVisible()
+    await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '关于 tomoru' }).click()
+    await expect(page.getByRole('heading', { level: 2, name: '关于 tomoru' })).toBeVisible()
     await page.goBack()
     await expect(page.getByLabel('邮箱')).toHaveValue('test@example.com')
   })

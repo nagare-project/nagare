@@ -161,7 +161,7 @@ func TestDispatchAboutDoesNotQuit(t *testing.T) {
 // 桌面模式：「打开」那一项开的是窗口，说法跟着变；浏览器模式照旧。
 func TestOpenItemByMode(t *testing.T) {
 	title, tip := openItem(true)
-	assert.Equal(t, "打开 nagare", title)
+	assert.Equal(t, "打开 tomoru", title)
 	assert.Contains(t, tip, "窗口")
 	title, tip = openItem(false)
 	assert.Equal(t, "打开界面", title)

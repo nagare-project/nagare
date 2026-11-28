@@ -100,7 +100,7 @@ static NSMenu *buildAppMenu(NagareAppDelegate *d, NSString *appName, NSString *a
   NSMenuItem *addr = [[NSMenuItem alloc] initWithTitle:address action:nil keyEquivalent:@""];
   addr.enabled = NO;
   [appMenu addItem:addr];
-  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:desktop ? @"打开 nagare" : @"打开界面"
+  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:desktop ? @"打开 tomoru" : @"打开界面"
                                                 action:@selector(openInterface:)
                                          keyEquivalent:@"o"];
   open.target = d;
@@ -130,7 +130,7 @@ static NSMenu *buildDockMenu(NagareAppDelegate *d, NSString *address, BOOL deskt
   NSMenuItem *addr = [[NSMenuItem alloc] initWithTitle:address action:nil keyEquivalent:@""];
   addr.enabled = NO;
   [menu addItem:addr];
-  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:desktop ? @"打开 nagare" : @"打开界面"
+  NSMenuItem *open = [[NSMenuItem alloc] initWithTitle:desktop ? @"打开 tomoru" : @"打开界面"
                                                 action:@selector(openInterface:)
                                          keyEquivalent:@""];
   open.target = d;

@@ -197,7 +197,7 @@ enum NagareType {
     static let caption = NagareTextStyle(font: Font.system(.footnote).weight(.regular), webSize: 13, trackingEm: 0)
     /// 徽标、角标 · 11px / 500
     static let micro = NagareTextStyle(font: Font.system(.caption2).weight(.medium), webSize: 11, trackingEm: 0)
-    /// 字标「nagare」（iOS 也用打包的 Sora，固定字号） · 20px / 700
+    /// 字标「tomoru」（iOS 也用打包的 Sora，固定字号） · 20px / 700
     static let wordmark = NagareTextStyle(font: Font.custom("Sora", fixedSize: 20).weight(.bold), webSize: 20, trackingEm: -0.01)
     /// 罗马音标题（大写）；iOS 用系统字体 · 12px / 500
     static let romaji = NagareTextStyle(font: Font.system(.caption).weight(.medium), webSize: 12, trackingEm: 0.1)

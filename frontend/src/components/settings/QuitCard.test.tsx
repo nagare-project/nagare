@@ -31,7 +31,7 @@ describe('QuitCard', () => {
     expect(confirmGroup(m.container)).toBeNull()
 
     await act(async () => {
-      button(m.container, '退出 nagare')?.click()
+      button(m.container, '退出 tomoru')?.click()
     })
     expect(confirmGroup(m.container)).not.toBeNull()
     expect(endpoints.shutdownNagare).not.toHaveBeenCalled()
@@ -41,7 +41,7 @@ describe('QuitCard', () => {
       button(m.container, '取消')?.click()
     })
     expect(confirmGroup(m.container)).toBeNull()
-    expect(button(m.container, '退出 nagare')).toBeDefined()
+    expect(button(m.container, '退出 tomoru')).toBeDefined()
   })
 
   // 「退出 nagare」按下去就被确认区换掉了：焦点不能跟着掉到 <body>，键盘用户得能接着操作
@@ -49,7 +49,7 @@ describe('QuitCard', () => {
     const m = await mount(<QuitCard platform="darwin" onQuit={vi.fn()} />)
     mounted.push(m.unmount)
     await act(async () => {
-      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+      getByRole(m.container, 'button', { name: '退出 tomoru' }).click()
     })
     expect(getByRole(m.container, 'group', { name: '确认退出' })).not.toBeNull()
     expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '取消' }))
@@ -57,14 +57,14 @@ describe('QuitCard', () => {
     await act(async () => {
       getByRole(m.container, 'button', { name: '取消' }).click()
     })
-    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 nagare' }))
+    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 tomoru' }))
   })
 
   it('确认区里按 Esc 等于「取消」：确认区收起，焦点回到「退出 nagare」，不发退出请求', async () => {
     const m = await mount(<QuitCard platform="darwin" onQuit={vi.fn()} />)
     mounted.push(m.unmount)
     await act(async () => {
-      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+      getByRole(m.container, 'button', { name: '退出 tomoru' }).click()
     })
     // 焦点挪到「确认退出」上再按 Esc 也一样（Esc 落在确认区的哪个按钮上都算）
     getByRole(m.container, 'button', { name: '确认退出' }).focus()
@@ -72,7 +72,7 @@ describe('QuitCard', () => {
       document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
     expect(confirmGroup(m.container)).toBeNull()
-    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 nagare' }))
+    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 tomoru' }))
     expect(endpoints.shutdownNagare).not.toHaveBeenCalled()
   })
 
@@ -82,7 +82,7 @@ describe('QuitCard', () => {
     const m = await mount(<QuitCard platform="darwin" onQuit={onQuit} />)
     mounted.push(m.unmount)
     await act(async () => {
-      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+      getByRole(m.container, 'button', { name: '退出 tomoru' }).click()
     })
     const confirm = getByRole(m.container, 'button', { name: '确认退出' }) as HTMLButtonElement
     confirm.focus()
@@ -106,13 +106,13 @@ describe('QuitCard', () => {
     const m = await mount(<QuitCard platform="darwin" onQuit={vi.fn()} />)
     mounted.push(m.unmount)
     await act(async () => {
-      getByRole(m.container, 'button', { name: '退出 nagare' }).click()
+      getByRole(m.container, 'button', { name: '退出 tomoru' }).click()
     })
     await act(async () => {
       getByRole(m.container, 'button', { name: '确认退出' }).click()
     })
     expect(getByRole(m.container, 'status').textContent).toContain('后端没有响应')
-    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 nagare' }))
+    expect(document.activeElement).toBe(getByRole(m.container, 'button', { name: '退出 tomoru' }))
   })
 
   it('确认后调 shutdown，成功回调 onQuit', async () => {
@@ -122,7 +122,7 @@ describe('QuitCard', () => {
     mounted.push(m.unmount)
     expect(m.container.textContent).toContain('菜单栏图标')
     await act(async () => {
-      button(m.container, '退出 nagare')?.click()
+      button(m.container, '退出 tomoru')?.click()
     })
     await act(async () => {
       button(m.container, '确认退出')?.click()
@@ -139,7 +139,7 @@ describe('QuitCard', () => {
     mounted.push(m.unmount)
     expect(m.container.textContent).toContain('菜单栏 / 托盘图标')
     await act(async () => {
-      button(m.container, '退出 nagare')?.click()
+      button(m.container, '退出 tomoru')?.click()
     })
     await act(async () => {
       button(m.container, '确认退出')?.click()
@@ -156,32 +156,32 @@ describe('QuitCard 在桌面窗口里', () => {
     const m = await mount(<QuitCard platform="darwin" inWindow onQuit={vi.fn()} />)
     mounted.push(m.unmount)
     const text = m.container.textContent ?? ''
-    expect(text).toContain('关闭窗口不会结束 nagare 的后台进程。')
+    expect(text).toContain('关闭窗口不会结束 tomoru 的后台进程。')
     expect(text).toContain('⌘Q')
-    expect(text).toContain('「流」')
+    expect(text).toContain('菜单栏图标')
     expect(text).not.toContain('浏览器标签页')
     await act(async () => {
-      button(m.container, '退出 nagare')?.click()
+      button(m.container, '退出 tomoru')?.click()
     })
     const confirm = confirmGroup(m.container)!
     // 焦点落在「取消」上：问题本身挂在分组的描述上，读屏才念得到
-    expect(document.getElementById(confirm.getAttribute('aria-describedby') ?? '')?.textContent).toBe('确定退出 nagare 吗？正在播放的视频也会停止。')
+    expect(document.getElementById(confirm.getAttribute('aria-describedby') ?? '')?.textContent).toBe('确定退出 tomoru 吗？正在播放的视频也会停止。')
   })
 
   it('Windows 的桌面窗口：指托盘，不提 ⌘Q', () => {
-    expect(quitNote('windows', true)).toBe('关闭窗口不会结束 nagare 的后台进程。Windows 也可以从托盘图标退出。')
+    expect(quitNote('windows', true)).toBe('关闭窗口不会结束 tomoru 的后台进程。Windows 也可以从托盘图标退出。')
   })
 
   it('外部浏览器里照旧说标签页', () => {
-    expect(quitNote('darwin', false)).toBe('关闭浏览器标签页不会结束 nagare 的后台进程。macOS 也可以从菜单栏图标退出。')
+    expect(quitNote('darwin', false)).toBe('关闭浏览器标签页不会结束 tomoru 的后台进程。macOS 也可以从菜单栏图标退出。')
   })
 })
 
 describe('QuitNotice', () => {
-  it('整页提示「nagare 已退出，可以关闭此页」', async () => {
+  it('整页提示「tomoru 已退出，可以关闭此页」', async () => {
     const m = await mount(<QuitNotice />)
     mounted.push(m.unmount)
-    expect(getByRole(m.container, 'heading', { level: 1, name: 'nagare 已退出' })).toBeDefined()
+    expect(getByRole(m.container, 'heading', { level: 1, name: 'tomoru 已退出' })).toBeDefined()
     expect(m.container.textContent).toContain('可以关闭此页')
   })
 })

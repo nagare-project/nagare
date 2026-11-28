@@ -226,7 +226,7 @@ function SyncedNotice({ record, pending, onDismiss }: { record: SyncedRecord; pe
   return (
     <div className="assoc-synced" role="note">
       <p>
-        {formatEpisodeList(record.episodes)}之前记到了「{name}」上，nagare 不会替你撤销。
+        {formatEpisodeList(record.episodes)}之前记到了「{name}」上，tomoru 不会替你撤销。
       </p>
       <MediaEntryLink id={record.anilistId} className="btn btn--sm">
         去「{name}」改进度

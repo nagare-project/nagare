@@ -75,7 +75,7 @@ function EntryContent({ media }: { media: MediaSummary }) {
   useEffect(() => {
     window.scrollTo(0, 0)
     const previous = document.title
-    document.title = `${media.title} · nagare`
+    document.title = `${media.title} · tomoru`
     return () => { document.title = previous }
   }, [media.id, media.title])
 

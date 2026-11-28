@@ -35,7 +35,7 @@ export function AutoDownloaderPage() {
 
       <p className="alert-warn" role="status">
         <strong>这一页只是界面预览，功能尚未实现。</strong>
-        nagare 目前没有订阅、没有定时轮询，<strong>点「启用」不会下载任何东西</strong>（缺口 G6）。
+        tomoru 目前没有订阅、没有定时轮询，<strong>点「启用」不会下载任何东西</strong>（缺口 G6）。
       </p>
 
       <ul className="rule-list">
@@ -57,7 +57,7 @@ export function AutoDownloaderPage() {
         ))}
       </ul>
 
-      <p className="info-panel-note">规则地址一律由你自己填写 —— nagare 不预填、不内置、不推荐任何订阅源。</p>
+      <p className="info-panel-note">规则地址一律由你自己填写 —— tomoru 不预填、不内置、不推荐任何订阅源。</p>
     </main>
   )
 }

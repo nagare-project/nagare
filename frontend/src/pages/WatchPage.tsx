@@ -91,7 +91,7 @@ export function WatchPage() {
       {item.stream === undefined ? (
         <Unplayable reason="这个构建没有挂载媒体端点，浏览器内播放不可用。" clusterKey={clusterKey} />
       ) : failed ? (
-        <Unplayable reason="浏览器放不了这个文件的编码。nagare 不转码，只是把原始字节喂给播放器 —— MKV 容器、HEVC 与 AV1 在多数浏览器上都会到这一步。" clusterKey={clusterKey} />
+        <Unplayable reason="浏览器放不了这个文件的编码。tomoru 不转码，只是把原始字节喂给播放器 —— MKV 容器、HEVC 与 AV1 在多数浏览器上都会到这一步。" clusterKey={clusterKey} />
       ) : (
         <video ref={videoRef} className="watch-video" src={item.stream} controls autoPlay onError={() => setFailed(true)} aria-label={`${title} · ${item.fileName}`}>
           {/* 字幕轨不走这里：外挂 ASS 与弹幕轨都是 mpv 那条路的能力 */}

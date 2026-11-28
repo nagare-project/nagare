@@ -47,7 +47,7 @@ export function PlaybackCard({ player }: { player: PlayerSettings }) {
   return (
     <section className="info-panel" aria-labelledby="playback-heading">
       <h3 id="playback-heading" className="info-panel-title">Anime4K</h3>
-      <p className="info-panel-text">对 720p、1080p 的片源最明显，线条更清楚。本地文件、磁力、在线播放都适用；用的是随 nagare 附带的官方着色器（Mode A），不联网。</p>
+      <p className="info-panel-text">对 720p、1080p 的片源最明显，线条更清楚。本地文件、磁力、在线播放都适用；用的是随 tomoru 附带的官方着色器（Mode A），不联网。</p>
       <div className="playback-presets" role="group" aria-label="画质增强档位">
         {PRESETS.map(item => (
           <button key={item.value} type="button" aria-pressed={preset === item.value}

@@ -52,7 +52,7 @@ export function AboutCard({ settings }: AboutCardProps) {
           </a>
         </dd>
       </dl>
-      <p className="info-panel-note">nagare 不上传任何诊断数据。遇到问题时，把日志文件的内容贴进 issue 即可。</p>
+      <p className="info-panel-note">tomoru 不上传任何诊断数据。遇到问题时，把日志文件的内容贴进 issue 即可。</p>
     </section>
   )
 }

@@ -53,17 +53,17 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     key: 'library',
     label: '媒体库与 NAS',
     items: [
-      { kind: 'section', id: 'folders', label: '媒体文件夹', icon: 'folder', description: 'nagare 扫描这些文件夹，把视频按作品整理进媒体库。外接硬盘与 NAS 上的番都按文件夹添加。' },
+      { kind: 'section', id: 'folders', label: '媒体文件夹', icon: 'folder', description: 'tomoru 扫描这些文件夹，把视频按作品整理进媒体库。外接硬盘与 NAS 上的番都按文件夹添加。' },
     ],
   },
   {
     key: 'playback',
     label: '播放',
     items: [
-      { kind: 'section', id: 'player', label: '播放器', icon: 'monitor', description: 'nagare 自己不解码，本地文件与磁力都交给 mpv 播放。' },
+      { kind: 'section', id: 'player', label: '播放器', icon: 'monitor', description: 'tomoru 自己不解码，本地文件与磁力都交给 mpv 播放。' },
       { kind: 'section', id: 'playback', label: '画质增强', icon: 'sparkle', description: 'Anime4K 实时超分：在 mpv 里用显卡把画面放大、去模糊。' },
       { kind: 'section', id: 'torrent', label: '磁力播放', icon: 'download', description: '边下边播怎么找分享者、整部下载放在哪里，以及缓存。' },
-      { kind: 'section', id: 'sources', label: '来源', icon: 'rss', description: 'nagare 不内置任何来源：磁力与在线候选都来自你自己安装的插件和规则，在你的电脑上执行。' },
+      { kind: 'section', id: 'sources', label: '来源', icon: 'rss', description: 'tomoru 不内置任何来源：磁力与在线候选都来自你自己安装的插件和规则，在你的电脑上执行。' },
       { kind: 'page', to: '/extensions', label: '扩展', icon: 'extension' },
     ],
   },
@@ -72,8 +72,8 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     label: '关于',
     items: [
       { kind: 'section', id: 'update', label: '更新', icon: 'refresh', description: '检查新版本；能自更新时一键下载、验证签名并替换。' },
-      { kind: 'section', id: 'background', label: '后台与退出', icon: 'power', description: '关掉界面之后 nagare 在哪里继续运行，以及怎么彻底退出。' },
-      { kind: 'section', id: 'about', label: '关于 nagare', icon: 'info', description: '版本、数据与日志的位置、许可。' },
+      { kind: 'section', id: 'background', label: '后台与退出', icon: 'power', description: '关掉界面之后 tomoru 在哪里继续运行，以及怎么彻底退出。' },
+      { kind: 'section', id: 'about', label: '关于 tomoru', icon: 'info', description: '版本、数据与日志的位置、许可。' },
     ],
   },
 ]

@@ -63,7 +63,7 @@ for (const width of WIDTHS) {
       const problems = watchProblems(page)
       await page.route('**/api/library', (route) => route.fulfill({ json: { success: true, data: { folders: [], clusters: [], continueWatching: [], scannedAt: null } } }))
       await openApp(page, '/')
-      await expect(page.getByText('nagare 播放你自己的番剧文件')).toBeVisible()
+      await expect(page.getByText('tomoru 播放你自己的番剧文件')).toBeVisible()
       await page.getByRole('link', { name: '去添加' }).click()
       await expect(page).toHaveURL((url) => url.pathname === '/library')
       expect(problems.errors).toEqual([])

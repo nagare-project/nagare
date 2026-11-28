@@ -98,7 +98,7 @@ export function EpisodePicker({
           选择要播放的剧集
         </h2>
         <p id="episode-picker-desc" className="ep-desc">
-          这条资源里有多个可播放的文件，nagare 没能确定是哪一集。选一个开始播放。
+          这条资源里有多个可播放的文件，tomoru 没能确定是哪一集。选一个开始播放。
         </p>
         <p className="ep-source" style={mono} title={title}>
           {title}

@@ -229,7 +229,7 @@ describe('UpdateBanner · 一键更新', () => {
     )
     mounted.push(timeout.unmount)
     expect(applyButton(timeout.container)).toBeNull()
-    expect(timeout.container.textContent).toContain('请手动重新打开 nagare')
+    expect(timeout.container.textContent).toContain('请手动重新打开 tomoru')
     // 更新已经结束，忽略按钮不该继续被锁着
     expect(ignoreButton(timeout.container)).not.toBeNull()
   })

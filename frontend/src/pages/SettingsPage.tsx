@@ -83,7 +83,7 @@ export function SettingsPage() {
         <h1 className="catalog-title">设置</h1>
         {data !== null && (
           <p className="settings-version" style={mono}>
-            nagare {formatVersion(data.version)}
+            tomoru {formatVersion(data.version)}
           </p>
         )}
       </header>
@@ -100,7 +100,7 @@ export function SettingsPage() {
               ) : (
                 <div className="info-panel">
                   <p className="result result--warn" role="status">
-                    没有读到账号状态，账号设置暂时不可用。重启 nagare 后再试。
+                    没有读到账号状态，账号设置暂时不可用。重启 tomoru 后再试。
                   </p>
                 </div>
               ))}

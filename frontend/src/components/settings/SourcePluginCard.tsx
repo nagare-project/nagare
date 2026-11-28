@@ -87,7 +87,7 @@ export function SourcePluginCard({ plugin }: { plugin: UseSourcePluginResult }) 
           <input id="source-plugin-root" className="input" value={root} style={mono}
             onChange={event => setRoot(event.target.value)} placeholder="/absolute/path/to/source-repository"
             spellCheck={false} autoComplete="off" readOnly={busy} required={enabled} aria-describedby="source-plugin-root-note" />
-          <p id="source-plugin-root-note" className="field-note">两个路径都必须是本机绝对路径。插件只能通过回环地址与 nagare 通信。</p>
+          <p id="source-plugin-root-note" className="field-note">两个路径都必须是本机绝对路径。插件只能通过回环地址与 tomoru 通信。</p>
         </div>
         <div className="form-actions">
           <button type="submit" className="btn btn--primary" {...inFlight(busy)}>{busy ? '正在验证…' : '保存并应用'}</button>

@@ -55,7 +55,7 @@ func TestNoticeBodyForDesktopWindow(t *testing.T) {
 	assert.Contains(t, mac, "下载会继续")
 	assert.NotContains(t, mac, "做种")
 	assert.Contains(t, mac, "Dock")
-	assert.Contains(t, mac, "「流」")
+	assert.Contains(t, mac, "菜单栏图标")
 	assert.Contains(t, mac, "⌘Q")
 	assert.NotContains(t, mac, "浏览器")
 

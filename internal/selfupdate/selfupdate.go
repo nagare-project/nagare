@@ -137,7 +137,7 @@ func (u *Updater) Capability() Capability {
 	inst, err := u.detect()
 	if err != nil {
 		return Capability{Channel: ChannelUnknown,
-			Reason: "无法确定 nagare 的安装位置，请到项目发布页手动下载新版本覆盖安装"}
+			Reason: "无法确定 tomoru 的安装位置，请到项目发布页手动下载新版本覆盖安装"}
 	}
 	c := Capability{Channel: inst.channel, Target: inst.target}
 	switch {
@@ -145,9 +145,9 @@ func (u *Updater) Capability() Capability {
 		// 发布流水线没配签名密钥时构建出来的二进制会走到这里。能跑，但不能自更新。
 		c.Reason = "这个构建没有内嵌更新公钥，校验不了更新包的完整性，请到项目发布页手动下载"
 	case inst.channel == ChannelPackage:
-		c.Reason = "nagare 由系统包管理器安装，请用 apt / dnf / brew 等原渠道升级"
+		c.Reason = "tomoru 由系统包管理器安装，请用 apt / dnf / brew 等原渠道升级"
 	case inst.channel == ChannelUnknown:
-		c.Reason = "无法确定 nagare 的安装方式，请到项目发布页手动下载新版本覆盖安装"
+		c.Reason = "无法确定 tomoru 的安装方式，请到项目发布页手动下载新版本覆盖安装"
 	default:
 		if _, err := assetTemplate(inst.channel, u.env.goos, u.env.goarch); err != nil {
 			c.Reason = fmt.Sprintf("当前平台（%s/%s）没有发布更新包，请到项目发布页确认",
@@ -155,7 +155,7 @@ func (u *Updater) Capability() Capability {
 			break
 		}
 		if err := u.probeWritableCached(inst.dir); err != nil {
-			c.Reason = fmt.Sprintf("安装目录 %s 不可写，请把 nagare 装到有写权限的位置，或手动下载新版本覆盖安装", inst.dir)
+			c.Reason = fmt.Sprintf("安装目录 %s 不可写，请把 tomoru 装到有写权限的位置，或手动下载新版本覆盖安装", inst.dir)
 			break
 		}
 		c.Supported = true
@@ -230,7 +230,7 @@ func (u *Updater) applyTarget(ver string) (install, error) {
 	}
 	inst, err := u.detect()
 	if err != nil {
-		return install{}, errs.Wrap(errs.CategoryInternal, op, "无法确定 nagare 的安装位置",
+		return install{}, errs.Wrap(errs.CategoryInternal, op, "无法确定 tomoru 的安装位置",
 			"请到项目发布页手动下载新版本", err)
 	}
 	if err := u.guardDowngrade(ver); err != nil {

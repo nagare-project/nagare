@@ -170,7 +170,7 @@ describe('SearchPage（空态）', () => {
     expect(searchMagnets).not.toHaveBeenCalled()
     // 顶栏入口
     const banner = getByRole(container, 'banner')
-    expect(getByRole(banner, 'link', { name: 'nagare（发现）' }).getAttribute('href')).toBe('/')
+    expect(getByRole(banner, 'link', { name: 'tomoru（发现）' }).getAttribute('href')).toBe('/')
     expect(getByRole(banner, 'link', { name: '设置' }).getAttribute('href')).toBe('/settings')
     await unmount()
   })
@@ -182,7 +182,7 @@ describe('SearchPage（空态）', () => {
     })
     const { container, unmount } = await mountAt('/search?q=frieren')
     expect(getByRole(container, 'heading', { level: 2, name: '还没有规则来源' })).not.toBeNull()
-    expect(container.textContent).toContain('nagare 不内置任何磁力源')
+    expect(container.textContent).toContain('tomoru 不内置任何磁力源')
     expect(getByRole(container, 'link', { name: '去设置添加规则来源' }).getAttribute('href')).toBe('/settings#sources')
     expect(getByRole(container, 'alert', { name: /broken\.yaml: 缺少 name 字段/ })).not.toBeNull()
     // 引导文案不得出现任何具体站点

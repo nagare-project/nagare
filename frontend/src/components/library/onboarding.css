@@ -12,20 +12,13 @@
   text-align: center;
 }
 
-/* 「流」字图标：白字黑底（DESIGN.md「识别」） */
+/* tomoru 图标（DESIGN.md「识别」） */
 .onboard-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 64px;
   height: 64px;
-  border: 1px solid var(--separator-opaque);
-  border-radius: var(--radius-lg);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1;
   user-select: none;
 }
 

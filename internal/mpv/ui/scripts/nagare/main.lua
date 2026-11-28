@@ -230,7 +230,7 @@ local function draw_top(c)
 		-- 宿主的窗口按钮（macOS 左上角的红绿灯）占着左边：「返回」与标题从让出的宽度后面开始
 		x = draw_back(c, (S.titlebar_inset + T.space.md) * s, 33 * s) + 12 * s
 	end
-	local title = S.nagare_title or (S.title ~= "" and S.title) or "nagare"
+	local title = S.nagare_title or (S.title ~= "" and S.title) or "tomoru"
 	c:text(x, 22 * s, title, style("h2", { color = T.color.text, outline = core.HALO * s }))
 	if S.info ~= "" then
 		-- 弹幕密的时候顶部全是字：副标题也要描边，否则会被弹幕盖得看不清。次要文字色压在画面上偏淡，

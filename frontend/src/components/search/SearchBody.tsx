@@ -115,7 +115,7 @@ function NoSourcesNotice({ data }: { data: SourcesData }) {
       <h2 id="no-sources-heading" className="catalog-notice-title">
         还没有规则来源
       </h2>
-      <p className="catalog-notice-body">nagare 不内置任何磁力源。添加规则来源（规则仓库的 HTTPS 地址或本机目录）后即可搜索，搜索在你自己的电脑上执行。</p>
+      <p className="catalog-notice-body">tomoru 不内置任何磁力源。添加规则来源（规则仓库的 HTTPS 地址或本机目录）后即可搜索，搜索在你自己的电脑上执行。</p>
       {errors.length > 0 && (
         <div className="rules-errors" role="alert">
           <p className="rules-errors-title">{errors.length} 条规则加载失败</p>
