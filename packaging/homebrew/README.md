@@ -19,10 +19,10 @@ brew install --cask nagare
 
 装完：
 
-- 「应用程序」里出现 `Nagare.app`，与手动下 dmg 装的是**同一个 app**。
-- **mpv 已内置**：`Nagare.app` 自带 libmpv（在 nagare 自己的窗口里播放）与命令行 mpv
+- 「应用程序」里出现 `tomoru.app`，与手动下 dmg 装的是**同一个 app**。
+- **mpv 已内置**：`tomoru.app` 自带 libmpv（在 tomoru 自己的窗口里播放）与命令行 mpv
   （进度条缩略图、浏览器模式），不用另装，cask 也不再依赖 Homebrew 的 mpv。
-- 启动后 Dock 里有 nagare 的图标，界面在 nagare 自己的窗口里打开
+- 启动后 Dock 里有 tomoru 的图标，界面在 tomoru 自己的窗口里打开
   （网页照旧从 `http://127.0.0.1:8590` 载入，只监听本机）。
 
 系统要求 **macOS 13（Ventura）或更新**，Intel 与 Apple Silicon 通用。
@@ -33,13 +33,13 @@ brew install --cask nagare
 **先把这条说在前面：用 Homebrew 装并不能免掉系统警告。**
 
 nagare 是零成本发布的开源项目，**没有购买 Apple 开发者证书**（$99/年）。
-`Nagare.app` 只做了 **ad-hoc 签名**（`codesign -s -`），没有开发者身份、没有公证。
+`tomoru.app` 只做了 **ad-hoc 签名**（`codesign -s -`），没有开发者身份、没有公证。
 Homebrew 不会、也不能凭空给这个 app 加上信任——恰恰相反，cask 安装默认会给
 装进去的 app **打上 quarantine 标记**，与你用浏览器下载 dmg 是一样的待遇。
 
 所以首次打开时：
 
-1. 打开「应用程序」里的 `Nagare`，出现「无法验证开发者」/「Apple 无法检查其是否包含
+1. 打开「应用程序」里的 `tomoru`，出现「无法验证开发者」/「Apple 无法检查其是否包含
    恶意软件」时点 **「完成」**。
 2. 打开 **系统设置 › 隐私与安全性**，滚到「安全性」一栏，点 **「仍要打开」**，再确认一次。
 
@@ -47,7 +47,7 @@ Homebrew 不会、也不能凭空给这个 app 加上信任——恰恰相反，
 「仍要打开」时，在终端执行：
 
 ```bash
-xattr -c /Applications/Nagare.app
+xattr -c /Applications/tomoru.app
 ```
 
 这是有意的取舍，代价写在明面上。要确认下载的文件没被动过手脚，Homebrew 自己就在做
@@ -85,10 +85,10 @@ nagare 把所有状态写在**配置目录**里，不在 app 里：
 nagare 自己也有更新检查与一键自更新。**cask 装的 nagare，两条路都能走**，
 但要知道它们互相看不见：
 
-- cask 把 app 装在 `/Applications/Nagare.app`，与手动装 dmg **完全同形**。
+- cask 把 app 装在 `/Applications/tomoru.app`，与手动装 dmg **完全同形**。
   nagare 判断「自己是怎么装进来的」只看可执行文件路径
   （主仓库 `internal/selfupdate/channel.go`），所以它认为这是一次 dmg 安装，
-  界面上的「立即更新」**是能点的**，点了会整包替换 `/Applications/Nagare.app`。
+  界面上的「立即更新」**是能点的**，点了会整包替换 `/Applications/tomoru.app`。
 - 后果不是数据丢失（数据全在配置目录里），而是**版本记账错位**：
   brew 仍以为你装的是旧版本。
 - cask 因此声明了 `auto_updates true`，把这件事如实告诉 Homebrew：

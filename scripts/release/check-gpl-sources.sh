@@ -10,13 +10,13 @@
 # 两个文件都要出现在 checksums.txt 里：goreleaser 的 checksum 与 release 的 extra_files 用的是同一个
 # glob（dist/mpv-sources/*），进了校验清单就会挂上 Release。少了哪个，那个平台的包就是在不合规地分发。
 #
-# 用法：scripts/release/check-gpl-sources.sh [校验清单路径 | dist 目录] [Nagare.app 路径]
+# 用法：scripts/release/check-gpl-sources.sh [校验清单路径 | dist 目录] [tomoru.app 路径]
 #   给 dist 目录时核对的是 <dist>/mpv-sources/ 里的文件：goreleaser 的 hook 在上传草稿之前这样调
 #   （那时还没有 checksums.txt）；release.yml 在 goreleaser 之后再按 checksums.txt 核一遍。
 set -euo pipefail
 
 manifest=${1:-dist/checksums.txt}
-app=${2:-dist/Nagare.app}
+app=${2:-dist/tomoru.app}
 root=$(cd "$(dirname "$0")/../.." && pwd)
 missing=0
 # names：要核对的文件名，每行一个（checksums.txt 的第二列，或 dist/mpv-sources/ 的文件）
@@ -47,7 +47,7 @@ fi
 # macOS：源码包的构建号 = <mpv 版本>-<构建提交前 10 位>，从 .app 里实际打包的那份清单算
 lib_manifest="$app/Contents/Resources/libmpv/manifest.json"
 if [ ! -f "$lib_manifest" ]; then
-  echo "  ✗ 找不到 ${lib_manifest}（Nagare.app 里没有 libmpv 的构建清单）" >&2
+  echo "  ✗ 找不到 ${lib_manifest}（tomoru.app 里没有 libmpv 的构建清单）" >&2
   missing=1
 else
   commit=$(plutil -extract source_commit raw -o - "$lib_manifest")
@@ -56,7 +56,7 @@ else
   if has "$want"; then
     echo "  ✓ macOS libmpv：${want}"
   else
-    echo "  ✗ ${where}里没有 ${want}（Nagare.app 里的 libmpv 是这次构建的）" >&2
+    echo "  ✗ ${where}里没有 ${want}（tomoru.app 里的 libmpv 是这次构建的）" >&2
     missing=1
   fi
 fi

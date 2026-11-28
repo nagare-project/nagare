@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 把 goreleaser 产出的 universal 二进制组装成 Nagare.app（ad-hoc 签名）并打成 dmg 与自更新用的 .app.zip。
+# 把 goreleaser 产出的 universal 二进制组装成 tomoru.app（ad-hoc 签名）并打成 dmg 与自更新用的 .app.zip。
 # 由 .goreleaser.yaml 的 darwin-desktop-universal post hook 调用，也可手动运行。
 #
 # 用法：scripts/macos/build-app.sh <universal 二进制> <版本> <输出目录> <libmpv 目录> <libmpv 源码包>
@@ -7,7 +7,7 @@
 #   <libmpv 目录>       nagare 自建的 libmpv（scripts/macos/libmpv/unpack.sh 解开、核对过的
 #                       libmpv-macos-universal/：Frameworks/、MacOS/mpv、licenses/、manifest.json）
 #   <libmpv 源码包>     同一次构建的完整对应源码（GPL），复制到 <输出目录>/mpv-sources/ 随 Release 发布
-# 产物：<输出目录>/Nagare.app、nagare-<版本>_MacOS_universal.dmg、nagare-<版本>_MacOS_universal.app.zip
+# 产物：<输出目录>/tomoru.app、nagare-<版本>_MacOS_universal.dmg、nagare-<版本>_MacOS_universal.app.zip
 #
 # 包里的布局：
 #   Contents/MacOS/nagare                主程序；唯一的 LC_RPATH 是 @executable_path/../Frameworks
@@ -68,11 +68,22 @@ for arch in $(lipo -archs "$bin"); do
   fi
 done
 
-app="$out/Nagare.app"
+app="$out/tomoru.app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
 sed "s/__VERSION__/$version/g" "$root/scripts/macos/Info.plist.tmpl" > "$app/Contents/Info.plist"
 plutil -lint "$app/Contents/Info.plist" >/dev/null
+# 本地化显示名：配合 Info.plist 的 LSHasLocalizedDisplayName，让通过自更新就地覆盖旧版
+# Nagare.app 目录的用户，在 Finder 和 Dock 悬浮提示里也显示为 tomoru。
+for lang in Base en zh-Hans zh-Hant ja; do
+  lproj="$app/Contents/Resources/${lang}.lproj"
+  mkdir -p "$lproj"
+  cat > "$lproj/InfoPlist.strings" <<'EOF'
+"CFBundleDisplayName" = "tomoru";
+"CFBundleName" = "tomoru";
+EOF
+  plutil -lint "$lproj/InfoPlist.strings" >/dev/null
+done
 min_required=$(plutil -extract LSMinimumSystemVersion raw "$app/Contents/Info.plist")
 printf 'APPL????' > "$app/Contents/PkgInfo"
 cp "$bin" "$app/Contents/MacOS/nagare"
@@ -175,7 +186,7 @@ ln -s /Applications "$stage/Applications"
 echo "==> 打包 dmg：$dmg"
 # GitHub 的 macOS runner 上 hdiutil 偶发 "Resource busy"，重试三次。
 for attempt in 1 2 3; do
-  if hdiutil create -volname nagare -srcfolder "$stage" -ov -format UDZO -quiet "$dmg"; then
+  if hdiutil create -volname tomoru -srcfolder "$stage" -ov -format UDZO -quiet "$dmg"; then
     break
   fi
   [ "$attempt" -lt 3 ] || { echo "hdiutil create 连续失败" >&2; exit 1; }
@@ -186,17 +197,17 @@ done
 echo "==> 验证 dmg 可挂载且签名为 adhoc"
 mnt=$(mktemp -d)
 hdiutil attach "$dmg" -nobrowse -readonly -quiet -mountpoint "$mnt"
-sig=$(codesign -dv "$mnt/Nagare.app" 2>&1 || true)
+sig=$(codesign -dv "$mnt/tomoru.app" 2>&1 || true)
 deep=0
-codesign --verify --deep --strict "$mnt/Nagare.app" 2>/dev/null || deep=1
+codesign --verify --deep --strict "$mnt/tomoru.app" 2>/dev/null || deep=1
 hdiutil detach "$mnt" -quiet
 rmdir "$mnt" 2>/dev/null || true
 if ! grep -q 'Signature=adhoc' <<<"$sig"; then
-  echo "dmg 内 Nagare.app 的签名不是 adhoc：" >&2
+  echo "dmg 内 tomoru.app 的签名不是 adhoc：" >&2
   echo "$sig" >&2
   exit 1
 fi
-[ "$deep" -eq 0 ] || { echo "dmg 内 Nagare.app 的签名校验不过（--deep --strict）" >&2; exit 1; }
+[ "$deep" -eq 0 ] || { echo "dmg 内 tomoru.app 的签名校验不过（--deep --strict）" >&2; exit 1; }
 # 自更新要用的 .app 整包压缩。
 #
 # 为什么不是「只替换 .app 里的那个二进制」：bundle 是 ad-hoc 签名的，换掉里面的
@@ -207,7 +218,7 @@ rm -f "$appzip"
 echo "==> 打包 .app zip（自更新用）：$appzip"
 # 用 ditto 而不是 zip：只有它完整保留 bundle 的符号链接、扩展属性与代码签名。
 # 普通 zip 压出来的包解开后 codesign 校验不过，自更新装上去就是个打不开的 app。
-(cd "$out" && ditto -c -k --sequesterRsrc --keepParent Nagare.app "$appzip")
+(cd "$out" && ditto -c -k --sequesterRsrc --keepParent tomoru.app "$appzip")
 
 # 体积守卫：已经装在用户机器上的旧版本，自更新时按它们自己编进去的上限解这个包（internal/selfupdate：
 # 整包 512 MB、单个条目 256 MB、解开总量 768 MB、条目数 20000）。这些上限在旧客户端里永远改不了 ——
@@ -254,15 +265,15 @@ for extractor in ditto unzip; do
     ditto) ditto -x -k "$appzip" "$zipcheck" ;;
     unzip) unzip -qq "$appzip" -d "$zipcheck" ;;
   esac
-  if ! codesign --verify --deep --strict "$zipcheck/Nagare.app" 2>/dev/null; then
-    echo "用 ${extractor} 解包后 Nagare.app 的签名校验不过 —— 自更新装上去会打不开。" >&2
-    codesign --verify --deep --strict --verbose=2 "$zipcheck/Nagare.app" >&2 || true
+  if ! codesign --verify --deep --strict "$zipcheck/tomoru.app" 2>/dev/null; then
+    echo "用 ${extractor} 解包后 tomoru.app 的签名校验不过 —— 自更新装上去会打不开。" >&2
+    codesign --verify --deep --strict --verbose=2 "$zipcheck/tomoru.app" >&2 || true
     rm -rf "$zipcheck"
     exit 1
   fi
-  if ! "${macho[@]}" bundle "$zipcheck/Nagare.app" --minos "$min_required" >/dev/null; then
-    echo "用 ${extractor} 解包后 Nagare.app 的整包检查不过：" >&2
-    "${macho[@]}" bundle "$zipcheck/Nagare.app" --minos "$min_required" >&2 || true
+  if ! "${macho[@]}" bundle "$zipcheck/tomoru.app" --minos "$min_required" >/dev/null; then
+    echo "用 ${extractor} 解包后 tomoru.app 的整包检查不过：" >&2
+    "${macho[@]}" bundle "$zipcheck/tomoru.app" --minos "$min_required" >&2 || true
     rm -rf "$zipcheck"
     exit 1
   fi

@@ -265,9 +265,9 @@ def bundle(args: argparse.Namespace) -> int:
             fail(f"Frameworks/{name}：没有任何 Mach-O 依赖它")
 
     if errors:
-        print(f"Nagare.app 检查失败：{len(errors)} 项", file=sys.stderr)
+        print(f"tomoru.app 检查失败：{len(errors)} 项", file=sys.stderr)
         return 1
-    print(f"Nagare.app 检查通过：{len(found)} 个 Mach-O")
+    print(f"tomoru.app 检查通过：{len(found)} 个 Mach-O")
     return 0
 
 
