@@ -5,13 +5,14 @@ import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { PluginSource, SourceCandidate } from '../../lib/endpoints'
 import { inFlight } from '../../lib/busy'
-import { formatBytes } from '../../lib/format'
+import { formatBytes, formatEpisode } from '../../lib/format'
 import { Icon } from '../ui/Icon'
 import { airedEpisodeCount } from './releaseEpisodes'
 import { sortCandidates, useSourcePlayback } from './SourcePlaybackContext'
 import { candidateChineseScore } from './chineseSubtitles'
 import type { SourcePlaybackSession } from './SourcePlaybackContext'
 import type { MediaSummary } from './types'
+import '../library/episode-list.css'
 import './media-play.css'
 
 const MAX_EPISODE_BUTTONS = 120
@@ -38,14 +39,14 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
   const [manualEpisode, setManualEpisode] = useState(String(Math.max(1, media.watched + 1)))
   const [gridView, setGridView] = useState(false)
   const numbers = episodeNumbers(media)
-  const titleByEpisode = new Map(media.episodeTitles?.map(item => [item.episode, item.title]) ?? [])
+  const metaByEpisode = new Map(media.episodeTitles?.map(item => [item.episode, item]) ?? [])
   const session = source.state.phase !== 'idle' && source.state.request.media.id === media.id
     ? source.state
     : null
 
   function findEpisode(episode: number): void {
     if (!Number.isSafeInteger(episode) || episode < 1) return
-    const episodeTitle = titleByEpisode.get(episode)
+    const episodeTitle = metaByEpisode.get(episode)?.title
     source.resolve({
       media: {
         id: media.id, title: media.title,
@@ -80,7 +81,23 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
         <p className="media-play-kicker">本地来源插件</p>
         <h2 className={inline ? 'visually-hidden' : undefined}>{inline ? '在线选集' : media.title}</h2>
         {!inline && <p className="media-play-hint">点选集数后立即开始找源。高优先级在线候选会先起播，启动不了时自动尝试下一在线来源或 BT；mpv 打开后就停止找源，不会再自动打开新的窗口，列表始终可手动换源。</p>}
-        {inline && <div className="online-episode-toolbar"><span><Icon name="broadcast" size={18} />自动匹配来源</span><a className="link" href="/settings#sources"><Icon name="settings" size={16} />来源设置</a><button type="button" className="icon-button" aria-label={gridView ? '切换列表视图' : '切换网格视图'} onClick={() => setGridView(value => !value)}><Icon name={gridView ? 'lists' : 'grid'} size={18} /></button></div>}
+        {inline && (
+          <div className="episode-toolbar online-episode-toolbar">
+            <span className="episode-toolbar-pill"><Icon name="broadcast" size={15} />自动匹配来源</span>
+            <a className="link episode-toolbar-action" href="/settings#sources"><Icon name="settings" size={15} />来源设置</a>
+            <div className="episode-toolbar-right">
+              {numbers.length > 0 && <span className="episode-toolbar-stat">已播出 {numbers.length} 集</span>}
+              <div className="view-switch" role="group" aria-label="视图切换">
+                <button type="button" className="view-switch-btn" aria-pressed={!gridView} aria-label="列表视图" title="列表视图" onClick={() => setGridView(false)}>
+                  <Icon name="lists" size={16} />
+                </button>
+                <button type="button" className="view-switch-btn" aria-pressed={gridView} aria-label="网格视图" title="网格视图" onClick={() => setGridView(true)}>
+                  <Icon name="grid" size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form className="media-manual-episode" onSubmit={submitManual}>
           <label><span>{numbers.length ? '指定其他集' : '目标集数'}</span><input className="input" type="number" min="1" step="1" required value={manualEpisode} onChange={event => setManualEpisode(event.target.value)} /></label>
@@ -91,19 +108,60 @@ export function MediaSourceButton({ media, inline = false }: { media: MediaSumma
         {session !== null && <CandidateResults session={session} busy={source.busy} onPlay={source.play} />}
 
         {numbers.length > 0 && <section className="media-episode-section" aria-labelledby={`source-episodes-${media.id}`}>
-          <div className="media-play-selection"><h3 id={`source-episodes-${media.id}`}>{media.format === 'MOVIE' ? '影片' : '选择集数'}</h3><span className="result result--dim">已播出 {numbers.length} 集</span></div>
-          <div className={inline && !gridView ? "media-episode-grid media-episode-grid--list" : "media-episode-grid"}>
-            {numbers.map(episode => <button type="button" key={episode}
-              className={selectedEpisode === episode ? 'media-episode-button media-episode-button--selected' : 'media-episode-button'}
-              title={titleByEpisode.get(episode)} aria-label={`从本地插件查找第 ${episode} 集`}
-              onClick={() => { setManualEpisode(String(episode)); findEpisode(episode) }}>
-              {inline && <span className="media-source-still"><EpisodeArtwork image={media.episodeTitles?.find(ep => ep.episode === episode)?.image} banner={media.banner} cover={media.cover} /></span>}
-              {inline ? <span className="online-episode-copy"><span>第 {episode} 集 <small>{media.episodeTitles?.find(ep => ep.episode === episode)?.duration || media.duration || ''}{(media.episodeTitles?.find(ep => ep.episode === episode)?.duration || media.duration) ? ' 分钟' : ''}</small></span><strong>{titleByEpisode.get(episode) || `第 ${episode} 集`}</strong>{media.episodeTitles?.find(ep => ep.episode === episode)?.description && <span className="online-episode-description">{media.episodeTitles.find(ep => ep.episode === episode)!.description}</span>}</span> : <><strong>{media.format === 'MOVIE' ? '播放' : episode}</strong>{titleByEpisode.has(episode) && <span>{titleByEpisode.get(episode)}</span>}</>}
-            </button>)}
-          </div>
+          {inline ? (
+            <h3 id={`source-episodes-${media.id}`} className="visually-hidden">{media.format === 'MOVIE' ? '影片' : '选择集数'}</h3>
+          ) : (
+            <div className="media-play-selection"><h3 id={`source-episodes-${media.id}`}>{media.format === 'MOVIE' ? '影片' : '选择集数'}</h3><span className="result result--dim">已播出 {numbers.length} 集</span></div>
+          )}
+          {inline ? (
+            <ul className={gridView ? 'ep-grid media-episode-grid' : 'ep-grid ep-grid--list media-episode-grid media-episode-grid--list'}>
+              {numbers.map(episode => {
+                const meta = metaByEpisode.get(episode)
+                const epTitle = meta?.title || `第 ${episode} 集`
+                const epDuration = meta?.duration || media.duration || null
+                const isSelected = selectedEpisode === episode
+                return (
+                  <li key={episode} className={isSelected ? 'ep-card ep-card--online ep-card--selected' : 'ep-card ep-card--online'}>
+                    <span className="ep-still media-source-still">
+                      <EpisodeArtwork image={meta?.image} banner={media.banner} cover={media.cover} />
+                      <span className="ep-still-play" aria-hidden="true">
+                        <span className="ep-still-play-btn">
+                          <Icon name="play" size={15} style={{ fill: 'currentColor', strokeWidth: 0 }} />
+                        </span>
+                      </span>
+                      {epDuration !== null && <span className="ep-still-dur" aria-hidden="true">{Math.round(epDuration)}m</span>}
+                    </span>
+                    <div className="ep-copy">
+                      <span className="ep-head-line">
+                        <span className="ep-num">{media.format === 'MOVIE' ? 'MOVIE' : `EP ${formatEpisode(episode)}`}</span>
+                        {isSelected && <span className="ep-head-state ep-head-state--playing">已选中</span>}
+                      </span>
+                      <button
+                        type="button"
+                        className="ep-card-hit"
+                        title={meta?.title}
+                        aria-label={`从本地插件查找第 ${episode} 集`}
+                        onClick={() => { setManualEpisode(String(episode)); findEpisode(episode) }}
+                      >
+                        <span className="ep-title">{epTitle}</span>
+                      </button>
+                      {meta?.description && <span className="ep-desc">{meta.description}</span>}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <div className="media-episode-grid">
+              {numbers.map(episode => <button type="button" key={episode}
+                className={selectedEpisode === episode ? 'media-episode-button media-episode-button--selected' : 'media-episode-button'}
+                title={metaByEpisode.get(episode)?.title} aria-label={`从本地插件查找第 ${episode} 集`}
+                onClick={() => { setManualEpisode(String(episode)); findEpisode(episode) }}>
+                <strong>{media.format === 'MOVIE' ? '播放' : episode}</strong>{metaByEpisode.has(episode) && <span>{metaByEpisode.get(episode)?.title}</span>}
+              </button>)}
+            </div>
+          )}
         </section>}
-
-
       </div>
     </PlaybackSurface>
   </>

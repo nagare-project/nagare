@@ -1,4 +1,6 @@
 import { EpisodeList } from '../library/EpisodeList'
+import type { EpisodeViewMode } from '../library/EpisodeList'
+import { buildEpisodeList } from '../library/episodeRows'
 import { displayGroups } from '../library/displayGroups'
 import { PlaybackSurface } from './PlaybackSurface'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -73,6 +75,7 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
   /** 不挡播放的提示（比如对应关系没能保存） */
   const [notice, setNotice] = useState<string | null>(null)
   const [via, setVia] = useState<LocalResolution['via']>()
+  const [view, setView] = useState<EpisodeViewMode>('list')
   useEffect(() => () => { requestVersion.current++ }, [])
 
   /**
@@ -209,6 +212,25 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
   // 选中的里面有自动认出、还没确认的分组（用户自己从列表里挑的不算「自动认出」）
   const autoMatched = chosen.some(c => c.association === undefined && c.matched?.anilistId === media.id)
   const next = selected ? nextLibraryEpisode(selected) : undefined
+  const localStat = useMemo(() => {
+    if (!selected) return ''
+    const { sections } = buildEpisodeList(selected, media)
+    let localCount = 0
+    let watchedCount = 0
+    let totalCount = 0
+    for (const section of sections) {
+      for (const row of section.rows) {
+        totalCount++
+        if (row.kind === 'local') {
+          localCount++
+          if (row.item.progress?.completed) watchedCount++
+        }
+      }
+    }
+    const denom = totalCount > localCount ? totalCount : Math.max(localCount, media.episodes ?? 0)
+    const stock = denom > localCount ? `已入库 ${localCount} / ${denom}` : `已入库 ${localCount} 集`
+    return watchedCount > 0 ? `已看 ${watchedCount} · ${stock}` : stock
+  }, [selected, media])
   const q = query.trim().toLocaleLowerCase()
   // 认定为这部作品的排在前面；文件夹名与认定的作品名都能搜到
   const visible = (library?.clusters ?? [])
@@ -272,16 +294,40 @@ export function MediaPlayButton({ media, onOpenChange = () => {}, inline = false
           {!inline && <RouteLink className="link" to="/library">管理媒体库</RouteLink>}
         </>}
         {selected && <>
-          <div className="media-play-selection">
-            <div className="media-play-selection-title"><h3>{clusterDisplayTitle(selected)}</h3>{autoMatched && via !== 'legacy' && <p className="media-play-via">自动认出的本地作品，播放时会记住</p>}</div>
-            <LibraryAnimeLink clusterKey={selected.clusterKey} className="btn btn--sm">在媒体库中打开</LibraryAnimeLink>
-            <button type="button" className="btn btn--sm" {...inFlight(busy, () => { setSelectedKeys([]); setQuery(''); setLaunched(false); setNotice(null) })}>更换作品</button>
-          </div>
+          {inline ? (
+            <div className="episode-toolbar">
+              <div className="episode-toolbar-pill">
+                <Icon name="folder" size={15} />
+                <h3 className="episode-toolbar-title">{clusterDisplayTitle(selected)}</h3>
+                {chosen.length > 1 && <small>{chosen.length} 个版本</small>}
+              </div>
+              <LibraryAnimeLink clusterKey={selected.clusterKey} className="link episode-toolbar-action">在媒体库中打开</LibraryAnimeLink>
+              <button type="button" className="episode-toolbar-action episode-toolbar-action--quiet" {...inFlight(busy, () => { setSelectedKeys([]); setQuery(''); setLaunched(false); setNotice(null) })}>更换作品</button>
+              <div className="episode-toolbar-right">
+                {localStat && <span className="episode-toolbar-stat">{localStat}</span>}
+                <div className="view-switch" role="group" aria-label="视图切换">
+                  <button type="button" className="view-switch-btn" aria-pressed={view === 'list'} aria-label="列表视图" title="列表视图" onClick={() => setView('list')}>
+                    <Icon name="lists" size={16} />
+                  </button>
+                  <button type="button" className="view-switch-btn" aria-pressed={view === 'grid'} aria-label="网格视图" title="网格视图" onClick={() => setView('grid')}>
+                    <Icon name="grid" size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="media-play-selection">
+              <div className="media-play-selection-title"><h3>{clusterDisplayTitle(selected)}</h3>{autoMatched && via !== 'legacy' && <p className="media-play-via">自动认出的本地作品，播放时会记住</p>}</div>
+              <LibraryAnimeLink clusterKey={selected.clusterKey} className="btn btn--sm">在媒体库中打开</LibraryAnimeLink>
+              <button type="button" className="btn btn--sm" {...inFlight(busy, () => { setSelectedKeys([]); setQuery(''); setLaunched(false); setNotice(null) })}>更换作品</button>
+            </div>
+          )}
+          {inline && autoMatched && via !== 'legacy' && <p className="media-play-via">自动认出的本地作品，播放时会记住</p>}
           {chosen.length > 1 && <p className="media-play-versions">本地有 {chosen.length} 个版本，同一集的其他版本列在那一集下面：{chosen.map((c, i) => <span key={c.clusterKey}>{i > 0 && '、'}<LibraryAnimeLink clusterKey={c.clusterKey} className="link">{c.title}（{c.episodeCount} 集）</LibraryAnimeLink></span>)}</p>}
           {next && !heroPrimary && <button type="button" className="btn btn--primary" {...inFlight(busy, () => void start(ownerOf(next), next))}>
             <Icon name="play" size={18} />{next.progress?.positionSec && !next.progress.completed ? '继续观看' : '播放'} {next.episode === null ? next.fileName : `第 ${formatEpisode(next.episode)} 集`}
           </button>}
-          {inline ? <EpisodeList cluster={selected} catalog={media} next={next} pending={busy} versions={merged?.versions} onPlay={item => void start(ownerOf(item), item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
+          {inline ? <EpisodeList cluster={selected} catalog={media} next={next} pending={busy} versions={merged?.versions} view={view} onPlay={item => void start(ownerOf(item), item)} /> : displayGroups(selected).map(group => <section className="media-play-group" key={group.groupKey}>
             <h4>{group.label || '剧集'}</h4><ul className="media-play-choices">{group.items.flatMap(item => [{ item, label: '' }, ...(merged?.versions.get(item.fileId) ?? [])]).map(({ item, label }) => <li key={item.fileId}>
               {/* 名字就是可见的文件名（前面补一句「播放第 N 集：」）：另写 aria-label 的话，语音控制按看到的字点不到它 */}
               <button type="button" className="media-play-episode" {...inFlight(busy, () => void start(ownerOf(item), item))}>

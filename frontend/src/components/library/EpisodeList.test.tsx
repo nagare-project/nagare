@@ -78,22 +78,28 @@ describe('作品页集数列表', () => {
     expect(first?.textContent).toContain('已看完')
     expect(second?.textContent).toContain('看到 25%')
     expect(third?.textContent).toContain('接下来')
-    // 没有目录资料：标题是「第 N 集」，文件名另起一行；鼠标悬停也看得到完整文件名
-    expect(third?.textContent).toContain('ep3.mkv')
+    // 没有目录资料：标题是「第 N 集」，文件名显示在卡片简介位；鼠标悬停也看得到完整文件名
+    expect(third?.closest('li')?.textContent).toContain('ep3.mkv')
     expect(third?.closest('li')?.getAttribute('title')).toBe('ep3.mkv')
+    expect(first?.closest('li')?.querySelector('.ep-still-badge--done')?.textContent).toContain('已看')
+    expect(second?.closest('li')?.querySelector('.ep-still-badge--progress')?.textContent).toContain('看到 25%')
+    expect(second?.closest('li')?.querySelector<HTMLElement>('.ep-still-progress > span')?.style.width).toBe('25%')
+    expect(third?.closest('li')?.className).toContain('ep-card--next')
     await act(async () => second!.click())
     expect(onPlay).toHaveBeenCalledExactlyOnceWith(half)
 
     await rerender(<EpisodeList cluster={cluster([group([watched, half, fresh])])} next={fresh} pending={false} activeFileId="ep2" onPlay={onPlay} />)
     expect(playable(container)[1]?.textContent).toContain('正在播放')
+    expect(playable(container)[1]?.closest('li')?.className).toContain('ep-card--selected')
+    expect(playable(container)[1]?.closest('li')?.querySelector('.ep-still-badge--playing')?.textContent).toContain('正在播放')
     await unmount()
   })
 
-  it('集号补零、认不出集号的文件以文件名做标题；分辨率与体积写在副标题里', async () => {
+  it('集号补零、认不出集号的文件以文件名做标题；分辨率与体积写在底行规格里', async () => {
     const { container, unmount } = await mount(<EpisodeList cluster={cluster([group([item('ep3', 3), item('movie', null)])])} pending={false} onPlay={vi.fn()} />)
     const [third, single] = playable(container)
     expect(third?.textContent).toMatch(/^播放第 03 集：/)
-    expect(third?.textContent).toContain('1080p · 1 KB')
+    expect(third?.closest('li')?.querySelector('.ep-local-spec')?.textContent).toContain('1080p · 1 KB')
     expect(single?.textContent).toMatch(/^播放 movie\.mkv：/)
     await unmount()
   })
@@ -116,7 +122,9 @@ describe('作品页集数列表', () => {
     const versions = getByRole(container, 'group', { name: '第 01 集的其他版本' })
     const button = getByRole(versions, 'button')
     expect(button.textContent).toBe('播放第 01 集的其他版本：BD · 1080p ✓（已看完）')
-    expect(playable(container)[0]?.textContent).toContain('2 个版本')
+    expect(playable(container)[0]?.closest('li')?.querySelector('.ep-local-spec')?.textContent).toContain('2 版本')
+    // 次要控件与主播放按钮同级分层，不能出现按钮嵌套按钮
+    expect(container.querySelector('button button')).toBeNull()
     await act(async () => button.click())
     expect(onPlay).toHaveBeenCalledExactlyOnceWith(alt)
     await unmount()
@@ -175,6 +183,46 @@ describe('作品页集数列表', () => {
     expect(rows(container)).toHaveLength(2)
     expect(rows(container)[0]).toContain('第一集')
     expect(container.textContent).not.toContain('库里没有')
+    await unmount()
+  })
+
+  it('支持列表 / 网格视图切换，剧照按逐集截图 → 横图 → 封面顺序回退且无嵌套交互元素', async () => {
+    const richMedia: MediaSummary = {
+      ...media,
+      banner: '/banner.jpg',
+      cover: '/cover.jpg',
+      duration: 24,
+    }
+    const main = item('ep1', 1, { stream: '/media/ep1' })
+    const alt = item('ep1-bd', 1, { group: 'BD' })
+    const local = cluster([group([main, item('ep2', 2, { stream: '/media/ep2' })])])
+    const { container, rerender, unmount } = await mount(
+      <EpisodeList
+        cluster={local}
+        catalog={richMedia}
+        versions={new Map([['ep1', [{ item: alt, label: 'BD · 1080p' }]]])}
+        pending={false}
+        onPlay={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('.ep-grid.ep-grid--list')).not.toBeNull()
+    const imgs = [...container.querySelectorAll<HTMLImageElement>('.ep-still img')]
+    expect(imgs.map((img) => img.getAttribute('src'))).toEqual(['/first.jpg', '/banner.jpg'])
+    expect(container.querySelector('.ep-still-dur')?.textContent).toBe('24m')
+    expect(container.querySelector('button button, button a, a button')).toBeNull()
+
+    await rerender(
+      <EpisodeList
+        cluster={local}
+        catalog={richMedia}
+        versions={new Map([['ep1', [{ item: alt, label: 'BD · 1080p' }]]])}
+        pending={false}
+        view="grid"
+        onPlay={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('.ep-grid')).not.toBeNull()
+    expect(container.querySelector('.ep-grid--list')).toBeNull()
     await unmount()
   })
 })
