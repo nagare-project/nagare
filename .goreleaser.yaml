@@ -153,7 +153,7 @@ universal_binaries:
           output: true
         # GPL：两份对应源码都已放进 dist/mpv-sources/（checksum 与 release 都按这个目录收）。这时所有 build 都跑完了，
         # Windows 那份（fetch-mpv.sh，windows build 的 pre hook）也在；同样早于上传草稿
-        - cmd: scripts/release/check-gpl-sources.sh dist dist/Nagare.app
+        - cmd: scripts/release/check-gpl-sources.sh dist dist/tomoru.app
           output: true
 
 # 归档命名：nagare-<版本>_<MacOS|Linux|Windows>_<universal|x86_64|arm64>

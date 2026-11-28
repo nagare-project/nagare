@@ -19,7 +19,7 @@ cask "nagare" do
   #   3. .app.zip 留给自更新专用（internal/selfupdate/assets.go 按名字取它），
   #      一个产物一个消费者，改动时不会互相牵连。
   url "https://github.com/nagare-project/nagare/releases/download/v#{version}/nagare-#{version}_MacOS_universal.dmg"
-  name "nagare"
+  name "tomoru"
   desc "Local anime player with mpv built into its own window"
   homepage "https://github.com/nagare-project/nagare"
 
@@ -43,7 +43,7 @@ cask "nagare" do
   # 裸符号在 cask 里就是「不低于」的意思，写 ">= :ventura" 会被 brew style 要求改回来。
   depends_on macos: :ventura
 
-  app "Nagare.app"
+  app "tomoru.app"
 
   # 卸载只做两件事：让正在跑的实例退出、删掉 .app。
   #
@@ -66,17 +66,17 @@ cask "nagare" do
   ]
 
   caveats <<~EOS
-    nagare 没有购买代码签名证书，Nagare.app 是 ad-hoc 签名的。
+    tomoru 没有购买代码签名证书，tomoru.app 是 ad-hoc 签名的。
     brew 不会、也不能替你绕过 Gatekeeper —— 首次打开时系统仍然会拦一次：
 
-      1. 打开「应用程序」里的 Nagare，出现「无法验证开发者」时点「完成」
+      1. 打开「应用程序」里的 tomoru，出现「无法验证开发者」时点「完成」
       2. 打开 系统设置 › 隐私与安全性，在「安全性」一栏点「仍要打开」，再确认一次
 
     放行一次之后不再询问。始终看不到「仍要打开」时执行：
 
-      xattr -c "#{appdir}/Nagare.app"
+      xattr -c "#{appdir}/tomoru.app"
 
-    mpv 已内置在 Nagare.app 里，不用另装。
-    启动后 Dock 里有 nagare 的图标，界面在 nagare 自己的窗口里打开。
+    mpv 已内置在 tomoru.app 里，不用另装。
+    启动后 Dock 里有 tomoru 的图标，界面在 tomoru 自己的窗口里打开。
   EOS
 end

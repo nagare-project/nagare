@@ -67,7 +67,7 @@ nagare 没有购买代码签名证书（原因见下方「为什么会有警告�
 
 系统要求：**macOS 13 或更新**（Intel 与 Apple Silicon 通用）。
 
-`Nagare.app` **自带 mpv**（libmpv 与命令行 mpv，nagare 自己从源码构建），视频就在 nagare 自己的窗口里播放，
+`tomoru.app` **自带 mpv**（libmpv 与命令行 mpv，nagare 自己从源码构建），视频就在 tomoru 自己的窗口里播放，
 不用另装 mpv。dmg 约 68 MB（以前约 42 MB，多出来的是 mpv 与它的解码库）。
 
 用 [Homebrew](https://brew.sh) 装：
@@ -77,18 +77,18 @@ brew tap nagare-project/nagare
 brew install --cask nagare
 ```
 
-它装的就是下面那个 dmg 里的同一个 `Nagare.app`。⚠️ **首次打开一样会被 Gatekeeper 拦一次**
+它装的就是下面那个 dmg 里的同一个 `tomoru.app`。⚠️ **首次打开一样会被 Gatekeeper 拦一次**
 （步骤见下面第 2 步）——包管理器不会、也不能凭空给一个没证书的 app 加上信任。
 tap 仓库与更多说明见 [`packaging/homebrew/`](packaging/homebrew/README.md)。
 
 手动安装：
 
-1. 下载 `nagare-<版本>_MacOS_universal.dmg`，打开后把 `Nagare` 拖进「应用程序」。
-2. 双击 `Nagare`。首次会提示「无法验证开发者」/「Apple 无法检查其是否包含恶意软件」——点「完成」，
+1. 下载 `nagare-<版本>_MacOS_universal.dmg`，打开后把 `tomoru` 拖进「应用程序」。
+2. 双击 `tomoru`。首次会提示「无法验证开发者」/「Apple 无法检查其是否包含恶意软件」——点「完成」，
    然后打开 **系统设置 › 隐私与安全性**，滚到「安全性」一栏，点 **「仍要打开」**，再确认一次。
    macOS 15 起右键「打开」已不能绕过这一步；如果没看到「仍要打开」，在终端执行
-   `xattr -c /Applications/Nagare.app` 后再双击。
-3. Dock 与菜单栏都会出现 nagare 图标，nagare 的窗口自动打开。**关掉窗口不会退出 nagare**：点 Dock 图标可重新打开，
+   `xattr -c /Applications/tomoru.app` 后再双击。
+3. Dock 与菜单栏都会出现 tomoru 图标，tomoru 的窗口自动打开。**关掉窗口不会退出 tomoru**：点 Dock 图标可重新打开，
    ⌘Q 或菜单栏图标的菜单可退出（会先回写观看进度）。菜单栏菜单里也能「在浏览器中打开」界面。
 4. 终端里直接跑的裸二进制 `nagare-<版本>_MacOS_universal.tar.gz` **不带 mpv**、也没有 nagare 自己的窗口
    （界面在浏览器里、播放是独立的 mpv 窗口）：要先 `brew install mpv`。
@@ -149,7 +149,7 @@ certutil -hashfile <文件名> SHA256                  # Windows，和 checksums
   任何一步不通过都不会动现有版本。用 deb / rpm 装的不走自更新，界面会提示用
   `apt` / `dnf` 升级。
   **Scoop 与 Homebrew cask 是例外**：nagare 判断「自己是怎么装进来的」只看可执行文件路径，
-  这两种装法落在它认得的位置上（Scoop 的应用目录、`/Applications/Nagare.app`），
+  这两种装法落在它认得的位置上（Scoop 的应用目录、`/Applications/tomoru.app`），
   「立即更新」都点得动，但点完包管理器记的版本号就对不上了。
   用 Scoop 装的请走 `scoop update nagare`；用 brew 装的，cask 已声明 `auto_updates true`
   （`brew upgrade` 默认不再管它），想让 brew 的记录追上用 `brew upgrade --cask --greedy nagare`。

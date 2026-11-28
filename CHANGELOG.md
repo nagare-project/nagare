@@ -5,6 +5,12 @@
 
 ## [未发布]
 
+## [0.8.1] — 2026-11-28
+
+### 修复
+
+- **macOS 应用包名与 Dock 名称**：将 macOS `.app` 包名由 `Nagare.app` 更新为 `tomoru.app`（dmg 卷标同步更新为 `tomoru`），并在 `Info.plist` 启用 `LSHasLocalizedDisplayName` 配合多语言 `InfoPlist.strings`，使新安装与旧版自更新后的 Finder 与 Dock 悬浮提示均显示为 `tomoru`。
+
 ## [0.8.0] — 2026-11-28
 
 ### 品牌与图标焕新：tomoru（灯る）

@@ -99,6 +99,15 @@ func TestFindAppBundleAndVerify(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, verifyBundle(app))
 	})
+	t.Run("刚好一个 tomoru.app", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "tomoru.app", "Contents", "Info.plist"), "x", 0o644)
+		writeFile(t, filepath.Join(root, "tomoru.app", "Contents", "MacOS", "nagare"), "bin", 0o755)
+		app, err := findAppBundle(root)
+		require.NoError(t, err)
+		require.Equal(t, filepath.Join(root, "tomoru.app"), app)
+		require.NoError(t, verifyBundle(app))
+	})
 	t.Run("一个都没有", func(t *testing.T) {
 		_, err := findAppBundle(t.TempDir())
 		require.Error(t, err)
@@ -133,4 +142,30 @@ func TestInstallRefusesUnknownChannel(t *testing.T) {
 	err := u.install(install{channel: ChannelUnknown}, t.TempDir())
 	require.Error(t, err)
 	require.Contains(t, userFacing(err), "无法确定")
+}
+
+// TestInstallAppBundleCrossRename：老版本装在 /Applications/Nagare.app，新版本 zip 里是 tomoru.app，
+// 整包替换后仍落回原安装路径并保留本地化资源（由 LSHasLocalizedDisplayName + InfoPlist.strings 显示为 tomoru）。
+func TestInstallAppBundleCrossRename(t *testing.T) {
+	dir := t.TempDir()
+	live := filepath.Join(dir, "Nagare.app")
+	writeFile(t, filepath.Join(live, "Contents", "Info.plist"), "OLD", 0o644)
+	writeFile(t, filepath.Join(live, "Contents", "MacOS", "nagare"), "OLD BIN", 0o755)
+
+	unpacked := filepath.Join(dir, "unpacked")
+	writeFile(t, filepath.Join(unpacked, "tomoru.app", "Contents", "Info.plist"), "NEW", 0o644)
+	writeFile(t, filepath.Join(unpacked, "tomoru.app", "Contents", "MacOS", "nagare"), "NEW BIN", 0o755)
+	writeFile(t, filepath.Join(unpacked, "tomoru.app", "Contents", "Resources", "Base.lproj", "InfoPlist.strings"),
+		"\"CFBundleDisplayName\" = \"tomoru\";\n", 0o644)
+
+	inst := install{
+		channel: ChannelAppBundle,
+		exePath: filepath.Join(live, "Contents", "MacOS", "nagare"),
+		target:  live,
+		dir:     dir,
+	}
+	require.NoError(t, installAppBundle(inst, unpacked))
+	require.Equal(t, "NEW BIN", readFile(t, filepath.Join(live, "Contents", "MacOS", "nagare")))
+	require.Contains(t, readFile(t, filepath.Join(live, "Contents", "Resources", "Base.lproj", "InfoPlist.strings")), "tomoru")
+	require.Equal(t, "OLD BIN", readFile(t, filepath.Join(live+oldSuffix, "Contents", "MacOS", "nagare")))
 }

@@ -194,7 +194,7 @@ func findAppBundle(root string) (string, error) {
 	}
 	if len(apps) != 1 {
 		return "", errs.Wrap(errs.CategoryUpstream, op,
-			"更新包里不是一个完整的 Nagare.app，已中止更新", "请到项目发布页手动下载",
+			"更新包里不是一个完整的 tomoru.app，已中止更新", "请到项目发布页手动下载",
 			errors.New("解包后根目录下的 .app 数量为 "+itoa(len(apps))))
 	}
 	return apps[0], nil
@@ -212,7 +212,7 @@ func verifyBundle(app string) error {
 	for _, p := range required {
 		if !isRegular(p) {
 			return errs.Wrap(errs.CategoryUpstream, "selfupdate.install",
-				"更新包里的 Nagare.app 不完整，已中止更新", "请到项目发布页手动下载",
+				"更新包里的 tomoru.app 不完整，已中止更新", "请到项目发布页手动下载",
 				errors.New("缺少 "+filepath.Base(p)))
 		}
 	}

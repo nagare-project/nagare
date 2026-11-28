@@ -187,13 +187,13 @@ jobs:
       # GPL：macOS 包里的 libmpv、Windows 包里的 mpv，对应源码都要和二进制挂在同一个 Release 上。
       # 两个源码包在构建阶段就已放进 dist/mpv-sources/（缺了 fetch-mpv.sh / build-app.sh 当场失败，
       # 早于上传草稿）；这一步核对的是它们确实进了 checksums.txt（= 进了 Release），而且 macOS 那份
-      # 就是 Nagare.app 里那套 libmpv 的。
+      # 就是 tomoru.app 里那套 libmpv 的。
       # （.app.zip 的自更新解包往返与 arm64 启动检查在 goreleaser 的 hook 里跑：scripts/release/check-app-zip.sh。）
       - name: 校验 mpv 的对应源码都在
         if: always()
         run: |
           test -f dist/checksums.txt || { echo "没有 dist/checksums.txt，跳过"; exit 0; }
-          scripts/release/check-gpl-sources.sh dist/checksums.txt dist/Nagare.app
+          scripts/release/check-gpl-sources.sh dist/checksums.txt dist/tomoru.app
 
       # 打 tag 那次：goreleaser 之后的任何一步没过，删掉这次运行建的草稿 Release（tag 不动）。只认「同一个 tag、
       # 草稿、建于本 job 开始之后」的，不碰以前留下的草稿，也不碰已发布的 Release。
