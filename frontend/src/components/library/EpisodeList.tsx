@@ -6,11 +6,14 @@ import { inFlight } from '../../lib/busy'
 import { isBackdropEvent } from '../../lib/dialog'
 import { formatBytes, formatEpisode, progressPercent } from '../../lib/format'
 import type { LibraryVersion } from '../../lib/librarySeries'
+import { EpisodeArtwork } from '../media/EpisodeArtwork'
 import type { EpisodeMetadata, MediaSummary } from '../media/types'
 import { Icon } from '../ui/Icon'
 import { buildEpisodeList } from './episodeRows'
 import type { EpisodeRowData } from './episodeRows'
 import './episode-list.css'
+
+export type EpisodeViewMode = 'list' | 'grid'
 
 type Props = {
   /** 本地剧集（合并后的几个版本，或单个分组）；本地没有这部作品的文件时缺省 */
@@ -28,15 +31,17 @@ type Props = {
   unlinked?: boolean
   pending: boolean
   activeFileId?: string
+  /** 视图模式：默认列表态（双列左图右文），可切换为宽图网格态 */
+  view?: EpisodeViewMode
   onPlay: (item: LibraryItem) => void
 }
 
 /**
- * 作品页的集数列表：每集一行，本地状态叠在目录资料上（DESIGN.md「作品页」）——
- * 已看 ✓ / 看到一半的进度条 / 版本数 / 库里没有的集置灰。
- * 整行是一个按钮（点了就播），同一集的其他版本、浏览器内播放、本集资料是行下面各自的控件。
+ * 作品页的集数列表：统一为双列剧照卡（默认列表态左图右文，可切宽图网格），
+ * 本地状态叠在剧照与文案上（DESIGN.md「作品页」）：已看 ✓ / 看到一半的进度条 / 版本数 / 库里没有的集置灰。
+ * 采用铺满卡片的语义按钮（.ep-card-hit::after）与 z-index 分层，避免嵌套按钮。
  */
-export function EpisodeList({ cluster, versions, catalog, next, unlinked = false, pending, activeFileId, onPlay }: Props) {
+export function EpisodeList({ cluster, versions, catalog, next, unlinked = false, pending, activeFileId, view = 'list', onPlay }: Props) {
   const { sections, extras, hasPlayable } = buildEpisodeList(cluster, catalog)
   const dialog = useRef<HTMLDialogElement>(null)
   const downOnBackdrop = useRef(false)
@@ -48,16 +53,17 @@ export function EpisodeList({ cluster, versions, catalog, next, unlinked = false
     setDetails(meta)
     dialog.current?.showModal()
   }
-  const rowProps = { versions, next, unlinked, pending, activeFileId, onPlay, onDetails: showDetails }
+  const rowProps = { cluster, catalog, versions, next, unlinked, pending, activeFileId, onPlay, onDetails: showDetails }
   const many = sections.length > 1
+  const gridClass = view === 'grid' ? 'ep-grid' : 'ep-grid ep-grid--list'
 
   return (
     <div className="epl-list-wrap">
       {sections.map((section) => (
         <section key={section.key} className="epl-section" aria-label={many ? section.label : undefined}>
           {many && <h3 className="epl-section-title">{section.label}<span>{section.rows.length}</span></h3>}
-          <ul className="epl-list">
-            {section.rows.map((row) => <EpisodeRow key={rowKey(row)} row={row} {...rowProps} />)}
+          <ul className={gridClass}>
+            {section.rows.map((row) => <EpisodeCard key={rowKey(row)} row={row} {...rowProps} />)}
           </ul>
         </section>
       ))}
@@ -66,8 +72,17 @@ export function EpisodeList({ cluster, versions, catalog, next, unlinked = false
           {!hasPlayable && <p className="epl-note">这里只有附加内容（特典、片头片尾等），没有正片。</p>}
           <details className="epl-extras">
             <summary>{hasPlayable ? '附加内容' : '显示附加内容'}<span>{extras.length}</span></summary>
-            <ul className="epl-list">
-              {extras.map((item) => <EpisodeRow key={item.fileId} row={{ kind: 'local', item }} {...rowProps} extra />)}
+            <ul className="epl-extras-list">
+              {extras.map((item) => (
+                <ExtraRow
+                  key={item.fileId}
+                  item={item}
+                  versions={versions}
+                  pending={pending}
+                  activeFileId={activeFileId}
+                  onPlay={onPlay}
+                />
+              ))}
             </ul>
           </details>
         </>
@@ -101,8 +116,10 @@ export function EpisodeList({ cluster, versions, catalog, next, unlinked = false
 
 const rowKey = (row: EpisodeRowData) => (row.kind === 'local' ? row.item.fileId : `missing-${row.meta.episode}`)
 
-type RowProps = {
+type CardProps = {
   row: EpisodeRowData
+  cluster?: LibraryCluster
+  catalog?: MediaSummary
   versions?: Map<string, LibraryVersion[]>
   next?: LibraryItem
   unlinked: boolean
@@ -110,61 +127,90 @@ type RowProps = {
   activeFileId?: string
   onPlay: (item: LibraryItem) => void
   onDetails: (meta: EpisodeMetadata, opener: HTMLElement) => void
-  /** 附加内容：不叫「第 N 集」，标出类型 */
-  extra?: boolean
 }
 
-function EpisodeRow({ row, versions, next, unlinked, pending, activeFileId, onPlay, onDetails, extra = false }: RowProps) {
-  if (row.kind === 'missing') return <MissingRow meta={row.meta} unlinked={unlinked} onDetails={onDetails} />
+function EpisodeCard({ row, cluster, catalog, versions, next, unlinked, pending, activeFileId, onPlay, onDetails }: CardProps) {
+  if (row.kind === 'missing') {
+    return <MissingCard meta={row.meta} cluster={cluster} catalog={catalog} unlinked={unlinked} onDetails={onDetails} />
+  }
   const { item, meta } = row
   const others = versions?.get(item.fileId) ?? []
   const playing = activeFileId !== undefined && (item.fileId === activeFileId || others.some((alt) => alt.item.fileId === activeFileId))
   const progress = item.progress
   const watched = progress?.completed === true
   const percent = progress && !watched && progress.positionSec > 0 ? progressPercent(progress.positionSec, progress.durationSec) : null
-  const isNext = !extra && next?.fileId === item.fileId
-  const name = episodeName(item, extra)
-  const title = meta?.title || (item.episode === null || extra ? item.fileName : name)
-  // 没有目录标题时，行标题只是「第 N 集」：文件名另起一行，本地分组页上靠它认文件
-  const showFile = !meta?.title && item.episode !== null && !extra
-  const sub = [extra && item.kind ? item.kind.toUpperCase() : null, item.group, item.resolution, formatBytes(item.sizeBytes), others.length > 0 ? `${others.length + 1} 个版本` : null]
+  const isNext = next?.fileId === item.fileId && !playing
+  const name = episodeName(item, false)
+  const title = meta?.title || (item.episode === null ? item.fileName : name)
+  const desc = meta?.description || (title !== item.fileName ? item.fileName : undefined)
+  const durationMin = episodeDuration(meta, catalog, progress?.durationSec)
+  const spec = [item.group, item.resolution, formatBytes(item.sizeBytes), others.length > 0 ? `${others.length + 1} 版本` : null]
     .filter(Boolean).join(' · ')
   const state = playing ? '正在播放' : watched ? '已看完' : percent !== null ? `看到 ${percent}%` : isNext ? '接下来' : '未看'
-  const tone = playing || isNext ? 'info' : watched ? 'done' : 'plain'
-  const dotClass = watched ? 'epl-dot epl-dot--done' : percent !== null ? 'epl-dot epl-dot--progress' : 'epl-dot'
+
+  const cardClass = [
+    'ep-card',
+    isNext ? 'ep-card--next' : '',
+    percent !== null ? 'ep-card--progress' : '',
+    playing ? 'ep-card--selected' : '',
+  ].filter(Boolean).join(' ')
+
+  const hasActions = others.length > 0 || Boolean(item.stream) || Boolean(meta?.description)
 
   return (
-    <li className={isNext ? 'epl-item epl-item--next' : 'epl-item'} title={item.fileName}>
-      <button type="button" className="epl-item-main" {...inFlight(pending, () => onPlay(item))}>
-        {/* 名字从这里开始念：圆点与集号对读屏是装饰，集号已经在这句里了 */}
-        <span className="visually-hidden">播放{name}：</span>
-        <span className={dotClass} aria-hidden="true">
-          {watched && <Icon name="check" size={12} />}
+    <li className={cardClass} title={item.fileName}>
+      <span className="ep-still">
+        <EpisodeArtwork image={meta?.image} banner={catalog?.banner} cover={catalog?.cover ?? cluster?.cover} />
+        <span className="ep-still-play" aria-hidden="true">
+          <span className="ep-still-play-btn">
+            <Icon name="play" size={15} style={{ fill: 'currentColor', strokeWidth: 0 }} />
+          </span>
         </span>
-        <span className="epl-no" aria-hidden="true">{extra || item.episode === null ? '—' : formatEpisode(item.episode)}</span>
-        <span className="epl-text">
-          <span className="epl-title">{title}</span>
-          {showFile && <span className="epl-file">{item.fileName}</span>}
-          <span className="epl-sub">{sub}</span>
+        {playing ? (
+          <span className="ep-still-badge ep-still-badge--playing" aria-hidden="true">正在播放</span>
+        ) : watched ? (
+          <span className="ep-still-badge ep-still-badge--done" aria-hidden="true"><Icon name="check" size={11} />已看</span>
+        ) : percent !== null ? (
+          <span className="ep-still-badge ep-still-badge--progress" aria-hidden="true">看到 {percent}%</span>
+        ) : null}
+        {durationMin !== null && <span className="ep-still-dur" aria-hidden="true">{durationMin}m</span>}
+        {percent !== null && <span className="ep-still-progress" aria-hidden="true"><span style={{ width: `${percent}%` }} /></span>}
+      </span>
+      <div className="ep-copy">
+        <span className="ep-head-line">
+          <span className="ep-num" aria-hidden="true">{item.episode === null ? '—' : `EP ${formatEpisode(item.episode)}`}</span>
+          {playing ? (
+            <span className="ep-head-state ep-head-state--playing" aria-hidden="true">播放中</span>
+          ) : isNext ? (
+            <span className="ep-head-state ep-head-state--next" aria-hidden="true">接下来</span>
+          ) : null}
         </span>
-        <span className={`epl-state epl-state--${tone}`}>{state}</span>
-        {percent !== null && <span className="epl-bar" aria-hidden="true"><span style={{ width: `${percent}%` }} /></span>}
-      </button>
-      {(others.length > 0 || item.stream || meta?.description) && (
-        <div className="epl-item-extra">
-          {others.length > 0 && (
-            <div className="epl-versions" role="group" aria-label={`${name}的其他版本`}>
-              <span aria-hidden="true">其他版本</span>
-              {others.map((alt) => (
-                <button type="button" key={alt.item.fileId} className="link" title={alt.item.fileName} {...inFlight(pending, () => onPlay(alt.item))}>
-                  <span className="visually-hidden">播放{name}的其他版本：</span>{alt.label}
-                  {alt.item.progress?.completed && <><span aria-hidden="true"> ✓</span><span className="visually-hidden">（已看完）</span></>}
-                </button>
-              ))}
-            </div>
+        <button type="button" className="ep-card-hit" {...inFlight(pending, () => onPlay(item))}>
+          <span className="visually-hidden">播放{name}：</span>
+          <span className="ep-title">{title}</span>
+          <span className="visually-hidden">（{state}）</span>
+        </button>
+        {desc && <span className="ep-desc">{desc}</span>}
+      </div>
+      {(spec || hasActions) && (
+        <div className="ep-local-foot">
+          {spec && <span className="ep-local-spec">{spec}</span>}
+          {hasActions && (
+            <span className="ep-local-actions">
+              {others.length > 0 && (
+                <span className="epl-versions" role="group" aria-label={`${name}的其他版本`}>
+                  {others.map((alt) => (
+                    <button type="button" key={alt.item.fileId} className="link ep-foot-link" title={alt.item.fileName} {...inFlight(pending, () => onPlay(alt.item))}>
+                      <span className="visually-hidden">播放{name}的其他版本：</span>{alt.label}
+                      {alt.item.progress?.completed && <><span aria-hidden="true"> ✓</span><span className="visually-hidden">（已看完）</span></>}
+                    </button>
+                  ))}
+                </span>
+              )}
+              {item.stream && <WatchLink fileId={item.fileId} label={name} />}
+              {meta?.description && <DetailsButton meta={meta} onDetails={onDetails} />}
+            </span>
           )}
-          {item.stream && <WatchLink fileId={item.fileId} label={name} />}
-          {meta?.description && <DetailsButton meta={meta} onDetails={onDetails} />}
         </div>
       )}
     </li>
@@ -172,27 +218,87 @@ function EpisodeRow({ row, versions, next, unlinked, pending, activeFileId, onPl
 }
 
 /** 目录里已经播出、媒体库里没有文件的一集：置灰，不能点。还没关联本地作品时说不准有没有，不标「库里没有」 */
-function MissingRow({ meta, unlinked, onDetails }: { meta: EpisodeMetadata; unlinked: boolean; onDetails: (meta: EpisodeMetadata, opener: HTMLElement) => void }) {
+function MissingCard({ meta, cluster, catalog, unlinked, onDetails }: {
+  meta: EpisodeMetadata
+  cluster?: LibraryCluster
+  catalog?: MediaSummary
+  unlinked: boolean
+  onDetails: (meta: EpisodeMetadata, opener: HTMLElement) => void
+}) {
+  const durationMin = episodeDuration(meta, catalog)
   return (
-    <li className="epl-item epl-item--missing">
-      <div className="epl-item-main">
-        <span className="epl-dot epl-dot--missing" aria-hidden="true" />
-        <span className="epl-no">{formatEpisode(meta.episode)}</span>
-        <span className="epl-text">
-          <span className="epl-title">{meta.title || `第 ${meta.episode} 集`}</span>
-          {meta.airDate && <span className="epl-sub"><time dateTime={meta.airDate}>播出于 {meta.airDate.replaceAll('-', '/')}</time></span>}
+    <li className="ep-card ep-card--missing">
+      <span className="ep-still">
+        <EpisodeArtwork image={meta.image} banner={catalog?.banner} cover={catalog?.cover ?? cluster?.cover} />
+        {!unlinked && <span className="ep-still-badge ep-still-badge--missing">库里没有</span>}
+        {durationMin !== null && <span className="ep-still-dur" aria-hidden="true">{durationMin}m</span>}
+      </span>
+      <div className="ep-copy">
+        <span className="ep-head-line">
+          <span className="ep-num">EP {formatEpisode(meta.episode)}</span>
         </span>
-        {!unlinked && <span className="epl-state epl-state--plain">库里没有</span>}
+        <span className="ep-title">{meta.title || `第 ${meta.episode} 集`}</span>
+        {meta.description && <span className="ep-desc">{meta.description}</span>}
       </div>
-      {meta.description && <div className="epl-item-extra"><DetailsButton meta={meta} onDetails={onDetails} /></div>}
+      {(meta.airDate || meta.description) && (
+        <div className="ep-local-foot">
+          {meta.airDate && <span className="ep-local-spec"><time dateTime={meta.airDate}>播出于 {meta.airDate.replaceAll('-', '/')}</time></span>}
+          {meta.description && (
+            <span className="ep-local-actions">
+              <DetailsButton meta={meta} onDetails={onDetails} />
+            </span>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** 附加内容（特典、片头片尾、菜单等）：收在折叠区里的紧凑双列行 */
+function ExtraRow({ item, versions, pending, activeFileId, onPlay }: {
+  item: LibraryItem
+  versions?: Map<string, LibraryVersion[]>
+  pending: boolean
+  activeFileId?: string
+  onPlay: (item: LibraryItem) => void
+}) {
+  const others = versions?.get(item.fileId) ?? []
+  const playing = activeFileId !== undefined && (item.fileId === activeFileId || others.some((alt) => alt.item.fileId === activeFileId))
+  const watched = item.progress?.completed === true
+  const name = episodeName(item, true)
+  const meta = [playing ? '正在播放' : watched ? '已看完' : null, item.resolution, formatBytes(item.sizeBytes)]
+    .filter(Boolean).join(' · ')
+  return (
+    <li className={playing ? 'epl-extra-item epl-extra-item--selected' : 'epl-extra-item'} title={item.fileName}>
+      <button type="button" className="epl-extra-row" {...inFlight(pending, () => onPlay(item))}>
+        <span className="visually-hidden">播放{name}：</span>
+        {item.kind && <span className="badge">{item.kind.toUpperCase()}</span>}
+        <span className="epl-extra-name">{item.fileName}</span>
+        {meta && <small>{meta}</small>}
+      </button>
+      {(others.length > 0 || item.stream) && (
+        <div className="epl-extra-actions">
+          {others.length > 0 && (
+            <span className="epl-versions" role="group" aria-label={`${name}的其他版本`}>
+              {others.map((alt) => (
+                <button type="button" key={alt.item.fileId} className="link ep-foot-link" title={alt.item.fileName} {...inFlight(pending, () => onPlay(alt.item))}>
+                  <span className="visually-hidden">播放{name}的其他版本：</span>{alt.label}
+                  {alt.item.progress?.completed && <><span aria-hidden="true"> ✓</span><span className="visually-hidden">（已看完）</span></>}
+                </button>
+              ))}
+            </span>
+          )}
+          {item.stream && <WatchLink fileId={item.fileId} label={name} />}
+        </div>
+      )}
     </li>
   )
 }
 
 function DetailsButton({ meta, onDetails }: { meta: EpisodeMetadata; onDetails: (meta: EpisodeMetadata, opener: HTMLElement) => void }) {
   return (
-    <button type="button" className="link epl-extra-link" onClick={(event) => onDetails(meta, event.currentTarget)}>
-      <Icon name="info" size={14} />本集资料<span className="visually-hidden">：第 {meta.episode} 集</span>
+    <button type="button" className="link ep-foot-link" onClick={(event) => onDetails(meta, event.currentTarget)}>
+      <Icon name="info" size={13} />本集资料<span className="visually-hidden">：第 {meta.episode} 集</span>
     </button>
   )
 }
@@ -207,10 +313,17 @@ function WatchLink({ fileId, label }: { fileId: string; label: string }) {
     void router.navigate({ to: '/watch/$fileId', params: { fileId } })
   }
   return (
-    <a className="link epl-extra-link" href={href} onClick={navigate}>
-      <Icon name="monitor" size={14} />在浏览器里播放<span className="visually-hidden">：{label}</span>
+    <a className="link ep-foot-link" href={href} title="在浏览器里播放" onClick={navigate}>
+      <Icon name="monitor" size={13} /><span className="visually-hidden">在</span>浏览器<span className="visually-hidden">里播放：{label}</span>
     </a>
   )
+}
+
+function episodeDuration(meta?: EpisodeMetadata, catalog?: MediaSummary, durationSec?: number): number | null {
+  if (meta?.duration && meta.duration > 0) return Math.round(meta.duration)
+  if (durationSec && durationSec > 0) return Math.max(1, Math.round(durationSec / 60))
+  if (catalog?.duration && catalog.duration > 0) return Math.round(catalog.duration)
+  return null
 }
 
 function episodeName(item: LibraryItem, extra: boolean): string {

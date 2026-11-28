@@ -1,12 +1,26 @@
 /* ============================================================
-   作品页（/entry 与 /anime/$clusterKey 共用）：页面骨架 · hero · 动作行三档按钮 · 区块标题。
-   对齐网站 DetailHero 几何比例与底图渐变，海报色由页面根元素的行内样式给（lib/posterTones.ts），
-   这里只用 var(--poster-tone*)，不从色相组装。
+   作品页（/entry 与 /anime/$clusterKey 共用）：1280px 编辑栅格 · 影院级 hero · 动作行三档按钮 · 区块标题。
+   海报色由页面根元素的行内样式给（lib/posterTones.ts），这里只用 var(--poster-tone*)，不从色相组装。
    WebKit 优化：hero 容器启用 contain、动作按钮去掉重度 backdrop-filter 避免滚动合成卡顿。
    ============================================================ */
 
-.work-page { position: relative; isolation: isolate; display: flex; flex-direction: column; width: 100%; padding-bottom: var(--sp-xxxl); }
-.work-body { display: flex; flex-direction: column; gap: var(--sp-xl); width: 100%; max-width: calc(var(--content-max) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
+.work-page {
+  --work-gutter: max(clamp(24px, 5.56vw, 80px), calc((100% - 1280px) / 2));
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding-bottom: 88px;
+}
+
+.work-body {
+  display: flex;
+  flex-direction: column;
+  gap: 52px;
+  width: 100%;
+  padding: 12px var(--work-gutter) 0;
+}
 
 /* ---------- hero ---------- */
 
@@ -14,70 +28,211 @@
   position: relative;
   display: flex;
   align-items: flex-end;
-  min-height: clamp(360px, 42vw, 520px);
-  padding: var(--sp-xl) 0 clamp(28px, 4vh, 44px);
+  min-height: clamp(420px, 44vw, 540px);
+  margin-top: calc(-1 * var(--app-nav-h));
+  padding: calc(var(--app-nav-h) + 40px) 0 44px;
+  overflow: hidden;
   contain: layout style;
 }
-.work-hero--no-poster { min-height: 0; }
-
-/* 背景照片向上铺到顶栏底下（顶栏在页面顶部是透明的） */
-.work-hero-bg { position: absolute; z-index: -1; inset: calc(-1 * var(--app-nav-h)) 0 0; overflow: hidden; pointer-events: none; background: var(--bg); }
-/* 38% 纵轴对齐：番剧主视觉人物面部大多在上三分之一，居中裁剪容易切头 */
-.work-hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: center 38%; opacity: 0.68; }
-.work-hero-bg--cover img { filter: blur(20px); opacity: 0.42; transform: scale(1.08); }
-.work-hero-bg::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: var(--poster-tone);
-  mix-blend-mode: soft-light;
-  opacity: 0.06;
-  pointer-events: none;
+.work-hero--no-poster {
+  min-height: 0;
+  margin-top: 0;
+  padding: var(--sp-xl) 0 var(--sp-lg);
 }
-.work-hero-bg::after {
-  content: '';
+
+/* 分层背景：封面氛围光（只留在 hero 内部）+ 右偏双遮罩横幅 + 顶部护顶栏 / 左侧护读暗纱 */
+.work-hero-bg {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+.work-hero-glow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 98%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 98%);
+}
+.work-hero-glow img {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  object-fit: cover;
+  filter: blur(64px) saturate(1.25);
+  opacity: 0.3;
+  transform: scale(1.08);
+}
+
+.work-hero-banner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 78%;
+  height: 100%;
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.35) 18%, #000 52%),
+    linear-gradient(180deg, #000 48%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.35) 18%, #000 52%),
+    linear-gradient(180deg, #000 48%, transparent 100%);
+  mask-composite: intersect;
+}
+/* 34% 纵轴对齐：番剧主视觉人物面部大多在上三分之一，居中裁剪容易切头 */
+.work-hero-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 34%;
+  opacity: 0.78;
+}
+.work-hero-banner--cover img {
+  filter: blur(20px);
+  opacity: 0.45;
+  transform: scale(1.08);
+}
+
+.work-hero-shade-top {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 148px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0) 100%);
+}
+.work-hero-shade-left {
+  position: absolute;
+  inset: 0;
   background:
-    linear-gradient(to top, var(--bg) 2%, rgba(0, 0, 0, 0.56) 36%, transparent 68%),
-    linear-gradient(102deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.34) 36%, transparent 60%);
+    linear-gradient(to top, var(--bg) 0%, rgba(0, 0, 0, 0.52) 32%, transparent 66%),
+    linear-gradient(100deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.45) 42%, transparent 68%);
 }
 
 .work-hero-inner {
   display: grid;
-  grid-template-columns: clamp(132px, 15.5vw, 216px) minmax(0, 1fr);
+  grid-template-columns: clamp(148px, 16vw, 212px) minmax(0, 1fr);
   grid-template-rows: 1fr auto;
   grid-template-areas: 'poster text' 'poster actions';
   align-items: end;
-  gap: var(--sp-md) clamp(18px, 3vw, 32px);
+  gap: 22px clamp(24px, 3.2vw, 40px);
   width: 100%;
-  max-width: calc(var(--content-max) + 2 * var(--gutter));
-  margin: 0 auto;
-  padding: 0 var(--gutter);
+  padding: 0 var(--work-gutter);
 }
-.work-hero--no-poster .work-hero-inner { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'text' 'actions'; }
+.work-hero--no-poster .work-hero-inner {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'text' 'actions';
+}
 
-.work-hero-poster { position: relative; grid-area: poster; align-self: end; aspect-ratio: 7 / 10; overflow: hidden; border-radius: 10px; background: var(--bg-card); box-shadow: 0 24px 56px -20px rgba(0, 0, 0, 0.92); }
-.work-hero-poster--toned { box-shadow: 0 24px 56px -20px rgba(0, 0, 0, 0.92), 0 0 64px -32px var(--poster-tone); }
-.work-hero-poster::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); pointer-events: none; }
+.work-hero-poster {
+  position: relative;
+  grid-area: poster;
+  align-self: end;
+  aspect-ratio: 7 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: 0 28px 60px -18px rgba(0, 0, 0, 0.94);
+}
+.work-hero-poster--toned {
+  box-shadow: 0 28px 60px -18px rgba(0, 0, 0, 0.94), 0 0 72px -34px var(--poster-tone);
+}
+.work-hero-poster::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  pointer-events: none;
+}
 .work-hero-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .work-hero-blank { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-tertiary); font-size: 44px; background: var(--bg-card); }
 
 /* hero 文字带软阴影，保证任意亮色背景上的可读性 */
-.work-hero-text { grid-area: text; display: flex; flex-direction: column; gap: var(--sp-sm); min-width: 0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 3px 24px rgba(0, 0, 0, 0.72); }
-.work-hero-back { display: inline-flex; align-items: center; gap: var(--sp-xs); align-self: flex-start; min-height: 24px; color: var(--text-secondary); font-size: var(--type-label-size); text-decoration: none; border-radius: var(--radius-sm); }
+.work-hero-text {
+  grid-area: text;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 4px 28px rgba(0, 0, 0, 0.78);
+}
+.work-hero-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  align-self: flex-start;
+  min-height: 24px;
+  color: var(--text-secondary);
+  font-size: var(--type-label-size);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
 .work-hero-back:hover { color: var(--text); }
-.work-hero-romaji { color: var(--poster-tone-quiet); font-family: var(--type-romaji-family); font-size: var(--type-romaji-size); font-weight: var(--type-romaji-weight); letter-spacing: var(--type-romaji-tracking); text-transform: uppercase; overflow-wrap: anywhere; }
-.work-hero-title { flex: none; max-width: 22em; font-size: clamp(26px, 4.2vw, 52px); font-weight: 750; letter-spacing: -0.018em; line-height: 1.12; overflow-wrap: anywhere; text-wrap: pretty; }
-.work-hero-native { color: rgba(235, 235, 245, 0.84); font-family: var(--font-jp); font-size: 14.5px; overflow-wrap: anywhere; }
-.work-hero-meta { color: rgba(235, 235, 245, 0.78); font-size: 13.5px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+.work-hero-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.work-hero-romaji {
+  color: var(--poster-tone-quiet);
+  font-family: var(--type-romaji-family);
+  font-size: var(--type-romaji-size);
+  font-weight: var(--type-romaji-weight);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.work-hero-title {
+  flex: none;
+  max-width: 18em;
+  font-size: clamp(28px, 4vw, 50px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.work-hero-native {
+  color: rgba(235, 235, 245, 0.76);
+  font-family: var(--font-jp);
+  font-size: 15px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.work-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 4px;
+  color: rgba(235, 235, 245, 0.78);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.work-hero-meta-sep {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(235, 235, 245, 0.38);
+}
 .work-hero-text .work-freshness { align-self: flex-start; text-shadow: none; }
 
 /* ---------- 动作行：三档权重，一页只有一个实心 ---------- */
 
-.work-hero-actions { grid-area: actions; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-sm); }
+.work-hero-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
 .hero-btn {
   display: inline-flex;
   flex: none;
@@ -85,7 +240,7 @@
   justify-content: center;
   gap: var(--sp-sm);
   min-height: var(--touch-min);
-  padding: 0 18px;
+  padding: 0 20px;
   border: 1px solid transparent;
   border-radius: 10px;
   color: var(--text);
@@ -96,22 +251,75 @@
   text-shadow: none;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--dur-short) var(--ease-standard), border-color var(--dur-short) var(--ease-standard), filter var(--dur-short) var(--ease-standard);
+  transition: background-color var(--dur-short) var(--ease-standard), border-color var(--dur-short) var(--ease-standard), filter var(--dur-short) var(--ease-standard), transform var(--dur-short) var(--ease-standard);
 }
+.hero-btn:active:not(:disabled, [aria-disabled='true']) { transform: translateY(1px); }
 .hero-btn:is(:disabled, [aria-disabled='true']) { opacity: 0.35; cursor: default; }
-.hero-btn--solid { background: var(--poster-tone); color: var(--poster-on-tone); font-weight: 650; }
-.hero-btn--solid:hover:not(:disabled, [aria-disabled='true']) { filter: brightness(1.08); }
-.hero-btn--heavy { border-color: var(--glass-heavy-border); background: rgba(255, 255, 255, 0.14); font-weight: 660; }
-.hero-btn--light { border-color: var(--glass-light-border); background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.92); }
-.hero-btn--heavy:hover:not(:disabled, [aria-disabled='true']), .hero-btn--light:hover:not(:disabled, [aria-disabled='true']) { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.3); }
+.hero-btn--solid {
+  padding: 0 22px;
+  background: var(--poster-tone);
+  color: var(--poster-on-tone);
+  font-weight: 650;
+}
+.hero-btn--solid:hover:not(:disabled, [aria-disabled='true']) { filter: brightness(1.07); }
+.hero-btn--heavy {
+  border-color: var(--glass-heavy-border);
+  background: rgba(255, 255, 255, 0.13);
+  font-weight: 650;
+}
+.hero-btn--light {
+  border-color: var(--glass-light-border);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.92);
+}
+.hero-btn--heavy:hover:not(:disabled, [aria-disabled='true']),
+.hero-btn--light:hover:not(:disabled, [aria-disabled='true']) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
 
 /* ---------- 区块 ---------- */
 
-.work-section { display: flex; flex-direction: column; gap: var(--sp-md); min-width: 0; contain: layout style; }
-.work-section-title { display: flex; align-items: center; gap: var(--sp-sm); font-size: clamp(20px, 2.5vw, var(--type-h2-size)); font-weight: var(--type-h2-weight); letter-spacing: var(--type-h2-tracking); }
-.work-section-title::before { content: ''; flex: none; width: 4px; height: 0.9em; border-radius: 2px; background: var(--poster-tone); }
-.work-section-title > small { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-caption-size); font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: 0; }
-.work-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-sm) var(--sp-md); }
+.work-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  contain: layout style;
+}
+.work-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+.work-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(19px, 2.2vw, 22px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.work-section-title::before {
+  content: '';
+  flex: none;
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--poster-tone);
+}
+.work-section-title > small,
+.work-section-count {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
 
 .work-page :is(p, .media-play-empty) a.link { text-decoration: underline; text-underline-offset: 0.2em; }
 
@@ -129,20 +337,26 @@
 @keyframes work-pulse { to { opacity: 0.5; } }
 
 @media (max-width: 900px) {
-  .work-hero { min-height: 320px; }
-  .work-hero-inner { grid-template-columns: 160px minmax(0, 1fr); gap: var(--sp-md) var(--sp-lg); }
+  .work-hero { min-height: 360px; }
+  .work-hero--no-poster { min-height: 0; }
+  .work-hero-inner { grid-template-columns: 152px minmax(0, 1fr); gap: 18px 24px; }
+  .work-hero--no-poster .work-hero-inner { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 600px) {
-  .work-hero { min-height: 280px; padding: var(--sp-lg) 0 20px; }
-  .work-hero-inner { grid-template-columns: 108px minmax(0, 1fr); grid-template-areas: 'poster text' 'actions actions'; gap: var(--sp-md); padding: 0 var(--sp-md); }
+  .work-page { --work-gutter: 16px; }
+  .work-hero { min-height: 320px; padding: calc(var(--app-nav-h) + 20px) 0 24px; }
+  .work-hero--no-poster { min-height: 0; margin-top: 0; padding: var(--sp-lg) 0 var(--sp-md); }
+  .work-hero-banner { width: 100%; }
+  .work-hero-inner { grid-template-columns: 104px minmax(0, 1fr); grid-template-areas: 'poster text' 'actions actions'; gap: var(--sp-md); }
   .work-hero--no-poster .work-hero-inner { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'text' 'actions'; }
-  .work-hero-title { font-size: 25px; line-height: 1.18; }
-  .work-body { padding: 0 var(--sp-md); }
+  .work-hero-title { font-size: 25px; line-height: 1.16; }
+  .work-body { gap: 40px; }
   .hero-btn { flex: 1 1 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-btn { transition: none; }
+  .hero-btn:active:not(:disabled, [aria-disabled='true']) { transform: none; }
   .work-skeleton-block, .work-skeleton-line { animation: none; }
 }

@@ -63,6 +63,45 @@ describe('目录作品页', () => {
     await unmount()
   })
 
+  it('hero：分层背景、眉行放送中胶囊、紧凑元信息行（评分芯片 + 制作公司）', async () => {
+    const airingAt = Math.floor(Date.now() / 1000) + 3 * 86400
+    shared.detail = {
+      cover: '/art/cover.jpg',
+      banner: '/art/banner.jpg',
+      titleNative: '作品原名',
+      score: 91,
+      year: 2026,
+      season: 'FALL',
+      duration: 24,
+      studios: ['Madhouse', 'Secondary Studio'],
+      status: 'RELEASING',
+      watched: 4,
+      nextAiring: { episode: 9, at: airingAt },
+    }
+    const { container, unmount } = await mount(<EntryPage />)
+    expect(container.querySelector('.work-hero-glow img')?.getAttribute('src')).toBe('/art/cover.jpg')
+    const banner = container.querySelector('.work-hero-banner')
+    expect(banner?.className).toBe('work-hero-banner')
+    expect(banner?.querySelector('img')?.getAttribute('src')).toBe('/art/banner.jpg')
+    const eyebrow = container.querySelector('.work-hero-eyebrow')
+    expect(eyebrow?.textContent).toContain('Sakuhin 169580')
+    expect(eyebrow?.querySelector('.entry-airing')?.textContent).toContain('放送中 · 第 9 集')
+    expect(eyebrow?.querySelector('time')?.getAttribute('datetime')).toBeTruthy()
+    const meta = container.querySelector('.work-hero-meta')
+    expect(meta?.querySelector('.entry-score')?.textContent).toContain('9.1')
+    expect(meta?.textContent).toContain('Madhouse')
+    expect(meta?.textContent).toContain('看到第 4 集')
+    // 眉行已经标了「放送中」，元信息行不重复显示
+    expect(meta?.textContent).not.toContain('放送中')
+    await unmount()
+
+    // 没有横幅时用封面作模糊回落背景
+    shared.detail = { cover: '/art/cover.jpg' }
+    const fallback = await mount(<EntryPage />)
+    expect(fallback.container.querySelector('.work-hero-banner--cover img')?.getAttribute('src')).toBe('/art/cover.jpg')
+    await fallback.unmount()
+  })
+
   it('海报色写在页面根元素上；没有色阶时不写，继承中性值', async () => {
     shared.tones = TONES
     const toned = await mount(<EntryPage />)

@@ -25,10 +25,10 @@ import { inFlight } from '../lib/busy'
 import type { LibraryCluster } from '../lib/endpoints'
 import { clusterWork } from '../lib/librarySeries'
 import { posterToneStyle } from '../lib/posterTones'
-import { EntryInfo, EntryRelations } from './entry/EntryInfo'
 import '../components/media/media-preview.css'
 import './entry.css'
 import './entry/entry-page.css'
+import { EntryInfo, EntryRelations } from './entry/EntryInfo'
 
 const SEASONS: Record<string, string> = { WINTER: '冬', SPRING: '春', SUMMER: '夏', FALL: '秋' }
 const STATUS: Record<string, string> = { RELEASING: '放送中', NOT_YET_RELEASED: '尚未播出', FINISHED: '已完结', CANCELLED: '已取消', HIATUS: '暂停放送' }
@@ -79,14 +79,31 @@ function EntryContent({ media }: { media: MediaSummary }) {
     return () => { document.title = previous }
   }, [media.id, media.title])
 
+  const primaryStudio = media.studios?.find((studio) => studio.trim() !== '')
   const meta = [
     FORMAT_LABELS[media.format ?? ''] || media.format,
     media.year ? `${media.year}${media.season ? ` ${SEASONS[media.season] ?? ''}` : ''}` : null,
     media.episodes ? `${media.episodes} 集` : null,
     media.duration ? `${media.duration} 分钟/集` : null,
-    media.status ? STATUS[media.status] ?? media.status : null,
+    primaryStudio ?? null,
+    media.status && !(nextAiring && media.status === 'RELEASING') ? STATUS[media.status] ?? media.status : null,
     watched > 0 ? `看到第 ${watched} 集` : null,
   ]
+
+  const airingPill = nextAiring ? (
+    <span className="entry-airing">
+      <span className="entry-airing-dot" aria-hidden="true" />
+      {media.status === 'RELEASING' ? '放送中 · ' : ''}第 {nextAiring.episode} 集 {airingDistance(nextAiring.at)}播出（<time dateTime={new Date(nextAiring.at * 1000).toISOString()}>{new Date(nextAiring.at * 1000).toLocaleDateString('zh-CN', { weekday: 'long' })}</time>）
+    </span>
+  ) : null
+
+  const scoreChip = media.score ? (
+    <span className="entry-score">
+      <Icon name="star" size={14} style={{ fill: 'currentColor', stroke: 'none' }} />
+      <span className="visually-hidden">评分 </span>
+      <strong>{(media.score / 10).toFixed(1)}</strong>
+    </span>
+  ) : null
 
   return (
     <main className="work-page entry-page" style={tones}>
@@ -97,7 +114,9 @@ function EntryContent({ media }: { media: MediaSummary }) {
         toned={tones !== undefined}
         title={media.title}
         romaji={media.titleRomaji}
+        eyebrow={airingPill}
         native={media.titleNative}
+        metaPrefix={scoreChip}
         meta={meta}
         actions={
           <>
@@ -113,14 +132,8 @@ function EntryContent({ media }: { media: MediaSummary }) {
           </>
         }
       >
-        {!!media.score && <p className="entry-score">评分 <strong>{(media.score / 10).toFixed(1)}</strong></p>}
         {/* 离线 / 过期时说清作品资料是什么时候的（与发现页同一条细条） */}
         <FreshnessNote freshness={media.freshness} className="work-freshness" />
-        {nextAiring && (
-          <p className="entry-airing">
-            第 {nextAiring.episode} 集 {airingDistance(nextAiring.at)}播出 · <time dateTime={new Date(nextAiring.at * 1000).toISOString()}>{new Date(nextAiring.at * 1000).toLocaleDateString('zh-CN', { weekday: 'long' })}</time>
-          </p>
-        )}
       </WorkHero>
       <div className="work-body">
         <LoginHint />

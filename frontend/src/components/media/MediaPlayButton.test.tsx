@@ -414,6 +414,30 @@ describe('Discover 播放入口', () => {
     await unmount()
   })
 
+  it('内嵌工具栏展示已看/入库统计并支持列表与网格视图切换，切换不触发播放', async () => {
+    const other = otherVersion(associated, 'bd-cluster', 'BD')
+    vi.mocked(fetchLibrary).mockResolvedValue(withClusters(associated, other))
+    const { container, unmount } = await mount(<MediaPlayButton media={media} inline />)
+    expect(container.querySelector('.episode-toolbar-pill')?.textContent).toContain('2 个版本')
+    expect(container.querySelector('.episode-toolbar-stat')?.textContent).toBe('已看 1 · 已入库 3 / 12')
+    const listBtn = getByRole(container, 'button', { name: '列表视图' })
+    const gridBtn = getByRole(container, 'button', { name: '网格视图' })
+    expect(listBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(gridBtn.getAttribute('aria-pressed')).toBe('false')
+    expect(container.querySelector('.ep-grid--list')).not.toBeNull()
+
+    await click(gridBtn)
+    expect(listBtn.getAttribute('aria-pressed')).toBe('false')
+    expect(gridBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('.ep-grid--list')).toBeNull()
+
+    await click(listBtn)
+    expect(listBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('.ep-grid--list')).not.toBeNull()
+    expect(playFile).not.toHaveBeenCalled()
+    await unmount()
+  })
+
   it('自动续播跳过片头和花絮，并在无进度时按实际集号播放', () => {
     expect(nextLibraryEpisode(cluster)?.fileId).toBe('ep2')
     const fresh = { ...cluster, groups: cluster.groups.map(group => ({ ...group, items: group.items.map(item => ({ ...item, progress: null })) })) }

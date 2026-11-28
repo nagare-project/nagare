@@ -70,15 +70,26 @@ afterEach(() => {
 })
 
 describe('目录作品的本地插件找源', () => {
-  it('详情页只展示已播出剧集，切换列表和网格不会自动找源', async () => {
-    const dated = { ...media, episodeTitles: [
-      { episode: 1, title: '已播出', airedAt: '2020-01-01T00:00:00Z', image: '/one.jpg' },
+  it('详情页只展示已播出剧集，统一工具栏切换列表和网格不会自动找源且无嵌套按钮', async () => {
+    const dated = { ...media, duration: 24, episodeTitles: [
+      { episode: 1, title: '已播出', airedAt: '2020-01-01T00:00:00Z', image: '/one.jpg', description: '第一集简介' },
       { episode: 2, title: '未来集', airedAt: '2099-01-01T00:00:00Z' },
     ] }
     const { container, unmount } = await mount(<SourcePlaybackProvider><MediaSourceButton media={dated} inline /></SourcePlaybackProvider>)
-    expect(container.querySelectorAll('.media-episode-button')).toHaveLength(1)
+    expect(container.querySelectorAll('.ep-card--online')).toHaveLength(1)
     expect(container.querySelector('.media-episode-grid--list')).not.toBeNull()
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="切换网格视图"]')!.click())
+    expect(container.querySelector('.episode-toolbar-stat')?.textContent).toBe('已播出 1 集')
+    expect(container.querySelector('a[href="/settings#sources"]')?.textContent).toContain('来源设置')
+    expect(container.querySelector('.ep-still-dur')?.textContent).toBe('24m')
+    expect(container.querySelector('button button')).toBeNull()
+
+    const listBtn = container.querySelector<HTMLButtonElement>('[aria-label="列表视图"]')!
+    const gridBtn = container.querySelector<HTMLButtonElement>('[aria-label="网格视图"]')!
+    expect(listBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(gridBtn.getAttribute('aria-pressed')).toBe('false')
+    await act(async () => gridBtn.click())
+    expect(listBtn.getAttribute('aria-pressed')).toBe('false')
+    expect(gridBtn.getAttribute('aria-pressed')).toBe('true')
     expect(container.querySelector('.media-episode-grid--list')).toBeNull()
     expect(container.querySelector('.media-source-still img')?.getAttribute('src')).toBe('/one.jpg')
     expect(streamSourceCandidates).not.toHaveBeenCalled()
